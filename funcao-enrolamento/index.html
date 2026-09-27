@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Função de Enrolamento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --ink: #17202b;
+    --muted: #5b6776;
+    --line: #d6dde6;
+    --grid: #e6ebf1;
+    --grid-strong: #d2d9e2;
+    --axis: #36414d;
+    --btn: #eef2f6;
+    --btn-hover: #e1e7ee;
+    --cos: #1565c0;
+    --sin: #d32f2f;
+    --tan: #2e7d32;
+    --arc: #ef6c00;
+    --pi: #7b3fb0;
+    --focus: #1565c0;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1419;
+      --panel: #171e26;
+      --ink: #e6ebf1;
+      --muted: #9aa6b4;
+      --line: #2a3440;
+      --grid: #1d252e;
+      --grid-strong: #2a3440;
+      --axis: #aab4c0;
+      --btn: #202a35;
+      --btn-hover: #2a3642;
+      --cos: #64a8ff;
+      --sin: #ff6b6b;
+      --tan: #5cc26a;
+      --arc: #ffa040;
+      --pi: #c79bff;
+      --focus: #64a8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1419;
+    --panel: #171e26;
+    --ink: #e6ebf1;
+    --muted: #9aa6b4;
+    --line: #2a3440;
+    --grid: #1d252e;
+    --grid-strong: #2a3440;
+    --axis: #aab4c0;
+    --btn: #202a35;
+    --btn-hover: #2a3642;
+    --cos: #64a8ff;
+    --sin: #ff6b6b;
+    --tan: #5cc26a;
+    --arc: #ffa040;
+    --pi: #c79bff;
+    --focus: #64a8ff;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.4;
+    padding-inline: 16px;
+    padding-block: 16px 24px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
+  .formula .nw { white-space: nowrap; }
+  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .plot-card { padding: 8px; }
+  #plot { width: 100%; min-width: 0; line-height: 0; overflow: hidden; }
+  #plot canvas { display: block; max-width: 100%; touch-action: none; border-radius: 4px; }
+  .hint { color: var(--muted); font-size: 0.85rem; padding: 6px 4px 0; }
+
+  /* os cartões reorganizam-se sozinhos: 3, 2 ou 1 coluna conforme a largura disponível */
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: start; }
+  .panels .card { padding: 12px; display: grid; gap: 10px; align-content: start; }
+  h2 { font-size: 0.95rem; letter-spacing: 0.01em; color: var(--muted); margin: 0; font-weight: 700; }
+
+  .param { display: grid; grid-template-columns: 1fr 6.5rem; align-items: center; gap: 10px; }
+  .param input[type="range"] { width: 100%; accent-color: var(--arc); margin: 0; }
+  .num {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .num.bad { border-color: var(--sin); }
+
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lbl { color: var(--muted); font-size: 0.9rem; }
+  button.b {
+    font: inherit; font-size: 0.9rem; font-weight: 700;
+    padding: 5px 11px; border-radius: 6px; cursor: pointer;
+    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  button.b:hover { background: var(--btn-hover); }
+  button.b[aria-pressed="true"] { background: var(--arc); border-color: var(--arc); color: var(--panel); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
+    background: var(--btn); color: var(--ink);
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.95rem; }
+  .chk input { width: 17px; height: 17px; margin: 0; accent-color: var(--c, var(--axis)); cursor: pointer; }
+  .chk span { color: var(--c, var(--ink)); font-weight: 700; }
+  .chk.plain span { font-weight: 400; color: var(--ink); }
+
+  .readouts dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 0.95rem; }
+  .readouts dt { color: var(--muted); }
+  .readouts dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .readouts .c { color: var(--cos); } .readouts .s { color: var(--sin); } .readouts .tg { color: var(--tan); }
+  .readouts .note { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+  .readouts .note b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Função de Enrolamento</h1>
+    <div class="formula"><span class="nw"><i>E</i> : ℝ → circunferência unitária,</span> <span class="nw"><i>E</i>(<i>t</i>) = (cos <i>t</i>, sin <i>t</i>)</span></div>
+  </header>
+
+  <section class="card plot-card" aria-label="Circunferência unitária e gráficos">
+    <div id="plot"></div>
+    <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
+  </section>
+
+  <section class="panels">
+    <div class="card">
+      <h2>O número real <i>t</i></h2>
+      <div class="param">
+        <input type="range" id="t" min="-18.850" max="18.850" step="0.001" value="0" aria-label="Valor de t">
+        <input type="text" id="t-n" class="num" inputmode="decimal" value="0" aria-label="Valor de t (aceita 3π/4 ou 3pi/4)" title="Aceita, por exemplo: 2,5 · π/3 · −3pi/4">
+      </div>
+      <div class="row">
+        <button class="b" id="back" aria-pressed="false">◀ Desenrolar</button>
+        <button class="b" id="fwd" aria-pressed="false">Enrolar ▶</button>
+        <span class="lbl">Velocidade</span>
+        <div class="seg" role="group" aria-label="Velocidade">
+          <button data-v="0.25" aria-pressed="false">lenta</button>
+          <button data-v="0.6" aria-pressed="true">média</button>
+          <button data-v="1.5" aria-pressed="false">rápida</button>
+        </div>
+      </div>
+      <div class="row">
+        <button class="b" id="mstep" title="Subtrai o passo das marcas de π"></button>
+        <button class="b" id="m1">−1</button>
+        <button class="b" id="zero"><i>t</i> = 0</button>
+        <button class="b" id="p1">+1</button>
+        <button class="b" id="pstep" title="Soma o passo das marcas de π"></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mostrar</h2>
+      <div class="checks">
+        <label class="chk plain" style="grid-column: 1 / -1"><input type="checkbox" id="sh-graph"><span>referencial dos gráficos (à direita / em baixo)</span></label>
+        <label class="chk" style="--c: var(--cos)"><input type="checkbox" id="sh-cos"><span>cos t</span></label>
+        <label class="chk" style="--c: var(--sin)"><input type="checkbox" id="sh-sin"><span>sin t</span></label>
+        <label class="chk" style="--c: var(--tan)"><input type="checkbox" id="sh-tan"><span>tan t</span></label>
+        <label class="chk" style="--c: var(--arc)"><input type="checkbox" id="sh-line" checked><span>reta a enrolar</span></label>
+        <label class="chk plain"><input type="checkbox" id="sh-full"><span>curvas completas (esbatidas)</span></label>
+        <label class="chk plain" id="lbl-link"><input type="checkbox" id="sh-link" checked><span>ligação <i>P</i> → gráfico do seno</span></label>
+      </div>
+      <div class="row">
+        <span class="lbl">Marcas de π</span>
+        <div class="seg" role="group" aria-label="Marcas de π" id="marks">
+          <button data-m="2" aria-pressed="false">π/2</button>
+          <button data-m="4" aria-pressed="false">π/4</button>
+          <button data-m="6" aria-pressed="false">π/6</button>
+          <button data-m="0" aria-pressed="false" title="Esconder as marcas de π">nenhuma</button>
+        </div>
+        <label class="chk plain"><input type="checkbox" id="magnet"><span>íman nas marcas</span></label>
+      </div>
+      <div class="row">
+        <span class="lbl">Gráfico</span>
+        <div class="seg" role="group" aria-label="Janela do gráfico" id="win">
+          <button data-w="0" aria-pressed="false">[0, 2π]</button>
+          <button data-w="1" aria-pressed="true">[−2π, 2π]</button>
+          <button data-w="2" aria-pressed="false">[−4π, 4π]</button>
+          <button data-w="3" aria-pressed="false">[−6π, 6π]</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card readouts">
+      <h2>Valores</h2>
+      <dl>
+        <dt><i>t</i></dt><dd id="r-t"></dd>
+        <dt id="r-deg-l">em graus</dt><dd id="r-deg"></dd>
+        <dt><i>P</i></dt><dd id="r-E"></dd>
+        <dt class="c">cos <i>t</i></dt><dd id="r-cos" class="c"></dd>
+        <dt class="s">sin <i>t</i></dt><dd id="r-sin" class="s"></dd>
+        <dt class="tg">tan <i>t</i></dt><dd id="r-tan" class="tg"></dd>
+      </dl>
+      <div class="note" id="r-turns"></div>
+    </div>
+  </section>
+</div>
+
+<script src="p5.min.js"></script>
+<script>
+(() => {
+  const PI = Math.PI, TAU = 2 * Math.PI;
+  const TMAX = 6 * PI;   // até 3 voltas em cada sentido
+  const WINS = [[0, TAU], [-TAU, TAU], [-2 * TAU, 2 * TAU], [-3 * TAU, 3 * TAU]];
+
+  // ---------- estado ----------
+  const S = {
+    t: 0,              // P começa em (1, 0)
+    dir: 0,            // −1 desenrolar, +1 enrolar, 0 parado
+    speed: 0.6,        // rad/s
+    m: 2,              // marcas de π/m
+    magnet: false,
+    hidePi: false,        // esconder as marcas de π (na reta e no gráfico)
+    win: 1,
+    view: { a: -2 * Math.PI, b: 2 * Math.PI, dy: 0 },   // janela do gráfico (t de a a b) e deslocamento vertical (px)
+    show: { graph: false, cos: false, sin: false, tan: false, line: true, full: false, link: true },
+  };
+
+  // ---------- formatação ----------
+  const fmt = (x, dec = 3) => {
+    if (Math.abs(x) < 0.5 * Math.pow(10, -dec)) x = 0;
+    return x.toLocaleString("pt-PT", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace("-", "−");
+  };
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; }
+  // k·π/m em forma reduzida
+  function fracPi(k, m) {
+    if (k === 0) return "0";
+    const g = gcd(k, m); k /= g; m /= g;
+    const s = k < 0 ? "−" : ""; k = Math.abs(k);
+    const num = (k === 1 ? "" : k) + "π";
+    return s + (m === 1 ? num : num + "/" + m);
+  }
+  // se t for múltiplo exato de π/12, devolve o inteiro k tal que t = kπ/12
+  function k12(t) {
+    const k = Math.round(t / (PI / 12));
+    return Math.abs(t - k * PI / 12) < 1e-9 ? k : null;
+  }
+  // valores exatos de cos(jπ/12) quando j é múltiplo de 2 ou de 3
+  const COS_EX = { 0: "1", 2: "√3/2", 3: "√2/2", 4: "1/2", 6: "0" };
+  const neg = s => s === "0" ? "0" : (s[0] === "−" ? s.slice(1) : "−" + s);
+  function cosEx(j) {
+    j = ((j % 24) + 24) % 24;
+    if (j > 12) j = 24 - j;
+    if (j > 6) return neg(cosEx(12 - j));
+    return COS_EX[j] ?? null;
+  }
+  const sinEx = j => cosEx(6 - j);
+  const TAN_EX = { 0: "0", 2: "√3/3", 3: "1", 4: "√3", 8: "−√3", 9: "−1", 10: "−√3/3" };
+
+  // aceita "2,5", "-3π/4", "pi/2", "2pi", "π"
+  function parseT(str) {
+    const s = str.trim().replace(/\s+/g, "").replace(/−/g, "-").replace(/pi/gi, "π");
+    const m = s.match(/^(-?)(\d*(?:[.,]\d*)?)(π?)(?:\/(\d+(?:[.,]\d+)?))?$/);
+    if (!m || (!m[2] && !m[3])) return null;
+    let v = m[2] ? parseFloat(m[2].replace(",", ".")) : 1;
+    if (isNaN(v)) return null;
+    if (m[3]) v *= PI;
+    if (m[4]) { const d = parseFloat(m[4].replace(",", ".")); if (!d) return null; v /= d; }
+    return m[1] ? -v : v;
+  }
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const tR = $("t"), tN = $("t-n");
+
+  function setT(v, { snap = S.magnet && !S.hidePi, fromText = false, keepView = false } = {}) {
+    v = Math.max(-TMAX, Math.min(TMAX, v));
+    if (snap) { const st = PI / S.m; v = Math.round(v / st) * st; }
+    S.t = v;
+    // se t sair da janela do gráfico, a janela desliza para o acompanhar
+    const V = S.view, w = V.b - V.a;
+    if (!keepView && (v < V.a || v > V.b)) {
+      const d = v > V.b ? v - V.b + 0.05 * w : v - V.a - 0.05 * w;
+      V.a += d; V.b += d; setWin(-1);
+    }
+    tR.value = v;
+    if (!fromText) {
+      const k = S.hidePi ? null : k12(v);
+      tN.value = k !== null ? fracPi(k, 12) : fmt(v, 3);
+      tN.classList.remove("bad");
+    }
+    readouts();
+  }
+
+  function readouts() {
+    // sem marcas de π: só valores decimais (sem formas exatas nem graus)
+    const t = S.t, k = S.hidePi ? null : k12(t);
+    const c = Math.cos(t), s = Math.sin(t);
+    const exact = k !== null ? fracPi(k, 12) : null;
+    $("r-t").textContent = exact && exact !== "0" ? `${exact} ≈ ${fmt(t)}` : fmt(t);
+    $("r-deg").textContent = fmt(t * 180 / PI, 1) + "°";
+    $("r-deg").hidden = $("r-deg-l").hidden = S.hidePi;
+    $("r-E").textContent = `(${fmt(c)}; ${fmt(s)})`;
+    const ce = k !== null ? cosEx(k) : null, se = k !== null ? sinEx(k) : null;
+    $("r-cos").textContent = ce !== null && !/^−?[01]$/.test(ce) ? `${ce} ≈ ${fmt(c)}` : (ce ?? fmt(c));
+    $("r-sin").textContent = se !== null && !/^−?[01]$/.test(se) ? `${se} ≈ ${fmt(s)}` : (se ?? fmt(s));
+    if (k !== null && ((k % 12) + 12) % 12 === 6) $("r-tan").textContent = "não definida";
+    else {
+      const te = k !== null ? TAN_EX[((k % 12) + 12) % 12] : undefined;
+      $("r-tan").textContent = te !== undefined && !/^−?[01]$/.test(te) ? `${te} ≈ ${fmt(s / c)}` : (te ?? fmt(s / c));
+    }
+    // representante em [0, 2π[
+    let n = Math.floor(t / TAU + 1e-12), t0 = t - n * TAU;
+    if (t0 < 0) t0 = 0;
+    const k0 = S.hidePi ? null : k12(t0);
+    const t0s = k0 !== null ? fracPi(k0, 12) : fmt(t0);
+    const voltas = n === 0 ? "" : ` = <i>E</i>(<i>t</i> ${n > 0 ? "−" : "+"} ${2 * Math.abs(n)}π)`;
+    $("r-turns").innerHTML = n === 0
+      ? `<i>t</i> ∈ [0, 2π[: ainda não se completou nenhuma volta.`
+      : `<i>t</i> = <b>${t0s}</b> + 2π·(<b>${String(n).replace("-", "−")}</b>), logo <i>E</i>(<i>t</i>)${voltas} = <i>E</i>(<b>${t0s}</b>). `
+        + `A reta deu <b>${Math.abs(n)}</b> volta${Math.abs(n) === 1 ? "" : "s"} completa${Math.abs(n) === 1 ? "" : "s"} no sentido ${n > 0 ? "positivo" : "negativo"}.`;
+  }
+
+  tR.addEventListener("input", () => setT(parseFloat(tR.value)));
+  tN.addEventListener("input", () => {
+    const v = parseT(tN.value);
+    if (v === null) { tN.classList.add("bad"); return; }
+    tN.classList.remove("bad");
+    setT(v, { snap: false, fromText: true });
+  });
+  tN.addEventListener("change", () => setT(S.t, { snap: false }));
+
+  function setDir(d) {
+    S.dir = S.dir === d ? 0 : d;
+    $("fwd").setAttribute("aria-pressed", S.dir === 1);
+    $("back").setAttribute("aria-pressed", S.dir === -1);
+    $("fwd").textContent = S.dir === 1 ? "❚❚ Parar" : "Enrolar ▶";
+    $("back").textContent = S.dir === -1 ? "❚❚ Parar" : "◀ Desenrolar";
+  }
+  $("fwd").onclick = () => { if (S.t >= TMAX - 1e-9) setT(-TMAX, { snap: false }); setDir(1); };
+  $("back").onclick = () => { if (S.t <= -TMAX + 1e-9) setT(TMAX, { snap: false }); setDir(-1); };
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
+    S.speed = +b.dataset.v;
+    document.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  });
+
+  const stepLabel = () => {
+    $("mstep").textContent = "−" + fracPi(1, S.m);
+    $("pstep").textContent = "+" + fracPi(1, S.m);
+  };
+  // os passos em π/m arredondam ao múltiplo de π/m (para se chegar a valores exatos)
+  const stepPi = d => { const st = PI / S.m; setT((Math.round(S.t / st + 1e-9 * d) + d) * st, { snap: false }); };
+  $("mstep").onclick = () => stepPi(-1);
+  $("pstep").onclick = () => stepPi(1);
+  $("m1").onclick = () => setT(S.t - 1, { snap: false });
+  $("p1").onclick = () => setT(S.t + 1, { snap: false });
+  $("zero").onclick = () => { setDir(0); setT(0, { snap: false }); };
+
+  // "nenhuma" (m = 0) só esconde as marcas; o passo ±π/m mantém o último valor
+  function setMarks(m) {
+    S.hidePi = m === 0;
+    if (!S.hidePi) S.m = m;
+    document.querySelectorAll("#marks [data-m]").forEach(x => x.setAttribute("aria-pressed", +x.dataset.m === m));
+    $("magnet").disabled = S.hidePi;
+    $("magnet").closest("label").style.opacity = S.hidePi ? 0.45 : 1;
+    stepLabel();
+    $("mstep").hidden = $("pstep").hidden = S.hidePi;
+    setT(S.t, { snap: S.magnet && !S.hidePi, keepView: true });
+  }
+  document.querySelectorAll("#marks [data-m]").forEach(b => b.onclick = () => setMarks(+b.dataset.m));
+  // i ≥ 0: janela predefinida; i = −1: vista livre (depois de deslocar/esticar)
+  function setWin(i) {
+    S.win = i;
+    if (i >= 0) { S.view.a = WINS[i][0]; S.view.b = WINS[i][1]; S.view.dy = 0; }
+    document.querySelectorAll("#win [data-w]").forEach(x => x.setAttribute("aria-pressed", +x.dataset.w === i));
+  }
+  document.querySelectorAll("#win [data-w]").forEach(b => b.onclick = () => {
+    setWin(+b.dataset.w);
+    const [a, c] = WINS[S.win];
+    if (S.t < a || S.t > c) setT(Math.max(a, Math.min(c, S.t)), { snap: false });
+  });
+  $("magnet").onchange = e => { S.magnet = e.target.checked; if (S.magnet) setT(S.t); };
+  for (const key of ["cos", "sin", "tan", "line", "full", "link"])
+    $("sh-" + key).onchange = e => { S.show[key] = e.target.checked; };
+
+  // ---------- cores (lidas do CSS, atualizadas com o tema) ----------
+  let C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["panel", "ink", "muted", "line", "grid", "grid-strong", "axis", "cos", "sin", "tan", "arc", "pi"])
+      C[k] = cs.getPropertyValue("--" + k).trim();
+    C.font = cs.getPropertyValue("--font").trim();
+  }
+  readColors();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors);
+
+  // ---------- geometria do desenho ----------
+  let L = {};   // layout
+  const holder = $("plot");
+
+  function layout() {
+    const W = holder.clientWidth;
+    if (!S.show.graph) {
+      // só a circunferência, a toda a largura
+      const H = W >= 640 ? Math.round(Math.max(380, Math.min(560, W * 0.42))) : Math.round(Math.min(W, 440));
+      L = { W, H, side: W >= 640, R: H * (W >= 640 ? 0.28 : 0.27), cx: W / 2, cy: H / 2, circ: [0, 0, W, H], g: null };
+    } else if (W >= 640) {
+      const H = Math.round(Math.max(380, Math.min(560, W * 0.42)));
+      const cw = Math.min(H + 40, Math.round(W * 0.46));
+      const R = H * 0.28;
+      L = { W, H, side: true, R, cx: cw / 2, cy: H / 2,
+            circ: [0, 0, cw, H],
+            g: { x0: cw + 44, x1: W - 18, top: 0, bot: H, cy: H / 2, k: R } };
+    } else {
+      const ch = Math.round(Math.min(W, 440));
+      const gh = 250;
+      const R = ch * 0.27;
+      L = { W, H: ch + gh, side: false, R, cx: W / 2, cy: ch / 2,
+            circ: [0, 0, W, ch],
+            g: { x0: 40, x1: W - 14, top: ch, bot: ch + gh, cy: ch + gh / 2, k: Math.min(R, (gh / 2 - 22) / 1.25) } };
+    }
+  }
+
+  // circunferência: coordenadas matemáticas → ecrã
+  const sx = x => L.cx + L.R * x;
+  const sy = y => L.cy - L.R * y;
+  // gráfico
+  const gx = t => { const { a, b } = S.view; return L.g.x0 + (t - a) / (b - a) * (L.g.x1 - L.g.x0); };
+  const gtx = X => { const { a, b } = S.view; return a + (X - L.g.x0) / (L.g.x1 - L.g.x0) * (b - a); };
+  const gcy = () => L.g.cy + S.view.dy;
+  const gy = y => gcy() - L.g.k * y;
+
+  // posição (coordenadas matemáticas) do número s da reta, quando o troço [0, t] já está enrolado.
+  // Voltas além da primeira ficam numa espiral ligeiramente exterior, para se verem as camadas.
+  const GAP = 0.07;
+  const rad = u => 1 + GAP * Math.max(0, Math.abs(u) - TAU) / TAU;
+  function pos(s, t) {
+    const u = Math.max(Math.min(0, t), Math.min(Math.max(0, t), s));
+    const r = rad(u);
+    return [r * Math.cos(u) - (s - u) * Math.sin(u), r * Math.sin(u) + (s - u) * Math.cos(u), u];
+  }
+
+  function clip(x, y, w, h) {
+    const ctx = drawingContext;
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  }
+  const unclip = () => drawingContext.restore();
+
+  function dashed(on) { drawingContext.setLineDash(on ? [5, 5] : []); }
+
+  // ---------- p5 ----------
+  let cnv;
+  window.setup = function () {
+    layout();
+    cnv = createCanvas(L.W, L.H);
+    cnv.parent(holder);
+    textFont(C.font || "sans-serif");
+    setMarks(0);   // arranca sem marcas de π
+    // valor inicial opcional no endereço, p. ex. funcao_enrolamento.html#t=3π/4
+    const h = decodeURIComponent(location.hash).match(/t=([^&]+)/);
+    const h0 = h ? parseT(h[1]) : null;
+    if (h0 !== null) S.t = h0;
+    setT(S.t, { snap: false });
+    bindPointer(cnv.elt);
+    linkUI();
+  };
+  // o desenho acompanha a largura do seu contentor (janela redimensionada, rodar o tablet, etc.)
+  function refit() {
+    const w = holder.clientWidth;
+    if (!cnv || !w || Math.abs(w - L.W) < 1) return;
+    layout(); resizeCanvas(L.W, L.H); linkUI();
+  }
+  new ResizeObserver(() => requestAnimationFrame(refit)).observe(holder);
+  window.windowResized = refit;
+  // a ligação só existe com o gráfico ao lado da circunferência e com sin t visível
+  function linkUI() {
+    const ok = L.side && S.show.sin && S.show.graph;
+    $("sh-link").disabled = !ok;
+    $("lbl-link").style.opacity = ok ? 1 : 0.45;
+    $("lbl-link").title = ok ? "" : (!S.show.graph ? "Liga o referencial dos gráficos." : L.side ? "Liga sin t para ver a ligação." : "Só disponível com o gráfico ao lado (janela mais larga).");
+    // os controlos da janela do gráfico ficam esbatidos sem referencial
+    $("win").closest(".row").style.opacity = S.show.graph ? 1 : 0.45;
+    document.querySelectorAll("#win button").forEach(b => b.disabled = !S.show.graph);
+  }
+  $("sh-sin").addEventListener("change", linkUI);
+  $("sh-graph").addEventListener("change", e => {
+    S.show.graph = e.target.checked;
+    layout(); resizeCanvas(L.W, L.H); linkUI();
+  });
+
+  window.draw = function () {
+    if (S.dir !== 0) {
+      let v = S.t + S.dir * S.speed * Math.min(deltaTime, 100) / 1000;
+      if (v >= TMAX || v <= -TMAX) { v = Math.max(-TMAX, Math.min(TMAX, v)); setDir(0); }
+      setT(v, { snap: false });
+    }
+    background(C.panel);
+    drawCircle();
+    if (!L.g) return;
+    drawGraph();
+    if (L.side && S.show.link && S.show.sin) {
+      // ligação horizontal: P → (t, sin t), a mesma altura nos dois painéis
+      const s = Math.sin(S.t), x0 = sx(Math.cos(S.t)), x1 = gx(S.t), y1 = gy(s);
+      const cc = color(C.sin); cc.setAlpha(150);
+      stroke(cc); strokeWeight(2); drawingContext.setLineDash([2, 6]);
+      line(x0 + 8, sy(s), Math.max(x0 + 8, Math.min(x1 - 8, L.g.x1)), y1);
+      dashed(false);
+    }
+  };
+
+  function label(str, x, y, col, size = 13, ax = CENTER, ay = CENTER, bold = false) {
+    noStroke(); fill(col); textSize(size); textAlign(ax, ay);
+    textStyle(bold ? BOLD : NORMAL);
+    text(str, x, y);
+  }
+
+  function drawCircle() {
+    const [X, Y, W, H] = L.circ;
+    const t = S.t, R = L.R;
+    clip(X, Y, W, H);
+
+    // eixos
+    stroke(C.line); strokeWeight(1);
+    line(X + 8, sy(0), X + W - 8, sy(0));
+    line(sx(0), Y + 8, sx(0), Y + H - 8);
+    for (const v of [-1, 1]) {
+      stroke(C.axis); line(sx(v), sy(0) - 4, sx(v), sy(0) + 4); line(sx(0) - 4, sy(v), sx(0) + 4, sy(v));
+      label(v === 1 ? "1" : "−1", sx(v) + (v === 1 ? -8 : 8), sy(0) + 12, C.muted, 11);
+      label(v === 1 ? "1" : "−1", sx(0) - 10, sy(v) + (v === 1 ? 8 : -8), C.muted, 11);
+    }
+    label("O", sx(0) - 9, sy(0) + 11, C.muted, 11);
+
+    // circunferência unitária
+    noFill(); stroke(C.axis); strokeWeight(1.5);
+    circle(sx(0), sy(0), 2 * R);
+
+    // lado origem dos ângulos: [OA], com A(1, 0)
+    stroke(C.axis); strokeWeight(2.5);
+    line(sx(0), sy(0), sx(1), sy(0));
+
+    const c = Math.cos(t), s = Math.sin(t);
+
+    // tangente: reta OP prolongada até x = 1
+    if (S.show.tan && Math.abs(c) > 1e-6) {
+      const tg = s / c;
+      stroke(C.tan); strokeWeight(1); dashed(true);
+      line(sx(0), sy(0), sx(1), sy(tg));
+      dashed(false);
+      stroke(C.tan); strokeWeight(1);
+      line(sx(1), sy(-3), sx(1), sy(3));
+      strokeWeight(4); strokeCap(SQUARE);
+      line(sx(1), sy(0), sx(1), sy(tg));
+      strokeCap(ROUND);
+      noStroke(); fill(C.tan); circle(sx(1), sy(tg), 7);
+      label("tan t", sx(1) + 8, sy(tg / 2), C.tan, 13, LEFT, CENTER, true);
+    }
+
+    // reta a enrolar
+    if (S.show.line) drawWrappedLine(t);
+
+    // raio OP
+    stroke(C.axis); strokeWeight(1.2);
+    line(sx(0), sy(0), sx(c), sy(s));
+
+    // projeções de P nos eixos (tracejado), só para as funções selecionadas
+    stroke(C.muted); strokeWeight(1); dashed(true);
+    if (S.show.cos) line(sx(c), sy(s), sx(c), sy(0));
+    if (S.show.sin) line(sx(c), sy(s), sx(0), sy(s));
+    dashed(false);
+    noStroke();
+    if (S.show.cos) { fill(C.cos); circle(sx(c), sy(0), 7); }
+    if (S.show.sin) { fill(C.sin); circle(sx(0), sy(s), 7); }
+
+    // cos e sin
+    strokeCap(SQUARE);
+    if (S.show.cos) {
+      stroke(C.cos); strokeWeight(4);
+      line(sx(0), sy(0), sx(c), sy(0));
+      if (Math.abs(c) > 0.08) label("cos t", sx(c / 2), sy(0) + (s >= 0 ? 16 : -16), C.cos, 13, CENTER, CENTER, true);
+    }
+    if (S.show.sin) {
+      stroke(C.sin); strokeWeight(4);
+      line(sx(c), sy(0), sx(c), sy(s));
+      if (Math.abs(s) > 0.08) label("sin t", sx(c) + (c >= 0 ? 8 : -8), sy(s / 2), C.sin, 13, c >= 0 ? LEFT : RIGHT, CENTER, true);
+    }
+    strokeCap(ROUND);
+
+    // ponto P = E(t)
+    stroke(C.panel); strokeWeight(2); fill(C.ink);
+    circle(sx(c), sy(s), 12);
+    // rótulo afastado na direção radial, com fundo para não se misturar com as marcas
+    const lx = sx(c * 1.3), ly = sy(s * 1.3) - 2;
+    textSize(14); textStyle(BOLD);
+    const tw = textWidth("P") + 10;
+    noStroke(); fill(C.panel); rect(lx - tw / 2, ly - 10, tw, 20, 4);
+    label("P", lx, ly, C.ink, 15, CENTER, CENTER, true);
+
+    unclip();
+    // separador entre painéis
+    stroke(C.line); strokeWeight(1);
+    if (!L.g) return;
+    if (L.side) line(L.circ[2], 10, L.circ[2], L.H - 10);
+    else line(10, L.circ[3], L.W - 10, L.circ[3]);
+  }
+
+  function drawWrappedLine(t) {
+    const SM = 60;
+    const a = Math.min(0, t), b = Math.max(0, t);
+    // troços que ainda estão direitos (tangentes)
+    stroke(C.muted); strokeWeight(1.5);
+    let p = pos(-SM, t), q = pos(a, t);
+    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]));
+    p = pos(b, t); q = pos(SM, t);
+    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]));
+    // troço enrolado [0, t]
+    if (b - a > 1e-6) {
+      noFill(); stroke(C.arc); strokeWeight(5); strokeCap(ROUND);
+      beginShape();
+      const n = Math.max(2, Math.ceil((b - a) / 0.02));
+      for (let i = 0; i <= n; i++) {
+        const [x, y] = pos(a + (b - a) * i / n, t);
+        vertex(sx(x), sy(y));
+      }
+      endShape();
+    }
+    // marcas: inteiros (lado interior) e múltiplos de π/m (lado exterior)
+    const inView = (x, y) => x > -20 && x < L.circ[2] + 20 && y > -20 && y < L.circ[3] + 20;
+    const tick = (s, len, col, w) => {
+      const [x, y, u] = pos(s, t);
+      const nx = Math.cos(u), ny = Math.sin(u);   // normal exterior
+      const X = sx(x), Y = sy(y);
+      if (!inView(X, Y)) return null;
+      stroke(col); strokeWeight(w);
+      line(X - nx * len, Y + ny * len, X + nx * len, Y - ny * len);
+      return { X, Y, nx, ny, wrapped: s >= a && s <= b };
+    };
+    for (let k = -SM; k <= SM; k++) {
+      const r = tick(k, 5, C.ink, 1.3);
+      if (!r) continue;
+      if (r.wrapped && Math.abs(k) > TAU + 1e-9) continue;       // camadas exteriores: sem rótulo
+      const off = r.wrapped ? 14 : 13;
+      label(String(k).replace("-", "−"), r.X - r.nx * off, r.Y + r.ny * off, C.ink, 11);
+    }
+    const km = S.hidePi ? 0 : Math.floor(SM / (PI / S.m));
+    for (let k = -km; k <= km; k++) {
+      if (k === 0) continue;
+      const s = k * PI / S.m;
+      const r = tick(s, 7, C.pi, 2);
+      if (!r) continue;
+      if (r.wrapped && Math.abs(s) > TAU + 1e-9) continue;
+      const off = 22;
+      label(fracPi(k, S.m), r.X + r.nx * off, r.Y - r.ny * off, C.pi, 12, CENTER, CENTER, true);
+    }
+    // o zero da reta fica sempre em (1, 0)
+    noStroke(); fill(C.arc); circle(sx(1), sy(0), 7);
+  }
+
+  function drawGraph() {
+    const g = L.g, { a, b } = S.view, t = S.t, cy = gcy();
+    const gl = L.side ? g.x0 - 40 : 0;
+    clip(gl, g.top, L.W - gl, g.bot - g.top);
+
+    // marcas do eixo dos t coordenadas com as da reta a enrolar:
+    // múltiplos de π/m (roxo, rótulos por baixo) e inteiros (preto, rótulos por cima).
+    // Com pouco zoom, rotula-se só 1 em cada `skip` marcas para não se sobreporem.
+    const ppu = (g.x1 - g.x0) / (b - a);
+    const st = PI / S.m;
+    const skipPi = [1, 2, 3, 4, 6, 12, 24, 48].find(q => q * st * ppu >= 48) || 96;
+    if (!S.hidePi) for (let k = Math.ceil(a / st); k <= Math.floor(b / st); k++) {
+      const X = gx(k * st), mult = k % S.m === 0;   // mult: múltiplo de π
+      if (st * ppu >= 8 || k % skipPi === 0) {
+        stroke(mult ? C["grid-strong"] : C.grid); strokeWeight(1);
+        line(X, g.top + 10, X, g.bot - 10);
+      }
+      stroke(C.pi); strokeWeight(k % skipPi === 0 ? 2 : 1.2);
+      if (st * ppu >= 4 || k % skipPi === 0) line(X, cy - 5, X, cy + 5);
+      if (k !== 0 && k % skipPi === 0) label(fracPi(k, S.m), X, cy + 15, C.pi, 11, CENTER, CENTER, true);
+    }
+    const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 26) || 50;
+    for (let k = Math.ceil(a); k <= Math.floor(b); k++) {
+      if (k === 0 || k % skipInt !== 0) continue;
+      stroke(C.ink); strokeWeight(1.2);
+      line(gx(k), cy - 4, gx(k), cy);
+      label(String(k).replace("-", "−"), gx(k), cy - 12, C.ink, 11);
+    }
+    for (const v of [-1, 1]) {
+      stroke(C.grid); strokeWeight(1); dashed(true);
+      line(g.x0, gy(v), g.x1, gy(v));
+      dashed(false);
+      if (gy(v) > g.top + 6 && gy(v) < g.bot - 6)
+        label(v === 1 ? "1" : "−1", g.x0 - 8, gy(v), C.muted, 11, RIGHT, CENTER);
+    }
+    // eixos
+    stroke(C.axis); strokeWeight(1.2);
+    line(g.x0 - 4, cy, g.x1 + 6, cy);
+    if (a <= 0 && b >= 0) line(gx(0), g.top + 8, gx(0), g.bot - 8);
+    label("t", g.x1 + 4, cy - 12, C.muted, 13, CENTER, CENTER, true);
+    label("0", gx(0) - 7, cy + 12, C.muted, 11);
+
+    // troço [0, t] desenrolado no eixo (só com "reta a enrolar")
+    if (S.show.line) {
+      stroke(C.arc); strokeWeight(5); strokeCap(ROUND);
+      line(gx(0), cy, gx(t), cy);
+      noStroke(); fill(C.arc); circle(gx(0), cy, 7);
+    }
+
+    const curves = [];
+    if (S.show.cos) curves.push([Math.cos, C.cos, "y = cos t"]);
+    if (S.show.sin) curves.push([Math.sin, C.sin, "y = sin t"]);
+    if (S.show.tan) curves.push([Math.tan, C.tan, "y = tan t"]);
+
+    const plot = (f, from, to, isTan) => {
+      if (to - from < 1e-6) return;
+      const n = Math.ceil((to - from) / (b - a) * (g.x1 - g.x0) / 1.5) + 1;
+      let open = false, prev = null;
+      noFill();
+      for (let i = 0; i <= n; i++) {
+        const x = from + (to - from) * i / n;
+        const y = f(x);
+        const bad = isTan && (Math.abs(y) > 8 || (prev !== null && Math.sign(Math.cos(x)) !== Math.sign(Math.cos(prev))));
+        if (bad) { if (open) { endShape(); open = false; } prev = x; continue; }
+        if (!open) { beginShape(); open = true; }
+        vertex(gx(x), gy(y));
+        prev = x;
+      }
+      if (open) endShape();
+    };
+
+    for (const [f, col, , ] of curves) {
+      const isTan = f === Math.tan;
+      if (S.show.full) {
+        const cc = color(col); cc.setAlpha(70);
+        stroke(cc); strokeWeight(1.5);
+        plot(f, a, b, isTan);
+      }
+      stroke(col); strokeWeight(3);
+      plot(f, Math.min(0, t), Math.max(0, t), isTan);
+    }
+
+    // ponto que vai à frente em cada curva, com projeção tracejada no eixo dos t
+    for (const [f, col] of curves) {
+      if (f === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
+      stroke(col); strokeWeight(1.5); dashed(true);
+      line(gx(t), cy, gx(t), gy(f(t)));
+      dashed(false);
+    }
+    for (const [f, col] of curves) {
+      const y = f(t);
+      if (f === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
+      stroke(C.panel); strokeWeight(2); fill(col);
+      circle(gx(t), gy(y), 10);
+    }
+    unclip();
+
+    // legenda (com fundo)
+    let ly = g.top + 16;
+    const lx = g.x0 + 8;
+    const nl = curves.length + (S.show.line ? 1 : 0);
+    if (nl) {
+      const bg = color(C.panel); bg.setAlpha(225);
+      noStroke(); fill(bg); rect(lx - 6, ly - 10, 200, nl * 18 + 2, 4);
+    }
+    for (const [, col, name] of curves) {
+      stroke(col); strokeWeight(3); line(lx, ly, lx + 18, ly);
+      label(name, lx + 24, ly, col, 13, LEFT, CENTER, true);
+      ly += 18;
+    }
+    if (S.show.line) {
+      stroke(C.arc); strokeWeight(5); line(lx, ly, lx + 18, ly);
+      label("troço [0, t] desenrolado", lx + 24, ly, C.arc, 13, LEFT, CENTER, true);
+    }
+  }
+
+  // ---------- arrastar ----------
+  // Circunferência: arrastar P.
+  // Gráfico: arrastar a linha vertical de t muda t; arrastar o fundo desloca a vista;
+  // Shift + arrastar estica/encolhe na horizontal; duplo clique repõe a vista.
+  function bindPointer(el) {
+    let mode = null, st0 = null;
+    const local = e => { const r = el.getBoundingClientRect(); return [(e.clientX - r.left) * L.W / r.width, (e.clientY - r.top) * L.H / r.height]; };
+    const inCirc = (x, y) => x >= L.circ[0] && x <= L.circ[0] + L.circ[2] && y >= L.circ[1] && y <= L.circ[1] + L.circ[3];
+    const inGraph = (x, y) => !!L.g && x >= L.g.x0 - 10 && x <= L.g.x1 + 10 && y >= L.g.top && y <= L.g.bot;
+    const nearP = (x, y) => Math.hypot(x - sx(Math.cos(S.t)), y - sy(Math.sin(S.t))) < 24;
+    const nearRing = (x, y) => Math.abs(Math.hypot(x - L.cx, y - L.cy) - L.R) < 18;
+    const nearT = x => Math.abs(x - gx(S.t)) < 12;
+
+    function apply(x, y) {
+      const V = S.view, gw = L.g ? L.g.x1 - L.g.x0 : 1;   // sem referencial, L.g é null
+      if (mode === "circ") {
+        const ang = Math.atan2(-(y - L.cy), x - L.cx);
+        const k = Math.round((S.t - ang) / TAU);
+        setT(ang + k * TAU);
+      } else if (mode === "graph") {
+        setT(gtx(Math.max(L.g.x0, Math.min(L.g.x1, x))), { keepView: true });
+      } else if (mode === "pan") {
+        const dt = (x - st0.x) / gw * (st0.b - st0.a);
+        V.a = st0.a - dt; V.b = st0.b - dt;
+        V.dy = Math.max(-L.g.k * 3, Math.min(L.g.k * 3, st0.dy + (y - st0.y)));
+      } else if (mode === "stretch") {
+        // para a direita estica, para a esquerda encolhe; o ponto onde se agarrou fica fixo
+        const w = Math.max(0.4, Math.min(24 * PI, (st0.b - st0.a) * Math.exp(-(x - st0.x) / 150)));
+        const fx = (st0.x - L.g.x0) / gw;
+        V.a = st0.tA - fx * w; V.b = V.a + w;
+      }
+    }
+    el.addEventListener("pointerdown", e => {
+      const [x, y] = local(e);
+      if (inCirc(x, y) && (nearP(x, y) || nearRing(x, y))) mode = "circ";
+      else if (inGraph(x, y)) {
+        mode = e.shiftKey ? "stretch" : nearT(x) ? "graph" : "pan";
+        st0 = { x, y, a: S.view.a, b: S.view.b, dy: S.view.dy, tA: gtx(x) };
+        if (mode !== "graph") setWin(-1);
+        if (mode === "pan") el.style.cursor = "grabbing";
+      }
+      else return;
+      if (mode === "circ" || mode === "graph") setDir(0);
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+      apply(x, y);
+    });
+    el.addEventListener("pointermove", e => {
+      const [x, y] = local(e);
+      if (mode) { apply(x, y); return; }
+      el.style.cursor = inCirc(x, y) && (nearP(x, y) || nearRing(x, y)) ? "grab"
+        : !inGraph(x, y) ? "default"
+        : e.shiftKey ? "col-resize"
+        : nearT(x) ? "ew-resize" : "grab";
+    });
+    const end = e => { mode = null; el.style.cursor = "default"; };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("dblclick", e => {
+      const [x, y] = local(e);
+      if (inGraph(x, y)) setWin(Math.max(1, WINS.findIndex(([p, q]) => S.t >= p && S.t <= q)));
+    });
+  }
+})();
+</script>
+</body>
+</html>
