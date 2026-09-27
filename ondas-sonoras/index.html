@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratório das Ondas Sonoras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --ink: #17202b;
+    --muted: #5b6776;
+    --line: #d6dde6;
+    --grid: #e6ebf1;
+    --grid-strong: #d2d9e2;
+    --axis: #36414d;
+    --btn: #eef2f6;
+    --btn-hover: #e1e7ee;
+    --w1: #1565c0;
+    --w2: #d32f2f;
+    --w3: #2e7d32;
+    --w4: #ef6c00;
+    --sum: #111827;
+    --focus: #1565c0;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1419;
+      --panel: #171e26;
+      --ink: #e6ebf1;
+      --muted: #9aa6b4;
+      --line: #2a3440;
+      --grid: #1d252e;
+      --grid-strong: #2a3440;
+      --axis: #aab4c0;
+      --btn: #202a35;
+      --btn-hover: #2a3642;
+      --w1: #64a8ff;
+      --w2: #ff6b6b;
+      --w3: #5cc26a;
+      --w4: #ffa040;
+      --sum: #f2f4f7;
+      --focus: #64a8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1419;
+    --panel: #171e26;
+    --ink: #e6ebf1;
+    --muted: #9aa6b4;
+    --line: #2a3440;
+    --grid: #1d252e;
+    --grid-strong: #2a3440;
+    --axis: #aab4c0;
+    --btn: #202a35;
+    --btn-hover: #2a3642;
+    --w1: #64a8ff;
+    --w2: #ff6b6b;
+    --w3: #5cc26a;
+    --w4: #ffa040;
+    --sum: #f2f4f7;
+    --focus: #64a8ff;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.4;
+    padding-inline: 16px;
+    padding-block: 16px 24px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
+  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
+
+  main { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    /* em ecrãs estreitos o gráfico fica no topo e visível enquanto se mexe nos sliders */
+    .plot-card { order: -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; box-shadow: 0 6px 14px -10px rgba(0,0,0,.35); }
+  }
+
+  .controls { display: grid; gap: 10px; }
+  .wave {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--c);
+    border-radius: 8px;
+    padding: 10px 12px 12px;
+    display: grid;
+    gap: 8px;
+  }
+  .wave-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--c); cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--c); margin: 0; cursor: pointer; }
+  .note {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--c);
+    white-space: nowrap;
+  }
+  .note .cents { color: var(--muted); }
+  .play {
+    margin-left: auto;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--btn);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    min-width: 90px;
+    white-space: nowrap;
+  }
+  .play:hover { background: var(--btn-hover); }
+  .play[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: var(--panel); }
+
+  .param { display: grid; grid-template-columns: 5.2rem 1fr 4.6rem; align-items: center; gap: 10px; }
+  .param label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+  .param label b { color: var(--ink); font-style: italic; font-weight: 400; font-size: 1rem; }
+  .param input[type="range"] { width: 100%; accent-color: var(--c); margin: 0; }
+  .param input[type="number"] {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 3px 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .period { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+
+  .wave.off .param, .wave.off .period { opacity: 0.55; }
+
+  .settings { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 10px; --c: var(--muted); }
+  .settings .param input[type="range"] { accent-color: var(--axis); }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 0.9rem; padding: 5px 12px; border: 0; cursor: pointer;
+    background: var(--btn); color: var(--ink);
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
+  .stop {
+    margin-left: auto;
+    font: inherit; font-weight: 700; font-size: 0.9rem;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
+  }
+  .stop:hover { background: var(--btn-hover); }
+
+  .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  #plot { width: 100%; }
+  #plot canvas { display: block; max-width: 100%; }
+  .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .caption .mono { font-family: var(--mono); }
+
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Laboratório das Ondas Sonoras</h1>
+    <div class="formula"><i>p</i><sub>i</sub>(<i>t</i>) = <i>A</i><sub>i</sub> · sin(2π <i>f</i><sub>i</sub> <i>t</i>)</div>
+  </header>
+
+  <main>
+    <section class="controls" aria-label="Controlos">
+      <div id="waves" class="controls"></div>
+
+      <div class="wave" id="card-sum" style="--c: var(--sum)">
+        <div class="wave-head">
+          <label class="toggle"><input type="checkbox" id="on-sum" checked> Soma das 4 ondas</label>
+          <button class="play" id="play-sum" aria-pressed="false">▶ Tocar a soma</button>
+        </div>
+      </div>
+
+      <div class="settings">
+        <div class="param">
+          <label for="dur">Duração (s)</label>
+          <input type="range" id="dur" min="0.5" max="5" step="0.5" value="2">
+          <input type="number" id="dur-n" min="0.5" max="5" step="0.5" value="2" aria-label="Duração em segundos">
+        </div>
+        <div class="row">
+          <span style="color: var(--muted); font-size: 0.9rem">Referencial</span>
+          <div class="seg" role="group" aria-label="Referencial">
+            <button id="mode-fixo" aria-pressed="true">Fixo</button>
+            <button id="mode-auto" aria-pressed="false">Automático</button>
+          </div>
+          <button class="stop" id="stop-all">■ Parar tudo</button>
+        </div>
+        <div class="param" id="n-row" hidden>
+          <label for="nper">Nº de períodos</label>
+          <input type="range" id="nper" min="1" max="20" step="1" value="3">
+          <input type="number" id="nper-n" min="1" max="20" step="1" value="3" aria-label="Número de períodos">
+        </div>
+      </div>
+    </section>
+
+    <section class="plot-card" aria-label="Gráfico das ondas">
+      <div id="plot"></div>
+      <div class="caption">
+        <span id="cap-window" class="mono"></span>
+        <span>Eixo horizontal em milissegundos; o som usa segundos.</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="p5.min.js"></script>
+<script>
+(() => {
+  // ---------- estado ----------
+  const S = {
+    waves: [
+      { A: 0.5, f: 220, on: true },
+      { A: 0.5, f: 277, on: true },
+      { A: 0.5, f: 330, on: true },
+      { A: 0.5, f: 440, on: true },
+    ],
+    sumOn: true,
+    d: 2,
+    mode: "fixo",   // "fixo" | "auto"
+    n: 3,
+  };
+  const FIXO = { T: 20, Y: 2.5 };  // 0 ≤ t ≤ 20 ms, −2,5 ≤ p ≤ 2,5
+
+  const fmt = (x, dec = 2) => x.toLocaleString("pt-PT", { maximumFractionDigits: dec, minimumFractionDigits: 0 });
+  const sub = ["₁", "₂", "₃", "₄"];
+
+  // ---------- nota musical mais próxima ----------
+  const NOMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
+  function nota(f) {
+    const m = Math.round(69 + 12 * Math.log2(f / 440));
+    const fn = 440 * Math.pow(2, (m - 69) / 12);
+    const c = Math.round(1200 * Math.log2(f / fn));
+    return { nome: NOMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1), cents: c };
+  }
+
+  // ---------- construir os cartões ----------
+  const wavesEl = document.getElementById("waves");
+  S.waves.forEach((w, i) => {
+    const k = i + 1;
+    const card = document.createElement("div");
+    card.className = "wave";
+    card.id = `card-${i}`;
+    card.style.setProperty("--c", `var(--w${k})`);
+    card.innerHTML = `
+      <div class="wave-head">
+        <label class="toggle"><input type="checkbox" id="on-${i}" checked> Onda ${k}</label>
+        <span class="note" id="note-${i}"></span>
+        <button class="play" id="play-${i}" aria-pressed="false">▶ Tocar</button>
+      </div>
+      <div class="param">
+        <label for="A-${i}">Amplitude <b>A${sub[i]}</b></label>
+        <input type="range" id="A-${i}" min="0" max="1" step="0.01" value="${w.A}">
+        <input type="number" id="A-${i}-n" min="0" max="1" step="0.01" value="${w.A}" aria-label="Amplitude A${k}">
+      </div>
+      <div class="param">
+        <label for="f-${i}">Frequência <b>f${sub[i]}</b></label>
+        <input type="range" id="f-${i}" min="20" max="2000" step="1" value="${w.f}">
+        <input type="number" id="f-${i}-n" min="20" max="2000" step="1" value="${w.f}" aria-label="Frequência f${k} em hertz">
+      </div>
+      <div class="period" id="per-${i}"></div>`;
+    wavesEl.appendChild(card);
+  });
+
+  // liga um slider ao seu campo numérico
+  function bindPair(id, min, max, set) {
+    const r = document.getElementById(id), n = document.getElementById(id + "-n");
+    r.addEventListener("input", () => { n.value = r.value; set(+r.value); });
+    n.addEventListener("change", () => {
+      let v = parseFloat(String(n.value).replace(",", "."));
+      if (!isFinite(v)) v = +r.value;
+      v = Math.min(max, Math.max(min, v));
+      n.value = v; r.value = v; set(v);
+    });
+  }
+
+  S.waves.forEach((w, i) => {
+    bindPair(`A-${i}`, 0, 1, v => { w.A = v; changed(); });
+    bindPair(`f-${i}`, 20, 2000, v => { w.f = Math.round(v); changed(); });
+    document.getElementById(`on-${i}`).addEventListener("change", e => { w.on = e.target.checked; changed(); });
+    document.getElementById(`play-${i}`).addEventListener("click", () => toggle(String(i)));
+  });
+  document.getElementById("on-sum").addEventListener("change", e => { S.sumOn = e.target.checked; changed(); });
+  document.getElementById("play-sum").addEventListener("click", () => toggle("sum"));
+  bindPair("dur", 0.5, 5, v => { S.d = v; });
+  bindPair("nper", 1, 20, v => { S.n = Math.round(v); changed(); });
+  document.getElementById("stop-all").addEventListener("click", () => Object.keys(voices).forEach(stop));
+
+  const modeBtns = { fixo: document.getElementById("mode-fixo"), auto: document.getElementById("mode-auto") };
+  Object.entries(modeBtns).forEach(([m, b]) => b.addEventListener("click", () => { S.mode = m; changed(); }));
+
+  // ---------- som (Web Audio) ----------
+  let ctx = null, master = null;
+  const voices = {};
+
+  function audio() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = 0.35;  // volume geral moderado; as amplitudes relativas mantêm-se
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+
+  // nível de cada oscilador; a soma é normalizada por max(1, ΣA) para não saturar
+  function level(key, i) {
+    const A = S.waves[i].A;
+    if (key !== "sum") return A;
+    const tot = S.waves.reduce((s, w) => s + w.A, 0);
+    return A / Math.max(1, tot);
+  }
+
+  function toggle(key) { voices[key] ? stop(key) : play(key); }
+
+  function play(key) {
+    const c = audio();
+    const out = c.createGain();
+    out.connect(master);
+    const ids = key === "sum" ? [0, 1, 2, 3] : [+key];
+    const t0 = c.currentTime + 0.02, t1 = t0 + S.d;
+    const oscs = ids.map(i => {
+      const o = c.createOscillator();
+      o.type = "sine";
+      o.frequency.value = S.waves[i].f;
+      const g = c.createGain();
+      g.gain.value = level(key, i);
+      o.connect(g).connect(out);
+      o.start(t0);
+      o.stop(t1 + 0.05);
+      return { i, o, g };
+    });
+    // rampas curtas no início e no fim para evitar estalidos
+    out.gain.setValueAtTime(0, t0);
+    out.gain.linearRampToValueAtTime(1, t0 + 0.02);
+    out.gain.setValueAtTime(1, t1 - 0.03);
+    out.gain.linearRampToValueAtTime(0, t1);
+    const timer = setTimeout(() => { delete voices[key]; renderButtons(); }, (S.d + 0.1) * 1000);
+    voices[key] = { out, oscs, timer };
+    renderButtons();
+  }
+
+  function stop(key) {
+    const v = voices[key];
+    if (!v) return;
+    clearTimeout(v.timer);
+    const now = ctx.currentTime;
+    v.out.gain.cancelScheduledValues(now);
+    v.out.gain.setValueAtTime(v.out.gain.value, now);
+    v.out.gain.linearRampToValueAtTime(0, now + 0.03);
+    v.oscs.forEach(x => { try { x.o.stop(now + 0.05); } catch (e) {} });
+    delete voices[key];
+    renderButtons();
+  }
+
+  // ao mexer nos sliders durante a reprodução, o som acompanha
+  function updateVoices() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    Object.entries(voices).forEach(([key, v]) => v.oscs.forEach(x => {
+      x.o.frequency.setTargetAtTime(S.waves[x.i].f, now, 0.01);
+      x.g.gain.setTargetAtTime(level(key, x.i), now, 0.01);
+    }));
+  }
+
+  function renderButtons() {
+    S.waves.forEach((w, i) => {
+      const b = document.getElementById(`play-${i}`);
+      const on = !!voices[String(i)];
+      b.setAttribute("aria-pressed", on);
+      b.textContent = on ? "■ Parar" : "▶ Tocar";
+    });
+    const bs = document.getElementById("play-sum");
+    const on = !!voices.sum;
+    bs.setAttribute("aria-pressed", on);
+    bs.textContent = on ? "■ Parar" : "▶ Tocar a soma";
+  }
+
+  // ---------- limites do referencial ----------
+  function bounds() {
+    if (S.mode === "fixo") return { T: FIXO.T, Y: FIXO.Y };
+    const act = S.waves.filter(w => w.A > 0);
+    const cand = S.waves.filter(w => w.on && w.A > 0).map(w => w.f);
+    if (S.sumOn) act.forEach(w => cand.push(w.f));
+    const fmin = cand.length ? Math.min(...cand) : 2000;
+    const amps = [0.05];
+    S.waves.forEach(w => { if (w.on) amps.push(w.A); });
+    if (S.sumOn) amps.push(S.waves.reduce((s, w) => s + w.A, 0));
+    return { T: S.n * 1000 / fmin, Y: 1.15 * Math.max(...amps) };
+  }
+
+  function niceStep(range, target) {
+    const raw = range / target;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  }
+
+  // ---------- gráfico (p5.js) ----------
+  const plotEl = document.getElementById("plot");
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  let ready = false;
+  const sketch = p => {
+    const M = { l: 52, r: 18, t: 18, b: 38 };
+
+    function size() {
+      const w = Math.max(280, plotEl.clientWidth);
+      const h = Math.round(Math.min(640, Math.max(300, w * 0.62)));
+      return [w, h];
+    }
+
+    p.setup = () => {
+      const [w, h] = size();
+      p.createCanvas(w, h).parent(plotEl);
+      p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
+      p.noLoop();
+      ready = true;
+    };
+
+    p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
+
+    p.draw = () => {
+      const { T, Y } = bounds();
+      const W = p.width - M.l - M.r, H = p.height - M.t - M.b;
+      const X = t => M.l + (t / T) * W;
+      const Yp = v => M.t + H / 2 - (v / Y) * (H / 2);
+
+      // sem internet a letra IBM Plex Mono não carrega: usa a monoespaçada do sistema
+      const plex = document.fonts && [...document.fonts].some(f => f.family.replace(/"/g, "") === "IBM Plex Mono" && f.status === "loaded");
+      p.textFont(plex ? "IBM Plex Mono" : "monospace");
+      p.background(css("--panel"));
+
+      // grelha e marcas
+      const sx = niceStep(T, 10), sy = niceStep(2 * Y, 8);
+      p.textSize(11);
+      p.strokeWeight(1);
+      for (let t = 0; t <= T + 1e-9; t += sx) {
+        p.stroke(css("--grid-strong")); p.line(X(t), M.t, X(t), M.t + H);
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
+        p.text(fmt(+t.toFixed(6), 3), X(t), M.t + H + 6);
+      }
+      for (let v = Math.ceil(-Y / sy) * sy; v <= Y + 1e-9; v += sy) {
+        const vv = Math.abs(v) < 1e-9 ? 0 : v;
+        p.stroke(css("--grid-strong")); p.line(M.l, Yp(vv), M.l + W, Yp(vv));
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
+        p.text(fmt(+vv.toFixed(6), 3).replace("-", "−"), M.l - 8, Yp(vv));
+      }
+
+      // eixos
+      p.stroke(css("--axis")); p.strokeWeight(1.5);
+      p.line(M.l, Yp(0), M.l + W, Yp(0));
+      p.line(M.l, M.t, M.l, M.t + H);
+
+      // curvas (recortadas à área do gráfico)
+      const dc = p.drawingContext;
+      dc.save();
+      dc.beginPath(); dc.rect(M.l, M.t, W, H); dc.clip();
+      p.noFill();
+      const N = Math.max(400, Math.round(W * 2));
+      const val = (i, t) => S.waves[i].A * Math.sin(2 * Math.PI * S.waves[i].f * t / 1000);
+      const curve = (fn, color, weight) => {
+        p.stroke(color); p.strokeWeight(weight); p.strokeJoin(p.ROUND);
+        p.beginShape();
+        for (let k = 0; k <= N; k++) { const t = T * k / N; p.vertex(X(t), Yp(fn(t))); }
+        p.endShape();
+      };
+      S.waves.forEach((w, i) => { if (w.on) curve(t => val(i, t), css(`--w${i + 1}`), 2.2); });
+      if (S.sumOn) curve(t => val(0, t) + val(1, t) + val(2, t) + val(3, t), css("--sum"), 3.4);
+      dc.restore();
+
+      // nomes dos eixos, por cima das curvas, com fundo para se lerem
+      p.textSize(13);
+      const label = (txt, x, y, alignX) => {
+        const w = p.textWidth(txt) + 8;
+        const x0 = alignX === p.RIGHT ? x - w : x;
+        p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
+        p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
+      };
+      label("t (ms)", M.l + W - 2, Yp(0) - 12, p.RIGHT);
+      label("p", M.l + 6, M.t + 10, p.LEFT);
+    };
+  };
+  const P = new p5(sketch);
+
+  const redraw = () => { if (ready) P.redraw(); };
+  new ResizeObserver(() => { if (ready) { P.windowResized(); P.redraw(); } }).observe(plotEl);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts) document.fonts.ready.then(redraw);
+
+  // ---------- atualizar texto e gráfico ----------
+  function changed() {
+    S.waves.forEach((w, i) => {
+      const n = nota(w.f);
+      document.getElementById(`note-${i}`).innerHTML =
+        `${n.nome} <span class="cents">(${n.cents >= 0 ? "+" : "−"}${Math.abs(n.cents)} cents)</span>`;
+      document.getElementById(`per-${i}`).textContent = `Período T = 1/f = ${fmt(1000 / w.f, 2)} ms`;
+      document.getElementById(`card-${i}`).classList.toggle("off", !w.on);
+    });
+    Object.entries(modeBtns).forEach(([m, b]) => b.setAttribute("aria-pressed", S.mode === m));
+    document.getElementById("n-row").hidden = S.mode !== "auto";
+    const { T, Y } = bounds();
+    document.getElementById("cap-window").textContent =
+      `0 ≤ t ≤ ${fmt(T, 2)} ms   ·   −${fmt(Y, 2)} ≤ p ≤ ${fmt(Y, 2)}`;
+    updateVoices();
+    redraw();
+  }
+  changed();
+})();
+</script>
+</body>
+</html>
