@@ -157,7 +157,6 @@
     .cols .checks { gap: 5px 8px; }
     .cols .chk { font-size: 0.85rem; gap: 6px; }
     .cols .chk input { width: 15px; height: 15px; }
-    .cols .tnote { font-size: 0.78rem; padding-top: 6px; }
     .cols .seg button { white-space: nowrap; }
     /* as quatro janelas do gráfico numa grelha 2 × 2, para não partirem o texto */
     .cols #win { display: grid; grid-template-columns: 1fr 1fr; }
@@ -166,8 +165,6 @@
     .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
-  .tnote { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; }
-  .tnote b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -206,10 +203,6 @@
         <button class="b" id="zero"><i>t</i> = 0</button>
         <button class="b" id="p1">+1</button>
         <button class="b" id="pstep" title="Soma o passo das marcas de π"></button>
-      </div>
-      <div class="tnote">
-        <div id="r-deg"></div>
-        <div id="r-turns"></div>
       </div>
     </div>
 
@@ -348,18 +341,6 @@
     VAL.cos = ce ?? fmt(c);
     VAL.sin = se ?? fmt(s);
     VAL.tan = k !== null && ((k % 12) + 12) % 12 === 6 ? null : (te ?? fmt(s / c));
-    $("r-deg").innerHTML = S.hidePi ? "" : `Em graus: <b>${fmt(t * 180 / PI, 1)}°</b>`;
-    $("r-deg").hidden = S.hidePi;
-    // representante em [0, 2π[
-    let n = Math.floor(t / TAU + 1e-12), t0 = t - n * TAU;
-    if (t0 < 0) t0 = 0;
-    const k0 = S.hidePi ? null : k12(t0);
-    const t0s = k0 !== null ? fracPi(k0, 12) : fmt(t0);
-    const voltas = n === 0 ? "" : ` = <i>E</i>(<i>t</i> ${n > 0 ? "−" : "+"} ${2 * Math.abs(n)}π)`;
-    $("r-turns").innerHTML = n === 0
-      ? `<i>t</i> ∈ [0, 2π[: ainda não se completou nenhuma volta.`
-      : `<i>t</i> = <b>${t0s}</b> + 2π·(<b>${String(n).replace("-", "−")}</b>), logo <i>E</i>(<i>t</i>)${voltas} = <i>E</i>(<b>${t0s}</b>). `
-        + `A reta deu <b>${Math.abs(n)}</b> volta${Math.abs(n) === 1 ? "" : "s"} completa${Math.abs(n) === 1 ? "" : "s"} no sentido ${n > 0 ? "positivo" : "negativo"}.`;
   }
 
   tR.addEventListener("input", () => setT(parseFloat(tR.value)));
