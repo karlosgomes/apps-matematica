@@ -170,6 +170,10 @@
   }
   .stop:hover { background: var(--btn-hover); }
 
+  /* em ecrã largo o gráfico fica preso no ecrã enquanto se desce nas ondas */
+  @media (min-width: 901px) {
+    .plot-card { position: sticky; top: 16px; }
+  }
   .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
@@ -433,7 +437,8 @@
 
     function size() {
       const w = Math.max(280, plotEl.clientWidth);
-      const h = Math.round(Math.min(640, Math.max(300, w * 0.62)));
+      // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
+      const h = Math.round(Math.max(260, Math.min(640, window.innerHeight - 100, Math.max(300, w * 0.62))));
       return [w, h];
     }
 
