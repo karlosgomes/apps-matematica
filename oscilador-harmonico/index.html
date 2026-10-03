@@ -193,6 +193,16 @@
     <section class="controls" aria-label="Controlos">
       <div class="box">
         <div class="row">
+          <span>Montagem</span>
+          <div class="seg" role="group" aria-label="Montagem do oscilador" id="pos">
+            <button data-v="vertical" aria-pressed="true">↕ Vertical (suspensa)</button>
+            <button data-v="horizontal" aria-pressed="false">↔ Horizontal</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="row">
           <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
           <button class="btn" id="reset">↺ Recomeçar</button>
         </div>
@@ -239,7 +249,7 @@
         </div>
         <div style="font-size: 0.82rem; color: var(--muted)">
           v₀ = 0: largar a esfera; v₀ ≠ 0: dar-lhe um empurrão ao largar.<br>
-          x₀ &gt; 0 e v₀ &gt; 0: para baixo (a afastar-se do teto).
+          <span id="sign-note">x₀ &gt; 0 e v₀ &gt; 0: para baixo (a afastar-se do teto).</span>
         </div>
       </div>
 
@@ -247,7 +257,7 @@
         <h2>Grandezas</h2>
         <dl class="readout" id="readout"></dl>
         <div class="law" id="law"></div>
-        <div class="warn" id="warn" hidden>⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria no teto. Diminui x₀ ou v₀.</div>
+        <div class="warn" id="warn" hidden>⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria <span id="warn-where">no teto</span>. Diminui x₀ ou v₀.</div>
       </div>
 
       <div class="box">
@@ -275,7 +285,7 @@
             <button data-v="20" aria-pressed="false">20 s</button>
           </div>
         </div>
-        <div class="row">
+        <div class="row" id="dir-row">
           <span>Eixo d</span>
           <div class="seg" role="group" aria-label="Sentido do eixo d" id="dir">
             <button data-v="down" aria-pressed="true">↓ como a mola</button>
@@ -288,7 +298,7 @@
     <section class="plot-card" aria-label="Esfera e gráfico da distância ao teto">
       <div id="plot"></div>
       <div class="caption">
-        <span>d — distância do teto ao centro da esfera (m)</span>
+        <span id="cap-d">d — distância do teto ao centro da esfera (m)</span>
         <span id="cap-now" class="mono"></span>
       </div>
     </section>
@@ -300,9 +310,10 @@
 (() => {
   const g = 9.8;
   const S = {
+    pos: location.hash === "#horizontal" ? "horizontal" : "vertical",
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
-    keep: false, traces: [],   // traços guardados: { m, k, L, x0, v0, t, c }
+    keep: false, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
   };
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
@@ -312,7 +323,8 @@
   // ---------- física: x(t) = x₀ cos ωt + (v₀/ω) sin ωt = A cos(ωt + φ) ----------
   function model(P = S) {
     const w = Math.sqrt(P.k / P.m);
-    const D = P.L + P.m * g / P.k;               // posição de equilíbrio
+    // posição de equilíbrio: na vertical o peso estica a mola mg/k; na horizontal (sem atrito) não
+    const D = P.L + (P.pos === "vertical" ? P.m * g / P.k : 0);
     const A = Math.hypot(P.x0, P.v0 / w);
     let phi = Math.atan2(-P.v0 / w, P.x0);
     if (phi < -Math.PI + 1e-9) phi = Math.PI;    // φ ∈ ]−π, π]
@@ -345,8 +357,8 @@
   const restart = () => { S.t = 0; changed(); };
   function saveTrace() {
     if (!S.keep || S.t <= 0) return;
-    const { m, k, L, x0, v0, t } = S;
-    S.traces.push({ m, k, L, x0, v0, t, c: nextColor++ % NCORES + 1 });
+    const { pos, m, k, L, x0, v0, t } = S;
+    S.traces.push({ pos, m, k, L, x0, v0, t, c: nextColor++ % NCORES + 1 });
     if (S.traces.length > MAXTRACOS) S.traces.shift();
   }
   const param = key => x => { saveTrace(); S[key] = x; restart(); };
@@ -374,6 +386,19 @@
   seg("win", "win", Number);
   seg("dir", "dir", String);
   seg("scale", "scale", Number);
+  // mudar a montagem é como mudar um parâmetro: guarda o traço (se pedido) e recomeça
+  const posBtns = [...document.querySelectorAll("#pos button")];
+  posBtns.forEach(b => {
+    b.setAttribute("aria-pressed", b.dataset.v === S.pos);
+    b.addEventListener("click", () => {
+      if (S.pos === b.dataset.v) return;
+      saveTrace(); S.pos = b.dataset.v;
+      posBtns.forEach(x => x.setAttribute("aria-pressed", x === b));
+      history.replaceState(null, "", S.pos === "horizontal" ? "#horizontal" : location.pathname + location.search);
+      if (ready) P.windowResized();
+      restart();
+    });
+  });
 
   // ---------- desenho (p5.js) ----------
   const plotEl = document.getElementById("plot");
@@ -388,7 +413,8 @@
       const w = Math.max(300, plotEl.clientWidth);
       // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
       const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110, Math.max(320, w * 0.6))));
-      return [w, h];
+      // na horizontal a cena ocupa uma faixa por cima do gráfico: em ecrã estreito dá-se mais altura
+      return [w, S.pos === "horizontal" && w < 520 ? h + 90 : h];
     }
 
     p.setup = () => {
@@ -412,16 +438,26 @@
       p.textFont(plex ? "IBM Plex Mono" : "monospace");
       p.background(css("--panel"));
 
-      const H = p.height - M.t - M.b;
-      // cena: o teto em cima, d cresce para baixo (sempre)
-      const Ys = dd => M.t + (dd / top) * H;
-      // gráfico: pode seguir o sentido da mola ou o habitual
-      const Yg = S.dir === "down" ? Ys : dd => M.t + H - (dd / top) * H;
+      const horiz = S.pos === "horizontal";
+      const dNow = d(mod, S.t);
+      const R = Math.max(10, Math.min(22, 13 + 6 * Math.cbrt(S.m)));   // raio só visual
 
+      // na horizontal: cena numa faixa em cima, gráfico por baixo a toda a largura
+      const SH = horiz ? Math.round(Math.min(150, Math.max(110, p.height * 0.28))) : 0;
+      const GT = M.t + SH;                    // topo da área do gráfico
+      const H = p.height - GT - M.b;
+      // cena vertical: o teto em cima, d cresce para baixo (sempre)
+      const Ys = dd => M.t + (dd / top) * H;
+      // gráfico: pode seguir o sentido da mola ou o habitual (na horizontal, sempre o habitual)
+      const down = !horiz && S.dir === "down";
+      const Yg = down ? Ys : dd => GT + H - (dd / top) * H;
+
+      if (horiz) {
+        sceneW = 0;
+        drawHorizontal(mod, dNow, R, top, SH);
+      } else {
       // ---- cena ----
       const cx = sceneW / 2 + 6;
-      const R = Math.max(10, Math.min(22, 13 + 6 * Math.cbrt(S.m)));   // raio só visual
-      const dNow = d(mod, S.t);
       const yBall = Ys(dNow);
 
       // teto tracejado
@@ -459,6 +495,7 @@
       p.line(qx - 4, yBall, qx + 4, yBall);
       p.noStroke(); p.fill(css("--muted")); p.textSize(12); p.textAlign(p.LEFT, p.CENTER);
       p.text("d", qx + 6, (M.t + yBall) / 2);
+      }
 
       // ---- gráfico ----
       const gx0 = sceneW + M.l, gx1 = p.width - M.r, W = gx1 - gx0;
@@ -468,11 +505,11 @@
       p.textSize(11); p.strokeWeight(1);
       const sx = niceStep(S.win, p.width < 520 ? 5 : 10);
       for (let t = Math.ceil(tA / sx) * sx; t <= tB + 1e-9; t += sx) {
-        p.stroke(css("--grid-strong")); p.line(X(t), M.t, X(t), M.t + H);
+        p.stroke(css("--grid-strong")); p.line(X(t), GT, X(t), GT + H);
         p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
-        p.text(fmt(+t.toFixed(6), sx < 1 ? 1 : 0), X(t), M.t + H + 6);
+        p.text(fmt(+t.toFixed(6), sx < 1 ? 1 : 0), X(t), GT + H + 6);
       }
-      const sy = niceStep(top, 8);
+      const sy = niceStep(top, H < 260 ? 5 : 8);
       for (let y = 0; y <= top + 1e-9; y += sy) {
         p.stroke(css("--grid-strong")); p.line(gx0, Yg(y), gx1, Yg(y));
         p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
@@ -482,9 +519,9 @@
       // eixos: o eixo t passa em d = 0
       p.stroke(css("--axis")); p.strokeWeight(1.5);
       p.line(gx0, Yg(0), gx1, Yg(0));
-      p.line(gx0, M.t, gx0, M.t + H);
+      p.line(gx0, GT, gx0, GT + H);
       arrow(gx1, Yg(0), 1, 0);
-      if (S.dir === "down") arrow(gx0, M.t + H, 0, 1); else arrow(gx0, M.t, 0, -1);
+      if (down) arrow(gx0, GT + H, 0, 1); else arrow(gx0, GT, 0, -1);
 
       // equilíbrio e faixa da amplitude
       dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), css("--eq"), 1.2);
@@ -493,7 +530,7 @@
 
       // traços: os guardados (até ao instante em que pararam) e o atual
       const dc = p.drawingContext;
-      dc.save(); dc.beginPath(); dc.rect(gx0, M.t - 2, W, H + 4); dc.clip();
+      dc.save(); dc.beginPath(); dc.rect(gx0, GT - 2, W, H + 4); dc.clip();
       const trace = (md, tEnd, color, weight) => {
         const t1 = Math.min(tEnd, tB);
         if (t1 <= tA) return;
@@ -514,7 +551,7 @@
 
       // ponto atual e ligação à esfera
       const px = X(S.t), py = Yg(dNow);
-      if (S.dir === "down") dashed(cx + R + 2, yBall, px, py, css("--ball"), 1);
+      if (down) dashed(sceneW / 2 + 6 + R + 2, Ys(dNow), px, py, css("--ball"), 1);
       p.noStroke(); p.fill(css("--curve")); p.circle(px, py, 9);
 
       // nomes dos eixos
@@ -524,9 +561,72 @@
         p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
         p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
       };
-      label("t (s)", gx1 - 2, Yg(0) + (S.dir === "down" ? 14 : -14), true);
-      label("d (m)", gx0 + 8, S.dir === "down" ? M.t + H - 10 : M.t + 10, false);
+      label("t (s)", gx1 - 2, Yg(0) + (down ? 14 : -14), true);
+      label("d (m)", gx0 + 8, down ? GT + H - 10 : GT + 10, false);
     };
+
+    // montagem horizontal: parede com O à esquerda, mola, esfera P a deslizar no chão (sem atrito).
+    // A régua por baixo do chão usa a mesma escala de d que o gráfico.
+    function drawHorizontal(mod, dNow, R, top, SH) {
+      const x0 = M.l + 6, x1 = p.width - M.r - 10;
+      const Xs = dd => x0 + (dd / top) * (x1 - x0);
+      const floorY = M.t + SH - 44, cy = floorY - R - 2;
+
+      // chão e parede
+      p.stroke(css("--ceil")); p.strokeWeight(5); p.strokeCap(p.ROUND);
+      p.line(x0 - 4, floorY, x1 + 6, floorY);
+      p.line(x0 - 4, floorY + 2, x0 - 4, cy - R - 26);
+      p.strokeCap(p.ROUND);
+
+      // régua (escala de d) por baixo do chão
+      const st = niceStep(top, (x1 - x0) < 500 ? 5 : 10);
+      p.textSize(10); p.strokeWeight(1);
+      for (let v = 0; v <= top + 1e-9; v += st) {
+        p.stroke(css("--muted")); p.line(Xs(v), floorY + 4, Xs(v), floorY + 9);
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
+        p.text(fmt(+v.toFixed(6), st < 0.1 ? 2 : 1), Xs(v), floorY + 11);
+      }
+
+      // linha de equilíbrio
+      dashed(Xs(mod.D), cy - R - 18, Xs(mod.D), floorY, css("--eq"), 1.2);
+
+      // mola na horizontal, presa em O
+      const xb = Xs(dNow), xs0 = Xs(0), xs1 = Math.max(xs0 + 8, xb - R);
+      const lead = Math.min(12, (xs1 - xs0) * 0.12);
+      const coils = 14, amp = 9;
+      p.noFill(); p.stroke(css("--spring")); p.strokeWeight(2); p.strokeJoin(p.ROUND);
+      p.beginShape();
+      p.vertex(xs0, cy); p.vertex(xs0 + lead, cy);
+      const span = (xs1 - lead) - (xs0 + lead);
+      for (let i = 0; i < coils * 2; i++) p.vertex(xs0 + lead + span * (i + 0.5) / (coils * 2), cy + (i % 2 ? -amp : amp));
+      p.vertex(xs1 - lead, cy); p.vertex(xs1, cy);
+      p.endShape();
+
+      // O
+      p.noStroke(); p.fill(css("--ink")); p.circle(xs0, cy, 7);
+      p.textSize(14); p.textStyle(p.BOLD); p.textAlign(p.RIGHT, p.CENTER);
+      p.text("O", xs0 - 12, cy);
+
+      // esfera P
+      p.noStroke(); p.fill(css("--ball")); p.circle(xb, cy, 2 * R);
+      p.fill(255, 255, 255, 90); p.circle(xb - R * 0.35, cy - R * 0.35, R * 0.7);
+      p.fill(css("--panel")); p.circle(xb, cy, 5);
+      p.textAlign(p.LEFT, p.BOTTOM); p.fill(css("--ink"));
+      p.text("P", xb + R * 0.55, cy - R * 0.55);
+      p.textStyle(p.NORMAL);
+
+      // cota d por cima: de O ao centro de P
+      const qy = cy - R - 12;
+      p.stroke(css("--muted")); p.strokeWeight(1);
+      p.line(xs0, qy, xb, qy);
+      p.line(xs0, qy - 4, xs0, qy + 4); p.line(xb, qy - 4, xb, qy + 4);
+      p.noStroke(); p.fill(css("--muted")); p.textSize(12); p.textAlign(p.CENTER, p.BOTTOM);
+      p.text("d", (xs0 + xb) / 2, qy - 3);
+
+      // separador entre a cena e o gráfico
+      p.stroke(css("--line")); p.strokeWeight(1);
+      p.line(10, M.t + SH - 8, p.width - 10, M.t + SH - 8);
+    }
 
     function dashed(x0, y0, x1, y1, c, w) {
       const dc = p.drawingContext;
@@ -561,7 +661,7 @@
       ["ω = √(k/m)", `${fmt(mod.w, 2)} rad/s`],
       ["T = 2π/ω", `${fmt(mod.T, 2)} s`],
       ["f = 1/T", `${fmt(1 / mod.T, 2)} Hz`],
-      ["D = L₀ + mg/k", `${fmt(mod.D, 3)} m`],
+      [S.pos === "vertical" ? "D = L₀ + mg/k" : "D = L₀", `${fmt(mod.D, 3)} m`],
       ["A", `${fmt(mod.A, 3)} m`],
       ["φ", `${fmt(mod.phi, 2)} rad`],
     ];
@@ -570,10 +670,19 @@
     const ph = mod.A < 1e-9 ? "" : ` + ${fmt(mod.A, 3)} cos(${fmt(mod.w, 2)} t${fase})`;
     document.getElementById("law").textContent = `d(t) = ${fmt(mod.D, 3)}${ph}`;
     document.getElementById("warn").hidden = mod.D - mod.A > 0.08;
+    const vert = S.pos === "vertical";
+    document.getElementById("warn-where").textContent = vert ? "no teto" : "na parede";
+    document.getElementById("sign-note").textContent = vert
+      ? "x₀ > 0 e v₀ > 0: para baixo (a afastar-se do teto)."
+      : "x₀ > 0 e v₀ > 0: para a direita (a afastar-se de O).";
+    document.getElementById("cap-d").textContent = vert
+      ? "d — distância do teto ao centro da esfera (m)"
+      : "d — distância de O ao centro da esfera P (m)";
+    document.getElementById("dir-row").hidden = !vert;
     document.getElementById("warn-scale").hidden = mod.D + mod.A + 0.03 <= S.scale;
 
     // lista de traços
-    const desc = P => `m=${fmt(P.m, 2)} k=${fmt(P.k, 0)} L₀=${fmt(P.L, 2)} x₀=${fmt(P.x0, 2)} v₀=${fmt(P.v0, 2)}`;
+    const desc = P => `${P.pos === "vertical" ? "↕" : "↔"} m=${fmt(P.m, 2)} k=${fmt(P.k, 0)} L₀=${fmt(P.L, 2)} x₀=${fmt(P.x0, 2)} v₀=${fmt(P.v0, 2)}`;
     const items = S.traces.map(tr => `<li style="--c: var(--h${tr.c})">${desc(tr)}</li>`);
     items.push(`<li class="now" style="--c: var(--curve)">${desc(S)} (atual)</li>`);
     document.getElementById("traces").innerHTML = items.join("");
