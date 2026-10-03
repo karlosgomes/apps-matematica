@@ -140,12 +140,16 @@
   .chk span { color: var(--c, var(--ink)); font-weight: 700; }
   .chk.plain span { font-weight: 400; color: var(--ink); }
 
-  .readouts dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 0.95rem; }
-  .readouts dt { color: var(--muted); }
-  .readouts dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .readouts .c { color: var(--cos); } .readouts .s { color: var(--sin); } .readouts .tg { color: var(--tan); }
-  .readouts .note { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
-  .readouts .note b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
+  /* ecrã largo: opções numa coluna à esquerda; o desenho à direita fica preso no ecrã enquanto se desce nas opções */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (min-width: 1100px) {
+    .cols { grid-template-columns: minmax(330px, 28%) minmax(0, 1fr); }
+    .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); }
+    .cols .plot-card { order: 2; position: sticky; top: 16px; }
+  }
+
+  .tnote { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; }
+  .tnote b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -155,6 +159,7 @@
     <div class="formula"><span class="nw"><i>E</i> : ℝ → circunferência unitária,</span> <span class="nw"><i>E</i>(<i>t</i>) = (cos <i>t</i>, sin <i>t</i>)</span></div>
   </header>
 
+  <main class="cols">
   <section class="card plot-card" aria-label="Circunferência unitária e gráficos">
     <div id="plot"></div>
     <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
@@ -183,6 +188,10 @@
         <button class="b" id="zero"><i>t</i> = 0</button>
         <button class="b" id="p1">+1</button>
         <button class="b" id="pstep" title="Soma o passo das marcas de π"></button>
+      </div>
+      <div class="tnote">
+        <div id="r-deg"></div>
+        <div id="r-turns"></div>
       </div>
     </div>
 
@@ -217,20 +226,8 @@
         </div>
       </div>
     </div>
-
-    <div class="card readouts">
-      <h2>Valores</h2>
-      <dl>
-        <dt><i>t</i></dt><dd id="r-t"></dd>
-        <dt id="r-deg-l">em graus</dt><dd id="r-deg"></dd>
-        <dt><i>P</i></dt><dd id="r-E"></dd>
-        <dt class="c">cos <i>t</i></dt><dd id="r-cos" class="c"></dd>
-        <dt class="s">sin <i>t</i></dt><dd id="r-sin" class="s"></dd>
-        <dt class="tg">tan <i>t</i></dt><dd id="r-tan" class="tg"></dd>
-      </dl>
-      <div class="note" id="r-turns"></div>
-    </div>
   </section>
+  </main>
 </div>
 
 <script src="p5.min.js"></script>
@@ -319,23 +316,22 @@
     readouts();
   }
 
+  const VAL = { t: "0", cos: "1", sin: "0", tan: "0" };
   function readouts() {
     // sem marcas de π: só valores decimais (sem formas exatas nem graus)
+    // os valores aparecem no próprio desenho (junto de P e dos pontos dos gráficos):
+    // forma exata quando existe, senão decimal
     const t = S.t, k = S.hidePi ? null : k12(t);
     const c = Math.cos(t), s = Math.sin(t);
     const exact = k !== null ? fracPi(k, 12) : null;
-    $("r-t").textContent = exact && exact !== "0" ? `${exact} ≈ ${fmt(t)}` : fmt(t);
-    $("r-deg").textContent = fmt(t * 180 / PI, 1) + "°";
-    $("r-deg").hidden = $("r-deg-l").hidden = S.hidePi;
-    $("r-E").textContent = `(${fmt(c)}; ${fmt(s)})`;
     const ce = k !== null ? cosEx(k) : null, se = k !== null ? sinEx(k) : null;
-    $("r-cos").textContent = ce !== null && !/^−?[01]$/.test(ce) ? `${ce} ≈ ${fmt(c)}` : (ce ?? fmt(c));
-    $("r-sin").textContent = se !== null && !/^−?[01]$/.test(se) ? `${se} ≈ ${fmt(s)}` : (se ?? fmt(s));
-    if (k !== null && ((k % 12) + 12) % 12 === 6) $("r-tan").textContent = "não definida";
-    else {
-      const te = k !== null ? TAN_EX[((k % 12) + 12) % 12] : undefined;
-      $("r-tan").textContent = te !== undefined && !/^−?[01]$/.test(te) ? `${te} ≈ ${fmt(s / c)}` : (te ?? fmt(s / c));
-    }
+    const te = k !== null ? TAN_EX[((k % 12) + 12) % 12] : undefined;
+    VAL.t = exact ?? fmt(t);
+    VAL.cos = ce ?? fmt(c);
+    VAL.sin = se ?? fmt(s);
+    VAL.tan = k !== null && ((k % 12) + 12) % 12 === 6 ? null : (te ?? fmt(s / c));
+    $("r-deg").innerHTML = S.hidePi ? "" : `Em graus: <b>${fmt(t * 180 / PI, 1)}°</b>`;
+    $("r-deg").hidden = S.hidePi;
     // representante em [0, 2π[
     let n = Math.floor(t / TAU + 1e-12), t0 = t - n * TAU;
     if (t0 < 0) t0 = 0;
@@ -425,14 +421,22 @@
   let L = {};   // layout
   const holder = $("plot");
 
+  // com as duas colunas, o cartão do desenho não pode ser mais alto do que o ecrã
+  const wide = matchMedia("(min-width: 1100px)");
+  function maxH() {
+    if (!wide.matches) return Infinity;
+    const hint = holder.parentElement.querySelector(".hint");
+    return Math.max(300, innerHeight - 32 - 18 - (hint ? hint.offsetHeight : 0));
+  }
+
   function layout() {
     const W = holder.clientWidth;
     if (!S.show.graph) {
       // só a circunferência, a toda a largura
-      const H = W >= 640 ? Math.round(Math.max(380, Math.min(560, W * 0.42))) : Math.round(Math.min(W, 440));
+      const H = W >= 640 ? Math.round(Math.max(Math.min(380, maxH()), Math.min(560, W * 0.42, maxH()))) : Math.round(Math.min(W, 440));
       L = { W, H, side: W >= 640, R: H * (W >= 640 ? 0.28 : 0.27), cx: W / 2, cy: H / 2, circ: [0, 0, W, H], g: null };
     } else if (W >= 640) {
-      const H = Math.round(Math.max(380, Math.min(560, W * 0.42)));
+      const H = Math.round(Math.max(Math.min(380, maxH()), Math.min(560, W * 0.42, maxH())));
       const cw = Math.min(H + 40, Math.round(W * 0.46));
       const R = H * 0.28;
       L = { W, H, side: true, R, cx: cw / 2, cy: H / 2,
@@ -493,9 +497,11 @@
   };
   // o desenho acompanha a largura do seu contentor (janela redimensionada, rodar o tablet, etc.)
   function refit() {
-    const w = holder.clientWidth;
-    if (!cnv || !w || Math.abs(w - L.W) < 1) return;
-    layout(); resizeCanvas(L.W, L.H); linkUI();
+    if (!cnv || !holder.clientWidth) return;
+    const { W, H } = L;
+    layout();
+    if (Math.abs(W - L.W) < 1 && Math.abs(H - L.H) < 1) return;
+    resizeCanvas(L.W, L.H); linkUI();
   }
   new ResizeObserver(() => requestAnimationFrame(refit)).observe(holder);
   window.windowResized = refit;
@@ -541,6 +547,19 @@
     text(str, x, y);
   }
 
+  // rótulo com fundo, mantido dentro da zona [X, Y, W, H]
+  function tag(str, x, y, col, ax, zone, size = 13) {
+    textSize(size); textStyle(BOLD);
+    const w = textWidth(str) + 10, h = size + 7;
+    let x0 = ax === LEFT ? x : ax === RIGHT ? x - w : x - w / 2;
+    const [ZX, ZY, ZW, ZH] = zone;
+    x0 = Math.max(ZX + 2, Math.min(ZX + ZW - w - 2, x0));
+    const y0 = Math.max(ZY + 2, Math.min(ZY + ZH - h - 2, y - h / 2));
+    const bg = color(C.panel); bg.setAlpha(230);
+    noStroke(); fill(bg); rect(x0, y0, w, h, 4);
+    label(str, x0 + w / 2, y0 + h / 2, col, size, CENTER, CENTER, true);
+  }
+
   function drawCircle() {
     const [X, Y, W, H] = L.circ;
     const t = S.t, R = L.R;
@@ -579,7 +598,7 @@
       line(sx(1), sy(0), sx(1), sy(tg));
       strokeCap(ROUND);
       noStroke(); fill(C.tan); circle(sx(1), sy(tg), 7);
-      label("tan t", sx(1) + 8, sy(tg / 2), C.tan, 13, LEFT, CENTER, true);
+      tag(`tan t = ${VAL.tan}`, sx(1) + 8, sy(tg / 2), C.tan, LEFT, L.circ);
     }
 
     // reta a enrolar
@@ -615,12 +634,9 @@
     // ponto P = E(t)
     stroke(C.panel); strokeWeight(2); fill(C.ink);
     circle(sx(c), sy(s), 12);
-    // rótulo afastado na direção radial, com fundo para não se misturar com as marcas
-    const lx = sx(c * 1.3), ly = sy(s * 1.3) - 2;
-    textSize(14); textStyle(BOLD);
-    const tw = textWidth("P") + 10;
-    noStroke(); fill(C.panel); rect(lx - tw / 2, ly - 10, tw, 20, 4);
-    label("P", lx, ly, C.ink, 15, CENTER, CENTER, true);
+    // rótulo com as coordenadas, afastado na direção radial e virado para fora
+    const lx = sx(c * 1.22) + (c >= 0 ? 2 : -2), ly = sy(s * 1.22);
+    tag(`P(${VAL.cos}; ${VAL.sin})`, lx, ly, C.ink, Math.abs(c) < 0.25 ? CENTER : c > 0 ? LEFT : RIGHT, L.circ, 14);
 
     unclip();
     // separador entre painéis
@@ -771,13 +787,28 @@
       line(gx(t), cy, gx(t), gy(f(t)));
       dashed(false);
     }
+    const pts = [];
     for (const [f, col] of curves) {
       const y = f(t);
       if (f === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
       stroke(C.panel); strokeWeight(2); fill(col);
       circle(gx(t), gy(y), 10);
+      pts.push({ f, col, y });
     }
     unclip();
+
+    // coordenadas de cada ponto: (t; f(t)), ao lado do ponto; o de cima sobe e o de baixo desce
+    // para não se sobreporem quando os pontos estão perto
+    const zone = [g.x0, g.top, g.x1 - g.x0, g.bot - g.top];
+    const right = gx(t) < (g.x0 + g.x1) / 2;
+    const sorted = [...pts].sort((p, q) => q.y - p.y);
+    sorted.forEach((P, i) => {
+      const v = P.f === Math.cos ? VAL.cos : P.f === Math.sin ? VAL.sin : VAL.tan;
+      const Y = gy(P.y);
+      if (Y < g.top || Y > g.bot) return;
+      const dy = sorted.length > 1 ? (i === 0 ? -11 : i === sorted.length - 1 ? 11 : 0) : 0;
+      tag(`(${VAL.t}; ${v})`, gx(t) + (right ? 10 : -10), Y + dy, P.col, right ? LEFT : RIGHT, zone);
+    });
 
     // legenda (com fundo)
     let ly = g.top + 16;
