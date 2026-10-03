@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oscilador Harmónico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --ink: #17202b;
+    --muted: #5b6776;
+    --line: #d6dde6;
+    --grid-strong: #dfe5ec;
+    --axis: #36414d;
+    --btn: #eef2f6;
+    --btn-hover: #e1e7ee;
+    --ceil: #8a96a3;
+    --spring: #5b6776;
+    --ball: #1565c0;
+    --curve: #d32f2f;
+    --eq: #2e7d32;
+    --h1: #1565c0;
+    --h2: #2e7d32;
+    --h3: #ef6c00;
+    --h4: #7b1fa2;
+    --h5: #00838f;
+    --warn: #b45309;
+    --focus: #1565c0;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1419;
+      --panel: #171e26;
+      --ink: #e6ebf1;
+      --muted: #9aa6b4;
+      --line: #2a3440;
+      --grid-strong: #232c37;
+      --axis: #aab4c0;
+      --btn: #202a35;
+      --btn-hover: #2a3642;
+      --ceil: #6b7785;
+      --spring: #aab4c0;
+      --ball: #64a8ff;
+      --curve: #ff6b6b;
+      --eq: #5cc26a;
+      --h1: #64a8ff;
+      --h2: #5cc26a;
+      --h3: #ffa040;
+      --h4: #c792ea;
+      --h5: #4dd0e1;
+      --warn: #fbbf24;
+      --focus: #64a8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1419;
+    --panel: #171e26;
+    --ink: #e6ebf1;
+    --muted: #9aa6b4;
+    --line: #2a3440;
+    --grid-strong: #232c37;
+    --axis: #aab4c0;
+    --btn: #202a35;
+    --btn-hover: #2a3642;
+    --ceil: #6b7785;
+    --spring: #aab4c0;
+    --ball: #64a8ff;
+    --curve: #ff6b6b;
+    --eq: #5cc26a;
+    --h1: #64a8ff;
+    --h2: #5cc26a;
+    --h3: #ffa040;
+    --h4: #c792ea;
+    --h5: #4dd0e1;
+    --warn: #fbbf24;
+    --focus: #64a8ff;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.4;
+    padding-inline: 16px;
+    padding-block: 16px 24px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
+  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
+
+  main { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .plot-card { order: -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; box-shadow: 0 6px 14px -10px rgba(0,0,0,.35); }
+  }
+
+  .controls { display: grid; gap: 10px; }
+  .box {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px 12px;
+    display: grid;
+    gap: 8px;
+  }
+  .box h2 { margin: 0; font-size: 0.95rem; color: var(--muted); font-weight: 700; }
+
+  .param { display: grid; grid-template-columns: 8.8rem 1fr 4.6rem; align-items: center; gap: 10px; }
+  .param label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+  .param label b { color: var(--ink); font-style: italic; font-weight: 400; font-size: 1rem; }
+  .param input[type="range"] { width: 100%; accent-color: var(--ball); margin: 0; }
+  .param input[type="number"] {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 3px 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row > span { color: var(--muted); font-size: 0.9rem; }
+  .btn {
+    font: inherit; font-weight: 700; font-size: 0.95rem;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  #run { min-width: 150px; }
+  #run[aria-pressed="true"] { background: var(--ball); border-color: var(--ball); color: var(--panel); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
+    background: var(--btn); color: var(--ink);
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
+
+  .readout { font-family: var(--mono); font-size: 0.88rem; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-variant-numeric: tabular-nums; }
+  .readout dt { color: var(--muted); }
+  .readout dd { margin: 0; }
+  .law { font-family: var(--mono); font-size: 0.92rem; padding: 6px 8px; background: var(--bg); border-radius: 5px; overflow-x: auto; white-space: nowrap; }
+  .warn { color: var(--warn); font-size: 0.88rem; }
+  .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
+  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--ball); cursor: pointer; }
+  .traces { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-family: var(--mono); font-size: 0.8rem; }
+  .traces li { display: flex; align-items: center; gap: 8px; }
+  .traces li::before { content: ""; flex: none; width: 16px; height: 3px; border-radius: 2px; background: var(--c); }
+  .traces li.now { font-weight: 500; }
+  .btn.small { font-size: 0.85rem; padding: 4px 10px; font-weight: 400; }
+
+  /* em ecrã largo a mola e o gráfico ficam presos no ecrã enquanto se desce nos parâmetros */
+  @media (min-width: 901px) {
+    .plot-card { position: sticky; top: 16px; }
+  }
+  .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  #plot { width: 100%; }
+  #plot canvas { display: block; max-width: 100%; }
+  .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .caption .mono { font-family: var(--mono); }
+
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Oscilador Harmónico</h1>
+    <div class="formula"><i>d</i>(<i>t</i>) = <i>D</i> + <i>A</i> · cos(<i>ω</i><i>t</i> + <i>φ</i>)</div>
+  </header>
+
+  <main>
+    <section class="controls" aria-label="Controlos">
+      <div class="box">
+        <div class="row">
+          <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
+          <button class="btn" id="reset">↺ Recomeçar</button>
+        </div>
+        <div class="row">
+          <span>Velocidade</span>
+          <div class="seg" role="group" aria-label="Velocidade da simulação" id="speed">
+            <button data-v="0.25" aria-pressed="false">¼×</button>
+            <button data-v="0.5" aria-pressed="false">½×</button>
+            <button data-v="1" aria-pressed="true">1×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h2>Mola e esfera</h2>
+        <div class="param">
+          <label for="m">Massa <b>m</b> (kg)</label>
+          <input type="range" id="m" min="0.1" max="2" step="0.05" value="0.5">
+          <input type="number" id="m-n" min="0.1" max="2" step="0.05" value="0.5" aria-label="Massa em quilogramas">
+        </div>
+        <div class="param">
+          <label for="k">Constante <b>k</b> (N/m)</label>
+          <input type="range" id="k" min="10" max="100" step="1" value="20">
+          <input type="number" id="k-n" min="10" max="100" step="1" value="20" aria-label="Constante elástica em newtons por metro">
+        </div>
+        <div class="param">
+          <label for="L">Compr. natural <b>L</b>₀ (m)</label>
+          <input type="range" id="L" min="0.2" max="1" step="0.05" value="0.4">
+          <input type="number" id="L-n" min="0.2" max="1" step="0.05" value="0.4" aria-label="Comprimento natural da mola em metros">
+        </div>
+      </div>
+
+      <div class="box">
+        <h2>Condições iniciais (t = 0)</h2>
+        <div class="param">
+          <label for="x0">Afastamento <b>x</b>₀ (m)</label>
+          <input type="range" id="x0" min="-0.3" max="0.3" step="0.01" value="0.15">
+          <input type="number" id="x0-n" min="-0.3" max="0.3" step="0.01" value="0.15" aria-label="Afastamento inicial em metros">
+        </div>
+        <div class="param">
+          <label for="v0">Velocidade <b>v</b>₀ (m/s)</label>
+          <input type="range" id="v0" min="-1" max="1" step="0.05" value="0">
+          <input type="number" id="v0-n" min="-1" max="1" step="0.05" value="0" aria-label="Velocidade inicial em metros por segundo">
+        </div>
+        <div style="font-size: 0.82rem; color: var(--muted)">
+          v₀ = 0: largar a esfera; v₀ ≠ 0: dar-lhe um empurrão ao largar.<br>
+          x₀ &gt; 0 e v₀ &gt; 0: para baixo (a afastar-se do teto).
+        </div>
+      </div>
+
+      <div class="box">
+        <h2>Grandezas</h2>
+        <dl class="readout" id="readout"></dl>
+        <div class="law" id="law"></div>
+        <div class="warn" id="warn" hidden>⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria no teto. Diminui x₀ ou v₀.</div>
+      </div>
+
+      <div class="box">
+        <h2>Traços</h2>
+        <label class="check"><input type="checkbox" id="keep"> Manter o traço ao mudar os parâmetros</label>
+        <ul class="traces" id="traces"></ul>
+        <div class="row" id="clear-row" hidden><button class="btn small" id="clear">Apagar traços guardados</button></div>
+      </div>
+
+      <div class="box">
+        <div class="row">
+          <span>Escala de d</span>
+          <div class="seg" role="group" aria-label="Escala do eixo d" id="scale">
+            <button data-v="1" aria-pressed="true">0–1 m</button>
+            <button data-v="2" aria-pressed="false">0–2 m</button>
+            <button data-v="4" aria-pressed="false">0–4 m</button>
+          </div>
+        </div>
+        <div class="warn" id="warn-scale" hidden>⚠ A esfera sai do referencial: escolhe uma escala maior.</div>
+        <div class="row">
+          <span>Janela de tempo</span>
+          <div class="seg" role="group" aria-label="Janela de tempo do gráfico" id="win">
+            <button data-v="5" aria-pressed="false">5 s</button>
+            <button data-v="10" aria-pressed="true">10 s</button>
+            <button data-v="20" aria-pressed="false">20 s</button>
+          </div>
+        </div>
+        <div class="row">
+          <span>Eixo d</span>
+          <div class="seg" role="group" aria-label="Sentido do eixo d" id="dir">
+            <button data-v="down" aria-pressed="true">↓ como a mola</button>
+            <button data-v="up" aria-pressed="false">↑ habitual</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="plot-card" aria-label="Esfera e gráfico da distância ao teto">
+      <div id="plot"></div>
+      <div class="caption">
+        <span>d — distância do teto ao centro da esfera (m)</span>
+        <span id="cap-now" class="mono"></span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="p5.min.js"></script>
+<script>
+(() => {
+  const g = 9.8;
+  const S = {
+    m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
+    t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
+    keep: false, traces: [],   // traços guardados: { m, k, L, x0, v0, t, c }
+  };
+  const NCORES = 5, MAXTRACOS = 8;
+  let nextColor = 0;
+
+  const fmt = (x, dec = 2) => (Math.abs(x) < 0.5 * 10 ** -dec ? 0 : x).toLocaleString("pt-PT", { maximumFractionDigits: dec, minimumFractionDigits: dec }).replace("-", "−");
+
+  // ---------- física: x(t) = x₀ cos ωt + (v₀/ω) sin ωt = A cos(ωt + φ) ----------
+  function model(P = S) {
+    const w = Math.sqrt(P.k / P.m);
+    const D = P.L + P.m * g / P.k;               // posição de equilíbrio
+    const A = Math.hypot(P.x0, P.v0 / w);
+    let phi = Math.atan2(-P.v0 / w, P.x0);
+    if (phi < -Math.PI + 1e-9) phi = Math.PI;    // φ ∈ ]−π, π]
+    return { w, D, A, phi, T: 2 * Math.PI / w };
+  }
+  const d = (M, t) => M.D + M.A * Math.cos(M.w * t + M.phi);
+  const v = (M, t) => -M.A * M.w * Math.sin(M.w * t + M.phi);
+
+  function niceStep(range, target) {
+    const raw = range / target;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  }
+
+  // ---------- controlos ----------
+  function bindPair(id, min, max, set) {
+    const r = document.getElementById(id), n = document.getElementById(id + "-n");
+    r.addEventListener("input", () => { n.value = r.value; set(+r.value); });
+    n.addEventListener("change", () => {
+      let x = parseFloat(String(n.value).replace(",", "."));
+      if (!isFinite(x)) x = +r.value;
+      x = Math.min(max, Math.max(min, x));
+      n.value = x; r.value = x; set(x);
+    });
+  }
+  // mudar um parâmetro inicial recomeça o movimento em t = 0;
+  // com "manter" ligado, o traço que já foi desenhado fica guardado
+  // (ao arrastar um slider só o primeiro passo guarda, porque depois t = 0)
+  const restart = () => { S.t = 0; changed(); };
+  function saveTrace() {
+    if (!S.keep || S.t <= 0) return;
+    const { m, k, L, x0, v0, t } = S;
+    S.traces.push({ m, k, L, x0, v0, t, c: nextColor++ % NCORES + 1 });
+    if (S.traces.length > MAXTRACOS) S.traces.shift();
+  }
+  const param = key => x => { saveTrace(); S[key] = x; restart(); };
+  bindPair("m", 0.1, 2, param("m"));
+  bindPair("k", 10, 100, param("k"));
+  bindPair("L", 0.2, 1, param("L"));
+  bindPair("x0", -0.3, 0.3, param("x0"));
+  bindPair("v0", -1, 1, param("v0"));
+  document.getElementById("keep").addEventListener("change", e => { S.keep = e.target.checked; });
+  document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
+
+  const runBtn = document.getElementById("run");
+  runBtn.addEventListener("click", () => { S.running = !S.running; changed(); });
+  document.getElementById("reset").addEventListener("click", () => { S.running = false; restart(); });
+
+  function seg(id, key, parse) {
+    const btns = [...document.querySelectorAll(`#${id} button`)];
+    btns.forEach(b => b.addEventListener("click", () => {
+      S[key] = parse(b.dataset.v);
+      btns.forEach(x => x.setAttribute("aria-pressed", x === b));
+      changed();
+    }));
+  }
+  seg("speed", "speed", Number);
+  seg("win", "win", Number);
+  seg("dir", "dir", String);
+  seg("scale", "scale", Number);
+
+  // ---------- desenho (p5.js) ----------
+  const plotEl = document.getElementById("plot");
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let ready = false;
+
+  const sketch = p => {
+    const M = { l: 54, r: 18, t: 22, b: 40 };
+    let sceneW = 150;
+
+    function size() {
+      const w = Math.max(300, plotEl.clientWidth);
+      // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
+      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110, Math.max(320, w * 0.6))));
+      return [w, h];
+    }
+
+    p.setup = () => {
+      const [w, h] = size();
+      p.createCanvas(w, h).parent(plotEl);
+      p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
+      p.noLoop();
+      ready = true;
+    };
+    p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
+
+    p.draw = () => {
+      if (S.running) {
+        S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
+        updateNow();
+      }
+      const mod = model();
+      const top = S.scale;   // escala fixa: não muda com os parâmetros
+      sceneW = p.width < 520 ? 104 : 150;
+      const plex = document.fonts && [...document.fonts].some(f => f.family.replace(/"/g, "") === "IBM Plex Mono" && f.status === "loaded");
+      p.textFont(plex ? "IBM Plex Mono" : "monospace");
+      p.background(css("--panel"));
+
+      const H = p.height - M.t - M.b;
+      // cena: o teto em cima, d cresce para baixo (sempre)
+      const Ys = dd => M.t + (dd / top) * H;
+      // gráfico: pode seguir o sentido da mola ou o habitual
+      const Yg = S.dir === "down" ? Ys : dd => M.t + H - (dd / top) * H;
+
+      // ---- cena ----
+      const cx = sceneW / 2 + 6;
+      const R = Math.max(10, Math.min(22, 13 + 6 * Math.cbrt(S.m)));   // raio só visual
+      const dNow = d(mod, S.t);
+      const yBall = Ys(dNow);
+
+      // teto tracejado
+      p.stroke(css("--ceil")); p.strokeWeight(3);
+      p.line(10, M.t, sceneW, M.t);
+      p.strokeWeight(1.2);
+      for (let x = 14; x < sceneW; x += 10) p.line(x, M.t, x + 8, M.t - 9);
+
+      // linha de equilíbrio na cena
+      dashed(10, Ys(mod.D), sceneW, Ys(mod.D), css("--eq"), 1.2);
+
+      // mola: pontas direitas + zigue-zague com número fixo de espiras
+      const y0 = M.t, y1 = Math.max(M.t + 8, yBall - R);
+      const lead = Math.min(10, (y1 - y0) * 0.12);
+      const coils = 12, amp = 11;
+      p.noFill(); p.stroke(css("--spring")); p.strokeWeight(2); p.strokeJoin(p.ROUND);
+      p.beginShape();
+      p.vertex(cx, y0); p.vertex(cx, y0 + lead);
+      const span = (y1 - lead) - (y0 + lead);
+      for (let i = 0; i < coils * 2; i++) {
+        const yy = y0 + lead + span * (i + 0.5) / (coils * 2);
+        p.vertex(cx + (i % 2 ? -amp : amp), yy);
+      }
+      p.vertex(cx, y1 - lead); p.vertex(cx, y1);
+      p.endShape();
+
+      // esfera com brilho
+      p.noStroke(); p.fill(css("--ball")); p.circle(cx, yBall, 2 * R);
+      p.fill(255, 255, 255, 90); p.circle(cx - R * 0.35, yBall - R * 0.35, R * 0.7);
+
+      // cota d na cena
+      const qx = cx + amp + 22;
+      p.stroke(css("--muted")); p.strokeWeight(1);
+      p.line(qx, M.t + 2, qx, yBall);
+      p.line(qx - 4, yBall, qx + 4, yBall);
+      p.noStroke(); p.fill(css("--muted")); p.textSize(12); p.textAlign(p.LEFT, p.CENTER);
+      p.text("d", qx + 6, (M.t + yBall) / 2);
+
+      // ---- gráfico ----
+      const gx0 = sceneW + M.l, gx1 = p.width - M.r, W = gx1 - gx0;
+      const tA = Math.max(0, S.t - S.win), tB = tA + S.win;
+      const X = t => gx0 + ((t - tA) / S.win) * W;
+
+      p.textSize(11); p.strokeWeight(1);
+      const sx = niceStep(S.win, p.width < 520 ? 5 : 10);
+      for (let t = Math.ceil(tA / sx) * sx; t <= tB + 1e-9; t += sx) {
+        p.stroke(css("--grid-strong")); p.line(X(t), M.t, X(t), M.t + H);
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
+        p.text(fmt(+t.toFixed(6), sx < 1 ? 1 : 0), X(t), M.t + H + 6);
+      }
+      const sy = niceStep(top, 8);
+      for (let y = 0; y <= top + 1e-9; y += sy) {
+        p.stroke(css("--grid-strong")); p.line(gx0, Yg(y), gx1, Yg(y));
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
+        p.text(fmt(+y.toFixed(6), sy < 0.1 ? 2 : 1), gx0 - 8, Yg(y));
+      }
+
+      // eixos: o eixo t passa em d = 0
+      p.stroke(css("--axis")); p.strokeWeight(1.5);
+      p.line(gx0, Yg(0), gx1, Yg(0));
+      p.line(gx0, M.t, gx0, M.t + H);
+      arrow(gx1, Yg(0), 1, 0);
+      if (S.dir === "down") arrow(gx0, M.t + H, 0, 1); else arrow(gx0, M.t, 0, -1);
+
+      // equilíbrio e faixa da amplitude
+      dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), css("--eq"), 1.2);
+      p.noStroke(); p.fill(css("--eq")); p.textSize(11); p.textAlign(p.RIGHT, p.BOTTOM);
+      p.text("equilíbrio  d = " + fmt(mod.D, 3), gx1 - 4, Yg(mod.D) - 3);
+
+      // traços: os guardados (até ao instante em que pararam) e o atual
+      const dc = p.drawingContext;
+      dc.save(); dc.beginPath(); dc.rect(gx0, M.t - 2, W, H + 4); dc.clip();
+      const trace = (md, tEnd, color, weight) => {
+        const t1 = Math.min(tEnd, tB);
+        if (t1 <= tA) return;
+        const N = Math.max(60, Math.round(W * 2 * (t1 - tA) / S.win));
+        p.noFill(); p.stroke(color); p.strokeWeight(weight); p.strokeJoin(p.ROUND);
+        p.beginShape();
+        for (let i = 0; i <= N; i++) { const t = tA + (t1 - tA) * i / N; p.vertex(X(t), Yg(d(md, t))); }
+        p.endShape();
+        return [X(t1), Yg(d(md, t1))];
+      };
+      S.traces.forEach(tr => {
+        const c = css(`--h${tr.c}`);
+        const end = trace(model(tr), tr.t, c, 2);
+        if (end && tr.t <= tB) { p.noStroke(); p.fill(c); p.circle(end[0], end[1], 6); }
+      });
+      if (S.t > 0) trace(mod, S.t, css("--curve"), 2.8);
+      dc.restore();
+
+      // ponto atual e ligação à esfera
+      const px = X(S.t), py = Yg(dNow);
+      if (S.dir === "down") dashed(cx + R + 2, yBall, px, py, css("--ball"), 1);
+      p.noStroke(); p.fill(css("--curve")); p.circle(px, py, 9);
+
+      // nomes dos eixos
+      p.textSize(13);
+      const label = (txt, x, y, right) => {
+        const w = p.textWidth(txt) + 8, x0 = right ? x - w : x;
+        p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
+        p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
+      };
+      label("t (s)", gx1 - 2, Yg(0) + (S.dir === "down" ? 14 : -14), true);
+      label("d (m)", gx0 + 8, S.dir === "down" ? M.t + H - 10 : M.t + 10, false);
+    };
+
+    function dashed(x0, y0, x1, y1, c, w) {
+      const dc = p.drawingContext;
+      dc.save(); dc.setLineDash([5, 5]);
+      p.stroke(c); p.strokeWeight(w); p.line(x0, y0, x1, y1);
+      dc.restore();
+    }
+    function arrow(x, y, ux, uy) {
+      const s = 7;
+      p.noStroke(); p.fill(css("--axis"));
+      p.triangle(x + ux * s, y + uy * s, x - uy * s * 0.6, y + ux * s * 0.6, x + uy * s * 0.6, y - ux * s * 0.6);
+    }
+  };
+  const P = new p5(sketch);
+
+  const redraw = () => { if (ready && !S.running) P.redraw(); };
+  new ResizeObserver(() => { if (ready) { P.windowResized(); P.redraw(); } }).observe(plotEl);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts) document.fonts.ready.then(redraw);
+
+  // ---------- textos ----------
+  function updateNow() {
+    const mod = model();
+    document.getElementById("cap-now").textContent =
+      `t = ${fmt(S.t, 2)} s   ·   d(t) = ${fmt(d(mod, S.t), 3)} m   ·   v(t) = ${fmt(v(mod, S.t), 2)} m/s`;
+  }
+
+  function changed() {
+    const mod = model();
+    const rows = [
+      ["ω = √(k/m)", `${fmt(mod.w, 2)} rad/s`],
+      ["T = 2π/ω", `${fmt(mod.T, 2)} s`],
+      ["f = 1/T", `${fmt(1 / mod.T, 2)} Hz`],
+      ["D = L₀ + mg/k", `${fmt(mod.D, 3)} m`],
+      ["A", `${fmt(mod.A, 3)} m`],
+      ["φ", `${fmt(mod.phi, 2)} rad`],
+    ];
+    document.getElementById("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
+    const fase = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "−" : "+"} ${fmt(Math.abs(mod.phi), 2)}`;
+    const ph = mod.A < 1e-9 ? "" : ` + ${fmt(mod.A, 3)} cos(${fmt(mod.w, 2)} t${fase})`;
+    document.getElementById("law").textContent = `d(t) = ${fmt(mod.D, 3)}${ph}`;
+    document.getElementById("warn").hidden = mod.D - mod.A > 0.08;
+    document.getElementById("warn-scale").hidden = mod.D + mod.A + 0.03 <= S.scale;
+
+    // lista de traços
+    const desc = P => `m=${fmt(P.m, 2)} k=${fmt(P.k, 0)} L₀=${fmt(P.L, 2)} x₀=${fmt(P.x0, 2)} v₀=${fmt(P.v0, 2)}`;
+    const items = S.traces.map(tr => `<li style="--c: var(--h${tr.c})">${desc(tr)}</li>`);
+    items.push(`<li class="now" style="--c: var(--curve)">${desc(S)} (atual)</li>`);
+    document.getElementById("traces").innerHTML = items.join("");
+    document.getElementById("clear-row").hidden = !S.traces.length;
+
+    runBtn.setAttribute("aria-pressed", S.running);
+    runBtn.textContent = S.running ? "⏸ Parar o tempo" : (S.t > 0 ? "▶ Continuar" : "▶ Ligar o tempo");
+    updateNow();
+    if (ready) { S.running ? P.loop() : (P.noLoop(), P.redraw()); }
+  }
+  changed();
+})();
+</script>
+</body>
+</html>
