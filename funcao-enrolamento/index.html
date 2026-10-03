@@ -143,9 +143,27 @@
   /* ecrã largo: opções numa coluna à esquerda; o desenho à direita fica preso no ecrã enquanto se desce nas opções */
   .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
   @media (min-width: 1100px) {
-    .cols { grid-template-columns: minmax(330px, 28%) minmax(0, 1fr); }
-    .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); }
+    .cols { grid-template-columns: minmax(270px, 21%) minmax(0, 1fr); }
+    .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     .cols .plot-card { order: 2; position: sticky; top: 16px; }
+    /* coluna das opções mais compacta, para o desenho ter mais espaço */
+    .cols .panels .card { padding: 10px; gap: 8px; }
+    .cols h2 { font-size: 0.85rem; }
+    .cols .param { grid-template-columns: 1fr 4.8rem; gap: 8px; }
+    .cols .num { font-size: 0.85rem; padding: 3px 5px; }
+    .cols .row { gap: 6px; }
+    .cols .lbl { font-size: 0.8rem; }
+    .cols button.b, .cols .seg button { font-size: 0.8rem; padding: 4px 8px; }
+    .cols .checks { gap: 5px 8px; }
+    .cols .chk { font-size: 0.85rem; gap: 6px; }
+    .cols .chk input { width: 15px; height: 15px; }
+    .cols .tnote { font-size: 0.78rem; padding-top: 6px; }
+    .cols .seg button { white-space: nowrap; }
+    /* as quatro janelas do gráfico numa grelha 2 × 2, para não partirem o texto */
+    .cols #win { display: grid; grid-template-columns: 1fr 1fr; }
+    .cols #win button { border-left: 0; }
+    .cols #win button:nth-child(even) { border-left: 1px solid var(--line); }
+    .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
   .tnote { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; }
