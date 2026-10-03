@@ -197,7 +197,7 @@
 
       <div class="wave" id="card-sum" style="--c: var(--sum)">
         <div class="wave-head">
-          <label class="toggle"><input type="checkbox" id="on-sum" checked> Soma das 4 ondas</label>
+          <label class="toggle"><input type="checkbox" id="on-sum"> Soma das 4 ondas</label>
           <button class="play" id="play-sum" aria-pressed="false">▶ Tocar a soma</button>
         </div>
       </div>
@@ -241,11 +241,11 @@
   const S = {
     waves: [
       { A: 0.5, f: 220, on: true },
-      { A: 0.5, f: 277, on: true },
-      { A: 0.5, f: 330, on: true },
-      { A: 0.5, f: 440, on: true },
+      { A: 0.5, f: 277, on: false },
+      { A: 0.5, f: 330, on: false },
+      { A: 0.5, f: 440, on: false },
     ],
-    sumOn: true,
+    sumOn: false,
     d: 2,
     mode: "fixo",   // "fixo" | "auto"
     n: 3,
@@ -274,7 +274,7 @@
     card.style.setProperty("--c", `var(--w${k})`);
     card.innerHTML = `
       <div class="wave-head">
-        <label class="toggle"><input type="checkbox" id="on-${i}" checked> Onda ${k}</label>
+        <label class="toggle"><input type="checkbox" id="on-${i}"${w.on ? " checked" : ""}> Onda ${k}</label>
         <span class="note" id="note-${i}"></span>
         <button class="play" id="play-${i}" aria-pressed="false">▶ Tocar</button>
       </div>
