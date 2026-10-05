@@ -183,6 +183,15 @@
   .texline .sin { color: var(--sin); }
   .texline .cos { color: var(--cos); }
   .texline .muted { color: var(--muted); font-size: 0.95rem; }
+  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
+  .projbar { display: flex; gap: 8px; align-items: center; }
+  :root[data-proj] { --muted: #333d4a; --grid-strong: #c4cdd8; --line: #b3bfcc; --axis: #1f2833; }
+  :root[data-proj] body { font-size: 17px; }
+  :root[data-proj] .texline { font-size: 1.7rem; }
+  :root[data-proj] .caption { font-size: 1rem; }
+  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); }
+  :root[data-hidectl] main { grid-template-columns: 1fr; }
+  :root[data-hidectl] .controls { display: none; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -198,6 +207,10 @@
     <div class="formula">
       <label class="fnbox sin"><input type="checkbox" id="show-sin" checked><span><i>y</i> = <b>sin</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
       <label class="fnbox cos"><input type="checkbox" id="show-cos"><span><i>y</i> = <b>cos</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
+    </div>
+    <div class="projbar">
+      <button class="btn small" id="hidectl" hidden>Esconder controlos</button>
+      <button class="btn small" id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
     </div>
   </header>
 
@@ -385,6 +398,30 @@
   $("ref").addEventListener("change", e => { S.ref = e.target.checked; changed(); });
   $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
 
+  // ---------- modo projeção ----------
+  // texto, traços e pontos do desenho ficam K vezes maiores; o estado fica guardado no browser
+  // (a mesma chave nas várias apps do site)
+  let K = 1;
+  const PROJ_KEY = "apps-mat-projecao";
+  const FAINT = () => K > 1 ? 0.5 : 0.28;   // opacidade das curvas esbatidas
+  function setProj(on) {
+    K = on ? 1.5 : 1;
+    const r = document.documentElement;
+    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
+    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
+    $("proj").setAttribute("aria-pressed", on);
+    $("hidectl").hidden = !on;
+    $("hidectl").textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
+    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
+    if (ready) { P.windowResized(); P.redraw(); }
+  }
+  $("proj").addEventListener("click", () => setProj(K === 1));
+  $("hidectl").addEventListener("click", () => {
+    const r = document.documentElement;
+    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
+    setProj(true);
+  });
+
   // ---------- desenho (p5.js) ----------
   // (nada de drawingContext.save/restore à volta de cores do p5: o p5 guarda a última cor
   // em cache e, depois de um restore, deixaria de a aplicar)
@@ -393,11 +430,14 @@
   let ready = false;
 
   const sketch = p => {
-    const M = { l: 44, r: 18, t: 30, b: 30 };
+    const M0 = { l: 44, r: 18, t: 30, b: 30 };
+    const M = { ...M0 };
+    const scaleM = () => Object.keys(M0).forEach(k => { M[k] = Math.round(M0[k] * K); });
 
     function size() {
+      scaleM();
       const w = Math.max(300, plotEl.clientWidth);
-      let h = Math.round(Math.max(260, Math.min(520, window.innerHeight - 120, Math.max(280, w * 0.45))));
+      let h = Math.round(Math.max(260, Math.min(520, window.innerHeight - (K > 1 ? 200 : 120), Math.max(280, w * 0.45))));
       // em ecrã estreito a circunferência é que limita a escala: não deixar sobrar altura
       const ppu = (stripW(w, h - M.t - M.b) - 56) / 2;
       h = Math.min(h, Math.round(2.7 * ppu + M.t + M.b));
@@ -408,6 +448,11 @@
     p.setup = () => {
       const [w, h] = size();
       p.createCanvas(w, h).parent(plotEl);
+      // no modo projeção, tamanhos de letra, espessuras e pontos pequenos (d < 24) multiplicados por K
+      const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p), ci = p.circle.bind(p);
+      p.textSize = s => s === undefined ? ts() : ts(s * K);
+      p.strokeWeight = w => sw(w * K);
+      p.circle = (x, y, d) => ci(x, y, d < 24 ? d * K : d);
       p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
       p.noLoop();
       ready = true;
@@ -415,6 +460,7 @@
     p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
 
     p.draw = () => {
+      scaleM();
       if (S.running) {
         S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
         if (S.t > S.win) S.t -= S.win;
@@ -430,7 +476,7 @@
       // ---- geometria: a mesma escala vertical serve a circunferência e o gráfico ----
       const GT = M.t, GB = p.height - M.b, H = GB - GT;
       const Wc = stripW(p.width, H);
-      const ppu = Math.min(H / 2.7, (Wc - 56) / 2);
+      const ppu = Math.min(H / 2.7, (Wc - 56 * K) / 2);
       const ym = (GT + GB) / 2;
       const Y = y => ym - y * ppu;
 
@@ -450,8 +496,8 @@
       }
       // marcas de t em múltiplos de π/2 (ou π, ou 2π, se não houver espaço)
       let m = 2;
-      if (W / (S.win / (PI / 2)) < 46) m = 1;
-      if (W / (S.win / PI) < 40) m = 0.5;
+      if (W / (S.win / (PI / 2)) < 46 * K) m = 1;
+      if (W / (S.win / PI) < 40 * K) m = 0.5;
       const st = PI / m;
       for (let k = 1; k * st <= S.win + 1e-9; k++) {
         const x = X(k * st);
@@ -491,7 +537,7 @@
         dc.setLineDash([]);
       };
       if (S.ref) active().forEach(k => curve(Math[k], 0, S.win, css("--ref"), 1.8, [6, 5]));
-      active().forEach(k => { dc.globalAlpha = 0.28; curve(FN[k], 0, S.win, css("--" + k), 2); dc.globalAlpha = 1; });
+      active().forEach(k => { dc.globalAlpha = FAINT(); curve(FN[k], 0, S.win, css("--" + k), 2); dc.globalAlpha = 1; });
       if (S.t > 0) active().forEach(k => curve(FN[k], 0, S.t, css("--" + k), 2.8));
 
       // ---- circunferência trigonométrica (sempre na posição habitual) ----
@@ -690,6 +736,7 @@
     updateNow();
     if (ready) { S.running ? P.loop() : (P.noLoop(), P.redraw()); }
   }
+  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
   syncInputs();
   changed();
 })();

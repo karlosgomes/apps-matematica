@@ -164,6 +164,15 @@
   .texline .sin { color: var(--sin); }
   .texline .cos { color: var(--cos); }
   .texline .muted { color: var(--muted); font-size: 0.95rem; }
+  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
+  .projbar { display: flex; gap: 8px; align-items: center; }
+  :root[data-proj] { --muted: #333d4a; --grid-strong: #c4cdd8; --line: #b3bfcc; --axis: #1f2833; }
+  :root[data-proj] body { font-size: 17px; }
+  :root[data-proj] .texline { font-size: 1.7rem; }
+  :root[data-proj] .caption { font-size: 1rem; }
+  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); }
+  :root[data-hidectl] main { grid-template-columns: 1fr; }
+  :root[data-hidectl] .controls { display: none; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -179,6 +188,10 @@
     <div class="formula">
       <span><i>f</i>(<i>t</i>) = <i>a</i> + <i>b</i> <span class="fn" id="fn-name">cos</span>(<span id="arg-form"><i>c</i><i>t</i> + <i>d</i></span>)</span>
       <button class="btn" id="swap" title="Trocar entre cosseno e seno">⇄ Mudar para sin</button>
+    </div>
+    <div class="projbar">
+      <button class="btn small" id="hidectl" hidden>Esconder controlos</button>
+      <button class="btn small" id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
     </div>
   </header>
 
@@ -395,6 +408,30 @@
   $("shift").addEventListener("change", e => { S.showShift = e.target.checked; changed(); });
   $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
 
+  // ---------- modo projeção ----------
+  // texto, traços e pontos do desenho ficam K vezes maiores; o estado fica guardado no browser
+  // (a mesma chave nas várias apps do site)
+  let K = 1;
+  const PROJ_KEY = "apps-mat-projecao";
+  const FAINT = () => K > 1 ? 0.5 : 0.28;   // opacidade das curvas esbatidas
+  function setProj(on) {
+    K = on ? 1.5 : 1;
+    const r = document.documentElement;
+    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
+    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
+    $("proj").setAttribute("aria-pressed", on);
+    $("hidectl").hidden = !on;
+    $("hidectl").textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
+    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
+    if (ready) { P.windowResized(); P.redraw(); }
+  }
+  $("proj").addEventListener("click", () => setProj(K === 1));
+  $("hidectl").addEventListener("click", () => {
+    const r = document.documentElement;
+    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
+    setProj(true);
+  });
+
   // ---------- desenho (p5.js) ----------
   const plotEl = $("plot");
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -402,11 +439,14 @@
   let view = null;   // { ymin, span }: janela vertical, só muda quando é preciso
 
   const sketch = p => {
-    const M = { l: 44, r: 18, t: 30, b: 34 };
+    const M0 = { l: 44, r: 18, t: 30, b: 34 };
+    const M = { ...M0 };
+    const scaleM = () => Object.keys(M0).forEach(k => { M[k] = Math.round(M0[k] * K); });
 
     function size() {
+      scaleM();
       const w = Math.max(300, plotEl.clientWidth);
-      let h = Math.round(Math.max(280, Math.min(600, window.innerHeight - 120, Math.max(300, w * 0.55))));
+      let h = Math.round(Math.max(280, Math.min(600, window.innerHeight - (K > 1 ? 200 : 120), Math.max(300, w * 0.55))));
       // em ecrã estreito a largura da faixa da circunferência é que limita a escala: a altura
       // fica só a necessária (o diâmetro nunca passa de ~0,82 da altura útil, por causa da folga)
       if (w < NARROW) h = Math.min(h, Math.round((stripMax(w) - 56) / 0.82 + M.t + M.b));
@@ -417,6 +457,11 @@
     p.setup = () => {
       const [w, h] = size();
       p.createCanvas(w, h).parent(plotEl);
+      // no modo projeção, tamanhos de letra, espessuras e pontos pequenos (d < 24) multiplicados por K
+      const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p), ci = p.circle.bind(p);
+      p.textSize = s => s === undefined ? ts() : ts(s * K);
+      p.strokeWeight = w => sw(w * K);
+      p.circle = (x, y, d) => ci(x, y, d < 24 ? d * K : d);
       p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
       p.noLoop();
       ready = true;
@@ -442,6 +487,7 @@
     }
 
     p.draw = () => {
+      scaleM();
       if (S.running) {
         S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
         if (S.t > S.win) S.t -= S.win;
@@ -472,7 +518,7 @@
         : Math.round(Math.max(130, Math.min(p.width * 0.36, H * 0.95)));
       let ppu = H / view.span;
       // deixar espaço para os eixos da circunferência e os nomes cos/sin
-      if (B > 0 && 2 * B * ppu > Wc - 56) ppu = (Wc - 56) / (2 * B);
+      if (B > 0 && 2 * B * ppu > Wc - 56 * K) ppu = (Wc - 56 * K) / (2 * B);
       const shown = H / ppu;
       const ymin = view.ymin + view.span / 2 - shown / 2;
       const Y = y => GB - (y - ymin) * ppu;
@@ -496,8 +542,8 @@
       }
       // marcas de t em múltiplos de π/2 (ou π, ou 2π, se não houver espaço)
       let m = 2;
-      if (W / (S.win / (PI / 2)) < 46) m = 1;
-      if (W / (S.win / PI) < 40) m = 0.5;
+      if (W / (S.win / (PI / 2)) < 46 * K) m = 1;
+      if (W / (S.win / PI) < 40 * K) m = 0.5;
       const st = PI / m;
       for (let k = 1; k * st <= S.win + 1e-9; k++) {
         const x = X(k * st);
@@ -553,7 +599,7 @@
         dc.setLineDash([]);
       };
       if (S.ref) curve(t => Math.sin(t + S.rho), 0, S.win, css("--ref"), 1.8, [6, 5]);
-      dc.globalAlpha = 0.28; curve(f, 0, S.win, css("--curve"), 2); dc.globalAlpha = 1;
+      dc.globalAlpha = FAINT(); curve(f, 0, S.win, css("--curve"), 2); dc.globalAlpha = 1;
       if (S.t > 0) curve(f, 0, S.t, css("--curve"), 2.8);
 
       // translação horizontal h (−d/c ou d): gráfico sem translação, y = a + b·fn(ct), a tracejado,
@@ -802,6 +848,7 @@
     updateNow();
     if (ready) { (S.running || anim) ? P.loop() : (P.noLoop(), P.redraw()); }
   }
+  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
   syncInputs();
   changed();
 })();

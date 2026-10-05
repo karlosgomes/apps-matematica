@@ -165,6 +165,13 @@
     .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
+  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
+  .projbar { display: flex; gap: 8px; align-items: center; }
+  :root[data-proj] { --muted: #333d4a; --grid: #d3dae3; --grid-strong: #b9c3cf; --line: #b3bfcc; --axis: #1f2833; }
+  :root[data-proj] body { font-size: 17px; }
+  :root[data-proj] .hint { font-size: 1rem; }
+  :root[data-hidectl] .cols { grid-template-columns: minmax(0, 1fr); }
+  :root[data-hidectl] .panels { display: none; }
 </style>
 </head>
 <body>
@@ -172,6 +179,10 @@
   <header>
     <h1>Função de Enrolamento</h1>
     <div class="formula"><span class="nw"><i>E</i> : ℝ → circunferência unitária,</span> <span class="nw"><i>E</i>(<i>t</i>) = (cos <i>t</i>, sin <i>t</i>)</span></div>
+    <div class="projbar">
+      <button class="b" id="hidectl" hidden>Esconder controlos</button>
+      <button class="b" id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
+    </div>
   </header>
 
   <main class="cols">
@@ -416,6 +427,31 @@
   readColors();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors);
 
+  // ---------- modo projeção ----------
+  // texto, traços e pontos do desenho ficam K vezes maiores; o estado fica guardado no browser
+  // (a mesma chave nas várias apps do site)
+  let K = 1;
+  const PROJ_KEY = "apps-mat-projecao";
+  function setProj(on) {
+    K = on ? 1.5 : 1;
+    const r = document.documentElement;
+    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
+    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
+    $("proj").setAttribute("aria-pressed", on);
+    $("hidectl").hidden = !on;
+    $("hidectl").textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
+    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
+    readColors();
+    requestAnimationFrame(refit);
+  }
+  $("proj").addEventListener("click", () => setProj(K === 1));
+  $("hidectl").addEventListener("click", () => {
+    const r = document.documentElement;
+    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
+    setProj(true);
+  });
+  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
+
   // ---------- geometria do desenho ----------
   let L = {};   // layout
   const holder = $("plot");
@@ -483,8 +519,15 @@
   window.setup = function () {
     layout();
     cnv = createCanvas(L.W, L.H);
+    // no modo projeção, tamanhos de letra, espessuras e pontos pequenos (d < 24) multiplicados por K
+    const ts = window.textSize, sw = window.strokeWeight, ci = window.circle;
+    window.textSize = s => s === undefined ? ts() : ts(s * K);
+    window.strokeWeight = w => sw(w * K);
+    window.circle = (x, y, d) => ci(x, y, d < 24 ? d * K : d);
     cnv.parent(holder);
-    textFont(C.font || "sans-serif");
+    // só o nome da primeira família: com a lista inteira ("Atkinson Hyperlegible", "Segoe UI", …)
+    // o canvas rejeitava o tipo de letra e ficava sempre em 12px sans-serif, ignorando o textSize
+    textFont((C.font || "sans-serif").split(",")[0].replace(/["']/g, "").trim());
     setMarks(0);   // arranca sem marcas de π
     // valor inicial opcional no endereço, p. ex. funcao_enrolamento.html#t=3π/4
     const h = decodeURIComponent(location.hash).match(/t=([^&]+)/);
@@ -549,7 +592,7 @@
   // rótulo com fundo, mantido dentro da zona [X, Y, W, H]
   function tag(str, x, y, col, ax, zone, size = 13) {
     textSize(size); textStyle(BOLD);
-    const w = textWidth(str) + 10, h = size + 7;
+    const w = textWidth(str) + 10, h = size * K + 7;
     let x0 = ax === LEFT ? x : ax === RIGHT ? x - w : x - w / 2;
     const [ZX, ZY, ZW, ZH] = zone;
     x0 = Math.max(ZX + 2, Math.min(ZX + ZW - w - 2, x0));
@@ -707,7 +750,7 @@
     // Com pouco zoom, rotula-se só 1 em cada `skip` marcas para não se sobreporem.
     const ppu = (g.x1 - g.x0) / (b - a);
     const st = PI / S.m;
-    const skipPi = [1, 2, 3, 4, 6, 12, 24, 48].find(q => q * st * ppu >= 48) || 96;
+    const skipPi = [1, 2, 3, 4, 6, 12, 24, 48].find(q => q * st * ppu >= 48 * K) || 96;
     if (!S.hidePi) for (let k = Math.ceil(a / st); k <= Math.floor(b / st); k++) {
       const X = gx(k * st), mult = k % S.m === 0;   // mult: múltiplo de π
       if (st * ppu >= 8 || k % skipPi === 0) {
@@ -718,7 +761,7 @@
       if (st * ppu >= 4 || k % skipPi === 0) line(X, cy - 5, X, cy + 5);
       if (k !== 0 && k % skipPi === 0) label(fracPi(k, S.m), X, cy + 15, C.pi, 11, CENTER, CENTER, true);
     }
-    const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 26) || 50;
+    const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 26 * K) || 50;
     for (let k = Math.ceil(a); k <= Math.floor(b); k++) {
       if (k === 0 || k % skipInt !== 0) continue;
       stroke(C.ink); strokeWeight(1.2);
@@ -771,7 +814,7 @@
     for (const [f, col, , ] of curves) {
       const isTan = f === Math.tan;
       if (S.show.full) {
-        const cc = color(col); cc.setAlpha(70);
+        const cc = color(col); cc.setAlpha(K > 1 ? 130 : 70);
         stroke(cc); strokeWeight(1.5);
         plot(f, a, b, isTan);
       }
