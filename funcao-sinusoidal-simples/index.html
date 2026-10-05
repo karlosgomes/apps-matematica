@@ -249,6 +249,7 @@
           </div>
         </div>
         <label class="check"><input type="checkbox" id="ref"> Mostrar <span id="ref-name">y = sin t</span> (c = 1, d = 0)</label>
+        <label class="check"><input type="checkbox" id="base"> Mostrar o ponto Q da função base (ângulo <i>t</i>)</label>
         <label class="check"><input type="checkbox" id="period" checked> Mostrar o período</label>
       </div>
     </section>
@@ -272,7 +273,7 @@
     ...DEF,
     show: { sin: true, cos: false },
     t: 0, running: false, speed: 1, win: 4 * PI,
-    ref: false, period: true,
+    ref: false, period: true, base: false,
   };
 
   // ---------- números ----------
@@ -373,6 +374,7 @@
   }
   seg("speed", "speed", Number);
   seg("win", "win", v => v * PI);
+  $("base").addEventListener("change", e => { S.base = e.target.checked; changed(); });
   $("ref").addEventListener("change", e => { S.ref = e.target.checked; changed(); });
   $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
 
@@ -416,7 +418,7 @@
       p.textFont(plex ? "IBM Plex Mono" : "monospace");
       p.background(css("--panel"));
       const dc = p.drawingContext;
-      const showSin = S.show.sin;
+      const showSin = S.show.sin, showCos = S.show.cos;
 
       // ---- geometria: a mesma escala vertical serve a circunferência e o gráfico ----
       const GT = M.t, GB = p.height - M.b, H = GB - GT;
@@ -524,10 +526,23 @@
       // raio OP
       p.stroke(css("--ink")); p.strokeWeight(1.6); p.line(cx, cy, Px, Py);
 
+      if (showCos) {
+        // cosseno: abcissa de P, no eixo horizontal
+        p.stroke(css("--cos")); p.strokeWeight(3); p.line(cx, cy, Px, cy);
+      }
       if (showSin) {
         // seno: ordenada de P, levada na horizontal até ao gráfico
         p.stroke(css("--sin")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
         dashed(Px, Py, X(S.t), Y(sn), css("--sin"), 1);
+      }
+
+      // Q: ponto da função base, de ângulo t (c = 1, d = 0) — só o ponto, sem linhas
+      if (S.base) {
+        const Qx = cx + R * Math.cos(S.t), Qy = cy - R * Math.sin(S.t);
+        p.noStroke(); p.fill(css("--ref")); p.circle(Qx, Qy, 10);
+        p.textSize(12); p.textStyle(p.BOLD); p.textAlign(p.CENTER, p.CENTER);
+        p.text("Q", Qx + Math.cos(S.t) * 15, Qy - Math.sin(S.t) * 15);
+        p.textStyle(p.NORMAL);
       }
 
       // P na circunferência, valor no eixo y e ponto do gráfico
