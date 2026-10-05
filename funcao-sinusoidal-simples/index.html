@@ -20,6 +20,8 @@
     --btn-hover: #e1e7ee;
     --pt: #1565c0;
     --curve: #d32f2f;
+    --sin: #d32f2f;
+    --cos: #1565c0;
     --mid: #2e7d32;
     --arc: #ef6c00;
     --ref: #9c7fc4;
@@ -41,6 +43,8 @@
       --btn-hover: #2a3642;
       --pt: #64a8ff;
       --curve: #ff6b6b;
+      --sin: #ff6b6b;
+      --cos: #64a8ff;
       --mid: #5cc26a;
       --arc: #ffa040;
       --ref: #b9a0e0;
@@ -60,6 +64,8 @@
     --btn-hover: #2a3642;
     --pt: #64a8ff;
     --curve: #ff6b6b;
+    --sin: #ff6b6b;
+    --cos: #64a8ff;
     --mid: #5cc26a;
     --arc: #ffa040;
     --ref: #b9a0e0;
@@ -136,8 +142,21 @@
   .btn.small { font-size: 0.82rem; padding: 3px 9px; font-weight: 400; }
   #run { min-width: 150px; }
   #run[aria-pressed="true"] { background: var(--pt); border-color: var(--pt); color: var(--panel); }
-  #swap { background: var(--curve); border-color: var(--curve); color: var(--panel); }
-  #swap:hover { filter: brightness(1.08); }
+  .fnbox {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    padding: 6px 12px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel);
+    font-family: var(--mono); font-size: 1rem; color: var(--muted);
+  }
+  .fnbox input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--c); }
+  .fnbox b { color: var(--c); font-family: var(--font); font-size: 1.1rem; }
+  .fnbox:has(input:checked) { border-color: var(--c); color: var(--ink); }
+  .fnbox.sin { --c: var(--sin); }
+  .fnbox.cos { --c: var(--cos); }
+  @media (max-width: 520px) {
+    .formula { gap: 6px; flex-wrap: nowrap; }
+    .fnbox { padding: 4px 7px; gap: 5px; font-size: 0.8rem; white-space: nowrap; }
+    .fnbox b { font-size: 0.95rem; }
+  }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .seg button {
     font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
@@ -153,7 +172,7 @@
   .readout { font-family: var(--mono); font-size: 0.88rem; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-variant-numeric: tabular-nums; }
   .readout dt { color: var(--muted); }
   .readout dd { margin: 0; }
-  .law { font-family: var(--mono); font-size: 0.95rem; padding: 6px 8px; background: var(--bg); border-radius: 5px; overflow-x: auto; white-space: nowrap; }
+  .law { font-family: var(--mono); font-size: 0.95rem; padding: 6px 8px; background: var(--bg); border-radius: 5px; overflow-x: auto; white-space: pre; }
   .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
   .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--pt); cursor: pointer; }
 
@@ -171,8 +190,8 @@
   <header>
     <h1>Função sinusoidal simples</h1>
     <div class="formula">
-      <span><i>f</i>(<i>t</i>) = <span class="fn" id="fn-name">sin</span>(<i>c</i><i>t</i> + <i>d</i>)</span>
-      <button class="btn" id="swap" title="Trocar entre seno e cosseno">⇄ Mudar para cos</button>
+      <label class="fnbox sin"><input type="checkbox" id="show-sin" checked><span><i>y</i> = <b>sin</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
+      <label class="fnbox cos"><input type="checkbox" id="show-cos"><span><i>y</i> = <b>cos</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
     </div>
   </header>
 
@@ -251,7 +270,7 @@
   const DEF = { c: 1, d: 0 };
   const S = {
     ...DEF,
-    fn: "sin",
+    show: { sin: true, cos: false },
     t: 0, running: false, speed: 1, win: 4 * PI,
     ref: false, period: true,
   };
@@ -287,13 +306,15 @@
     return m[1] === "-" ? -v : v;
   }
 
-  // P = (cos θ, sin θ) com θ = ct + d; f(t) é a ordenada (sin) ou a abcissa (cos) de P
+  // P = (cos θ, sin θ) com θ = ct + d: sin(ct + d) é a ordenada de P e cos(ct + d) a abcissa
   const theta = t => S.c * t + S.d;
-  const f = t => S.fn === "sin" ? Math.sin(theta(t)) : Math.cos(theta(t));
+  const FN = { sin: t => Math.sin(theta(t)), cos: t => Math.cos(theta(t)) };
+  const active = () => ["sin", "cos"].filter(k => S.show[k]);
 
-  // valores iniciais opcionais no endereço, p. ex. index.html#cos&c=2&d=π/4
-  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
-    if (tok === "sin" || tok === "cos") { S.fn = tok; return; }
+  // valores iniciais opcionais no endereço, p. ex. index.html#sin&cos&c=2&d=π/4
+  const toks = decodeURIComponent(location.hash.slice(1)).split("&");
+  if (toks.some(k => k === "sin" || k === "cos")) S.show = { sin: toks.includes("sin"), cos: toks.includes("cos") };
+  toks.forEach(tok => {
     const m = tok.match(/^([cdt])=(.+)$/);
     const x = m && parseX(m[2]);
     if (x !== null && x !== undefined) S[m[1]] = x;
@@ -327,7 +348,16 @@
   const syncInputs = () => ["c", "d"].forEach(k => { pairs[k].r.value = S[k]; pairs[k].n.value = nice(S[k]); pairs[k].n.classList.remove("bad"); });
   $("defaults").addEventListener("click", () => { Object.assign(S, DEF); syncInputs(); changed(); });
 
-  $("swap").addEventListener("click", () => { S.fn = S.fn === "sin" ? "cos" : "sin"; changed(); });
+  // caixas sin e cos: podem estar as duas marcadas, mas não as duas desmarcadas
+  ["sin", "cos"].forEach(k => {
+    const box = $("show-" + k);
+    box.checked = S.show[k];
+    box.addEventListener("change", () => {
+      S.show[k] = box.checked;
+      if (!active().length) { S.show[k] = true; box.checked = true; }
+      changed();
+    });
+  });
 
   const runBtn = $("run"), tR = $("t");
   runBtn.addEventListener("click", () => { S.running = !S.running; changed(); });
@@ -387,7 +417,7 @@
       p.textFont(plex ? "IBM Plex Mono" : "monospace");
       p.background(css("--panel"));
       const dc = p.drawingContext;
-      const isSin = S.fn === "sin";
+      const showSin = S.show.sin, showCos = S.show.cos;
 
       // ---- geometria: a mesma escala vertical serve a circunferência e o gráfico ----
       const GT = M.t, GB = p.height - M.b, H = GB - GT;
@@ -402,7 +432,6 @@
       const cx = Wc / 2 + 2, cy = Y(0), R = ppu;
       const th = theta(S.t), cs = Math.cos(th), sn = Math.sin(th);
       const Px = cx + R * cs, Py = cy - R * sn;
-      const fNow = f(S.t);
 
       // ---- grelha e eixos do gráfico ----
       p.textSize(11); p.strokeWeight(1);
@@ -453,9 +482,9 @@
         p.endShape();
         dc.setLineDash([]);
       };
-      if (S.ref) curve(isSin ? Math.sin : Math.cos, 0, S.win, css("--ref"), 1.8, [6, 5]);
-      dc.globalAlpha = 0.28; curve(f, 0, S.win, css("--curve"), 2); dc.globalAlpha = 1;
-      if (S.t > 0) curve(f, 0, S.t, css("--curve"), 2.8);
+      if (S.ref) active().forEach(k => curve(Math[k], 0, S.win, css("--ref"), 1.8, [6, 5]));
+      active().forEach(k => { dc.globalAlpha = 0.28; curve(FN[k], 0, S.win, css("--" + k), 2); dc.globalAlpha = 1; });
+      if (S.t > 0) active().forEach(k => curve(FN[k], 0, S.t, css("--" + k), 2.8));
 
       // ---- circunferência trigonométrica (sempre na posição habitual) ----
       const ext = R + 12;
@@ -491,40 +520,44 @@
       }
 
       // raio OP
-      p.stroke(css("--pt")); p.strokeWeight(2); p.line(cx, cy, Px, Py);
+      p.stroke(css("--ink")); p.strokeWeight(1.6); p.line(cx, cy, Px, Py);
 
-      if (isSin) {
-        // seno: ordenada de P, levada na horizontal até ao gráfico
-        dashed(Px, Py, cx, Py, css("--muted"), 1);
-        p.stroke(css("--curve")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
-        p.line(cx, cy, cx, Py);
-        dashed(Px, Py, X(S.t), Y(fNow), css("--pt"), 1);
-      } else {
+      if (showCos) {
         // cosseno: abcissa de P, no eixo horizontal; para o gráfico, transporta-se esse
         // comprimento para o eixo vertical com um arco centrado em O (como com um compasso)
         dashed(Px, Py, Px, cy, css("--muted"), 1);
-        p.stroke(css("--curve")); p.strokeWeight(3); p.line(cx, cy, Px, cy);
+        p.stroke(css("--cos")); p.strokeWeight(3); p.line(cx, cy, Px, cy);
         const r = Math.abs(cs) * R;
         if (r > 2) {
           dc.globalAlpha = 0.6;
-          p.noFill(); p.stroke(css("--curve")); p.strokeWeight(1.2); dc.setLineDash([3, 4]);
+          p.noFill(); p.stroke(css("--cos")); p.strokeWeight(1.2); dc.setLineDash([3, 4]);
           const a0 = cs > 0 ? 0 : PI;
           dc.beginPath(); dc.arc(cx, cy, r, -a0, -(a0 + PI / 2), true); dc.stroke();
           dc.setLineDash([]);
           p.strokeWeight(3); p.line(cx, cy, cx, Y(cs));
           dc.globalAlpha = 1;
         }
-        p.noStroke(); p.fill(css("--curve")); p.circle(Px, cy, 7);
-        dashed(cx, Y(cs), X(S.t), Y(fNow), css("--pt"), 1);
+        p.noStroke(); p.fill(css("--cos")); p.circle(Px, cy, 7);
+        dashed(cx, Y(cs), X(S.t), Y(cs), css("--cos"), 1);
+      }
+      if (showSin) {
+        // seno: ordenada de P, levada na horizontal até ao gráfico
+        // (o segmento no eixo vertical só sem o cosseno, para não se sobreporem)
+        if (!showCos) dashed(Px, Py, cx, Py, css("--muted"), 1);
+        p.stroke(css("--sin")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
+        if (!showCos) p.line(cx, cy, cx, Py);
+        dashed(Px, Py, X(S.t), Y(sn), css("--sin"), 1);
       }
 
       // P na circunferência, valor no eixo y e ponto do gráfico
-      p.noStroke(); p.fill(css("--pt")); p.circle(Px, Py, 10);
+      p.noStroke(); p.fill(css("--ink")); p.circle(Px, Py, 10);
       p.fill(css("--ink")); p.textSize(12); p.textStyle(p.BOLD);
       p.textAlign(p.CENTER, p.CENTER); p.text("P", Px + cs * 15, Py - sn * 15);
       p.textStyle(p.NORMAL);
-      p.fill(css("--curve")); p.circle(gx0, Y(fNow), 6);
-      p.circle(X(S.t), Y(fNow), 10);
+      active().forEach(k => {
+        const v = k === "sin" ? sn : cs;
+        p.noStroke(); p.fill(css("--" + k)); p.circle(gx0, Y(v), 6); p.circle(X(S.t), Y(v), 10);
+      });
 
       // nomes dos eixos do gráfico
       p.textSize(13);
@@ -571,28 +604,27 @@
       const ds = nice(S.d);
       arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
     }
-    return `f(t) = ${S.fn}(${arg || "0"})`;
+    return active().map(k => `y = ${k}(${arg || "0"})`).join("\n");
   }
 
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${S.fn} θ = ${fmt(f(S.t), 3)}`;
+    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `θ = ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k} θ = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
   }
 
   function changed() {
-    const fn = S.fn, isSin = fn === "sin";
-    $("fn-name").textContent = fn;
-    $("swap").textContent = `⇄ Mudar para ${isSin ? "cos" : "sin"}`;
-    $("ref-name").textContent = `y = ${fn} t`;
-    $("cap-mode").textContent = isSin
-      ? "sin θ é a ordenada de P: leva-se na horizontal até ao gráfico."
-      : "cos θ é a abcissa de P: o arco tracejado (centro O) leva-a para o eixo vertical e daí até ao gráfico.";
+    const act = active();
+    $("ref-name").textContent = act.map(k => `y = ${k} t`).join(" e ");
+    $("cap-mode").textContent = [
+      S.show.sin && "sin θ é a ordenada de P: leva-se na horizontal até ao gráfico.",
+      S.show.cos && "cos θ é a abcissa de P: o arco tracejado (centro O) leva-a para o eixo vertical e daí até ao gráfico.",
+    ].filter(Boolean).join(" ");
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
     const nd = nice(S.d);
     const rows = [
       ["Período 2π/|c|", T ? nice(T) + (nice(T).includes("π") ? ` ≈ ${fmt(T)}` : "") : "— (c = 0: f é constante)"],
-      ["Contradomínio", T ? "[−1, 1]" : `{${fmt(f(0), 3)}}`],
+      ["Contradomínio", T ? "[−1, 1]" : act.map(k => `{${fmt(FN[k](0), 3)}}`).join(" e ")],
       ["Ângulo inicial d", nd + (nd.includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
       ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
     ];
