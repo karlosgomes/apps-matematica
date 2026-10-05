@@ -174,6 +174,19 @@
     .plot-card { position: sticky; top: 16px; }
   }
   .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
+  .projbar { display: flex; gap: 8px; align-items: center; }
+  .projbar button {
+    font: inherit; font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+    background: var(--btn); color: var(--ink); border: 1px solid var(--line); white-space: nowrap;
+  }
+  .projbar button:hover { background: var(--btn-hover); }
+  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); font-weight: 700; }
+  :root[data-proj] { --muted: #333d4a; --grid-strong: #c4cdd8; --line: #b3bfcc; --axis: #1f2833; }
+  :root[data-proj] body { font-size: 17px; }
+  :root[data-proj] .caption { font-size: 1rem; }
+  :root[data-hidectl] main { grid-template-columns: minmax(0, 1fr); }
+  :root[data-hidectl] main > .controls { display: none; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -187,6 +200,10 @@
   <header>
     <h1>Oscilador Harmónico</h1>
     <div class="formula"><i>d</i>(<i>t</i>) = <i>D</i> + <i>A</i> · cos(<i>ω</i><i>t</i> + <i>φ</i>)</div>
+    <div class="projbar">
+      <button id="hidectl" hidden>Esconder controlos</button>
+      <button id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
+    </div>
   </header>
 
   <main>
@@ -405,14 +422,42 @@
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   let ready = false;
 
+  // ---------- modo projeção ----------
+  // texto e traços do desenho ficam K vezes maiores; o estado fica guardado no browser
+  // (a mesma chave nas várias apps do site)
+  let K = 1;
+  const PROJ_KEY = "apps-mat-projecao";
+  const projBtn = document.getElementById("proj"), hideBtn = document.getElementById("hidectl");
+  function setProj(on) {
+    K = on ? 1.5 : 1;
+    const r = document.documentElement;
+    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
+    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
+    projBtn.setAttribute("aria-pressed", on);
+    hideBtn.hidden = !on;
+    hideBtn.textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
+    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
+    if (ready) { P.windowResized(); P.redraw(); }
+  }
+  projBtn.addEventListener("click", () => setProj(K === 1));
+  hideBtn.addEventListener("click", () => {
+    const r = document.documentElement;
+    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
+    setProj(true);
+  });
+  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
+
   const sketch = p => {
-    const M = { l: 54, r: 18, t: 22, b: 40 };
+    const M0 = { l: 54, r: 18, t: 22, b: 40 };
+    const M = { ...M0 };
+    const scaleM = () => Object.keys(M0).forEach(k => { M[k] = Math.round(M0[k] * K); });
     let sceneW = 150;
 
     function size() {
+      scaleM();
       const w = Math.max(300, plotEl.clientWidth);
       // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
-      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110, Math.max(320, w * 0.6))));
+      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110 - (K > 1 ? 40 : 0), Math.max(320, w * 0.6))));
       // na horizontal a cena ocupa uma faixa por cima do gráfico: em ecrã estreito dá-se mais altura
       return [w, S.pos === "horizontal" && w < 520 ? h + 90 : h];
     }
@@ -420,6 +465,10 @@
     p.setup = () => {
       const [w, h] = size();
       p.createCanvas(w, h).parent(plotEl);
+      // no modo projeção, tamanhos de letra e espessuras multiplicados por K
+      const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p);
+      p.textSize = s => s === undefined ? ts() : ts(s * K);
+      p.strokeWeight = w => sw(w * K);
       p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
       p.noLoop();
       ready = true;
@@ -427,6 +476,7 @@
     p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
 
     p.draw = () => {
+      scaleM();
       if (S.running) {
         S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
         updateNow();
