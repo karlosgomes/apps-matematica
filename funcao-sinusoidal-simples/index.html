@@ -196,8 +196,8 @@
   <header>
     <h1>Função sinusoidal simples</h1>
     <div class="formula">
-      <label class="fnbox sin"><input type="checkbox" id="show-sin" checked><span><i>y</i> = <b>sin</b>(<i>c</i><i>t</i> − <i>d</i>)</span></label>
-      <label class="fnbox cos"><input type="checkbox" id="show-cos"><span><i>y</i> = <b>cos</b>(<i>c</i><i>t</i> − <i>d</i>)</span></label>
+      <label class="fnbox sin"><input type="checkbox" id="show-sin" checked><span><i>y</i> = <b>sin</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
+      <label class="fnbox cos"><input type="checkbox" id="show-cos"><span><i>y</i> = <b>cos</b>(<i>c</i><i>t</i> + <i>d</i>)</span></label>
     </div>
   </header>
 
@@ -314,8 +314,8 @@
     return m[1] === "-" ? -v : v;
   }
 
-  // P = (cos θ, sin θ) com θ = ct − d: sin(ct − d) é a ordenada de P e cos(ct − d) a abcissa
-  const theta = t => S.c * t - S.d;
+  // P = (cos θ, sin θ) com θ = ct + d: sin(ct + d) é a ordenada de P e cos(ct + d) a abcissa
+  const theta = t => S.c * t + S.d;
   const FN = { sin: t => Math.sin(theta(t)), cos: t => Math.cos(theta(t)) };
   const active = () => ["sin", "cos"].filter(k => S.show[k]);
 
@@ -532,7 +532,7 @@
         p.textStyle(p.NORMAL);
       };
       if (S.base) {
-        // com Q: t é o ângulo de OQ e θ (= ct − d) o de OP
+        // com Q: t é o ângulo de OQ e θ (= ct + d) o de OP
         const rb = Math.max(18, Math.min(36, R * 0.32));
         arcL(0, S.t, rb * 0.42, css("--ref"), "t");
         arcL(0, th, rb, css("--arc"), "θ");
@@ -621,11 +621,11 @@
     }
     return sg + fmt(ax, 2).replace(",", "{,}");
   }
-  // argumento ct − d
+  // argumento ct + d
   function texArg() {
     let s = "";
     if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + "t";
-    if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d > 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(-S.d);
+    if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d < 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(S.d);
     return s || "0";
   }
   function renderTex(el, tex) {
@@ -645,8 +645,8 @@
   function lawText() {
     let arg = ct(S.c);
     if (Math.abs(S.d) > 1e-12) {
-      const ds = nice(-S.d);
-      arg = arg ? `${arg} ${S.d > 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
+      const ds = nice(S.d);
+      arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
     }
     return active().map(k => `y = ${k}(${arg || "0"})`).join("\n") || `ângulo ao centro: ${arg || "0"}`;
   }
@@ -654,22 +654,22 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `θ = ct − d = ${fmt(th, 2)} rad`, ...active().map(k => `${k}(ct − d) = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
+    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `θ = ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k}(ct + d) = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
   }
 
   function changed() {
     const act = active();
     $("ref-name").textContent = act.map(k => `y = ${k} t`).join(" e ") || "y = sin t / cos t";
     $("cap-mode").textContent = [
-      S.show.sin && "sin(ct − d) é a ordenada de P: leva-se na horizontal até ao gráfico.",
-      S.show.cos && "cos(ct − d) é a abcissa de P.",
-    ].filter(Boolean).join(" ") || "P = (cos(ct − d), sin(ct − d)) percorre a circunferência a partir de A.";
+      S.show.sin && "sin(ct + d) é a ordenada de P: leva-se na horizontal até ao gráfico.",
+      S.show.cos && "cos(ct + d) é a abcissa de P.",
+    ].filter(Boolean).join(" ") || "P = (cos(ct + d), sin(ct + d)) percorre a circunferência a partir de A.";
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
-    const nd = nice(-S.d);
+    const nd = nice(S.d);
     const rows = [
       ["Período 2π/|c|", T ? nice(T) + (nice(T).includes("π") ? ` ≈ ${fmt(T)}` : "") : "— (c = 0: f é constante)"],
       ["Contradomínio", T ? "[−1, 1]" : act.map(k => `{${fmt(FN[k](0), 3)}}`).join(" e ")],
-      ["Ângulo inicial −d", nd + (nd.includes("π") ? ` ≈ ${fmt(-S.d)}` : "") + " rad"],
+      ["Ângulo inicial d", nd + (nd.includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
       ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
     ];
     $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
