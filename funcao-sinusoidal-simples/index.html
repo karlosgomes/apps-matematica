@@ -348,13 +348,12 @@
   const syncInputs = () => ["c", "d"].forEach(k => { pairs[k].r.value = S[k]; pairs[k].n.value = nice(S[k]); pairs[k].n.classList.remove("bad"); });
   $("defaults").addEventListener("click", () => { Object.assign(S, DEF); syncInputs(); changed(); });
 
-  // caixas sin e cos: podem estar as duas marcadas, mas não as duas desmarcadas
+  // caixas sin e cos: uma, as duas ou nenhuma
   ["sin", "cos"].forEach(k => {
     const box = $("show-" + k);
     box.checked = S.show[k];
     box.addEventListener("change", () => {
       S.show[k] = box.checked;
-      if (!active().length) { S.show[k] = true; box.checked = true; }
       changed();
     });
   });
@@ -417,7 +416,7 @@
       p.textFont(plex ? "IBM Plex Mono" : "monospace");
       p.background(css("--panel"));
       const dc = p.drawingContext;
-      const showSin = S.show.sin, showCos = S.show.cos;
+      const showSin = S.show.sin;
 
       // ---- geometria: a mesma escala vertical serve a circunferência e o gráfico ----
       const GT = M.t, GB = p.height - M.b, H = GB - GT;
@@ -501,15 +500,15 @@
       p.textAlign(p.RIGHT, p.BOTTOM); p.text("1", cx - 3, cy - R - 1);
       p.textAlign(p.RIGHT, p.TOP); p.text("O", cx - 3, cy + 2);
 
-      // ponto inicial P₀ (t = 0)
+      // ponto inicial A (t = 0)
       const x0 = cx + R * Math.cos(S.d), y0 = cy - R * Math.sin(S.d);
       p.stroke(css("--arc")); p.strokeWeight(1.6); p.fill(css("--panel")); p.circle(x0, y0, 8);
       if (Math.hypot(x0 - Px, y0 - Py) > 16) {
         p.noStroke(); p.fill(css("--arc")); p.textSize(11); p.textAlign(p.CENTER, p.CENTER);
-        p.text("P₀", x0 + Math.cos(S.d + 0.6) * 15, y0 - Math.sin(S.d + 0.6) * 15);
+        p.text("A", x0 + Math.cos(S.d + 0.6) * 15, y0 - Math.sin(S.d + 0.6) * 15);
       }
 
-      // arco do ângulo θ = ct + d
+      // arco do ângulo ao centro (ct + d), com a etiqueta t
       let thm = th % TAU; if (Math.abs(thm) < 1e-9) thm = 0;
       const ra = Math.max(12, Math.min(26, R * 0.28));
       if (thm !== 0) {
@@ -517,29 +516,14 @@
         dc.beginPath(); dc.arc(cx, cy, ra, 0, -thm, thm > 0); dc.stroke();
         const am = thm / 2;
         p.noStroke(); p.fill(css("--arc")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
-        p.text("θ", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9));
+        p.textStyle(p.ITALIC);
+        p.text("t", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9));
+        p.textStyle(p.NORMAL);
       }
 
       // raio OP
       p.stroke(css("--ink")); p.strokeWeight(1.6); p.line(cx, cy, Px, Py);
 
-      if (showCos) {
-        // cosseno: abcissa de P, no eixo horizontal; para o gráfico, transporta-se esse
-        // comprimento para o eixo vertical com um arco centrado em O (como com um compasso)
-        dashed(Px, Py, Px, cy, css("--muted"), 1);
-        p.stroke(css("--cos")); p.strokeWeight(3); p.line(cx, cy, Px, cy);
-        const r = Math.abs(cs) * R;
-        if (r > 2) {
-          dc.globalAlpha = 0.6;
-          p.noFill(); p.stroke(css("--cos")); p.strokeWeight(1.2); dc.setLineDash([3, 4]);
-          const a0 = cs > 0 ? 0 : PI;
-          dc.beginPath(); dc.arc(cx, cy, r, -a0, -(a0 + PI / 2), true); dc.stroke();
-          dc.setLineDash([]);
-          dc.globalAlpha = 1;
-        }
-        p.noStroke(); p.fill(css("--cos")); p.circle(Px, cy, 7); p.circle(cx, Y(cs), 7);
-        dashed(cx, Y(cs), X(S.t), Y(cs), css("--cos"), 1);
-      }
       if (showSin) {
         // seno: ordenada de P, levada na horizontal até ao gráfico
         p.stroke(css("--sin")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
@@ -551,9 +535,10 @@
       p.fill(css("--ink")); p.textSize(12); p.textStyle(p.BOLD);
       p.textAlign(p.CENTER, p.CENTER); p.text("P", Px + cs * 15, Py - sn * 15);
       p.textStyle(p.NORMAL);
+      if (showSin) { p.noStroke(); p.fill(css("--sin")); p.circle(gx0, Y(sn), 6); }
       active().forEach(k => {
         const v = k === "sin" ? sn : cs;
-        p.noStroke(); p.fill(css("--" + k)); p.circle(gx0, Y(v), 6); p.circle(X(S.t), Y(v), 10);
+        p.noStroke(); p.fill(css("--" + k)); p.circle(X(S.t), Y(v), 10);
       });
 
       // nomes dos eixos do gráfico
@@ -601,22 +586,22 @@
       const ds = nice(S.d);
       arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
     }
-    return active().map(k => `y = ${k}(${arg || "0"})`).join("\n");
+    return active().map(k => `y = ${k}(${arg || "0"})`).join("\n") || `ângulo ao centro: ${arg || "0"}`;
   }
 
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `θ = ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k} θ = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
+    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k}(ct + d) = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
   }
 
   function changed() {
     const act = active();
-    $("ref-name").textContent = act.map(k => `y = ${k} t`).join(" e ");
+    $("ref-name").textContent = act.map(k => `y = ${k} t`).join(" e ") || "y = sin t / cos t";
     $("cap-mode").textContent = [
-      S.show.sin && "sin θ é a ordenada de P: leva-se na horizontal até ao gráfico.",
-      S.show.cos && "cos θ é a abcissa de P: o arco tracejado (centro O) leva-a para o eixo vertical e daí até ao gráfico.",
-    ].filter(Boolean).join(" ");
+      S.show.sin && "sin(ct + d) é a ordenada de P: leva-se na horizontal até ao gráfico.",
+      S.show.cos && "cos(ct + d) é a abcissa de P.",
+    ].filter(Boolean).join(" ") || "P = (cos(ct + d), sin(ct + d)) percorre a circunferência a partir de A.";
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
     const nd = nice(S.d);
     const rows = [
