@@ -489,8 +489,9 @@
       // ---- circunferência trigonométrica (sempre na posição habitual) ----
       const ext = R + 12;
       p.stroke(css("--axis")); p.strokeWeight(1.2);
-      p.line(cx - ext, cy, cx + ext, cy); arrow(cx + ext, cy, 1, 0, 5);
-      p.line(cx, cy + ext, cx, cy - ext); arrow(cx, cy - ext, 0, -1, 5);
+      p.line(cx - ext, cy, cx + ext, cy);
+      p.line(cx, cy + ext, cx, cy - ext);
+      arrow(cx + ext, cy, 1, 0, 5); arrow(cx, cy - ext, 0, -1, 5);   // (arrow deixa noStroke)
       p.noStroke(); p.fill(css("--muted")); p.textSize(11); p.textAlign(p.CENTER, p.CENTER);
       p.text("cos", cx + ext + 4, cy + 12);
       p.text("sin", cx + 15, cy - ext - 4);
@@ -534,18 +535,14 @@
           const a0 = cs > 0 ? 0 : PI;
           dc.beginPath(); dc.arc(cx, cy, r, -a0, -(a0 + PI / 2), true); dc.stroke();
           dc.setLineDash([]);
-          p.strokeWeight(3); p.line(cx, cy, cx, Y(cs));
           dc.globalAlpha = 1;
         }
-        p.noStroke(); p.fill(css("--cos")); p.circle(Px, cy, 7);
+        p.noStroke(); p.fill(css("--cos")); p.circle(Px, cy, 7); p.circle(cx, Y(cs), 7);
         dashed(cx, Y(cs), X(S.t), Y(cs), css("--cos"), 1);
       }
       if (showSin) {
         // seno: ordenada de P, levada na horizontal até ao gráfico
-        // (o segmento no eixo vertical só sem o cosseno, para não se sobreporem)
-        if (!showCos) dashed(Px, Py, cx, Py, css("--muted"), 1);
         p.stroke(css("--sin")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
-        if (!showCos) p.line(cx, cy, cx, Py);
         dashed(Px, Py, X(S.t), Y(sn), css("--sin"), 1);
       }
 
