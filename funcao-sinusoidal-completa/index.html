@@ -552,14 +552,14 @@
       // centro (0, a)
       p.noStroke(); p.fill(css("--mid")); p.circle(cx, cy, 6);
 
-      // ponto inicial P₀ (t = 0)
+      // ponto inicial A (t = 0)
       if (R > 0.5) {
         const p0 = S.d + S.rho;
         const x0 = cx + S.b * ppu * Math.cos(p0), y0 = cy - S.b * ppu * Math.sin(p0);
         p.stroke(css("--arc")); p.strokeWeight(1.6); p.fill(css("--panel")); p.circle(x0, y0, 8);
         p.noStroke(); p.fill(css("--arc")); p.textSize(11);
         const ox = Math.cos(p0) * Math.sign(S.b), oy = -Math.sin(p0) * Math.sign(S.b);
-        if (Math.hypot(x0 - Px, y0 - Py) > 16) { p.textAlign(p.CENTER, p.CENTER); p.text("P₀", x0 + ox * 14, y0 + oy * 14); }
+        if (Math.hypot(x0 - Px, y0 - Py) > 16) { p.textAlign(p.CENTER, p.CENTER); p.text("A", x0 + ox * 14, y0 + oy * 14); }
       }
 
       // arco do ângulo θ = ct + d, medido a partir do semieixo dos cossenos
@@ -570,7 +570,7 @@
         dc.beginPath(); dc.arc(cx, cy, ra, -S.rho, -(S.rho + thm), thm > 0); dc.stroke();
         const am = S.rho + thm / 2;
         p.noStroke(); p.fill(css("--arc")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
-        p.text("θ", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9));
+        p.textStyle(p.ITALIC); p.text("t", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9)); p.textStyle(p.NORMAL);
       }
       // com b < 0, o raio de ângulo θ (tracejado) e o ponto P no lado oposto
       if (S.b < 0 && R > 0.5) {
@@ -653,7 +653,7 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
+    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
   }
 
   function changed() {
@@ -662,8 +662,8 @@
     $("swap").textContent = `⇄ Mudar para ${fn === "cos" ? "sin" : "cos"}`;
     $("ref-name").textContent = `y = ${fn} t`;
     $("cap-mode").textContent = fn === "cos"
-      ? "A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos θ na altura de P."
-      : "Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin θ.";
+      ? "A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos(ct + d) na altura de P."
+      : "Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin(ct + d).";
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
     const rows = [
       ["Linha média", `y = ${fmt(S.a)}`],
@@ -673,7 +673,7 @@
       ["Ângulo inicial d", nice(S.d) + (nice(S.d).includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
       ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
     ];
-    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo θ"]);
+    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo ct + d"]);
     $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
     $("law").textContent = lawText();
 
