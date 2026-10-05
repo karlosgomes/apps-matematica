@@ -559,14 +559,13 @@
       // centro (0, a)
       p.noStroke(); p.fill(css("--mid")); p.circle(cx, cy, 6);
 
-      // ponto inicial A (t = 0)
+      // A fixo: ponto de ângulo 0, no semieixo positivo dos cossenos (não depende de d nem do sinal de b)
       if (R > 0.5) {
-        const p0 = S.d + S.rho;
-        const x0 = cx + S.b * ppu * Math.cos(p0), y0 = cy - S.b * ppu * Math.sin(p0);
+        const x0 = cx + R * Math.cos(S.rho), y0 = cy - R * Math.sin(S.rho);
         p.stroke(css("--arc")); p.strokeWeight(1.6); p.fill(css("--panel")); p.circle(x0, y0, 8);
         p.noStroke(); p.fill(css("--arc")); p.textSize(11);
-        const ox = Math.cos(p0) * Math.sign(S.b), oy = -Math.sin(p0) * Math.sign(S.b);
-        if (Math.hypot(x0 - Px, y0 - Py) > 16) { p.textAlign(p.CENTER, p.CENTER); p.text("A", x0 + ox * 14, y0 + oy * 14); }
+        const la = S.rho + 0.45;   // etiqueta um pouco ao lado, para não ficar em cima do eixo
+        if (Math.hypot(x0 - Px, y0 - Py) > 16) { p.textAlign(p.CENTER, p.CENTER); p.text("A", x0 + Math.cos(la) * 15, y0 - Math.sin(la) * 15); }
       }
 
       // arco do ângulo θ = ct + d, medido a partir do semieixo dos cossenos
