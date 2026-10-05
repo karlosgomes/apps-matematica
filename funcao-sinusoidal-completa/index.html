@@ -177,7 +177,7 @@
   <header>
     <h1>Função sinusoidal completa</h1>
     <div class="formula">
-      <span><i>f</i>(<i>t</i>) = <i>a</i> + <i>b</i> <span class="fn" id="fn-name">cos</span>(<i>c</i><i>t</i> + <i>d</i>)</span>
+      <span><i>f</i>(<i>t</i>) = <i>a</i> + <i>b</i> <span class="fn" id="fn-name">cos</span>(<i>c</i><i>t</i> − <i>d</i>)</span>
       <button class="btn" id="swap" title="Trocar entre cosseno e seno">⇄ Mudar para sin</button>
     </div>
   </header>
@@ -246,6 +246,7 @@
           </div>
         </div>
         <label class="check"><input type="checkbox" id="ref"> Mostrar <span id="ref-name">y = cos t</span> (sem transformações)</label>
+        <label class="check"><input type="checkbox" id="base"> Mostrar o ponto Q da função base (ângulo <i>t</i>)</label>
         <label class="check"><input type="checkbox" id="period" checked> Mostrar o período e os extremos</label>
       </div>
     </section>
@@ -271,7 +272,7 @@
     fn: "cos",
     rho: 0,                 // rotação da circunferência: 0 no seno, π/2 no cosseno (animada ao trocar)
     t: 0, running: false, speed: 1, win: 4 * PI,
-    ref: false, period: true,
+    ref: false, period: true, base: false,
   };
   const rhoOf = fn => fn === "cos" ? PI / 2 : 0;
   let anim = null;          // { from, to, start }
@@ -313,8 +314,8 @@
     return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
   }
 
-  // f(t) = a + b sin(ct + d + ρ): com ρ = π/2 é a + b cos(ct + d)
-  const theta = t => S.c * t + S.d;
+  // f(t) = a + b sin(ct − d + ρ): com ρ = π/2 é a + b cos(ct − d)
+  const theta = t => S.c * t - S.d;
   const f = t => S.a + S.b * Math.sin(theta(t) + S.rho);
 
   // valores iniciais opcionais no endereço, p. ex. index.html#sin&a=1&b=-2&c=2&d=π/4
@@ -376,6 +377,7 @@
   seg("speed", "speed", Number);
   seg("win", "win", v => v * PI);
   $("ref").addEventListener("change", e => { S.ref = e.target.checked; changed(); });
+  $("base").addEventListener("change", e => { S.base = e.target.checked; changed(); });
   $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
 
   // ---------- desenho (p5.js) ----------
@@ -568,9 +570,9 @@
         if (Math.hypot(x0 - Px, y0 - Py) > 16) { p.textAlign(p.CENTER, p.CENTER); p.text("A", x0 + Math.cos(la) * 15, y0 - Math.sin(la) * 15); }
       }
 
-      // arco do ângulo θ = ct + d, medido a partir do semieixo dos cossenos
+      // arco do ângulo θ = ct − d, medido a partir do semieixo dos cossenos
       let thm = th % TAU; if (Math.abs(thm) < 1e-9) thm = 0;
-      const ra = Math.max(12, Math.min(28, R * 0.32));
+      const ra = Math.max(14, Math.min(34, R * 0.32));
       if (thm !== 0) {
         p.noFill(); p.stroke(css("--arc")); p.strokeWeight(2);
         dc.beginPath(); dc.arc(cx, cy, ra, -S.rho, -(S.rho + thm), thm > 0); dc.stroke();
@@ -583,6 +585,27 @@
         const qx = cx - S.b * ppu * Math.cos(phi), qy = cy + S.b * ppu * Math.sin(phi);
         dashed(cx, cy, qx, qy, css("--arc"), 1.2);
         p.stroke(css("--arc")); p.strokeWeight(1.2); p.noFill(); p.circle(qx, qy, 6);
+      }
+
+      // Q: ponto de ângulo t (c = 1, d = 0) na mesma circunferência — só o ponto, o raio CQ
+      // e o arco t, sem linhas de coordenadas
+      if (S.base && R > 0.5) {
+        const qa = S.t + S.rho;
+        const Qx = cx + R * Math.cos(qa), Qy = cy - R * Math.sin(qa);
+        p.stroke(css("--ref")); p.strokeWeight(1.6); p.line(cx, cy, Qx, Qy);
+        let tm = S.t % TAU;
+        if (Math.abs(tm) > 1e-9) {
+          const rq = ra * 0.5;
+          p.noFill(); p.strokeWeight(2);
+          dc.beginPath(); dc.arc(cx, cy, rq, -S.rho, -(S.rho + tm), tm > 0); dc.stroke();
+          const am = S.rho + tm / 2;
+          p.noStroke(); p.fill(css("--ref")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
+          p.textStyle(p.ITALIC); p.text("t", cx + Math.cos(am) * (rq + 7), cy - Math.sin(am) * (rq + 7)); p.textStyle(p.NORMAL);
+        }
+        p.noStroke(); p.fill(css("--ref")); p.circle(Qx, Qy, 10);
+        p.textSize(12); p.textStyle(p.BOLD); p.textAlign(p.CENTER, p.CENTER);
+        p.text("Q", Qx + Math.cos(qa) * 15, Qy - Math.sin(qa) * 15);
+        p.textStyle(p.NORMAL);
       }
 
       // raio CP e projeção na vertical (é o b·cos θ ou b·sin θ que se soma a a)
@@ -646,11 +669,11 @@
     }
     return sg + fmt(ax, 2).replace(",", "{,}");
   }
-  // argumento ct + d
+  // argumento ct − d
   function texArg() {
     let s = "";
     if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + "t";
-    if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d < 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(S.d);
+    if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d > 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(-S.d);
     return s || "0";
   }
   function renderTex(el, tex) {
@@ -671,8 +694,8 @@
     const fn = S.fn;
     let arg = ct(S.c);
     if (Math.abs(S.d) > 1e-12) {
-      const ds = nice(S.d);
-      arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
+      const ds = nice(-S.d);
+      arg = arg ? `${arg} ${S.d > 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
     }
     if (!arg) arg = "0";
     let out = "";
@@ -688,7 +711,7 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
+    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct − d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
   }
 
   function changed() {
@@ -697,18 +720,18 @@
     $("swap").textContent = `⇄ Mudar para ${fn === "cos" ? "sin" : "cos"}`;
     $("ref-name").textContent = `y = ${fn} t`;
     $("cap-mode").textContent = fn === "cos"
-      ? "A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos(ct + d) na altura de P."
-      : "Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin(ct + d).";
+      ? "A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos(ct − d) na altura de P."
+      : "Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin(ct − d).";
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
     const rows = [
       ["Linha média", `y = ${fmt(S.a)}`],
       ["Amplitude |b|", fmt(B)],
       ["Contradomínio", B > 1e-12 ? `[${fmt(S.a - B)}, ${fmt(S.a + B)}]` : `{${fmt(S.a)}}`],
       ["Período 2π/|c|", T ? nice(T) + (nice(T).includes("π") ? ` ≈ ${fmt(T)}` : "") : "— (c = 0: f é constante)"],
-      ["Ângulo inicial d", nice(S.d) + (nice(S.d).includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
+      ["Ângulo inicial −d", nice(-S.d) + (nice(-S.d).includes("π") ? ` ≈ ${fmt(-S.d)}` : "") + " rad"],
       ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
     ];
-    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo ct + d"]);
+    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo ct − d"]);
     $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
     $("law").textContent = lawText();
     let tex = "";
