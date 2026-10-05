@@ -177,7 +177,7 @@
   <header>
     <h1>Função sinusoidal completa</h1>
     <div class="formula">
-      <span><i>f</i>(<i>t</i>) = <i>a</i> + <i>b</i> <span class="fn" id="fn-name">cos</span>(<i>c</i><i>t</i> + <i>d</i>)</span>
+      <span><i>f</i>(<i>t</i>) = <i>a</i> + <i>b</i> <span class="fn" id="fn-name">cos</span>(<span id="arg-form"><i>c</i><i>t</i> + <i>d</i></span>)</span>
       <button class="btn" id="swap" title="Trocar entre cosseno e seno">⇄ Mudar para sin</button>
     </div>
   </header>
@@ -186,6 +186,13 @@
     <section class="controls" aria-label="Controlos">
       <div class="box">
         <h2>Parâmetros <button class="btn small" id="defaults" title="a = 0, b = 1, c = 1, d = 0">↺ Valores iniciais</button></h2>
+        <div class="row">
+          <span>Argumento</span>
+          <div class="seg" role="group" aria-label="Forma do argumento" id="form">
+            <button data-v="sum" aria-pressed="true">ct + d</button>
+            <button data-v="shift" aria-pressed="false">c(t − d)</button>
+          </div>
+        </div>
         <div class="param">
           <label for="a">a</label>
           <input type="range" id="a" min="-5" max="5" step="0.1" value="0">
@@ -270,6 +277,7 @@
   const S = {
     ...DEF,
     fn: "cos",
+    form: "sum",            // argumento: "sum" = ct + d, "shift" = c(t − d)
     rho: 0,                 // rotação da circunferência: 0 no seno, π/2 no cosseno (animada ao trocar)
     t: 0, running: false, speed: 1, win: 4 * PI,
     ref: false, period: true, base: false,
@@ -315,12 +323,15 @@
   }
 
   // f(t) = a + b sin(ct + d + ρ): com ρ = π/2 é a + b cos(ct + d)
-  const theta = t => S.c * t + S.d;
+  // (na forma c(t − d), θ = c(t − d) e d é a translação horizontal do gráfico)
+  const theta = t => S.form === "shift" ? S.c * (t - S.d) : S.c * t + S.d;
+  const argName = () => S.form === "shift" ? "c(t − d)" : "ct + d";
   const f = t => S.a + S.b * Math.sin(theta(t) + S.rho);
 
   // valores iniciais opcionais no endereço, p. ex. index.html#sin&a=1&b=-2&c=2&d=π/4
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
     if (tok === "sin" || tok === "cos") { S.fn = tok; return; }
+    if (tok === "shift") { S.form = "shift"; return; }
     const m = tok.match(/^([abcdt])=(.+)$/);
     const x = m && parseX(m[2]);
     if (x !== null && x !== undefined) S[m[1]] = x;
@@ -375,6 +386,8 @@
     }));
   }
   seg("speed", "speed", Number);
+  seg("form", "form", String);
+  document.querySelectorAll("#form button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === S.form));
   seg("win", "win", v => v * PI);
   $("ref").addEventListener("change", e => { S.ref = e.target.checked; changed(); });
   $("base").addEventListener("change", e => { S.base = e.target.checked; changed(); });
@@ -671,6 +684,13 @@
   }
   // argumento ct + d
   function texArg() {
+    if (S.form === "shift" && Math.abs(S.d) > 1e-12) {
+      if (Math.abs(S.c) < 1e-12) return "0";
+      const inner = `t ${S.d > 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}`;
+      if (Math.abs(S.c - 1) < 1e-12) return inner;
+      if (Math.abs(S.c + 1) < 1e-12) return `-\\left(${inner}\\right)`;
+      return `${texNum(S.c)}\\left(${inner}\\right)`;
+    }
     let s = "";
     if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + "t";
     if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d < 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(S.d);
@@ -693,7 +713,13 @@
   function lawText() {
     const fn = S.fn;
     let arg = ct(S.c);
-    if (Math.abs(S.d) > 1e-12) {
+    if (Math.abs(S.d) > 1e-12 && S.form === "shift") {
+      if (arg) {
+        const inner = `t ${S.d > 0 ? "−" : "+"} ${nice(Math.abs(S.d))}`;
+        const cs = nice(S.c);
+        arg = Math.abs(S.c - 1) < 1e-12 ? inner : Math.abs(S.c + 1) < 1e-12 ? `−(${inner})` : `${cs}${cs.includes("/") ? "·" : ""}(${inner})`;
+      }
+    } else if (Math.abs(S.d) > 1e-12) {
       const ds = nice(S.d);
       arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
     }
@@ -711,7 +737,7 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
+    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ${argName()} = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
   }
 
   function changed() {
@@ -719,19 +745,21 @@
     $("fn-name").textContent = fn;
     $("swap").textContent = `⇄ Mudar para ${fn === "cos" ? "sin" : "cos"}`;
     $("ref-name").textContent = `y = ${fn} t`;
+    $("arg-form").innerHTML = S.form === "shift" ? "<i>c</i>(<i>t</i> − <i>d</i>)" : "<i>c</i><i>t</i> + <i>d</i>";
     $("cap-mode").textContent = fn === "cos"
-      ? "A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos(ct + d) na altura de P."
-      : "Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin(ct + d).";
+      ? `A circunferência (centro (0, a), raio |b|) está rodada 90°: o eixo dos cossenos fica na vertical, para se ler b·cos(${argName()}) na altura de P.`
+      : `Circunferência de centro (0, a) e raio |b|: a altura de P é a + b·sin(${argName()}).`;
     const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
     const rows = [
       ["Linha média", `y = ${fmt(S.a)}`],
       ["Amplitude |b|", fmt(B)],
       ["Contradomínio", B > 1e-12 ? `[${fmt(S.a - B)}, ${fmt(S.a + B)}]` : `{${fmt(S.a)}}`],
       ["Período 2π/|c|", T ? nice(T) + (nice(T).includes("π") ? ` ≈ ${fmt(T)}` : "") : "— (c = 0: f é constante)"],
-      ["Ângulo inicial d", nice(S.d) + (nice(S.d).includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
+      [`Ângulo inicial ${S.form === "shift" ? "−cd" : "d"}`, (th0 => nice(th0) + (nice(th0).includes("π") ? ` ≈ ${fmt(th0)}` : "") + " rad")(theta(0))],
+      [`Translação horiz. ${S.form === "shift" ? "d" : "−d/c"}`, Math.abs(S.c) < 1e-12 ? "—" : (h => nice(h) + (nice(h).includes("π") ? ` ≈ ${fmt(h)}` : ""))(S.form === "shift" ? S.d : -S.d / S.c)],
       ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
     ];
-    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo ct + d"]);
+    if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo θ"]);
     $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
     $("law").textContent = lawText();
     let tex = "";
