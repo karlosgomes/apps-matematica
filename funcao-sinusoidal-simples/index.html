@@ -510,17 +510,31 @@
         p.text("A", x0 + Math.cos(S.d + 0.6) * 15, y0 - Math.sin(S.d + 0.6) * 15);
       }
 
-      // arco do ângulo ao centro (ct + d), com a etiqueta t
-      let thm = th % TAU; if (Math.abs(thm) < 1e-9) thm = 0;
+      // arcos dos ângulos ao centro
       const ra = Math.max(12, Math.min(26, R * 0.28));
-      if (thm !== 0) {
-        p.noFill(); p.stroke(css("--arc")); p.strokeWeight(2);
-        dc.beginPath(); dc.arc(cx, cy, ra, 0, -thm, thm > 0); dc.stroke();
-        const am = thm / 2;
-        p.noStroke(); p.fill(css("--arc")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
+      // arco que começa no ângulo a0 e roda sw (reduzido a uma volta, com o sinal), com etiqueta
+      const arcL = (a0, sw, r, color, txt) => {
+        sw = sw % TAU; if (Math.abs(sw) < 1e-9) return;
+        p.noFill(); p.stroke(color); p.strokeWeight(2);
+        dc.beginPath(); dc.arc(cx, cy, r, -a0, -(a0 + sw), sw > 0); dc.stroke();
+        const am = a0 + sw / 2;
+        p.noStroke(); p.fill(color); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
         p.textStyle(p.ITALIC);
-        p.text("t", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9));
+        const rl = r + 6 + p.textWidth(txt) / 2;
+        p.text(txt, cx + Math.cos(am) * rl, cy - Math.sin(am) * rl);
         p.textStyle(p.NORMAL);
+      };
+      if (S.base) {
+        // com Q: t é o ângulo de OQ; o de OP decompõe-se em d (de Ox a OA) e ct (de OA a OP)
+        // (o arco de OP fica dividido pelo raio OA, tracejado)
+        const rb = Math.max(18, Math.min(36, R * 0.32));
+        dashed(cx, cy, cx + R * Math.cos(S.d), cy - R * Math.sin(S.d), css("--arc"), 1);
+        arcL(0, S.t, rb * 0.42, css("--ref"), "t");
+        // se d e ct tiverem sinais contrários os arcos sobrepõem-se: o de d vai mais para fora
+        arcL(0, S.d, S.d * S.c * S.t < 0 ? rb + 10 : rb, css("--arc"), "d");
+        arcL(S.d, S.c * S.t, rb, css("--arc"), "ct");
+      } else {
+        arcL(0, th, ra, css("--arc"), "t");
       }
 
       // raio OP
@@ -536,9 +550,10 @@
         dashed(Px, Py, X(S.t), Y(sn), css("--sin"), 1);
       }
 
-      // Q: ponto da função base, de ângulo t (c = 1, d = 0) — só o ponto, sem linhas
+      // Q: ponto da função base, de ângulo t (c = 1, d = 0) — só o ponto e o raio OQ, sem linhas de coordenadas
       if (S.base) {
         const Qx = cx + R * Math.cos(S.t), Qy = cy - R * Math.sin(S.t);
+        p.stroke(css("--ref")); p.strokeWeight(1.6); p.line(cx, cy, Qx, Qy);
         p.noStroke(); p.fill(css("--ref")); p.circle(Qx, Qy, 10);
         p.textSize(12); p.textStyle(p.BOLD); p.textAlign(p.CENTER, p.CENTER);
         p.text("Q", Qx + Math.cos(S.t) * 15, Qy - Math.sin(S.t) * 15);
