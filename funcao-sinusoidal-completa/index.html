@@ -382,9 +382,14 @@
 
     function size() {
       const w = Math.max(300, plotEl.clientWidth);
-      const h = Math.round(Math.max(280, Math.min(600, window.innerHeight - 120, Math.max(300, w * 0.55))));
-      return [w, h];
+      let h = Math.round(Math.max(280, Math.min(600, window.innerHeight - 120, Math.max(300, w * 0.55))));
+      // em ecrã estreito a largura da faixa da circunferência é que limita a escala: a altura
+      // fica só a necessária (o diâmetro nunca passa de ~0,82 da altura útil, por causa da folga)
+      if (w < NARROW) h = Math.min(h, Math.round((stripMax(w) - 56) / 0.82 + M.t + M.b));
+      return [w, Math.max(200, h)];
     }
+    const NARROW = 520;
+    const stripMax = w => Math.round(w * 0.45);
     p.setup = () => {
       const [w, h] = size();
       p.createCanvas(w, h).parent(plotEl);
@@ -435,11 +440,15 @@
       // ---- geometria comum: a mesma escala vertical serve a circunferência e o gráfico ----
       fitView();
       const GT = M.t, GB = p.height - M.b, H = GB - GT;
-      const Wc = Math.round(Math.max(130, Math.min(p.width * 0.36, H * 0.95)));   // faixa da circunferência
       const B = Math.abs(S.b);
+      // faixa da circunferência: fixa em ecrã largo; em ecrã estreito acompanha o tamanho
+      // da circunferência, para o gráfico ficar com o resto da largura
+      const Wc = p.width < NARROW
+        ? Math.round(Math.max(110, Math.min(stripMax(p.width), 2 * B * H / view.span + 56)))
+        : Math.round(Math.max(130, Math.min(p.width * 0.36, H * 0.95)));
       let ppu = H / view.span;
       // deixar espaço para os eixos da circunferência e os nomes cos/sin
-      if (B > 0 && 2 * B * ppu > Wc - 70) ppu = (Wc - 70) / (2 * B);
+      if (B > 0 && 2 * B * ppu > Wc - 56) ppu = (Wc - 56) / (2 * B);
       const shown = H / ppu;
       const ymin = view.ymin + view.span / 2 - shown / 2;
       const Y = y => GB - (y - ymin) * ppu;
