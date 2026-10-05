@@ -173,6 +173,22 @@
   #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); }
   :root[data-hidectl] main { grid-template-columns: 1fr; }
   :root[data-hidectl] .controls { display: none; }
+  /* controlos sobrepostos na folha do desenho (só no modo projeção) */
+  .ovl { display: none; }
+  :root[data-proj] .ovl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 10px 8px 4px; margin-top: 4px; border-top: 1px solid var(--line); }
+  .ov { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); }
+  .ov label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .ov i { font-family: var(--font); font-size: 1.3rem; }
+  .ov input[type="range"] { width: 150px; accent-color: var(--pt); margin: 0; }
+  .ov input[type="checkbox"] { width: 20px; height: 20px; margin: 0; }
+  .ov .btn.small { font-size: 1rem; padding: 4px 12px; }
+  .ov output { min-width: 3.6em; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .ovchk { font-family: var(--font); font-weight: 700; font-size: 1.1rem; }
+  .ovchk.sin { color: var(--sin); } .ovchk.sin input { accent-color: var(--sin); }
+  .ovchk.cos { color: var(--cos); } .ovchk.cos input { accent-color: var(--cos); }
+  .ovchk.q { color: var(--ref); } .ovchk.q input { accent-color: var(--ref); }
+  #plot canvas { touch-action: pan-y; }
+  :root[data-proj] #plot canvas { touch-action: none; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -275,8 +291,10 @@
     <section class="plot-card" aria-label="Circunferência trigonométrica e gráfico de f">
       <div class="texline" id="tex" aria-live="polite"></div>
       <div id="plot"></div>
+      <div class="ovl" id="ovl" aria-label="Controlos no desenho"></div>
       <div class="caption">
         <span id="cap-mode"></span>
+        <span class="drag-hint">Arrasta no desenho: <b>P</b> (muda t), a curva na horizontal (muda d), o fim do período <b>T</b> (muda c), a linha média (muda a), a reta do máximo (muda b), a reta de t.</span>
         <span id="cap-now" class="mono"></span>
       </div>
     </section>
@@ -408,6 +426,119 @@
   $("shift").addEventListener("change", e => { S.showShift = e.target.checked; changed(); });
   $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
 
+  // ---------- arrastar no próprio desenho ----------
+  // P → t · fim do período T → c · a curva na horizontal → d · a reta de t → t
+  // (na completa também: linha média → a · reta do máximo → b)
+  let G = null;   // geometria do último desenho
+  const snap = (x, st) => Math.round(x / st) * st;
+  const STEP = { a: 0.1, b: 0.1, c: 0.05, d: PI / 12 };
+  function setParam(k, x) {
+    x = Math.min(LIM[k][1], Math.max(LIM[k][0], snap(x, STEP[k])));
+    if (Math.abs(x - S[k]) < 1e-12) return;
+    S[k] = x; pairs[k].r.value = x; pairs[k].n.value = nice(x); pairs[k].n.classList.remove("bad");
+    changed();
+  }
+  function setTime(t) { S.t = Math.min(S.win, Math.max(0, t)); changed(); }
+  function hit(x, y) {
+    const g = G;
+    if (!g) return null;
+    if (g.Px !== null && Math.hypot(x - g.Px, y - g.Py) < 16 * K) return "P";
+    if (g.Tx !== null && Math.abs(x - g.Tx) < 10 * K && Math.abs(y - g.yb) < 12 * K) return "T";
+    const inG = x > g.gx0 + 4 && x < g.gx1 && y > g.GT - 4 && y < g.GB;
+    if (!inG) return null;
+    if (g.yMax !== undefined && g.yMax !== null && Math.abs(y - g.yMax) < 7 * K) return "b";
+    if (g.yMid !== undefined && Math.abs(y - g.yMid) < 7 * K) return "a";
+    if (Math.abs(x - g.X(S.t)) < 10 * K) return "t";
+    return "d";
+  }
+  const CURSOR = { P: "grab", T: "ew-resize", b: "ns-resize", a: "ns-resize", t: "ew-resize", d: "grab" };
+  function bindDrag(el) {
+    let mode = null, st0 = null;
+    const local = e => {
+      const r = el.getBoundingClientRect();
+      return [(e.clientX - r.left) * P.width / r.width, (e.clientY - r.top) * P.height / r.height];
+    };
+    const apply = (x, y) => {
+      const g = G;
+      if (mode === "P") {
+        if (Math.abs(S.c) < 1e-9) return;
+        // ângulo de P (com b < 0, P está do lado oposto ao do ângulo θ)
+        let ang = Math.atan2(-(y - g.cy), x - g.cx) - g.rho + (S.b < 0 ? PI : 0);
+        const shift = S.form === "shift";   // θ = c(t − d) em vez de ct + d (só na completa)
+        const th = theta(S.t);
+        ang += TAU * Math.round((th - ang) / TAU);   // a volta mais próxima da atual
+        setTime(shift ? ang / S.c + S.d : (ang - S.d) / S.c);
+      } else if (mode === "T") {
+        const T = g.tx(x);
+        if (T > 0.2) setParam("c", Math.sign(S.c || 1) * TAU / T);
+      } else if (mode === "t") {
+        setTime(g.tx(x));
+      } else if (mode === "d") {
+        // deslocar a curva h para a direita: d passa a d − c·h (ou a d + h, na forma c(t − d))
+        if (Math.abs(S.c) < 1e-9) return;
+        const h = g.tx(x) - st0.t;
+        setParam("d", S.form === "shift" ? st0.d + h : st0.d - S.c * h);
+      } else if (mode === "a") {
+        setParam("a", g.yv(y));
+      } else if (mode === "b") {
+        setParam("b", st0.sgn * Math.max(0, g.yv(y) - S.a));
+      }
+    };
+    el.addEventListener("pointerdown", e => {
+      const [x, y] = local(e);
+      mode = hit(x, y);
+      if (!mode) return;
+      if (mode === "P" || mode === "t") { S.running = false; }
+      st0 = { d: S.d, t: G.tx(x), sgn: Math.sign(S.b) || 1 };
+      el.style.cursor = mode === "P" || mode === "d" ? "grabbing" : CURSOR[mode];
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+      if (mode !== "d") apply(x, y);
+    });
+    el.addEventListener("pointermove", e => {
+      const [x, y] = local(e);
+      if (mode) { apply(x, y); return; }
+      const h = hit(x, y);
+      el.style.cursor = h ? CURSOR[h] : "default";
+    });
+    const end = () => { mode = null; el.style.cursor = "default"; };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  }
+
+  // ---------- controlos sobrepostos (só no modo projeção) ----------
+  // cópias compactas dos controlos principais, na própria folha do desenho
+  const ovl = $("ovl");
+  const ovR = {};
+  function buildOverlay() {
+    const add = html => { const d = document.createElement("div"); d.className = "ov"; d.innerHTML = html; ovl.appendChild(d); return d; };
+    for (const k of Object.keys(pairs)) {
+      const r = pairs[k].r;
+      const d = add(`<label><i>${k}</i><input type="range" min="${r.min}" max="${r.max}" step="${r.step}" aria-label="${k}"></label><output></output>`);
+      const inp = d.querySelector("input");
+      inp.addEventListener("input", () => { r.value = inp.value; r.dispatchEvent(new Event("input")); });
+      ovR[k] = { inp, out: d.querySelector("output") };
+    }
+    const dt = add(`<label><i>t</i><input type="range" min="0" step="0.01" aria-label="t"></label><output></output>`);
+    const ti = dt.querySelector("input");
+    ti.addEventListener("input", () => { tR.value = ti.value; tR.dispatchEvent(new Event("input")); });
+    ovR.t = { inp: ti, out: dt.querySelector("output") };
+    const db = add(`<button class="btn small" id="ov-run"></button><button class="btn small" id="ov-reset">↺ t = 0</button>`);
+    db.querySelector("#ov-run").addEventListener("click", () => runBtn.click());
+    db.querySelector("#ov-reset").addEventListener("click", () => $("reset").click());
+    const dk = add(`<button class="btn small" id="ov-swap"></button><label class="ovchk q"><input type="checkbox" data-k="base"> Q</label>`);
+    dk.querySelector("#ov-swap").addEventListener("click", () => $("swap").click());
+    dk.querySelectorAll("input").forEach(i => i.addEventListener("change", () => { const m = $(i.dataset.k); m.checked = i.checked; m.dispatchEvent(new Event("change")); }));
+  }
+  function syncOverlay() {
+    for (const k of Object.keys(pairs)) { ovR[k].inp.value = S[k]; ovR[k].out.textContent = nice(S[k]); }
+    ovR.t.inp.max = S.win; ovR.t.inp.value = S.t; ovR.t.out.textContent = fmt(S.t, 2);
+    $("ov-run").textContent = S.running ? "⏸" : "▶";
+    $("ov-swap").textContent = $("swap").textContent;
+    ovl.querySelectorAll(".ovchk input").forEach(i => { i.checked = $(i.dataset.k).checked; });
+  }
+  buildOverlay();
+
   // ---------- modo projeção ----------
   // texto, traços e pontos do desenho ficam K vezes maiores; o estado fica guardado no browser
   // (a mesma chave nas várias apps do site)
@@ -446,7 +577,7 @@
     function size() {
       scaleM();
       const w = Math.max(300, plotEl.clientWidth);
-      let h = Math.round(Math.max(280, Math.min(600, window.innerHeight - (K > 1 ? 200 : 120), Math.max(300, w * 0.55))));
+      let h = Math.round(Math.max(280, Math.min(600, window.innerHeight - (K > 1 ? 170 + ovl.offsetHeight : 120), Math.max(300, w * 0.55))));
       // em ecrã estreito a largura da faixa da circunferência é que limita a escala: a altura
       // fica só a necessária (o diâmetro nunca passa de ~0,82 da altura útil, por causa da folga)
       if (w < NARROW) h = Math.min(h, Math.round((stripMax(w) - 56) / 0.82 + M.t + M.b));
@@ -457,6 +588,7 @@
     p.setup = () => {
       const [w, h] = size();
       p.createCanvas(w, h).parent(plotEl);
+      bindDrag(p.canvas);
       // no modo projeção, tamanhos de letra, espessuras e pontos pequenos (d < 24) multiplicados por K
       const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p), ci = p.circle.bind(p);
       p.textSize = s => s === undefined ? ts() : ts(s * K);
@@ -572,8 +704,10 @@
         p.textAlign(p.RIGHT, p.TOP); p.text("mín " + fmt(S.a - B), gx1 - 2, Y(S.a - B) + 2);
       }
       const T = Math.abs(S.c) > 1e-9 ? TAU / Math.abs(S.c) : Infinity;
+      let Tx = null;
       if (S.period && T <= S.win + 1e-9 && B > 1e-9) {
         const yb = GT - 14;
+        Tx = X(T);
         p.stroke(css("--arc")); p.strokeWeight(1.5);
         p.line(X(0), yb, X(T), yb);
         p.line(X(0), yb - 5, X(0), yb + 5); p.line(X(T), yb - 5, X(T), yb + 5);
@@ -713,6 +847,12 @@
       };
       label("t", gx1 - 2, Y(0) + (Y(0) < GT + 30 ? 26 : -12), true);
       label("y", gx0 + 6, GT + 2, false);
+      // pegas para arrastar a linha média (a) e a reta do máximo (b)
+      p.noStroke(); p.fill(css("--mid")); p.rect(gx0 + 10 * K, cy - 5 * K, 10 * K, 10 * K, 2);
+      if (B > 1e-9) { p.fill(css("--muted")); p.rect(gx0 + 10 * K, Y(S.a + B) - 5 * K, 10 * K, 10 * K, 2); }
+      G = { gx0, gx1, GT, GB, X, tx: x => (x - gx0) / W * S.win, yv: y => ymin + (GB - y) / ppu,
+            cx, cy, rho: S.rho, Px: R > 0.5 ? Px : null, Py, Tx, yb: GT - 14,
+            yMid: cy, yMax: B > 1e-9 ? Y(S.a + B) : null };
     };
 
     function dashed(x0, y0, x1, y1, c, w) {
@@ -804,6 +944,7 @@
   }
 
   function updateNow() {
+    if (ovR.t) { ovR.t.inp.value = S.t; ovR.t.out.textContent = fmt(S.t, 2); }
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
     $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ${argName()} = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
@@ -845,6 +986,7 @@
     tR.value = S.t;
     runBtn.setAttribute("aria-pressed", S.running);
     runBtn.textContent = S.running ? "⏸ Parar o tempo" : (S.t > 0 ? "▶ Continuar" : "▶ Ligar o tempo");
+    syncOverlay();
     updateNow();
     if (ready) { (S.running || anim) ? P.loop() : (P.noLoop(), P.redraw()); }
   }
