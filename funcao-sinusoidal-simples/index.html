@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Função sinusoidal simples</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --ink: #17202b;
+    --muted: #5b6776;
+    --line: #d6dde6;
+    --grid-strong: #e1e6ed;
+    --axis: #36414d;
+    --btn: #eef2f6;
+    --btn-hover: #e1e7ee;
+    --pt: #1565c0;
+    --curve: #d32f2f;
+    --mid: #2e7d32;
+    --arc: #ef6c00;
+    --ref: #9c7fc4;
+    --focus: #1565c0;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1419;
+      --panel: #171e26;
+      --ink: #e6ebf1;
+      --muted: #9aa6b4;
+      --line: #2a3440;
+      --grid-strong: #222b35;
+      --axis: #aab4c0;
+      --btn: #202a35;
+      --btn-hover: #2a3642;
+      --pt: #64a8ff;
+      --curve: #ff6b6b;
+      --mid: #5cc26a;
+      --arc: #ffa040;
+      --ref: #b9a0e0;
+      --focus: #64a8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1419;
+    --panel: #171e26;
+    --ink: #e6ebf1;
+    --muted: #9aa6b4;
+    --line: #2a3440;
+    --grid-strong: #222b35;
+    --axis: #aab4c0;
+    --btn: #202a35;
+    --btn-hover: #2a3642;
+    --pt: #64a8ff;
+    --curve: #ff6b6b;
+    --mid: #5cc26a;
+    --arc: #ffa040;
+    --ref: #b9a0e0;
+    --focus: #64a8ff;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.4;
+    padding-inline: 16px;
+    padding-block: 16px 24px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .formula { font-family: var(--mono); color: var(--muted); font-size: 1rem; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .formula i { font-family: var(--font); font-style: italic; font-size: 1.1rem; color: var(--ink); }
+  .formula .fn { font-family: var(--font); font-size: 1.1rem; color: var(--curve); font-weight: 700; }
+
+  main { display: grid; grid-template-columns: minmax(320px, 380px) 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .plot-card { order: -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; box-shadow: 0 6px 14px -10px rgba(0,0,0,.35); }
+  }
+  @media (min-width: 901px) {
+    .plot-card { position: sticky; top: 16px; }
+  }
+
+  .controls { display: grid; gap: 10px; }
+  .box {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px 12px;
+    display: grid;
+    gap: 8px;
+  }
+  .box h2 { margin: 0; font-size: 0.95rem; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+
+  .param { display: grid; grid-template-columns: 1.6rem 1fr 5.2rem; align-items: center; gap: 10px; }
+  .param label { font-style: italic; font-size: 1.15rem; text-align: center; }
+  .param input[type="range"] { width: 100%; accent-color: var(--pt); margin: 0; }
+  .param input[type="text"] {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 3px 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .param input[type="text"].bad { border-color: var(--curve); }
+  .hint { font-size: 0.8rem; color: var(--muted); }
+
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row > span { color: var(--muted); font-size: 0.9rem; }
+  .btn {
+    font: inherit; font-weight: 700; font-size: 0.95rem;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn.small { font-size: 0.82rem; padding: 3px 9px; font-weight: 400; }
+  #run { min-width: 150px; }
+  #run[aria-pressed="true"] { background: var(--pt); border-color: var(--pt); color: var(--panel); }
+  #swap { background: var(--curve); border-color: var(--curve); color: var(--panel); }
+  #swap:hover { filter: brightness(1.08); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
+    background: var(--btn); color: var(--ink);
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
+  .trow { display: grid; grid-template-columns: 1.6rem 1fr 5.2rem; align-items: center; gap: 10px; }
+  .trow label { font-style: italic; font-size: 1.1rem; text-align: center; }
+  .trow input[type="range"] { width: 100%; accent-color: var(--curve); margin: 0; }
+  .trow output { font-family: var(--mono); font-size: 0.9rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .readout { font-family: var(--mono); font-size: 0.88rem; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-variant-numeric: tabular-nums; }
+  .readout dt { color: var(--muted); }
+  .readout dd { margin: 0; }
+  .law { font-family: var(--mono); font-size: 0.95rem; padding: 6px 8px; background: var(--bg); border-radius: 5px; overflow-x: auto; white-space: nowrap; }
+  .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
+  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--pt); cursor: pointer; }
+
+  .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  #plot { width: 100%; }
+  #plot canvas { display: block; max-width: 100%; }
+  .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .caption .mono { font-family: var(--mono); }
+
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Função sinusoidal simples</h1>
+    <div class="formula">
+      <span><i>f</i>(<i>t</i>) = <span class="fn" id="fn-name">sin</span>(<i>c</i><i>t</i> + <i>d</i>)</span>
+      <button class="btn" id="swap" title="Trocar entre seno e cosseno">⇄ Mudar para cos</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="controls" aria-label="Controlos">
+      <div class="box">
+        <h2>Parâmetros <button class="btn small" id="defaults" title="c = 1, d = 0">↺ Valores iniciais</button></h2>
+        <div class="param">
+          <label for="c">c</label>
+          <input type="range" id="c" min="-4" max="4" step="0.05" value="1">
+          <input type="text" id="c-n" inputmode="decimal" value="1" aria-label="Valor de c">
+        </div>
+        <div class="param">
+          <label for="d">d</label>
+          <input type="range" id="d" min="-6.283185307179586" max="6.283185307179586" step="0.2617993877991494" value="0">
+          <input type="text" id="d-n" inputmode="decimal" value="0" aria-label="Valor de d (aceita π/4 ou pi/4)">
+        </div>
+        <div class="hint">Nas caixas podes escrever, por exemplo, <b>1/2</b>, <b>π/3</b>, <b>−3pi/4</b> ou <b>2π</b>. O cursor de <i>d</i> anda de π/12 em π/12.</div>
+      </div>
+
+      <div class="box">
+        <div class="row">
+          <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
+          <button class="btn" id="reset">↺ t = 0</button>
+        </div>
+        <div class="trow">
+          <label for="t">t</label>
+          <input type="range" id="t" min="0" max="12.566370614359172" step="0.01" value="0">
+          <output id="t-out">0</output>
+        </div>
+        <div class="row">
+          <span>Velocidade</span>
+          <div class="seg" role="group" aria-label="Velocidade" id="speed">
+            <button data-v="0.25" aria-pressed="false">¼×</button>
+            <button data-v="0.5" aria-pressed="false">½×</button>
+            <button data-v="1" aria-pressed="true">1×</button>
+            <button data-v="2" aria-pressed="false">2×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h2>Características</h2>
+        <div class="law" id="law"></div>
+        <dl class="readout" id="readout"></dl>
+      </div>
+
+      <div class="box">
+        <div class="row">
+          <span>Janela de t</span>
+          <div class="seg" role="group" aria-label="Janela de tempo do gráfico" id="win">
+            <button data-v="2" aria-pressed="false">[0, 2π]</button>
+            <button data-v="4" aria-pressed="true">[0, 4π]</button>
+            <button data-v="8" aria-pressed="false">[0, 8π]</button>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="ref"> Mostrar <span id="ref-name">y = sin t</span> (c = 1, d = 0)</label>
+        <label class="check"><input type="checkbox" id="period" checked> Mostrar o período</label>
+      </div>
+    </section>
+
+    <section class="plot-card" aria-label="Circunferência trigonométrica e gráfico de f">
+      <div id="plot"></div>
+      <div class="caption">
+        <span id="cap-mode"></span>
+        <span id="cap-now" class="mono"></span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="p5.min.js"></script>
+<script>
+(() => {
+  const PI = Math.PI, TAU = 2 * PI;
+  const DEF = { c: 1, d: 0 };
+  const S = {
+    ...DEF,
+    fn: "sin",
+    t: 0, running: false, speed: 1, win: 4 * PI,
+    ref: false, period: true,
+  };
+
+  // ---------- números ----------
+  const fmt = (x, dec = 2) => {
+    if (Math.abs(x) < 0.5 * 10 ** -dec) x = 0;
+    return x.toLocaleString("pt-PT", { maximumFractionDigits: dec }).replace("-", "−");
+  };
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; }
+  function fracPi(k, m) {
+    if (k === 0) return "0";
+    const g = gcd(k, m); k /= g; m /= g;
+    const s = k < 0 ? "−" : ""; k = Math.abs(k);
+    const num = (k === 1 ? "" : k) + "π";
+    return s + (m === 1 ? num : num + "/" + m);
+  }
+  // x como múltiplo de π/12 quando o é exatamente; senão decimal
+  function nice(x, dec = 2) {
+    const k = Math.round(x / (PI / 12));
+    if (k !== 0 && Math.abs(x - k * PI / 12) < 1e-9) return fracPi(k, 12);
+    return fmt(x, dec);
+  }
+  // aceita "2,5", "-3π/4", "pi/2", "2pi", "π", "1/2"
+  function parseX(str) {
+    const s = String(str).trim().replace(/\s+/g, "").replace(/[−–]/g, "-").replace(/pi/gi, "π");
+    const m = s.match(/^([-+]?)(\d*(?:[.,]\d*)?)(π?)(?:\/(\d+(?:[.,]\d+)?))?$/);
+    if (!m || (!m[2] && !m[3])) return null;
+    let v = m[2] ? parseFloat(m[2].replace(",", ".")) : 1;
+    if (isNaN(v)) return null;
+    if (m[3]) v *= PI;
+    if (m[4]) { const q = parseFloat(m[4].replace(",", ".")); if (!q) return null; v /= q; }
+    return m[1] === "-" ? -v : v;
+  }
+
+  // P = (cos θ, sin θ) com θ = ct + d; f(t) é a ordenada (sin) ou a abcissa (cos) de P
+  const theta = t => S.c * t + S.d;
+  const f = t => S.fn === "sin" ? Math.sin(theta(t)) : Math.cos(theta(t));
+
+  // valores iniciais opcionais no endereço, p. ex. index.html#cos&c=2&d=π/4
+  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
+    if (tok === "sin" || tok === "cos") { S.fn = tok; return; }
+    const m = tok.match(/^([cdt])=(.+)$/);
+    const x = m && parseX(m[2]);
+    if (x !== null && x !== undefined) S[m[1]] = x;
+  });
+
+  // ---------- controlos ----------
+  const $ = id => document.getElementById(id);
+  const LIM = { c: [-4, 4], d: [-TAU, TAU] };
+  const pairs = {};
+  function bindPair(key) {
+    const r = $(key), n = $(key + "-n");
+    pairs[key] = { r, n };
+    r.addEventListener("input", () => {
+      let x = +r.value;
+      if (key === "d") x = Math.round(x / (PI / 12)) * PI / 12;   // valores exatos kπ/12
+      S[key] = x; n.value = key === "d" ? nice(x) : fmt(x); n.classList.remove("bad");
+      changed();
+    });
+    n.addEventListener("change", () => {
+      let x = parseX(n.value);
+      if (x === null) { n.classList.add("bad"); return; }
+      n.classList.remove("bad");
+      x = Math.min(LIM[key][1], Math.max(LIM[key][0], x));
+      S[key] = x; r.value = x; n.value = nice(x);
+      changed();
+    });
+    n.addEventListener("keydown", e => { if (e.key === "Enter") n.dispatchEvent(new Event("change")); });
+  }
+  ["c", "d"].forEach(bindPair);
+  ["c", "d"].forEach(k => { S[k] = Math.min(LIM[k][1], Math.max(LIM[k][0], S[k])); });
+  const syncInputs = () => ["c", "d"].forEach(k => { pairs[k].r.value = S[k]; pairs[k].n.value = nice(S[k]); pairs[k].n.classList.remove("bad"); });
+  $("defaults").addEventListener("click", () => { Object.assign(S, DEF); syncInputs(); changed(); });
+
+  $("swap").addEventListener("click", () => { S.fn = S.fn === "sin" ? "cos" : "sin"; changed(); });
+
+  const runBtn = $("run"), tR = $("t");
+  runBtn.addEventListener("click", () => { S.running = !S.running; changed(); });
+  $("reset").addEventListener("click", () => { S.running = false; S.t = 0; changed(); });
+  tR.addEventListener("input", () => { S.t = +tR.value; changed(); });
+
+  function seg(id, key, parse) {
+    const btns = [...document.querySelectorAll(`#${id} button`)];
+    btns.forEach(b => b.addEventListener("click", () => {
+      S[key] = parse(b.dataset.v);
+      btns.forEach(x => x.setAttribute("aria-pressed", x === b));
+      changed();
+    }));
+  }
+  seg("speed", "speed", Number);
+  seg("win", "win", v => v * PI);
+  $("ref").addEventListener("change", e => { S.ref = e.target.checked; changed(); });
+  $("period").addEventListener("change", e => { S.period = e.target.checked; changed(); });
+
+  // ---------- desenho (p5.js) ----------
+  // (nada de drawingContext.save/restore à volta de cores do p5: o p5 guarda a última cor
+  // em cache e, depois de um restore, deixaria de a aplicar)
+  const plotEl = $("plot");
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let ready = false;
+
+  const sketch = p => {
+    const M = { l: 44, r: 18, t: 30, b: 30 };
+
+    function size() {
+      const w = Math.max(300, plotEl.clientWidth);
+      let h = Math.round(Math.max(260, Math.min(520, window.innerHeight - 120, Math.max(280, w * 0.45))));
+      // em ecrã estreito a circunferência é que limita a escala: não deixar sobrar altura
+      const ppu = (stripW(w, h - M.t - M.b) - 56) / 2;
+      h = Math.min(h, Math.round(2.7 * ppu + M.t + M.b));
+      return [w, Math.max(200, h)];
+    }
+    // largura da faixa da circunferência
+    const stripW = (w, H) => Math.round(Math.max(130, Math.min(w * (w < 520 ? 0.42 : 0.36), H * 0.95)));
+    p.setup = () => {
+      const [w, h] = size();
+      p.createCanvas(w, h).parent(plotEl);
+      p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
+      p.noLoop();
+      ready = true;
+    };
+    p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
+
+    p.draw = () => {
+      if (S.running) {
+        S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
+        if (S.t > S.win) S.t -= S.win;
+        tR.value = S.t;
+        updateNow();
+      }
+      const plex = document.fonts && [...document.fonts].some(fo => fo.family.replace(/"/g, "") === "IBM Plex Mono" && fo.status === "loaded");
+      p.textFont(plex ? "IBM Plex Mono" : "monospace");
+      p.background(css("--panel"));
+      const dc = p.drawingContext;
+      const isSin = S.fn === "sin";
+
+      // ---- geometria: a mesma escala vertical serve a circunferência e o gráfico ----
+      const GT = M.t, GB = p.height - M.b, H = GB - GT;
+      const Wc = stripW(p.width, H);
+      const ppu = Math.min(H / 2.7, (Wc - 56) / 2);
+      const ym = (GT + GB) / 2;
+      const Y = y => ym - y * ppu;
+
+      const gx0 = Wc + M.l, gx1 = p.width - M.r, W = gx1 - gx0;
+      const X = t => gx0 + (t / S.win) * W;
+
+      const cx = Wc / 2 + 2, cy = Y(0), R = ppu;
+      const th = theta(S.t), cs = Math.cos(th), sn = Math.sin(th);
+      const Px = cx + R * cs, Py = cy - R * sn;
+      const fNow = f(S.t);
+
+      // ---- grelha e eixos do gráfico ----
+      p.textSize(11); p.strokeWeight(1);
+      for (const y of ppu < 40 ? [-1, 1] : [-1, -0.5, 0.5, 1]) {
+        p.stroke(css("--grid-strong")); p.line(gx0, Y(y), gx1, Y(y));
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
+        p.text(fmt(y, 1), gx0 - 7, Y(y));
+      }
+      // marcas de t em múltiplos de π/2 (ou π, ou 2π, se não houver espaço)
+      let m = 2;
+      if (W / (S.win / (PI / 2)) < 46) m = 1;
+      if (W / (S.win / PI) < 40) m = 0.5;
+      const st = PI / m;
+      for (let k = 1; k * st <= S.win + 1e-9; k++) {
+        const x = X(k * st);
+        p.stroke(css("--grid-strong")); p.line(x, GT, x, GB);
+        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
+        p.text(m === 0.5 ? fracPi(2 * k, 1) : fracPi(k, m), x, Y(0) + 5);
+      }
+      p.stroke(css("--axis")); p.strokeWeight(1.5);
+      p.line(gx0, Y(0), gx1, Y(0));
+      p.line(gx0, GT - 6, gx0, GB);
+      arrow(gx1, Y(0), 1, 0); arrow(gx0, GT - 6, 0, -1);
+
+      // ---- período ----
+      const T = Math.abs(S.c) > 1e-9 ? TAU / Math.abs(S.c) : Infinity;
+      if (S.period && T <= S.win + 1e-9) {
+        const yb = GT - 14;
+        p.stroke(css("--arc")); p.strokeWeight(1.5);
+        p.line(X(0), yb, X(T), yb);
+        p.line(X(0), yb - 5, X(0), yb + 5); p.line(X(T), yb - 5, X(T), yb + 5);
+        dc.globalAlpha = 0.5; dashed(X(T), yb, X(T), GB, css("--arc"), 1); dc.globalAlpha = 1;
+        p.textSize(11);
+        const lt = "T = " + nice(T), tw = p.textWidth(lt);
+        const tx = Math.max(X(0) + tw / 2 + 4, X(T / 2));
+        p.noStroke(); p.fill(css("--panel")); p.rect(tx - tw / 2 - 3, yb - 8, tw + 6, 15);
+        p.fill(css("--arc")); p.textAlign(p.CENTER, p.CENTER); p.text(lt, tx, yb);
+      }
+
+      // ---- curvas ----
+      const N = Math.max(200, Math.round(W * 2));
+      const curve = (g, t0, t1, color, w, dash) => {
+        p.noFill(); p.stroke(color); p.strokeWeight(w); p.strokeJoin(p.ROUND);
+        if (dash) dc.setLineDash(dash);
+        p.beginShape();
+        const n = Math.max(2, Math.round(N * (t1 - t0) / S.win));
+        for (let i = 0; i <= n; i++) { const t = t0 + (t1 - t0) * i / n; p.vertex(X(t), Y(g(t))); }
+        p.endShape();
+        dc.setLineDash([]);
+      };
+      if (S.ref) curve(isSin ? Math.sin : Math.cos, 0, S.win, css("--ref"), 1.8, [6, 5]);
+      dc.globalAlpha = 0.28; curve(f, 0, S.win, css("--curve"), 2); dc.globalAlpha = 1;
+      if (S.t > 0) curve(f, 0, S.t, css("--curve"), 2.8);
+
+      // ---- circunferência trigonométrica (sempre na posição habitual) ----
+      const ext = R + 12;
+      p.stroke(css("--axis")); p.strokeWeight(1.2);
+      p.line(cx - ext, cy, cx + ext, cy); arrow(cx + ext, cy, 1, 0, 5);
+      p.line(cx, cy + ext, cx, cy - ext); arrow(cx, cy - ext, 0, -1, 5);
+      p.noStroke(); p.fill(css("--muted")); p.textSize(11); p.textAlign(p.CENTER, p.CENTER);
+      p.text("cos", cx + ext + 4, cy + 12);
+      p.text("sin", cx + 15, cy - ext - 4);
+      p.noFill(); p.stroke(css("--ink")); p.strokeWeight(1.6); p.circle(cx, cy, 2 * R);
+      p.noStroke(); p.fill(css("--muted")); p.textSize(10);
+      p.textAlign(p.RIGHT, p.TOP); p.text("1", cx + R - 3, cy + 2);
+      p.textAlign(p.RIGHT, p.BOTTOM); p.text("1", cx - 3, cy - R - 1);
+      p.textAlign(p.RIGHT, p.TOP); p.text("O", cx - 3, cy + 2);
+
+      // ponto inicial P₀ (t = 0)
+      const x0 = cx + R * Math.cos(S.d), y0 = cy - R * Math.sin(S.d);
+      p.stroke(css("--arc")); p.strokeWeight(1.6); p.fill(css("--panel")); p.circle(x0, y0, 8);
+      if (Math.hypot(x0 - Px, y0 - Py) > 16) {
+        p.noStroke(); p.fill(css("--arc")); p.textSize(11); p.textAlign(p.CENTER, p.CENTER);
+        p.text("P₀", x0 + Math.cos(S.d + 0.6) * 15, y0 - Math.sin(S.d + 0.6) * 15);
+      }
+
+      // arco do ângulo θ = ct + d
+      let thm = th % TAU; if (Math.abs(thm) < 1e-9) thm = 0;
+      const ra = Math.max(12, Math.min(26, R * 0.28));
+      if (thm !== 0) {
+        p.noFill(); p.stroke(css("--arc")); p.strokeWeight(2);
+        dc.beginPath(); dc.arc(cx, cy, ra, 0, -thm, thm > 0); dc.stroke();
+        const am = thm / 2;
+        p.noStroke(); p.fill(css("--arc")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
+        p.text("θ", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9));
+      }
+
+      // raio OP
+      p.stroke(css("--pt")); p.strokeWeight(2); p.line(cx, cy, Px, Py);
+
+      if (isSin) {
+        // seno: ordenada de P, levada na horizontal até ao gráfico
+        dashed(Px, Py, cx, Py, css("--muted"), 1);
+        p.stroke(css("--curve")); p.strokeWeight(3); p.line(Px, cy, Px, Py);
+        p.line(cx, cy, cx, Py);
+        dashed(Px, Py, X(S.t), Y(fNow), css("--pt"), 1);
+      } else {
+        // cosseno: abcissa de P, no eixo horizontal; para o gráfico, transporta-se esse
+        // comprimento para o eixo vertical com um arco centrado em O (como com um compasso)
+        dashed(Px, Py, Px, cy, css("--muted"), 1);
+        p.stroke(css("--curve")); p.strokeWeight(3); p.line(cx, cy, Px, cy);
+        const r = Math.abs(cs) * R;
+        if (r > 2) {
+          dc.globalAlpha = 0.6;
+          p.noFill(); p.stroke(css("--curve")); p.strokeWeight(1.2); dc.setLineDash([3, 4]);
+          const a0 = cs > 0 ? 0 : PI;
+          dc.beginPath(); dc.arc(cx, cy, r, -a0, -(a0 + PI / 2), true); dc.stroke();
+          dc.setLineDash([]);
+          p.strokeWeight(3); p.line(cx, cy, cx, Y(cs));
+          dc.globalAlpha = 1;
+        }
+        p.noStroke(); p.fill(css("--curve")); p.circle(Px, cy, 7);
+        dashed(cx, Y(cs), X(S.t), Y(fNow), css("--pt"), 1);
+      }
+
+      // P na circunferência, valor no eixo y e ponto do gráfico
+      p.noStroke(); p.fill(css("--pt")); p.circle(Px, Py, 10);
+      p.fill(css("--ink")); p.textSize(12); p.textStyle(p.BOLD);
+      p.textAlign(p.CENTER, p.CENTER); p.text("P", Px + cs * 15, Py - sn * 15);
+      p.textStyle(p.NORMAL);
+      p.fill(css("--curve")); p.circle(gx0, Y(fNow), 6);
+      p.circle(X(S.t), Y(fNow), 10);
+
+      // nomes dos eixos do gráfico
+      p.textSize(13);
+      const label = (txt, x, y, right) => {
+        const w = p.textWidth(txt) + 8, x0 = right ? x - w : x;
+        p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
+        p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
+      };
+      label("t", gx1 - 2, Y(0) - 12, true);
+      label("y", gx0 + 6, GT + 2, false);
+    };
+
+    function dashed(x0, y0, x1, y1, c, w) {
+      const dc = p.drawingContext;
+      dc.setLineDash([5, 5]);
+      p.stroke(c); p.strokeWeight(w); p.line(x0, y0, x1, y1);
+      dc.setLineDash([]);
+    }
+    function arrow(x, y, ux, uy, s = 7) {
+      p.noStroke(); p.fill(css("--axis"));
+      p.triangle(x + ux * s, y + uy * s, x - uy * s * 0.6, y + ux * s * 0.6, x + uy * s * 0.6, y - ux * s * 0.6);
+    }
+  };
+  const P = new p5(sketch);
+
+  const redraw = () => { if (ready && !S.running) P.redraw(); };
+  new ResizeObserver(() => { if (ready) { P.windowResized(); P.redraw(); } }).observe(plotEl);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts) document.fonts.ready.then(redraw);
+
+  // ---------- textos ----------
+  // c·t para a expressão: "t", "−t", "2t", "π/2·t"
+  function ct(c) {
+    if (Math.abs(c) < 1e-12) return "";
+    if (Math.abs(c - 1) < 1e-12) return "t";
+    if (Math.abs(c + 1) < 1e-12) return "−t";
+    const s = nice(c);
+    return s.includes("/") ? s + "·t" : s + "t";
+  }
+  function lawText() {
+    let arg = ct(S.c);
+    if (Math.abs(S.d) > 1e-12) {
+      const ds = nice(S.d);
+      arg = arg ? `${arg} ${S.d < 0 ? "−" : "+"} ${ds.replace("−", "")}` : ds;
+    }
+    return `f(t) = ${S.fn}(${arg || "0"})`;
+  }
+
+  function updateNow() {
+    $("t-out").textContent = fmt(S.t, 2);
+    const th = theta(S.t);
+    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${S.fn} θ = ${fmt(f(S.t), 3)}`;
+  }
+
+  function changed() {
+    const fn = S.fn, isSin = fn === "sin";
+    $("fn-name").textContent = fn;
+    $("swap").textContent = `⇄ Mudar para ${isSin ? "cos" : "sin"}`;
+    $("ref-name").textContent = `y = ${fn} t`;
+    $("cap-mode").textContent = isSin
+      ? "sin θ é a ordenada de P: leva-se na horizontal até ao gráfico."
+      : "cos θ é a abcissa de P: o arco tracejado (centro O) leva-a para o eixo vertical e daí até ao gráfico.";
+    const T = Math.abs(S.c) > 1e-12 ? TAU / Math.abs(S.c) : null;
+    const nd = nice(S.d);
+    const rows = [
+      ["Período 2π/|c|", T ? nice(T) + (nice(T).includes("π") ? ` ≈ ${fmt(T)}` : "") : "— (c = 0: f é constante)"],
+      ["Contradomínio", T ? "[−1, 1]" : `{${fmt(f(0), 3)}}`],
+      ["Ângulo inicial d", nd + (nd.includes("π") ? ` ≈ ${fmt(S.d)}` : "") + " rad"],
+      ["Sentido", Math.abs(S.c) < 1e-12 ? "P parado" : (S.c > 0 ? "P roda no sentido positivo" : "P roda no sentido negativo")],
+    ];
+    $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
+    $("law").textContent = lawText();
+
+    tR.max = S.win;
+    if (S.t > S.win) S.t = S.win;
+    tR.value = S.t;
+    runBtn.setAttribute("aria-pressed", S.running);
+    runBtn.textContent = S.running ? "⏸ Parar o tempo" : (S.t > 0 ? "▶ Continuar" : "▶ Ligar o tempo");
+    updateNow();
+    if (ready) { S.running ? P.loop() : (P.noLoop(), P.redraw()); }
+  }
+  syncInputs();
+  changed();
+})();
+</script>
+</body>
+</html>
