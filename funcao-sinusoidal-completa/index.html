@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
   :root {
     --bg: #eef2f6;
@@ -158,6 +160,10 @@
   .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--pt); cursor: pointer; }
 
   .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  .texline { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 32px; padding: 6px 6px 2px; font-size: 1.2rem; min-height: 2.2em; align-items: center; }
+  .texline .sin { color: var(--sin); }
+  .texline .cos { color: var(--cos); }
+  .texline .muted { color: var(--muted); font-size: 0.95rem; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -245,6 +251,7 @@
     </section>
 
     <section class="plot-card" aria-label="Circunferência trigonométrica e gráfico de f">
+      <div class="texline" id="tex" aria-live="polite"></div>
       <div id="plot"></div>
       <div class="caption">
         <span id="cap-mode"></span>
@@ -570,7 +577,7 @@
         dc.beginPath(); dc.arc(cx, cy, ra, -S.rho, -(S.rho + thm), thm > 0); dc.stroke();
         const am = S.rho + thm / 2;
         p.noStroke(); p.fill(css("--arc")); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
-        p.textStyle(p.ITALIC); p.text("t", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9)); p.textStyle(p.NORMAL);
+        p.textStyle(p.ITALIC); p.text("θ", cx + Math.cos(am) * (ra + 9), cy - Math.sin(am) * (ra + 9)); p.textStyle(p.NORMAL);
       }
       // com b < 0, o raio de ângulo θ (tracejado) e o ponto P no lado oposto
       if (S.b < 0 && R > 0.5) {
@@ -623,6 +630,35 @@
   new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   if (document.fonts) document.fonts.ready.then(redraw);
 
+
+  // ---------- expressão em LaTeX (KaTeX) ----------
+  // número em LaTeX: múltiplos de π/12 e frações de denominador até 12 em forma exata
+  function texNum(x) {
+    const sg = x < 0 ? "-" : "", ax = Math.abs(x);
+    const k = Math.round(ax / (PI / 12));
+    if (k !== 0 && Math.abs(ax - k * PI / 12) < 1e-9) {
+      const g = gcd(k, 12), n = k / g, m = 12 / g;
+      const body = (n === 1 ? "" : n) + "\\pi";
+      return sg + (m === 1 ? body : `\\frac{${body}}{${m}}`);
+    }
+    for (let q = 1; q <= 12; q++) {
+      const n = Math.round(ax * q);
+      if (Math.abs(ax - n / q) < 1e-9) return sg + (q === 1 ? String(n) : `\\frac{${n}}{${q}}`);
+    }
+    return sg + fmt(ax, 2).replace(",", "{,}");
+  }
+  // argumento ct + d
+  function texArg() {
+    let s = "";
+    if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + "t";
+    if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d < 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(S.d);
+    return s || "0";
+  }
+  function renderTex(el, tex) {
+    if (window.katex) katex.render(tex, el, { throwOnError: false });
+    else el.textContent = tex;
+  }
+
   // ---------- textos ----------
   // c·t para a expressão: "t", "−t", "2t", "π/2·t"
   function ct(c) {
@@ -653,7 +689,7 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
+    $("cap-now").textContent = `t = ${fmt(S.t, 2)}   ·   θ = ct + d = ${fmt(th, 2)} rad   ·   f(t) = ${fmt(f(S.t), 3)}`;
   }
 
   function changed() {
@@ -676,6 +712,14 @@
     if (S.b < 0) rows.push(["b < 0", "P é o ponto oposto ao do ângulo ct + d"]);
     $("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
     $("law").textContent = lawText();
+    let tex = "";
+    if (Math.abs(S.a) > 1e-12) tex = texNum(S.a);
+    if (Math.abs(S.b) > 1e-12) {
+      const bAbs = Math.abs(S.b), coef = Math.abs(bAbs - 1) < 1e-12 ? "" : texNum(bAbs);
+      const term = `${coef}\\${S.fn}\\left(${texArg()}\\right)`;
+      tex = tex ? `${tex} ${S.b < 0 ? "-" : "+"} ${term}` : (S.b < 0 ? "-" : "") + term;
+    }
+    renderTex($("tex"), `f(t) = ${tex || "0"}`);
 
     tR.max = S.win;
     if (S.t > S.win) S.t = S.win;
