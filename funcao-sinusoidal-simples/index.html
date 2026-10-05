@@ -530,7 +530,7 @@
         arcL(0, S.t, rb * 0.42, css("--ref"), "t");
         arcL(0, th, rb, css("--arc"), "θ");
       } else {
-        arcL(0, th, ra, css("--arc"), "t");
+        arcL(0, th, ra, css("--arc"), "θ");
       }
 
       // raio OP
@@ -618,7 +618,7 @@
   function updateNow() {
     $("t-out").textContent = fmt(S.t, 2);
     const th = theta(S.t);
-    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `${S.base ? "θ = " : ""}ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k}(ct + d) = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
+    $("cap-now").textContent = [`t = ${fmt(S.t, 2)}`, `θ = ct + d = ${fmt(th, 2)} rad`, ...active().map(k => `${k}(ct + d) = ${fmt(FN[k](S.t), 3)}`)].join("   ·   ");
   }
 
   function changed() {
