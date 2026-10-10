@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Parâmetros k e a: f(x) = k + a sin x</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Gráfico de f(x) = k + a sin x ou k + a cos x, com cursores para a e k"></canvas>
+<script>
+(() => {
+  // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
+  const PI = Math.PI, TAU = 2 * PI;
+  const C = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
+    sin: "#d32f2f", cos: "#1565c0", k: "#2e7d32", a: "#ef6c00",
+  };
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+  const DEF = { a: 0, k: 0 };
+  const LIM = { a: [-3, 3], k: [-5, 5] };
+  const STEP = 0.1;
+  const YMAX = LIM.k[1] + LIM.a[1];   // eixo Oy fixo: [−8, 8]
+  const S = { fn: "sin", ...DEF };
+
+  // valores iniciais opcionais no endereço, p. ex. index.html#cos&a=2&k=-1
+  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
+    if (tok === "sin" || tok === "cos") S.fn = tok;
+    const m = tok.match(/^([ak])=([-−]?\d+(?:[.,]\d+)?)$/);
+    if (m) S[m[1]] = parseFloat(m[2].replace("−", "-").replace(",", "."));
+  });
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const setv = (key, x) => {
+    x = clamp(Math.round(x / STEP) * STEP, LIM[key][0], LIM[key][1]);
+    x = Math.round(x * 10) / 10;
+    if (x === S[key]) return;
+    S[key] = x; draw();
+  };
+  ["a", "k"].forEach(k => { S[k] = Math.round(clamp(S[k], ...LIM[k]) * 10) / 10; });
+
+  // ---------- números ----------
+  const fmt = x => {
+    if (Math.abs(x) < 0.05) x = 0;
+    return x.toLocaleString("pt-PT", { maximumFractionDigits: 1 }).replace("-", "−");
+  };
+  function fracPi(k, m) {
+    if (k === 0) return "0";
+    const g = (a, b) => b ? g(b, a % b) : a;
+    const d = g(Math.abs(k), m); k /= d; m /= d;
+    const s = k < 0 ? "−" : ""; k = Math.abs(k);
+    const num = (k === 1 ? "" : k) + "π";
+    return s + (m === 1 ? num : num + "/" + m);
+  }
+  const f = x => S.k + S.a * Math[S.fn](x);
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // disposição: ecrã ao alto → fórmula em cima, controlos em baixo; ecrã deitado → controlos à direita
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 24, 14, 26);
+    const pad = Math.round(fs * 0.7);
+    const land = W > H * 1.2 && W >= 560;
+    const L = { fs, pad, land };
+    const slH = 4.6 * fs, tgH = 2.6 * fs, fH = 2 * fs, rH = 1.6 * fs;
+    if (land) {
+      const pw = clamp(W * 0.3, 15 * fs, 21 * fs);
+      const x = W - pw, w = pw - pad;
+      const total = fH + rH + 0.8 * fs + tgH + 1.2 * fs + 2 * slH + 0.6 * fs;
+      let y = Math.max(pad, (H - total) / 2);
+      L.formula = { x, y, w, h: fH }; y += fH;
+      L.range = { x, y, w, h: rH }; y += rH + 0.8 * fs;
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 1.2 * fs;
+      L.sa = { x, y, w, h: slH }; y += slH + 0.6 * fs;
+      L.sk = { x, y, w, h: slH };
+      L.graph = { x: pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
+    } else {
+      const x = pad, w = W - 2 * pad;
+      let y = pad;
+      L.formula = { x, y, w, h: fH }; y += fH;
+      L.range = { x, y, w, h: rH }; y += rH + 0.3 * fs;
+      const top = y;
+      let yb = H - pad;
+      yb -= slH; L.sk = { x, y: yb, w, h: slH };
+      yb -= slH + 0.4 * fs; L.sa = { x, y: yb, w, h: slH };
+      yb -= tgH + 0.8 * fs; L.toggle = { x, y: yb, w, h: tgH };
+      L.graph = { x: pad, y: top, w: W - 2 * pad, h: yb - 0.6 * fs - top };
+    }
+    return L;
+  }
+
+  const font = (px, w = "", fam = FONT, it = "") => { ctx.font = `${it} ${w} ${px}px ${fam}`; };
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function dot(x, y, r, fill, ring) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    if (ring) { ctx.lineWidth = ring; ctx.strokeStyle = C.bg; ctx.stroke(); }
+  }
+  // texto com contorno branco, para se ler por cima da grelha e das curvas
+  function halo(txt, x, y, c, lw) {
+    ctx.lineJoin = "round"; ctx.lineWidth = lw; ctx.strokeStyle = C.bg; ctx.strokeText(txt, x, y);
+    ctx.fillStyle = c; ctx.fillText(txt, x, y);
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+
+  function paint() {
+    L = layout(); hits = [];
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    graph(L.graph, fs);
+    formula(L.formula, fs);
+    range(L.range, fs);
+    toggle(L.toggle, fs);
+    slider(L.sa, fs, "a");
+    slider(L.sk, fs, "k");
+  }
+
+  function graph(g, fs) {
+    const ml = 0.4 * fs, mr = 1.4 * fs, mt = 1.5 * fs, mb = 0.4 * fs;
+    const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
+    const gw = gx1 - gx0, gh = gy1 - gy0;
+    const X = x => gx0 + (x + TAU) / (2 * TAU) * gw;
+    const Y = y => gy0 + (YMAX - y) / (2 * YMAX) * gh;
+    const unit = gh / (2 * YMAX);
+    const fsm = fs * 0.78;
+
+    // grelha
+    for (let y = -YMAX; y <= YMAX; y++) line(gx0, Y(y), gx1, Y(y), y % 2 ? C.grid : C.grid2, 1);
+    for (let k = -4; k <= 4; k++) line(X(k * PI / 2), gy0, X(k * PI / 2), gy1, k % 2 ? C.grid : C.grid2, 1);
+
+    // eixos
+    const ox = X(0), oy = Y(0);
+    line(gx0 - ml * 0.5, oy, gx1 + mr * 0.55, oy, C.axis, 1.8);
+    line(ox, gy1 + mb * 0.5, ox, gy0 - mt * 0.6, C.axis, 1.8);
+    tri(gx1 + mr * 0.55, oy, 1, 0, fs * 0.45, C.axis);
+    tri(ox, gy0 - mt * 0.6, 0, -1, fs * 0.45, C.axis);
+    font(fs * 0.95, "", FONT, "italic"); ctx.textBaseline = "middle";
+    ctx.textAlign = "right"; halo("x", gx1 + mr, oy - fs * 0.75, C.ink, 4);
+    ctx.textAlign = "left"; halo("y", ox + fs * 0.5, gy0 - mt * 0.55, C.ink, 4);
+
+    // marcas do eixo Ox (múltiplos de π/2, ou só de π se não houver espaço)
+    font(fsm, "", MONO);
+    const wide = ctx.measureText("−3π/2").width + fs * 0.5 < gw / 8;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let k = -4; k <= 4; k++) {
+      if (!k || (!wide && k % 2)) continue;
+      const x = X(k * PI / 2);
+      line(x, oy - 4, x, oy + 4, C.axis, 1.5);
+      halo(fracPi(k, 2), x, oy + 0.35 * fs, C.muted, 4);
+    }
+    // marcas do eixo Oy (fixo de −8 a 8)
+    const every = unit >= 1.25 * fsm ? 1 : 2;
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let y = -YMAX; y <= YMAX; y += every) {
+      if (!y) continue;
+      line(ox - 4, Y(y), ox + 4, Y(y), C.axis, 1.5);
+      halo(fmt(y), ox - 0.4 * fs, Y(y), C.muted, 4);
+    }
+    ctx.textAlign = "right"; ctx.textBaseline = "top";
+    halo("O", ox - 0.35 * fs, oy + 0.3 * fs, C.muted, 4);
+
+    const col = C[S.fn];
+    const k = S.k, a = S.a, M = k + Math.abs(a), m = k - Math.abs(a);
+    // máximo e mínimo
+    font(fsm, "600", MONO); ctx.textAlign = "left";
+    if (Math.abs(a) > 1e-9) {
+      line(gx0, Y(M), gx1, Y(M), C.a, 1.5, [3, 5]);
+      line(gx0, Y(m), gx1, Y(m), C.a, 1.5, [3, 5]);
+    }
+    // linha média y = k
+    line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
+
+    // curva
+    ctx.strokeStyle = col; ctx.lineWidth = Math.max(3, fs * 0.2); ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    const n = Math.max(400, Math.round(gw * 2));
+    for (let i = 0; i <= n; i++) {
+      const x = -TAU + 2 * TAU * i / n;
+      i ? ctx.lineTo(X(x), Y(f(x))) : ctx.moveTo(X(x), Y(f(x)));
+    }
+    ctx.stroke();
+
+    // a: seta da linha média até ao gráfico, onde sin x (ou cos x) vale 1
+    const xa = S.fn === "sin" ? PI / 2 : 0;
+    const ax = X(xa) + (S.fn === "cos" ? 0.9 * fs : 0);
+    if (Math.abs(a) >= 0.05) {
+      // a seta acaba na borda da pega, para a ponta se ver
+      const y0 = Y(k), u = Math.sign(Y(k + a) - y0);
+      const y1 = Math.abs(Y(k + a) - y0) > 1.6 * fs ? Y(k + a) - u * 0.55 * fs : Y(k + a);
+      const hs = Math.min(fs * 0.55, Math.abs(y1 - y0) * 0.5);
+      line(ax, y0, ax, y1 - u * hs * 0.8, C.a, 3);
+      tri(ax, y1 - u * hs, 0, u, hs, C.a);
+      font(fs * 0.9, "700", MONO); ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      halo("a = " + fmt(a), ax + 0.5 * fs, (y0 + y1) / 2, C.a, 5);
+    }
+
+    // etiquetas: linha média, máximo e mínimo (do lado direito)
+    font(fsm, "700", MONO); ctx.textAlign = "right";
+    const lx = gx1 - 0.2 * fs;
+    const gap = Math.abs(Y(M) - Y(k));
+    ctx.textBaseline = "bottom"; halo("y = " + fmt(k), lx, Y(k) - 0.2 * fs, C.k, 5);
+    if (Math.abs(a) > 1e-9) {
+      if (gap > 1.4 * fsm) halo("máx. " + fmt(M), lx, Y(M) - 0.2 * fs, C.a, 5);
+      ctx.textBaseline = "top";
+      if (gap > 0.9 * fsm) halo("mín. " + fmt(m), lx, Y(m) + 0.25 * fs, C.a, 5);
+    }
+
+    // pegas no desenho: ponto (xa, k + a) → a; ponto da linha média → k
+    const kx = X(-TAU) + 0.6 * fs;
+    dot(kx, Y(k), 0.48 * fs, C.k, 3);
+    dot(X(xa), Y(k + a), 0.48 * fs, col, 3);
+    hits.push({ kind: "drag-a", x: X(xa), y: Y(k + a), r: 1.5 * fs, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
+    hits.push({ kind: "drag-k", x: kx, y: Y(k), r: 1.5 * fs, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
+    hits.push({ kind: "line-k", rect: { x: gx0, y: Y(k) - 0.8 * fs, w: gw, h: 1.6 * fs }, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
+  }
+
+  // expressão atual, com k a verde e a a laranja
+  function formula(b, fs) {
+    const k = S.k, a = S.a, parts = [["f(x) = ", C.ink, "italic"]];
+    const fx = [` ${S.fn} x`, C[S.fn], ""];
+    if (Math.abs(a) < 1e-9) parts.push([fmt(k), C.k, ""]);
+    else {
+      // o sinal de a fica com a cor de a
+      if (Math.abs(k) > 1e-9) parts.push([fmt(k), C.k, ""], a < 0 ? [" − ", C.a, ""] : [" + ", C.ink, ""]);
+      else if (a < 0) parts.push(["−", C.a, ""]);
+      if (Math.abs(Math.abs(a) - 1) > 1e-9) parts.push([fmt(Math.abs(a)), C.a, ""]);
+      else fx[0] = fx[0].trimStart();
+      parts.push(fx);
+    }
+    let px = fs * 1.45;
+    const width = () => parts.reduce((s, [t, , it]) => { font(px, "700", FONT, it); return s + ctx.measureText(t).width; }, 0);
+    while (width() > b.w && px > 10) px -= 1;
+    let x = L.land ? b.x : b.x + (b.w - width()) / 2;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    for (const [t, c, it] of parts) {
+      font(px, "700", FONT, it); ctx.fillStyle = c; ctx.fillText(t, x, b.y + b.h / 2);
+      x += ctx.measureText(t).width;
+    }
+  }
+
+  function range(b, fs) {
+    const M = S.k + Math.abs(S.a), m = S.k - Math.abs(S.a);
+    const txt = Math.abs(S.a) < 1e-9 ? `D′ = {${fmt(S.k)}}` : `D′ = [${fmt(m)} ; ${fmt(M)}]`;
+    const amp = `amplitude |a| = ${fmt(Math.abs(S.a))}`;
+    let px = fs * 0.9;
+    font(px, "", MONO);
+    const sep = "   ·   ";
+    let full = txt + sep + amp;
+    while (ctx.measureText(full).width > b.w && px > 10) { px -= 1; font(px, "", MONO); }
+    ctx.textBaseline = "middle"; ctx.textAlign = L.land ? "left" : "center";
+    ctx.fillStyle = C.muted; ctx.fillText(full, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2);
+  }
+
+  function toggle(b, fs) {
+    const rw = b.h * 1.25, gap = 0.5 * fs, bw = (b.w - rw - 2 * gap) / 2;
+    ["sin", "cos"].forEach((fn, i) => {
+      const x = b.x + i * (bw + gap), on = S.fn === fn;
+      rrect(x, b.y, bw, b.h, 8, on ? C[fn] : C.btn, on ? C[fn] : C.line, 2);
+      let px = fs * 1.05; font(px, "700", FONT);
+      const t = `k + a ${fn} x`;
+      while (ctx.measureText(t).width > bw - 0.6 * fs && px > 10) font(--px, "700", FONT);
+      ctx.fillStyle = on ? "#fff" : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(t, x + bw / 2, b.y + b.h / 2 + 1);
+      hits.push({ kind: "fn", fn, rect: { x, y: b.y, w: bw, h: b.h } });
+    });
+    const x = b.x + b.w - rw;
+    rrect(x, b.y, rw, b.h, 8, C.btn, C.line, 2);
+    font(fs * 1.3, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center";
+    ctx.fillText("↺", x + rw / 2, b.y + b.h / 2 + 1);
+    hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h: b.h } });
+  }
+
+  function slider(b, fs, key) {
+    const [lo, hi] = LIM[key], col = C[key];
+    // rótulo
+    font(fs * 1.2, "700", FONT, "italic"); ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = col; ctx.fillText(key, b.x, b.y + 0.75 * fs);
+    const lw = ctx.measureText(key).width;
+    font(fs * 1.15, "600", MONO); ctx.fillStyle = C.ink;
+    ctx.fillText(" = " + fmt(S[key]), b.x + lw, b.y + 0.75 * fs);
+    // botões − e + e calha
+    const bs = 2.4 * fs, ry = b.y + 1.6 * fs, cy = ry + bs / 2;
+    const btn = (x, txt, d) => {
+      rrect(x, ry, bs, bs, 8, C.btn, C.line, 2);
+      font(fs * 1.4, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x + bs / 2, cy + 1);
+      hits.push({ kind: "step", key, d, rect: { x, y: ry, w: bs, h: bs } });
+    };
+    btn(b.x, "−", -STEP); btn(b.x + b.w - bs, "+", STEP);
+    const tx0 = b.x + bs + 1.1 * fs, tx1 = b.x + b.w - bs - 1.1 * fs;
+    const TX = v => tx0 + (v - lo) / (hi - lo) * (tx1 - tx0);
+    ctx.lineCap = "round";
+    line(tx0, cy, tx1, cy, C.grid2, 0.45 * fs);
+    line(TX(0), cy, TX(S[key]), cy, col, 0.45 * fs);
+    // marcas inteiras, com os extremos e o zero numerados
+    font(fs * 0.72, "", MONO); ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let v = lo; v <= hi; v++) {
+      line(TX(v), cy + 0.35 * fs, TX(v), cy + 0.6 * fs, C.muted, 1.2);
+      if (v === lo || v === hi || v === 0) { ctx.fillStyle = C.muted; ctx.fillText(fmt(v), TX(v), cy + 0.7 * fs); }
+    }
+    ctx.lineCap = "butt";
+    dot(TX(S[key]), cy, 0.75 * fs, col, 3);
+    hits.push({ kind: "slide", key, rect: { x: tx0 - fs, y: ry - 0.3 * fs, w: tx1 - tx0 + 2 * fs, h: bs + 0.6 * fs },
+                val: px => lo + (px - tx0) / (tx1 - tx0) * (hi - lo) });
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  function hitAt(x, y) {
+    // pegas redondas primeiro (a mais próxima), depois retângulos
+    let best = null, bd = Infinity;
+    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d < bd) { best = h; bd = d; } }
+    return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  }
+  let drag = null, rep = null;
+  const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
+  cv.addEventListener("pointerdown", e => {
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "fn") { S.fn = h.fn; draw(); return; }
+    if (h.kind === "reset") { Object.assign(S, DEF); draw(); return; }
+    if (h.kind === "step") {
+      setv(h.key, S[h.key] + h.d);
+      stopRep();
+      rep = setTimeout(() => { rep = setInterval(() => setv(h.key, S[h.key] + h.d), 70); }, 400);
+      return;
+    }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    if (h.kind === "slide") { drag = h; setv(h.key, h.val(e.clientX)); }
+    else if (h.kind === "drag-a") drag = h;
+    else drag = { ...h, y0: h.yv(e.clientY), k0: S.k };   // linha média: arrasta-se relativamente
+    cv.style.cursor = "grabbing";
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) {
+      if (drag.kind === "slide") setv(drag.key, drag.val(e.clientX));
+      else if (drag.kind === "drag-a") setv("a", drag.yv(e.clientY) - S.k);
+      else setv("k", drag.k0 + drag.yv(e.clientY) - drag.y0);
+      return;
+    }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : h.kind.startsWith("drag") || h.kind === "line-k" ? "ns-resize" : "pointer";
+  });
+  const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
+
+  // teclado: ↑/↓ mudam k, ←/→ mudam a, s/c trocam a função, 0 repõe
+  window.addEventListener("keydown", e => {
+    const m = { ArrowUp: ["k", 1], ArrowDown: ["k", -1], ArrowRight: ["a", 1], ArrowLeft: ["a", -1] }[e.key];
+    if (m) { e.preventDefault(); setv(m[0], S[m[0]] + m[1] * STEP); }
+    else if (e.key === "s") { S.fn = "sin"; draw(); }
+    else if (e.key === "c") { S.fn = "cos"; draw(); }
+    else if (e.key === "0") { Object.assign(S, DEF); draw(); }
+  });
+
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
+})();
+</script>
+</body>
+</html>
