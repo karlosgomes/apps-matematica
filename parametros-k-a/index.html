@@ -73,7 +73,8 @@
     draw();
   }
 
-  // disposição: ecrã ao alto → fórmula em cima, controlos em baixo; ecrã deitado → controlos à direita
+  // disposição: botões das funções e fórmula em cima; ecrã ao alto → cursores em baixo,
+  // ecrã deitado → tudo numa coluna à direita
   function layout() {
     const fs = clamp(Math.min(W, H) / 24, 14, 26);
     const pad = Math.round(fs * 0.7);
@@ -83,24 +84,24 @@
     if (land) {
       const pw = clamp(W * 0.3, 15 * fs, 21 * fs);
       const x = W - pw, w = pw - pad;
-      const total = fH + rH + 0.8 * fs + tgH + 1 * fs + 2 * slH + 0.4 * fs;
+      const total = tgH + 0.6 * fs + fH + rH + 0.8 * fs + 2 * slH + 0.4 * fs;
       let y = Math.max(pad, (H - total) / 2);
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
       L.range = { x, y, w, h: rH }; y += rH + 0.8 * fs;
-      L.toggle = { x, y, w, h: tgH }; y += tgH + 1 * fs;
       L.sa = { x, y, w, h: slH }; y += slH + 0.4 * fs;
       L.sk = { x, y, w, h: slH };
       L.graph = { x: pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
     } else {
       const x = pad, w = W - 2 * pad;
       let y = pad;
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.4 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
       L.range = { x, y, w, h: rH }; y += rH + 0.3 * fs;
       const top = y;
       let yb = H - pad;
       yb -= slH; L.sk = { x, y: yb, w, h: slH };
       yb -= slH + 0.3 * fs; L.sa = { x, y: yb, w, h: slH };
-      yb -= tgH + 0.6 * fs; L.toggle = { x, y: yb, w, h: tgH };
       L.graph = { x: pad, y: top, w: W - 2 * pad, h: yb - 0.6 * fs - top };
     }
     return L;
