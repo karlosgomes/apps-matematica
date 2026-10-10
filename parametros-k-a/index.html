@@ -7,12 +7,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
   html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff, 0 0 6px #fff; }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
+<div id="tex" aria-hidden="true"></div>
 <canvas id="cv" aria-label="Gráfico de f(x) = k + a sin x ou k + a cos x, com cursores para a e k"></canvas>
 <script>
 (() => {
@@ -51,14 +58,6 @@
     if (Math.abs(x) < 0.05) x = 0;
     return x.toLocaleString("pt-PT", { maximumFractionDigits: 1 }).replace("-", "−");
   };
-  function fracPi(k, m) {
-    if (k === 0) return "0";
-    const g = (a, b) => b ? g(b, a % b) : a;
-    const d = g(Math.abs(k), m); k /= d; m /= d;
-    const s = k < 0 ? "−" : ""; k = Math.abs(k);
-    const num = (k === 1 ? "" : k) + "π";
-    return s + (m === 1 ? num : num + "/" + m);
-  }
   const f = x => S.k + S.a * Math[S.fn](x);
 
   // ---------- canvas ----------
@@ -124,15 +123,42 @@
     ctx.fillStyle = fill; ctx.fill();
     if (ring) { ctx.lineWidth = ring; ctx.strokeStyle = C.bg; ctx.stroke(); }
   }
-  // texto com contorno branco, para se ler por cima da grelha e das curvas
-  function halo(txt, x, y, c, lw) {
-    ctx.lineJoin = "round"; ctx.lineWidth = lw; ctx.strokeStyle = C.bg; ctx.strokeText(txt, x, y);
-    ctx.fillStyle = c; ctx.fillText(txt, x, y);
-  }
   function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
     ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+
+  // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
+  // os números ficam em decimal (1,5 e não 3/2); só as marcas de Ox são frações de π
+  const T = x => fmt(x).replace("−", "-").replace(",", "{,}");
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  function piTex(k) {   // k·π/2
+    const sg = k < 0 ? "-" : ""; k = Math.abs(k);
+    if (k % 2) return `${sg}\\frac{${k === 1 ? "" : k}\\pi}{2}`;
+    return sg + (k === 2 ? "" : k / 2) + "\\pi";
+  }
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  // (x, y) é o ponto de âncora; ax, ay: 0 = esquerda/cima, 0,5 = centro, 1 = direita/baixo
+  function tex(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = true) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  // reduz o tamanho de letra se o texto não couber na largura w
+  function fit(el, w) {
+    const ew = el.offsetWidth;
+    if (ew > w) el.style.fontSize = parseFloat(el.style.fontSize) * w / ew + "px";
   }
 
   // ---------- desenho ----------
@@ -140,7 +166,7 @@
   function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
 
   function paint() {
-    L = layout(); hits = [];
+    L = layout(); hits = []; used = new Set();
     const { fs } = L;
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
     graph(L.graph, fs);
@@ -149,6 +175,7 @@
     toggle(L.toggle, fs);
     slider(L.sa, fs, "a");
     slider(L.sk, fs, "k");
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
 
   function graph(g, fs) {
@@ -170,35 +197,33 @@
     line(ox, gy1 + mb * 0.5, ox, gy0 - mt * 0.6, C.axis, 1.8);
     tri(gx1 + mr * 0.55, oy, 1, 0, fs * 0.45, C.axis);
     tri(ox, gy0 - mt * 0.6, 0, -1, fs * 0.45, C.axis);
-    font(fs * 0.95, "", FONT, "italic"); ctx.textBaseline = "middle";
-    ctx.textAlign = "right"; halo("x", gx1 + mr, oy - fs * 0.75, C.ink, 4);
-    ctx.textAlign = "left"; halo("y", ox + fs * 0.5, gy0 - mt * 0.55, C.ink, 4);
+    tex("ex", "x", gx1 + mr, oy - fs * 0.75, fs * 1.15, C.ink, 1, 0.5);
+    tex("ey", "y", ox + fs * 0.5, gy0 - mt * 0.55, fs * 1.15, C.ink, 0, 0.5);
 
     // marcas do eixo Ox (múltiplos de π/2, ou só de π se não houver espaço)
-    font(fsm, "", MONO);
-    const wide = ctx.measureText("−3π/2").width + fs * 0.5 < gw / 8;
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    const wide = 2.4 * fsm < gw / 8;
     for (let k = -4; k <= 4; k++) {
       if (!k || (!wide && k % 2)) continue;
       const x = X(k * PI / 2);
       line(x, oy - 4, x, oy + 4, C.axis, 1.5);
-      halo(fracPi(k, 2), x, oy + 0.35 * fs, C.muted, 4);
+      tex("xt" + k, piTex(k), x, oy + 0.3 * fs, fsm * 1.1, C.muted, 0.5, 0);
     }
     // marcas do eixo Oy (fixo de −8 a 8)
     const every = unit >= 1.25 * fsm ? 1 : 2;
-    ctx.textAlign = "right"; ctx.textBaseline = "middle";
     for (let y = -YMAX; y <= YMAX; y += every) {
       if (!y) continue;
       line(ox - 4, Y(y), ox + 4, Y(y), C.axis, 1.5);
-      halo(fmt(y), ox - 0.4 * fs, Y(y), C.muted, 4);
+      tex("yt" + y, T(y), ox - 0.4 * fs, Y(y), fsm * 1.1, C.muted, 1, 0.5);
     }
-    ctx.textAlign = "right"; ctx.textBaseline = "top";
-    halo("O", ox - 0.35 * fs, oy + 0.3 * fs, C.muted, 4);
+    tex("O", "O", ox - 0.35 * fs, oy + 0.3 * fs, fsm * 1.1, C.muted, 1, 0);
 
+    // faixa das marcas de Ox, que as etiquetas não devem tapar
+    const band = [oy - 0.2 * fs, oy + 2 * fsm];
+    const clash = (y0, y1) => y1 > band[0] && y0 < band[1];
     const col = C[S.fn];
     const k = S.k, a = S.a, M = k + Math.abs(a), m = k - Math.abs(a);
     // máximo e mínimo
-    font(fsm, "600", MONO); ctx.textAlign = "left";
+
     if (Math.abs(a) > 1e-9) {
       line(gx0, Y(M), gx1, Y(M), C.a, 1.5, [3, 5]);
       line(gx0, Y(m), gx1, Y(m), C.a, 1.5, [3, 5]);
@@ -226,20 +251,34 @@
       const hs = Math.min(fs * 0.55, Math.abs(y1 - y0) * 0.5);
       line(ax, y0, ax, y1 - u * hs * 0.8, C.a, 3);
       tri(ax, y1 - u * hs, 0, u, hs, C.a);
-      font(fs * 0.9, "700", MONO); ctx.textAlign = "left"; ctx.textBaseline = "middle";
-      halo("a = " + fmt(a), ax + 0.5 * fs, (y0 + y1) / 2, C.a, 5);
+      let yl = (y0 + y1) / 2;
+      if (clash(yl - 0.7 * fs, yl + 0.7 * fs)) yl = a < 0 ? band[1] + 0.7 * fs : band[0] - 0.7 * fs;
+      tex("la", `a = ${T(a)}`, ax + 0.5 * fs, yl, fs * 1.1, C.a, 0, 0.5);
     }
 
-    // etiquetas: linha média, máximo e mínimo (do lado direito)
-    font(fsm, "700", MONO); ctx.textAlign = "right";
-    const lx = gx1 - 0.2 * fs;
-    const gap = Math.abs(Y(M) - Y(k));
-    ctx.textBaseline = "bottom"; halo("y = " + fmt(k), lx, Y(k) - 0.2 * fs, C.k, 5);
-    if (Math.abs(a) > 1e-9) {
-      if (gap > 1.4 * fsm) halo("máx. " + fmt(M), lx, Y(M) - 0.2 * fs, C.a, 5);
-      ctx.textBaseline = "top";
-      if (gap > 0.9 * fsm) halo("mín. " + fmt(m), lx, Y(m) + 0.25 * fs, C.a, 5);
+    // etiquetas: linha média, máximo e mínimo (do lado direito), afastadas umas das outras
+    // e das marcas de Ox quando estão demasiado perto
+    const lx = gx1 - 0.2 * fs, hl = 1.3 * fsm, d = 0.2 * fs + hl / 2;
+    const labs = [{ id: "lk", src: `y = ${T(k)}`, c: C.k, y: Y(k) - d }];
+    if (Math.abs(a) > 1e-9) labs.push(
+      { id: "lM", src: `\\text{máx.}\\ {${T(M)}}`, c: C.a, y: Y(M) - d },
+      { id: "lm", src: `\\text{mín.}\\ {${T(m)}}`, c: C.a, y: Y(m) + d });
+    const sep = hl + 0.15 * fs, lo = gy0 + hl / 2, hi = gy1 - hl / 2;
+    for (let it = 0; it < 30; it++) {
+      labs.sort((p, q) => p.y - q.y);
+      for (let i = 1; i < labs.length; i++) {
+        const ov = sep - (labs[i].y - labs[i - 1].y);
+        if (ov > 0) { labs[i - 1].y -= ov / 2; labs[i].y += ov / 2; }
+      }
+      for (const l of labs) {
+        if (clash(l.y - hl / 2, l.y + hl / 2)) {
+          const up = band[0] - hl / 2 - 1, dn = band[1] + hl / 2 + 1;
+          l.y = Math.abs(l.y - up) <= Math.abs(l.y - dn) ? up : dn;
+        }
+        l.y = clamp(l.y, lo, hi);
+      }
     }
+    for (const l of labs) tex(l.id, l.src, lx, l.y, fsm * 1.1, l.c, 1, 0.5);
 
     // pegas no desenho: ponto (xa, k + a) → a; ponto da linha média → k
     const kx = X(-TAU) + 0.6 * fs;
@@ -252,39 +291,25 @@
 
   // expressão atual, com k a verde e a a laranja
   function formula(b, fs) {
-    const k = S.k, a = S.a, parts = [["f(x) = ", C.ink, "italic"]];
-    const fx = [` ${S.fn} x`, C[S.fn], ""];
-    if (Math.abs(a) < 1e-9) parts.push([fmt(k), C.k, ""]);
+    const k = S.k, a = S.a, fx = clr(C[S.fn], `\\${S.fn} x`);
+    let s;
+    if (Math.abs(a) < 1e-9) s = clr(C.k, T(k));
     else {
-      // o sinal de a fica com a cor de a
-      if (Math.abs(k) > 1e-9) parts.push([fmt(k), C.k, ""], a < 0 ? [" − ", C.a, ""] : [" + ", C.ink, ""]);
-      else if (a < 0) parts.push(["−", C.a, ""]);
-      if (Math.abs(Math.abs(a) - 1) > 1e-9) parts.push([fmt(Math.abs(a)), C.a, ""]);
-      else fx[0] = fx[0].trimStart();
-      parts.push(fx);
+      // o sinal de a fica com a cor de a; o coeficiente ±1 não se escreve
+      const one = Math.abs(Math.abs(a) - 1) < 1e-9, am = one ? "" : T(Math.abs(a));
+      if (Math.abs(k) > 1e-9) s = clr(C.k, T(k)) + (a < 0 ? clr(C.a, "-") : "+") + clr(C.a, am) + fx;
+      else s = clr(C.a, (a < 0 ? "-" : "") + am) + (one && a < 0 ? "\\!" : "") + fx;   // −sin x sem espaço
     }
-    let px = fs * 1.45;
-    const width = () => parts.reduce((s, [t, , it]) => { font(px, "700", FONT, it); return s + ctx.measureText(t).width; }, 0);
-    while (width() > b.w && px > 10) px -= 1;
-    let x = L.land ? b.x : b.x + (b.w - width()) / 2;
-    ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    for (const [t, c, it] of parts) {
-      font(px, "700", FONT, it); ctx.fillStyle = c; ctx.fillText(t, x, b.y + b.h / 2);
-      x += ctx.measureText(t).width;
-    }
+    const el = tex("formula", `f(x) = ${s}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.6, C.ink, L.land ? 0 : 0.5, 0.5, false);
+    fit(el, b.w);
   }
 
   function range(b, fs) {
     const M = S.k + Math.abs(S.a), m = S.k - Math.abs(S.a);
-    const txt = Math.abs(S.a) < 1e-9 ? `D′ = {${fmt(S.k)}}` : `D′ = [${fmt(m)} ; ${fmt(M)}]`;
-    const amp = `amplitude |a| = ${fmt(Math.abs(S.a))}`;
-    let px = fs * 0.9;
-    font(px, "", MONO);
-    const sep = "   ·   ";
-    let full = txt + sep + amp;
-    while (ctx.measureText(full).width > b.w && px > 10) { px -= 1; font(px, "", MONO); }
-    ctx.textBaseline = "middle"; ctx.textAlign = L.land ? "left" : "center";
-    ctx.fillStyle = C.muted; ctx.fillText(full, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2);
+    const D = Math.abs(S.a) < 1e-9 ? `\\{${T(S.k)}\\}` : `[${T(m)}\\,;\\,${T(M)}]`;
+    const el = tex("range", `D'_f = ${D} \\qquad \\text{amplitude: } |a| = ${T(Math.abs(S.a))}`,
+                   L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.muted, L.land ? 0 : 0.5, 0.5, false);
+    fit(el, b.w);
   }
 
   function toggle(b, fs) {
@@ -292,11 +317,8 @@
     ["sin", "cos"].forEach((fn, i) => {
       const x = b.x + i * (bw + gap), on = S.fn === fn;
       rrect(x, b.y, bw, b.h, 8, on ? C[fn] : C.btn, on ? C[fn] : C.line, 2);
-      let px = fs * 1.05; font(px, "700", FONT);
-      const t = `k + a ${fn} x`;
-      while (ctx.measureText(t).width > bw - 0.6 * fs && px > 10) font(--px, "700", FONT);
-      ctx.fillStyle = on ? "#fff" : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(t, x + bw / 2, b.y + b.h / 2 + 1);
+      const el = tex("tg" + fn, `k + a\\${fn} x`, x + bw / 2, b.y + b.h / 2, fs * 1.15, on ? "#fff" : C.ink, 0.5, 0.5, false);
+      fit(el, bw - 0.6 * fs);
       hits.push({ kind: "fn", fn, rect: { x, y: b.y, w: bw, h: b.h } });
     });
     const x = b.x + b.w - rw;
@@ -309,11 +331,7 @@
   function slider(b, fs, key) {
     const [lo, hi] = LIM[key], col = C[key];
     // rótulo
-    font(fs * 1.2, "700", FONT, "italic"); ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillStyle = col; ctx.fillText(key, b.x, b.y + 0.75 * fs);
-    const lw = ctx.measureText(key).width;
-    font(fs * 1.15, "600", MONO); ctx.fillStyle = C.ink;
-    ctx.fillText(" = " + fmt(S[key]), b.x + lw, b.y + 0.75 * fs);
+    tex("sl" + key, `${clr(col, key)} = ${T(S[key])}`, b.x, b.y + 0.75 * fs, fs * 1.3, C.ink, 0, 0.5, false);
     // botões − e + e calha
     const bs = 2.4 * fs, ry = b.y + 1.6 * fs, cy = ry + bs / 2;
     const btn = (x, txt, d) => {
@@ -329,10 +347,10 @@
     line(tx0, cy, tx1, cy, C.grid2, 0.45 * fs);
     line(TX(0), cy, TX(S[key]), cy, col, 0.45 * fs);
     // marcas inteiras, com os extremos e o zero numerados
-    font(fs * 0.72, "", MONO); ctx.textAlign = "center"; ctx.textBaseline = "top";
+    // marcas inteiras, com os extremos e o zero numerados
     for (let v = lo; v <= hi; v++) {
       line(TX(v), cy + 0.35 * fs, TX(v), cy + 0.6 * fs, C.muted, 1.2);
-      if (v === lo || v === hi || v === 0) { ctx.fillStyle = C.muted; ctx.fillText(fmt(v), TX(v), cy + 0.7 * fs); }
+      if (v === lo || v === hi || v === 0) tex(`s${key}${v}`, T(v), TX(v), cy + 0.7 * fs, fs * 0.8, C.muted, 0.5, 0, false);
     }
     ctx.lineCap = "butt";
     dot(TX(S[key]), cy, 0.75 * fs, col, 3);
