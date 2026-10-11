@@ -17,6 +17,8 @@
   header, main { max-width: 1200px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
   header { display: flex; align-items: center; gap: 18px; padding-top: 36px; padding-bottom: 36px; }
   header img { width: 64px; height: 64px; border-radius: 50%; flex: none; }
+  a.voltar { margin-left: auto; flex: none; color: #fff; text-decoration: none; font-weight: 500; white-space: nowrap; }
+  a.voltar:hover { color: var(--hover); }
   h1 { margin: 0; font-size: 2rem; font-weight: 600; line-height: 1.2; }
   main { padding-top: 32px; padding-bottom: 40px; }
   .grelha { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
@@ -27,14 +29,15 @@
   a.card b { color: var(--accent); font-weight: 600; font-size: 1.08rem; }
   a.card span { display: block; color: var(--muted); font-size: .95rem; line-height: 1.45; }
   @media (prefers-color-scheme: dark) { a.card { border-top-color: var(--hover); } }
-  @media (max-width: 500px) { h1 { font-size: 1.5rem; } header { padding-top: 24px; padding-bottom: 24px; } }
+  @media (max-width: 500px) { h1 { font-size: 1.5rem; } header { padding-top: 24px; padding-bottom: 24px; } a.voltar { font-size: .9rem; } }
 </style>
 </head>
 <body>
 <div class="banner">
   <header>
-    <img src="img/logo.png" alt="Logótipo">
+    <a href="https://karlosgomes.github.io/weblog/" title="Voltar ao weblog"><img src="img/logo.png" alt="Logótipo — voltar ao weblog"></a>
     <h1>Aplicações Interativas de Matemática</h1>
+    <a class="voltar" href="https://karlosgomes.github.io/weblog/">← weblog</a>
   </header>
 </div>
 <main>
