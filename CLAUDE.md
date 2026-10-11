@@ -1,0 +1,50 @@
+# Apps de Matemática
+
+Pequenas aplicações interativas para as aulas de Matemática A (secundário, currículo português), usadas pelos alunos e projetadas na sala de aula. Texto da interface e respostas sempre em português europeu.
+
+## Stack
+- HTML + JavaScript simples, sem build: cada app é **um único `index.html`** numa pasta própria.
+- p5.js **local** (`p5.min.js` na pasta da app) nas apps com animação; KaTeX 0.16.9 via CDN (cdnjs) para o texto matemático.
+- Fontes: Atkinson Hyperlegible (texto) e IBM Plex Mono (valores), via Google Fonts; tokens de cor em CSS com modo escuro.
+
+## Estrutura
+- `index.html` (raiz) — página inicial: menu e faixa iguais aos do weblog + grelha de cartões (um `a.card` por app, com `<b>` título e `<span>` descrição).
+- `README.md` — uma linha por app, com link e descrição.
+- `img/logo.png` — logótipo.
+- Uma pasta por app:
+  - `funcao-enrolamento/`, `ondas-sonoras/`, `oscilador-harmonico/`, `funcao-sinusoidal-completa/`, `funcao-sinusoidal-simples/` — layout de duas colunas, com «Modo projeção»;
+  - `parametros-k-a/`, `reducao-primeiro-quadrante/` — pensadas para smartphone e projeção: só modo projeção, controlos desenhados dentro da figura (estilo GeoGebra).
+
+## Página inicial e menu do weblog
+- A página inicial usa o CSS/JS do próprio weblog (`https://karlosgomes.github.io/weblog/site_libs/bootstrap/...`) e tem uma cópia do menu do weblog (`<header id="quarto-header">`), com «Apps de Matemática» ativo. Sem pesquisa nem botão de modo escuro (precisam do Quarto).
+- **Se o menu do weblog mudar, atualizar aqui à mão** (e também em `~/site/matematica-a-z/index.html`).
+
+## Convenções de design (pedidas pelo utilizador)
+- Ecrãs largos: controlos numa coluna estreita e compacta à esquerda; a figura à direita, fixa (`position: sticky`) e com a altura limitada ao ecrã, para estar sempre toda visível. A figura deve ter o máximo de espaço.
+- Valores escritos diretamente na figura (ex.: P(cos t; sin t) junto de P), em vez de um cartão de valores à parte. Evitar blocos de texto explicativo que não foram pedidos.
+- O referencial fica **estático** quando os parâmetros mudam, para se ver o efeito da mudança; oferecer a opção de manter os traços anteriores.
+- Estado inicial mínimo (ex.: só a primeira onda selecionada).
+- Preferir acrescentar uma variante a uma app existente (opção/alternador) em vez de criar uma app nova.
+- Texto matemático em LaTeX (KaTeX), incluindo as marcas dos eixos; valores dos parâmetros em decimal com vírgula (1,5 e não 3/2); valores exatos com π em LaTeX.
+- Trigonometria: argumento ct + d (a sinusoidal completa tem também a opção c(t − d)); ângulo θ; ponto fixo A no ângulo 0; ponto Q da função de base.
+
+## Modo projeção
+- As cinco apps de duas colunas têm «Modo projeção» (chave `apps-mat-projecao` no `localStorage`, fator K = 1,5 aplicado envolvendo `textSize`/`strokeWeight` do p5). Manter as novas apps coerentes com isto.
+
+## Armadilhas do p5
+- O p5 guarda as cores de `stroke`/`fill` em cache: **nunca** envolver chamadas de cor do p5 em `drawingContext.save()/restore()` (as cores deixam de se aplicar sem erro).
+- `textFont` recebe um único nome de família, não uma lista CSS.
+
+## Acrescentar uma app
+1. Criar a pasta `<nome-da-app>/` com `index.html` (e `p5.min.js`, se usar p5).
+2. Acrescentar um cartão em `index.html` (raiz) e uma linha no `README.md`.
+
+## Verificação
+Screenshots headless antes de publicar, por exemplo:
+`google-chrome --headless=new --window-size=1300,800 --virtual-time-budget=5000 --screenshot=out.png "file://$PWD/<app>/index.html"`
+Testar também numa largura de telemóvel (ex.: 420 px).
+
+## Publicação
+- Repositório público https://github.com/karlosgomes/apps-matematica (ramo `main`, raiz) → GitHub Pages: https://karlosgomes.github.io/apps-matematica/
+- Publicar = `git commit` + `git push`; o site atualiza em ~1 min. **Perguntar sempre antes de fazer push** («commit e push?»); depois do push, confirmar online com `curl` e lembrar Ctrl+Shift+R.
+- Só as apps são públicas (fichas e soluções não).
