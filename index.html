@@ -4,23 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aplicações Interativas de Matemática</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">
+<link href="https://karlosgomes.github.io/weblog/Homem_Guitarra_CG.png" rel="icon" type="image/png">
+<!-- menu e faixa iguais aos do weblog: usa o CSS/JS do próprio weblog -->
+<link href="https://karlosgomes.github.io/weblog/site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="https://karlosgomes.github.io/weblog/site_libs/bootstrap/bootstrap.min.css" rel="stylesheet">
+<script src="https://karlosgomes.github.io/weblog/site_libs/bootstrap/bootstrap.min.js"></script>
 <style>
   /* cores e fonte do site https://karlosgomes.github.io/weblog/ */
   :root { --banner: #170C3A; --bg: #ffffff; --ink: #212529; --muted: #5b6475; --card: #fff; --line: #dee2e6;
           --accent: #EE6A24; --hover: #FB9E07; }
   @media (prefers-color-scheme: dark) { :root { --bg: #212529; --ink: #dee2e6; --muted: #9aa3b2; --card: #2b3035; --line: #3a4047; } }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 "Jost", system-ui, sans-serif; }
-  .banner { background: var(--banner); color: #fff; }
-  header, main { max-width: 1200px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
-  header { display: flex; align-items: center; gap: 18px; padding-top: 36px; padding-bottom: 36px; }
-  header img { width: 64px; height: 64px; border-radius: 50%; flex: none; }
-  a.voltar { margin-left: auto; flex: none; color: #fff; text-decoration: none; font-weight: 500; white-space: nowrap; }
-  a.voltar:hover { color: var(--hover); }
-  h1 { margin: 0; font-size: 2rem; font-weight: 600; line-height: 1.2; }
-  main { padding-top: 32px; padding-bottom: 40px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 16px 40px; box-sizing: border-box; }
+  .faixa { background: var(--banner); color: #fff; padding: 2.5em 0 2em; }
+  .faixa h1 { max-width: 1200px; margin: 0 auto; padding: 0 16px; color: #fff; font-size: 2.1rem; }
+  @media (max-width: 500px) { .faixa h1 { font-size: 1.6rem; } }
   .grelha { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
   a.card { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; background: var(--card); border: 1px solid var(--line);
            border-top: 4px solid var(--banner); border-radius: 8px; color: inherit; text-decoration: none;
@@ -29,17 +27,79 @@
   a.card b { color: var(--accent); font-weight: 600; font-size: 1.08rem; }
   a.card span { display: block; color: var(--muted); font-size: .95rem; line-height: 1.45; }
   @media (prefers-color-scheme: dark) { a.card { border-top-color: var(--hover); } }
-  @media (max-width: 500px) { h1 { font-size: 1.5rem; } header { padding-top: 24px; padding-bottom: 24px; } a.voltar { font-size: .9rem; } }
 </style>
 </head>
 <body>
-<div class="banner">
-  <header>
-    <a href="https://karlosgomes.github.io/weblog/" title="Voltar ao weblog"><img src="img/logo.png" alt="Logótipo — voltar ao weblog"></a>
-    <h1>Aplicações Interativas de Matemática</h1>
-    <a class="voltar" href="https://karlosgomes.github.io/weblog/">← weblog</a>
-  </header>
-</div>
+  <header id="quarto-header" class="quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://karlosgomes.github.io/weblog/index.html" class="navbar-brand navbar-brand-logo">
+    <img src="https://karlosgomes.github.io/weblog/Homem_Guitarra_CG.png" alt="" class="navbar-logo">
+    </a>
+  </div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Alternar de navegação" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="https://karlosgomes.github.io/weblog/index.html"> 
+<span class="menu-text">Início</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://karlosgomes.github.io/weblog/artigos.html"> 
+<span class="menu-text">Artigos</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://karlosgomes.github.io/weblog/reflexoes.html"> 
+<span class="menu-text">Reflexões/Problemas</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://karlosgomes.github.io/weblog/software.html"> 
+<span class="menu-text">Software</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="https://karlosgomes.github.io/apps-matematica/" aria-current="page"> 
+<span class="menu-text">Apps de Matemática</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://karlosgomes.github.io/matematica-a-z/"> 
+<span class="menu-text">Matemática A...Z</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="mailto:carlosgomesxx1@gmail.com"> <i class="bi bi-envelope-at" role="img" aria-label="email">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/karlosgomes/"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://www.reddit.com/user/carlosgomesxx/"> <i class="bi bi-reddit" role="img" aria-label="reddit">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://www.linkedin.com/in/carlos-gomes-31135715a/"> <i class="bi bi-linkedin" role="img" aria-label="LinkedIn">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://x.com/carlosgomesxx1"> <i class="bi bi-twitter-x" role="img" aria-label="twitter">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<div class="faixa"><h1>Aplicações Interativas de Matemática</h1></div>
 <main>
   <div class="grelha">
   <a class="card" href="funcao-enrolamento/"><b>Função de enrolamento</b>
