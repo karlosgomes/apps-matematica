@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Redução ao 1.º quadrante</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff, 0 0 6px #fff; }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+<body>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Circunferência trigonométrica com o triângulo OPT e as suas rotações de múltiplos de π/2"></canvas>
+<script>
+(() => {
+  // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
+  const PI = Math.PI, TAU = 2 * PI;
+  const C = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
+    sin: "#d32f2f", cos: "#1565c0", al: "#2e7d32", be: "#ef6c00", rot: "#7b1fa2",
+  };
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  // α = m·π/36, sempre no 1.º quadrante; a rotação é de n·π/2
+  const DIV = 36, MLIM = [1, 17], NLIM = [-8, 8];
+  const S = { m: 6, n: 0, phi: 0 };   // phi: rotação desenhada (anima até n·π/2)
+
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const alpha = () => S.m * PI / DIV;
+  const setM = m => { m = clamp(Math.round(m), ...MLIM); if (m !== S.m) { S.m = m; draw(); } };
+  const setN = n => { S.n = clamp(n, ...NLIM); animate(); };
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // disposição: botões das rotações e ângulos em cima; ecrã ao alto → fórmulas e cursor em baixo,
+  // ecrã deitado → tudo numa coluna à direita
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 24, 14, 26);
+    const pad = Math.round(fs * 0.7);
+    const land = W > H * 1.2 && W >= 560;
+    const L = { fs, pad, land };
+    const tgH = 2.1 * fs, fH = 2.4 * fs, rH = 6 * fs, slH = 3.5 * fs;
+    if (land) {
+      const pw = clamp(W * 0.36, 16 * fs, 24 * fs);
+      const x = W - pw, w = pw - pad;
+      const total = tgH + 0.6 * fs + fH + 0.4 * fs + rH + 0.6 * fs + slH;
+      let y = Math.max(pad, (H - total) / 2);
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
+      L.formula = { x, y, w, h: fH }; y += fH + 0.4 * fs;
+      L.res = { x, y, w, h: rH }; y += rH + 0.6 * fs;
+      L.sl = { x, y, w, h: slH };
+      L.graph = { x: pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
+    } else {
+      const x = pad, w = W - 2 * pad;
+      let y = pad;
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.4 * fs;
+      L.formula = { x, y, w, h: fH }; y += fH;
+      // a circunferência só precisa de um quadrado; o que sobra fica para as fórmulas
+      const yb = H - pad - slH;
+      L.sl = { x, y: yb, w, h: slH };
+      const gh = Math.max(w * 0.6, Math.min(w * 1.02, yb - y - rH - 0.8 * fs));
+      L.graph = { x: pad, y, w, h: gh };
+      L.res = { x, y: y + gh + 0.4 * fs, w, h: yb - 0.4 * fs - (y + gh + 0.4 * fs) };
+    }
+    return L;
+  }
+
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function dot(x, y, r, fill, ring) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    if (ring) { ctx.lineWidth = ring; ctx.strokeStyle = C.bg; ctx.stroke(); }
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+
+  // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  // p·π/q em LaTeX, simplificado (frac = "\\frac" ou "\\tfrac")
+  function piTex(p, q, frac = "\\frac") {
+    if (p === 0) return "0";
+    const g = gcd(Math.abs(p), q); p /= g; q /= g;
+    const sg = p < 0 ? "-" : "", num = (Math.abs(p) === 1 ? "" : Math.abs(p)) + "\\pi";
+    return sg + (q === 1 ? num : `${frac}{${num}}{${q}}`);
+  }
+  // α + n·π/2
+  const argTex = n => n === 0 ? "\\alpha" : `\\alpha ${n > 0 ? "+" : "-"} ${piTex(Math.abs(n), 2)}`;
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  // (x, y) é o ponto de âncora; ax, ay: 0 = esquerda/cima, 0,5 = centro, 1 = direita/baixo
+  function tex(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = true, op = 1) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};opacity:${op};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  // reduz o tamanho de letra se o texto não couber em w × h
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+  }
+
+  // ---------- animação da rotação ----------
+  let anim = 0, last = 0;
+  function animate() {
+    if (anim) return;
+    last = performance.now();
+    const step = now => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const target = S.n * PI / 2, d = target - S.phi;
+      // velocidade proporcional à distância, com um mínimo, para chegar depressa e suave
+      const v = Math.max(1.2, Math.abs(d) * 4.5) * dt;
+      S.phi = Math.abs(d) <= v ? target : S.phi + Math.sign(d) * v;
+      paint();
+      anim = S.phi === target ? 0 : requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+
+  function paint() {
+    L = layout(); hits = []; used = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    figure(L.graph, fs);
+    toggle(L.toggle, fs);
+    formula(L.formula, fs);
+    results(L.res, fs);
+    slider(L.sl, fs);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+  }
+
+  function figure(g, fs) {
+    const R = Math.min(g.w, g.h) / 2 / 1.42;
+    const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
+    const X = u => cx + u * R, Y = v => cy - v * R;
+    const fsm = fs * 0.95;
+
+    // grelha leve, eixos e circunferência
+    for (const v of [-1, -0.5, 0.5, 1]) {
+      line(X(-1.3), Y(v), X(1.3), Y(v), v % 1 ? C.grid : C.grid2, 1);
+      line(X(v), Y(-1.3), X(v), Y(1.3), v % 1 ? C.grid : C.grid2, 1);
+    }
+    line(X(-1.35), cy, X(1.35), cy, C.axis, 1.8);
+    line(cx, Y(-1.35), cx, Y(1.35), C.axis, 1.8);
+    tri(X(1.35), cy, 1, 0, fs * 0.45, C.axis);
+    tri(cx, Y(1.35), 0, -1, fs * 0.45, C.axis);
+    tex("ex", "x", X(1.35), cy + 0.45 * fs, fs * 1.1, C.ink, 1, 0);
+    tex("ey", "y", cx + 0.5 * fs, Y(1.35), fs * 1.1, C.ink, 0, 0.5);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
+    for (const [u, v, ax, ay, s] of [[1, 0, 0, 0, "1"], [-1, 0, 1, 0, "-1"], [0, 1, 1, 1, "1"], [0, -1, 1, 0, "-1"]])
+      tex("t" + u + v, s, X(u) + (ax ? -0.25 : 0.25) * fs, Y(v) + (ay ? -0.15 : 0.2) * fs, fsm * 0.9, C.muted, ax, ay);
+    tex("O", "O", cx - 0.25 * fs, cy + 0.2 * fs, fsm, C.muted, 1, 0);
+
+    const a = alpha(), phi = S.phi, rotated = Math.abs(phi) > 1e-6;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    // vértices do triângulo depois de rodado φ: O, T' = rot(T), P' = rot(P)
+    const rot = (u, v, t) => [u * Math.cos(t) - v * Math.sin(t), u * Math.sin(t) + v * Math.cos(t)];
+    const tri3 = t => { const [tu, tv] = rot(ca, 0, t), [pu, pv] = rot(ca, sa, t); return { T: [X(tu), Y(tv)], P: [X(pu), Y(pv)] }; };
+
+    // arco de um ângulo (em espiral se der mais de uma volta), com seta opcional no fim
+    function arc(t0, t1, r0, grow, color, w, arrow) {
+      const n = Math.max(8, Math.ceil(Math.abs(t1 - t0) / 0.04));
+      const pt = i => { const t = t0 + (t1 - t0) * i / n, r = r0 + grow * Math.abs(t - t0) / TAU; return [cx + r * Math.cos(t), cy - r * Math.sin(t)]; };
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash([]);
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) { const [x, y] = pt(i); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+      if (arrow && n > 2) {
+        const [x1, y1] = pt(n), [x0, y0] = pt(n - 2), l = Math.hypot(x1 - x0, y1 - y0) || 1;
+        tri(x1 - (x1 - x0) / l * fs * 0.3, y1 - (y1 - y0) / l * fs * 0.3, (x1 - x0) / l, (y1 - y0) / l, fs * 0.45, color);
+      }
+      return pt(Math.round(n / 2));
+    }
+    // um triângulo OTP: preenchimento, catetos coloridos (OT → cos α, TP → sin α) e hipotenusa
+    function triangle(t, op, labels, prime) {
+      const { T, P } = tri3(t);
+      ctx.globalAlpha = op;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(...T); ctx.lineTo(...P); ctx.closePath();
+      ctx.fillStyle = prime ? "rgba(239,108,0,0.12)" : "rgba(46,125,50,0.10)"; ctx.fill();
+      ctx.lineCap = "round";
+      line(cx, cy, ...P, C.ink, 2.4);
+      line(cx, cy, ...T, C.cos, 4.5);
+      line(...T, ...P, C.sin, 4.5);
+      ctx.lineCap = "butt";
+      // ângulo reto em T
+      const s = Math.min(0.7 * fs, 0.3 * Math.hypot(T[0] - cx, T[1] - cy), 0.3 * Math.hypot(P[0] - T[0], P[1] - T[1]));
+      const uo = [(cx - T[0]), (cy - T[1])], up = [(P[0] - T[0]), (P[1] - T[1])];
+      const lo = Math.hypot(...uo) || 1, lp = Math.hypot(...up) || 1;
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.beginPath();
+      ctx.moveTo(T[0] + uo[0] / lo * s, T[1] + uo[1] / lo * s);
+      ctx.lineTo(T[0] + uo[0] / lo * s + up[0] / lp * s, T[1] + uo[1] / lo * s + up[1] / lp * s);
+      ctx.lineTo(T[0] + up[0] / lp * s, T[1] + up[1] / lp * s); ctx.stroke();
+      dot(cx, cy, 0.22 * fs, C.ink);
+      dot(...T, 0.3 * fs, C.ink);
+      dot(...P, 0.48 * fs, prime ? C.be : C.al, 3);
+      ctx.globalAlpha = 1;
+      if (!labels) return { T, P };
+      // nomes dos vértices: para fora do triângulo
+      const away = (Q, F, d) => { const v = [Q[0] - F[0], Q[1] - F[1]], l = Math.hypot(...v) || 1; return [Q[0] + v[0] / l * d, Q[1] + v[1] / l * d]; };
+      const G = [(cx + T[0] + P[0]) / 3, (cy + T[1] + P[1]) / 3];
+      const pr = prime ? "'" : "", id = prime ? "r" : "o";
+      tex(id + "P", "P" + pr, ...away(P, [cx, cy], 0.85 * fs), fsm * 1.1, C.ink, 0.5, 0.5, true, op);
+      tex(id + "T", "T" + pr, ...away(T, P, 0.9 * fs), fsm * 1.1, C.ink, 0.5, 0.5, true, op);
+      // medidas dos catetos, ao lado de cada um, para fora do triângulo
+      // (no cateto OT um pouco mais longe de O, para não chocar com os arcos dos ângulos)
+      const legLabel = (A, B, src, c, key, f = 0.5) => {
+        const M = [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f];
+        tex(id + key, src, ...away(M, G, 1.1 * fs), fsm, c, 0.5, 0.5, true, op);
+      };
+      legLabel([cx, cy], T, "\\cos\\alpha", C.cos, "c", 0.62);
+      legLabel(T, P, "\\sin\\alpha", C.sin, "s");
+      return { T, P };
+    }
+
+    // ângulo α (verde) e, rodado, o triângulo original esbatido
+    const lab = (id, src, p, c) => tex(id, src, p[0], p[1], fsm * 1.1, c);
+    const pa = arc(0, a, 0.2 * R, 0, C.al, 2.5, false);
+    const ra = 0.2 * R + 0.9 * fs;
+    lab("la", "\\alpha", [cx + ra * Math.cos(a / 2), cy - ra * Math.sin(a / 2)], C.al);
+    const P0 = triangle(0, rotated ? 0.4 : 1, true, false).P;
+    hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, off: 0 });
+
+    if (rotated) {
+      // ângulo β = α + φ (laranja, em espiral se passar de uma volta)
+      arc(0, a + phi, 0.32 * R, 0.07 * R, C.be, 2.5, true);
+      const tb = (a + phi) / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.9 * fs;
+      lab("lb", "\\beta", [cx + rb * Math.cos(tb), cy - rb * Math.sin(tb)], C.be);
+      // rotação de P até P' (roxo, por fora da circunferência)
+      arc(a, a + phi, 1.17 * R, 0.08 * R, C.rot, 2.5, true);
+      if (S.phi === S.n * PI / 2 && S.n) {
+        const tm = a + phi / 2, rr = 1.17 * R + 0.04 * R * Math.abs(phi) / TAU + 1.1 * fs;
+        tex("lr", (S.n > 0 ? "+" : "") + piTex(S.n, 2, "\\tfrac"), cx + rr * Math.cos(tm), cy - rr * Math.sin(tm), fsm, C.rot);
+      }
+      const P1 = triangle(phi, 1, true, true).P;
+      hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, off: S.n * PI / 2 });
+    }
+  }
+
+  // botões das rotações
+  function toggle(b, fs) {
+    const opts = [[-2, "-\\pi"], [-1, "-\\tfrac{\\pi}{2}"], [1, "+\\tfrac{\\pi}{2}"], [2, "+\\pi"]];
+    const rw = b.h * 1.25, gap = 0.4 * fs, bw = (b.w - rw - 4 * gap) / 4;
+    opts.forEach(([d, src], i) => {
+      const x = b.x + i * (bw + gap);
+      const off = (d < 0 ? S.n <= NLIM[0] : S.n >= NLIM[1]);
+      rrect(x, b.y, bw, b.h, 8, C.btn, C.rot, 2);
+      const el = tex("tg" + i, src, x + bw / 2, b.y + b.h / 2, fs * 1.15, off ? C.line : C.rot, 0.5, 0.5, false);
+      fit(el, bw - 0.4 * fs, b.h);
+      hits.push({ kind: "rot", d, rect: { x, y: b.y, w: bw, h: b.h } });
+    });
+    const x = b.x + b.w - rw;
+    rrect(x, b.y, rw, b.h, 8, C.btn, C.line, 2);
+    ctx.font = `700 ${fs * 1.05}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("↺", x + rw / 2, b.y + b.h / 2 + 0.12 * fs);
+    hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h: b.h } });
+  }
+
+  // α = …   β = α + nπ/2 = …
+  function formula(b, fs) {
+    const at = clr(C.al, "\\alpha") + " = " + piTex(S.m, DIV);
+    const bt = S.n === 0 ? "\\beta = \\alpha"
+      : clr(C.be, "\\beta") + " = " + argTex(S.n) + " = " + piTex(S.m + S.n * DIV / 2, DIV);
+    const el = tex("formula", `${at} \\qquad ${bt}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.3, C.ink, L.land ? 0 : 0.5, 0.5, false);
+    fit(el, b.w, b.h);
+  }
+
+  // seno, cosseno e tangente de β em função de α (cores dos catetos)
+  function results(b, fs) {
+    const sA = clr(C.sin, "\\sin\\alpha"), cA = clr(C.cos, "\\cos\\alpha"), tA = "\\tan\\alpha";
+    let rows;
+    if (S.n === 0) {
+      rows = [[`\\sin\\alpha`, `${clr(C.sin, "\\overline{TP}")}`], [`\\cos\\alpha`, `${clr(C.cos, "\\overline{OT}")}`],
+              [`\\tan\\alpha`, `\\dfrac{${sA}}{${cA}}`]];
+    } else {
+      const r = ((S.n % 4) + 4) % 4, arg = `\\left(${argTex(S.n)}\\right)`;
+      const sb = [sA, cA, "-" + sA, "-" + cA][r], cb = [cA, "-" + sA, "-" + cA, sA][r];
+      const tb = r % 2 ? `-\\dfrac{1}{${tA}}` : tA;
+      rows = [[`\\sin${arg}`, sb], [`\\cos${arg}`, cb], [`\\tan${arg}`, tb]];
+    }
+    const src = `\\begin{aligned}${rows.map(([l, r]) => `${l} &= ${r}`).join("\\\\[0.35em]")}\\end{aligned}`;
+    const el = tex("res", src, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, L.land ? 0 : 0.5, 0.5, false);
+    fit(el, b.w, b.h);
+  }
+
+  // cursor de α (de π/36 em π/36, no 1.º quadrante)
+  function slider(b, fs) {
+    const lo = 0, hi = DIV / 2, col = C.al;
+    tex("sl", `${clr(col, "\\alpha")} = ${piTex(S.m, DIV)}`, b.x, b.y + 0.6 * fs, fs * 1.05, C.ink, 0, 0.5, false);
+    const bs = 1.75 * fs, ry = b.y + 1.25 * fs, cy = ry + bs / 2;
+    const btn = (x, txt, d) => {
+      rrect(x, ry, bs, bs, 8, C.btn, C.line, 2);
+      ctx.font = `700 ${fs * 1.1}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x + bs / 2, cy + 1);
+      hits.push({ kind: "step", d, rect: { x, y: ry, w: bs, h: bs } });
+    };
+    btn(b.x, "−", -1); btn(b.x + b.w - bs, "+", 1);
+    const tx0 = b.x + bs + 0.9 * fs, tx1 = b.x + b.w - bs - 0.9 * fs;
+    const TX = v => tx0 + (v - lo) / (hi - lo) * (tx1 - tx0);
+    ctx.lineCap = "round";
+    line(tx0, cy, tx1, cy, C.grid2, 0.32 * fs);
+    line(TX(0), cy, TX(S.m), cy, col, 0.32 * fs);
+    ctx.lineCap = "butt";
+    // marcas de π/12 em π/12; numeradas 0, π/4 e π/2
+    for (let v = lo; v <= hi; v += 3) {
+      line(TX(v), cy + 0.25 * fs, TX(v), cy + 0.45 * fs, C.muted, 1.2);
+      if (v % 9 === 0) tex("s" + v, piTex(v, DIV, "\\tfrac"), TX(v), cy + 0.5 * fs, fs * 0.72, C.muted, 0.5, 0, false);
+    }
+    dot(TX(S.m), cy, 0.55 * fs, col, 2.5);
+    hits.push({ kind: "slide", rect: { x: tx0 - fs, y: ry - 0.3 * fs, w: tx1 - tx0 + 2 * fs, h: bs + 0.6 * fs },
+                val: px => lo + (px - tx0) / (tx1 - tx0) * (hi - lo) });
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  function hitAt(x, y) {
+    // pegas redondas primeiro (a mais próxima; P' antes de P, se coincidirem), depois retângulos
+    let best = null, bd = Infinity;
+    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d <= bd) { best = h; bd = d; } }
+    return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  }
+  // α a partir da posição do ponteiro (P ou P'), preso ao 1.º quadrante
+  function dragP(h, x, y) {
+    let t = Math.atan2(-(y - h.cy), x - h.cx) - h.off;
+    t = ((t % TAU) + TAU) % TAU;
+    if (t > PI / 2) t = t < PI / 2 + 3 * PI / 4 ? PI / 2 : 0;
+    setM(t / PI * DIV);
+  }
+  let drag = null, rep = null;
+  const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
+  cv.addEventListener("pointerdown", e => {
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "rot") { setN(S.n + h.d); return; }
+    if (h.kind === "reset") { setN(0); return; }
+    if (h.kind === "step") {
+      setM(S.m + h.d);
+      stopRep();
+      rep = setTimeout(() => { rep = setInterval(() => setM(S.m + h.d), 110); }, 400);
+      return;
+    }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    drag = h;
+    if (h.kind === "slide") setM(h.val(e.clientX)); else dragP(h, e.clientX, e.clientY);
+    cv.style.cursor = "grabbing";
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) {
+      if (drag.kind === "slide") setM(drag.val(e.clientX)); else dragP(drag, e.clientX, e.clientY);
+      return;
+    }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : h.kind === "P" ? "grab" : "pointer";
+  });
+  const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
+
+  // teclado: ←/→ rodam π/2, ↑/↓ mudam α, 0 desfaz a rotação
+  window.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") setN(S.n + 1);
+    else if (e.key === "ArrowLeft") setN(S.n - 1);
+    else if (e.key === "ArrowUp") setM(S.m + 1);
+    else if (e.key === "ArrowDown") setM(S.m - 1);
+    else if (e.key === "0") setN(0);
+    else return;
+    e.preventDefault();
+  });
+
+  // valores iniciais opcionais no endereço, p. ex. index.html#m=4&n=3 (α = 4π/36, rotação de 3π/2)
+  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
+    const q = tok.match(/^([mn])=(-?\d+)$/);
+    if (q) S[q[1]] = clamp(+q[2], ...(q[1] === "m" ? MLIM : NLIM));
+  });
+  S.phi = S.n * PI / 2;
+
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
+})();
+</script>
+</body>
+</html>
