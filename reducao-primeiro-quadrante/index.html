@@ -47,21 +47,31 @@
   // reflexão "a meio" na reta de ângulo ψ: achata e vira (k = 1 − 2t)
   const flip = (psi, k) => mul(mul(Rm(psi), [1, 0, 0, k]), Rm(-psi));
 
-  // rotações: β → β + d·π/2; simetrias: em Ox (β → −β) e em Oy (β → π − β)
-  const OPS = {
-    rot: d => ({ s: S.s, n: S.n + d }),
-    ox: () => ({ s: -S.s, n: -S.n }),
-    oy: () => ({ s: -S.s, n: 2 - S.n }),
-  };
-  const ok = st => st.n >= NLIM[0] && st.n <= NLIM[1];
+  // os botões levam diretamente de α ao ângulo indicado (β = s·α + n·π/2)
+  const STATES = [
+    { key: "a", src: "\\tfrac{\\pi}{2} - \\alpha", s: -1, n: 1 },
+    { key: "b", src: "\\tfrac{\\pi}{2} + \\alpha", s: 1, n: 1 },
+    { key: "c", src: "\\pi - \\alpha", s: -1, n: 2 },
+    { key: "d", src: "\\pi + \\alpha", s: 1, n: 2 },
+    { key: "e", src: "-\\alpha", s: -1, n: 0 },
+  ];
+  const same = (p, q) => p.s === q.s && ((p.n - q.n) % 4 + 4) % 4 === 0;
   let A = null;   // animação em curso: { from, to, M0, kind, th | psi, t }
-  function apply(kind, d) {
-    if (A) finish();
-    const to = kind === "rot" ? OPS.rot(d) : OPS[kind]();
-    if (!ok(to)) return;
-    A = { from: { s: S.s, n: S.n }, to, M0: Mof(S), kind, t: 0,
-          th: kind === "rot" ? d * PI / 2 : 0, psi: kind === "oy" ? PI / 2 : 0,
-          dur: kind === "rot" ? 0.35 + 0.18 * Math.abs(d) : 0.7 };
+  // de um estado para outro: rotação de ±π/2, simetria central (meia volta) ou reflexão numa reta
+  function apply(to) {
+    A = null;
+    if (same(S, to)) return;
+    const from = { s: S.s, n: S.n }, M0 = Mof(from);
+    let kind, th = 0, psi = 0;
+    if (from.s === to.s) {
+      const dn = ((to.n - from.n) % 4 + 4) % 4;
+      if (dn === 2) kind = "cen"; else { kind = "rot"; th = (dn === 1 ? 1 : -1) * PI / 2; }
+    } else {
+      // G = M(to)·M(from)⁻¹ é uma reflexão na reta de ângulo ψ
+      const Mt = Mof(to), G = mul(Mt, [M0[0], M0[2], M0[1], M0[3]]);
+      kind = "ref"; psi = Math.atan2(G[2], G[0]) / 2;
+    }
+    A = { from, to: { s: to.s, n: to.n }, M0, kind, th, psi, t: 0, dur: kind === "rot" ? 0.55 : 0.75 };
     S.s = to.s; S.n = to.n;
     let last = performance.now();
     const step = now => {
@@ -73,15 +83,16 @@
     };
     requestAnimationFrame(step);
   }
-  function finish() { A = null; }
   const ease = t => t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
   // matriz desenhada agora (a meio da animação, se houver)
   function Mnow() {
     if (!A) return Mof(S);
     const e = ease(A.t);
-    return A.kind === "rot" ? mul(Rm(e * A.th), A.M0) : mul(flip(A.psi, 1 - 2 * e), A.M0);
+    if (A.kind === "rot") return mul(Rm(e * A.th), A.M0);
+    if (A.kind === "cen") return A.M0.map(v => v * (1 - 2 * e));   // passa por O
+    return mul(flip(A.psi, 1 - 2 * e), A.M0);
   }
-  const reset = () => { A = null; S.s = 1; S.n = 0; draw(); };
+  const reset = () => apply({ s: 1, n: 0 });
 
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
@@ -289,9 +300,13 @@
       return { T, P };
     }
     // P com as coordenadas, para fora da circunferência (a crescer para fora)
-    function pLabel(id, src, P, op) {
-      const v = [P[0] - cx, -(P[1] - cy)], l = Math.hypot(...v) || 1, u = [v[0] / l, v[1] / l];
-      tex(id, src, P[0] + u[0] * 0.8 * fs, P[1] - u[1] * 0.8 * fs, fsm * 1.05, C.ink, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1], true, op);
+    // (rodada de "turn" se P e P' estiverem muito perto; sempre dentro do ecrã)
+    function pLabel(id, src, P, op, turn = 0) {
+      const t = Math.atan2(-(P[1] - cy), P[0] - cx) + turn, u = [Math.cos(t), Math.sin(t)];
+      const el = tex(id, src, P[0] + u[0] * 0.8 * fs, P[1] - u[1] * 0.8 * fs, fsm * 1.05, C.ink, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1], true, op);
+      const r = el.getBoundingClientRect(), m = 4;
+      const dx = r.left < m ? m - r.left : r.right > W - m ? W - m - r.right : 0;
+      if (dx) el.style.left = parseFloat(el.style.left) + dx + "px";
     }
 
     // ângulo α (verde) e o triângulo original (esbatido, se houver transformação)
@@ -302,7 +317,12 @@
     // (sem o nome T se T' calhar em cima de T, como em −α)
     const [t1x, t1y] = ap(M, ca, 0), sameT = moved && Math.hypot(t1x - X(ca), t1y - cy) < fs;
     const P0 = triangle([1, 0, 0, 1], op0, false, sameT).P;
-    pLabel("oP", `P\\,(${X_},\\,${Y_})`, P0, moved ? 0.6 : 1);
+    // P e P' muito perto (p. ex. π/2 − α com α ≈ π/4): as etiquetas afastam-se uma da outra
+    const [p1x, p1y] = ap(M, ca, sa);
+    let dA = Math.atan2(-(p1y - cy), p1x - cx) - a;
+    dA = Math.atan2(Math.sin(dA), Math.cos(dA));
+    const turn = moved && !A && Math.abs(dA) < 0.6 ? (dA >= 0 ? 1 : -1) * 0.5 : 0;
+    pLabel("oP", `P\\,(${X_},\\,${Y_})`, P0, moved ? 0.6 : 1, -turn);
     hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, st: { s: 1, n: 0 } });
 
     if (moved) {
@@ -314,7 +334,7 @@
         tex("lb", "\\beta", cx + rb * Math.cos(tb), cy - rb * Math.sin(tb), fsm * 1.1, C.be);
       }
       // rotação de P até P' (roxo, por fora da circunferência), só quando β = α + nπ/2
-      if (st.s > 0 && st.n !== 0 && (!A || A.kind === "rot")) {
+      if (st.s > 0 && st.n % 2 && (!A || A.kind === "rot")) {
         const c0 = A ? A.from.n * PI / 2 : 0, c = A ? c0 + (st.n * PI / 2 - c0) * ease(A.t) : st.n * PI / 2;
         arc(a, a + c, 1.17 * R, 0.08 * R, C.rot, 2.5, true);
         if (!A) {
@@ -322,10 +342,11 @@
           tex("lr", (st.n > 0 ? "+" : "") + piTex(st.n, 2, "\\tfrac"), cx + rr * Math.cos(tm), cy - rr * Math.sin(tm), fsm, C.rot);
         }
       }
+      if (st.s > 0 && st.n % 4 === 2 && !A) line(...P0, ...ap(M, ca, sa), C.sym, 3, [10, 7]);   // simetria central em O
       const P1 = triangle(M, 1, true).P;
       if (!A) {
         const im = images(S);
-        pLabel("rP", `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1);
+        pLabel("rP", `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1, turn);
         hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, st: { s: S.s, n: S.n } });
       }
     }
@@ -334,24 +355,22 @@
   // botões: rotações (roxo) e ↺ na 1.ª fila; simetrias (verde-azulado) e x = cos α, y = sin α na 2.ª
   function toggle(b, fs) {
     const gap = 0.4 * fs, h = (b.h - gap) / 2, rw = h * 1.25, bw = (b.w - rw - 4 * gap) / 4;
-    const button = (i, row, src, col, kind, d, enabled) => {
-      const x = b.x + i * (bw + gap), y = b.y + row * (h + gap);
-      rrect(x, y, bw, h, 8, C.btn, enabled ? col : C.line, 2);
-      const el = tex(`tg${row}${i}`, src, x + bw / 2, y + h / 2, fs * 1.15, enabled ? col : C.line, 0.5, 0.5, false);
+    // 1.ª fila: π/2 − α, π/2 + α, π − α, π + α; 2.ª fila: −α (o botão ativo fica preenchido)
+    STATES.forEach((st, i) => {
+      const x = b.x + (i % 4) * (bw + gap), y = b.y + (i >> 2) * (h + gap), on = same(S, st);
+      const col = st.s > 0 && st.n === 1 ? C.rot : C.sym;
+      rrect(x, y, bw, h, 8, on ? col : C.btn, col, 2);
+      const el = tex("tg" + st.key, st.src, x + bw / 2, y + h / 2, fs * 1.1, on ? "#fff" : col, 0.5, 0.5, false);
       fit(el, bw - 0.4 * fs, h);
-      hits.push({ kind, d, rect: { x, y, w: bw, h } });
-    };
-    [[-2, "-\\pi"], [-1, "-\\tfrac{\\pi}{2}"], [1, "+\\tfrac{\\pi}{2}"], [2, "+\\pi"]].forEach(([d, src], i) =>
-      button(i, 0, src, C.rot, "rot", d, ok(OPS.rot(d))));
-    button(0, 1, "\\pi - \\alpha", C.sym, "oy", 0, ok(OPS.oy()));
-    button(1, 1, "-\\alpha", C.sym, "ox", 0, true);
+      hits.push({ kind: "state", st, rect: { x, y, w: bw, h } });
+    });
     const x = b.x + b.w - rw;
     rrect(x, b.y, rw, h, 8, C.btn, C.line, 2);
     ctx.font = `700 ${fs * 1.05}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("↺", x + rw / 2, b.y + h / 2 + 0.12 * fs);
     hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h } });
     // x = cos α e y = sin α, à direita das simetrias
-    const lx0 = b.x + 2 * (bw + gap), lw = b.x + b.w - lx0;
+    const lx0 = b.x + (bw + gap), lw = b.x + b.w - lx0;
     const el = tex("legend", `${X_} = \\cos\\alpha \\qquad ${Y_} = \\sin\\alpha`, b.x + b.w, b.y + h + gap + h / 2, fs * 1.1, C.ink, 1, 0.5, false);
     fit(el, lw, h);
   }
@@ -424,7 +443,7 @@
     const h = hitAt(e.clientX, e.clientY);
     if (!h) return;
     e.preventDefault();
-    if (h.kind === "rot" || h.kind === "ox" || h.kind === "oy") { apply(h.kind, h.d); return; }
+    if (h.kind === "state") { apply(same(S, h.st) ? { s: 1, n: 0 } : h.st); return; }   // outra vez → volta a α
     if (h.kind === "reset") { reset(); return; }
     if (h.kind === "step") {
       setM(S.m + h.d);
@@ -448,14 +467,11 @@
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: ←/→ rodam π/2, ↑/↓ mudam α, h → π − α, v → −α, 0 desfaz tudo
+  // teclado: 1 a 5 → os botões (π/2 − α, π/2 + α, π − α, π + α, −α), ↑/↓ mudam α, 0 volta a α
   window.addEventListener("keydown", e => {
-    if (e.key === "ArrowRight") apply("rot", 1);
-    else if (e.key === "ArrowLeft") apply("rot", -1);
+    if (e.key >= "1" && e.key <= "5") apply(STATES[+e.key - 1]);
     else if (e.key === "ArrowUp") setM(S.m + 1);
     else if (e.key === "ArrowDown") setM(S.m - 1);
-    else if (e.key === "h") apply("oy");
-    else if (e.key === "v") apply("ox");
     else if (e.key === "0") reset();
     else return;
     e.preventDefault();
