@@ -28,17 +28,60 @@
   const C = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
-    sin: "#d32f2f", cos: "#1565c0", al: "#2e7d32", be: "#ef6c00", rot: "#7b1fa2",
+    sin: "#d32f2f", cos: "#1565c0", al: "#2e7d32", be: "#ef6c00", rot: "#7b1fa2", sym: "#00838f",
   };
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
-  // α = m·π/36, sempre no 1.º quadrante; a rotação é de n·π/2
+  // α = m·π/36, sempre no 1.º quadrante; o ângulo transformado é β = s·α + n·π/2 (s = ±1)
   const DIV = 36, MLIM = [1, 17], NLIM = [-8, 8];
-  const S = { m: 6, n: 0, phi: 0 };   // phi: rotação desenhada (anima até n·π/2)
+  const S = { m: 6, s: 1, n: 0 };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const alpha = () => S.m * PI / DIV;
+  const beta = (st = S) => st.s * alpha() + st.n * PI / 2;
   const setM = m => { m = clamp(Math.round(m), ...MLIM); if (m !== S.m) { S.m = m; draw(); } };
-  const setN = n => { S.n = clamp(n, ...NLIM); animate(); };
+
+  // ---------- transformações (matrizes 2×2 [a, b, c, d]) ----------
+  const mul = (A, B) => [A[0] * B[0] + A[1] * B[2], A[0] * B[1] + A[1] * B[3], A[2] * B[0] + A[3] * B[2], A[2] * B[1] + A[3] * B[3]];
+  const Rm = t => [Math.cos(t), -Math.sin(t), Math.sin(t), Math.cos(t)];
+  const Mof = st => mul(Rm(st.n * PI / 2), [1, 0, 0, st.s]);   // P' = R(nπ/2)·(x, s·y)
+  // reflexão "a meio" na reta de ângulo ψ: achata e vira (k = 1 − 2t)
+  const flip = (psi, k) => mul(mul(Rm(psi), [1, 0, 0, k]), Rm(-psi));
+
+  // rotações: β → β + d·π/2; simetrias: em Ox (β → −β) e em Oy (β → π − β)
+  const OPS = {
+    rot: d => ({ s: S.s, n: S.n + d }),
+    ox: () => ({ s: -S.s, n: -S.n }),
+    oy: () => ({ s: -S.s, n: 2 - S.n }),
+  };
+  const ok = st => st.n >= NLIM[0] && st.n <= NLIM[1];
+  let A = null;   // animação em curso: { from, to, M0, kind, th | psi, t }
+  function apply(kind, d) {
+    if (A) finish();
+    const to = kind === "rot" ? OPS.rot(d) : OPS[kind]();
+    if (!ok(to)) return;
+    A = { from: { s: S.s, n: S.n }, to, M0: Mof(S), kind, t: 0,
+          th: kind === "rot" ? d * PI / 2 : 0, psi: kind === "oy" ? PI / 2 : 0,
+          dur: kind === "rot" ? 0.35 + 0.18 * Math.abs(d) : 0.7 };
+    S.s = to.s; S.n = to.n;
+    let last = performance.now();
+    const step = now => {
+      if (!A) return;
+      A.t = Math.min(1, A.t + (now - last) / 1000 / A.dur); last = now;
+      if (A.t >= 1) A = null;
+      paint();
+      if (A) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  function finish() { A = null; }
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+  // matriz desenhada agora (a meio da animação, se houver)
+  function Mnow() {
+    if (!A) return Mof(S);
+    const e = ease(A.t);
+    return A.kind === "rot" ? mul(Rm(e * A.th), A.M0) : mul(flip(A.psi, 1 - 2 * e), A.M0);
+  }
+  const reset = () => { A = null; S.s = 1; S.n = 0; draw(); };
 
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
@@ -53,29 +96,27 @@
     draw();
   }
 
-  // disposição: botões das rotações e ângulos em cima; ecrã ao alto → fórmulas e cursor em baixo,
-  // ecrã deitado → tudo numa coluna à direita
+  // disposição: botões (rotações; simetrias e x = cos α, y = sin α) em cima;
+  // ecrã ao alto → fórmulas e cursor em baixo, ecrã deitado → tudo numa coluna à direita
   function layout() {
     const fs = clamp(Math.min(W, H) / 24, 14, 26);
     const pad = Math.round(fs * 0.7);
     const land = W > H * 1.2 && W >= 560;
     const L = { fs, pad, land };
-    const tgH = 2.1 * fs, fH = 2.4 * fs, rH = 6 * fs, slH = 3.5 * fs;
+    const tgH = 4.6 * fs, rH = 6 * fs, slH = 3.5 * fs;
     if (land) {
       const pw = clamp(W * 0.36, 16 * fs, 24 * fs);
       const x = W - pw, w = pw - pad;
-      const total = tgH + 0.6 * fs + fH + 0.4 * fs + rH + 0.6 * fs + slH;
+      const total = tgH + 0.8 * fs + rH + 0.6 * fs + slH;
       let y = Math.max(pad, (H - total) / 2);
-      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
-      L.formula = { x, y, w, h: fH }; y += fH + 0.4 * fs;
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.8 * fs;
       L.res = { x, y, w, h: rH }; y += rH + 0.6 * fs;
       L.sl = { x, y, w, h: slH };
       L.graph = { x: pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
     } else {
       const x = pad, w = W - 2 * pad;
       let y = pad;
-      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.4 * fs;
-      L.formula = { x, y, w, h: fH }; y += fH;
+      L.toggle = { x, y, w, h: tgH }; y += tgH + 0.3 * fs;
       // a circunferência só precisa de um quadrado; o que sobra fica para as fórmulas
       const yb = H - pad - slH;
       L.sl = { x, y: yb, w, h: slH };
@@ -118,8 +159,17 @@
     const sg = p < 0 ? "-" : "", num = (Math.abs(p) === 1 ? "" : Math.abs(p)) + "\\pi";
     return sg + (q === 1 ? num : `${frac}{${num}}{${q}}`);
   }
-  // α + n·π/2
-  const argTex = n => n === 0 ? "\\alpha" : `\\alpha ${n > 0 ? "+" : "-"} ${piTex(Math.abs(n), 2)}`;
+  // β = s·α + n·π/2 escrito como nos manuais: α + π/2, π − α, −α, π/2 − α, …
+  function argTex(st) {
+    if (st.s > 0) return st.n === 0 ? "\\alpha" : `\\alpha ${st.n > 0 ? "+" : "-"} ${piTex(Math.abs(st.n), 2)}`;
+    return st.n === 0 ? "-\\alpha" : `${piTex(st.n, 2)} - \\alpha`;
+  }
+  // (cos β, sin β) — e as coordenadas de P' — à custa de (cos α, sin α): pares [sinal, 0 = cos/x, 1 = sin/y]
+  function images(st) {
+    let c = [1, 0], s = [st.s, 1];
+    for (let i = 0; i < ((st.n % 4) + 4) % 4; i++) [c, s] = [[-s[0], s[1]], c];
+    return { c, s };
+  }
   const layer = document.getElementById("tex");
   const pool = new Map();
   let used = new Set();
@@ -142,23 +192,8 @@
     const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
     if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
   }
-
-  // ---------- animação da rotação ----------
-  let anim = 0, last = 0;
-  function animate() {
-    if (anim) return;
-    last = performance.now();
-    const step = now => {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      const target = S.n * PI / 2, d = target - S.phi;
-      // velocidade proporcional à distância, com um mínimo, para chegar depressa e suave
-      const v = Math.max(1.2, Math.abs(d) * 4.5) * dt;
-      S.phi = Math.abs(d) <= v ? target : S.phi + Math.sign(d) * v;
-      paint();
-      anim = S.phi === target ? 0 : requestAnimationFrame(step);
-    };
-    anim = requestAnimationFrame(step);
-  }
+  const X_ = clr(C.cos, "x"), Y_ = clr(C.sin, "y");
+  const coord = ([sg, k]) => (sg < 0 ? "-" : "") + (k ? Y_ : X_);
 
   // ---------- desenho ----------
   let raf = 0;
@@ -170,7 +205,6 @@
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
     figure(L.graph, fs);
     toggle(L.toggle, fs);
-    formula(L.formula, fs);
     results(L.res, fs);
     slider(L.sl, fs);
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
@@ -187,6 +221,14 @@
       line(X(-1.3), Y(v), X(1.3), Y(v), v % 1 ? C.grid : C.grid2, 1);
       line(X(v), Y(-1.3), X(v), Y(1.3), v % 1 ? C.grid : C.grid2, 1);
     }
+    // eixo de simetria (β = −α + c ↔ reflexão na reta de ângulo c/2), por baixo de tudo
+    const st = A ? A.to : S;
+    if (st.s < 0) {
+      const ps = st.n * PI / 4, e = 1.38, op = A && A.kind !== "rot" ? ease(A.t) : 1;
+      ctx.globalAlpha = op;
+      line(X(-e * Math.cos(ps)), Y(-e * Math.sin(ps)), X(e * Math.cos(ps)), Y(e * Math.sin(ps)), C.sym, 3, [10, 7]);
+      ctx.globalAlpha = 1;
+    }
     line(X(-1.35), cy, X(1.35), cy, C.axis, 1.8);
     line(cx, Y(-1.35), cx, Y(1.35), C.axis, 1.8);
     tri(X(1.35), cy, 1, 0, fs * 0.45, C.axis);
@@ -198,11 +240,9 @@
       tex("t" + u + v, s, X(u) + (ax ? -0.25 : 0.25) * fs, Y(v) + (ay ? -0.15 : 0.2) * fs, fsm * 0.9, C.muted, ax, ay);
     tex("O", "O", cx - 0.25 * fs, cy + 0.2 * fs, fsm, C.muted, 1, 0);
 
-    const a = alpha(), phi = S.phi, rotated = Math.abs(phi) > 1e-6;
-    const ca = Math.cos(a), sa = Math.sin(a);
-    // vértices do triângulo depois de rodado φ: O, T' = rot(T), P' = rot(P)
-    const rot = (u, v, t) => [u * Math.cos(t) - v * Math.sin(t), u * Math.sin(t) + v * Math.cos(t)];
-    const tri3 = t => { const [tu, tv] = rot(ca, 0, t), [pu, pv] = rot(ca, sa, t); return { T: [X(tu), Y(tv)], P: [X(pu), Y(pv)] }; };
+    const a = alpha(), ca = Math.cos(a), sa = Math.sin(a);
+    const M = Mnow(), moved = A || S.s < 0 || S.n !== 0;
+    const ap = (M, u, v) => [X(M[0] * u + M[1] * v), Y(M[2] * u + M[3] * v)];
 
     // arco de um ângulo (em espiral se der mais de uma volta), com seta opcional no fim
     function arc(t0, t1, r0, grow, color, w, arrow) {
@@ -212,15 +252,14 @@
       ctx.beginPath();
       for (let i = 0; i <= n; i++) { const [x, y] = pt(i); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
       ctx.stroke();
-      if (arrow && n > 2) {
+      if (arrow && n > 2 && Math.abs(t1 - t0) > 0.15) {
         const [x1, y1] = pt(n), [x0, y0] = pt(n - 2), l = Math.hypot(x1 - x0, y1 - y0) || 1;
         tri(x1 - (x1 - x0) / l * fs * 0.3, y1 - (y1 - y0) / l * fs * 0.3, (x1 - x0) / l, (y1 - y0) / l, fs * 0.45, color);
       }
-      return pt(Math.round(n / 2));
     }
-    // um triângulo OTP: preenchimento, catetos coloridos (OT → cos α, TP → sin α) e hipotenusa
-    function triangle(t, op, labels, prime) {
-      const { T, P } = tri3(t);
+    // um triângulo OTP transformado por M: preenchimento, catetos (OT azul, TP vermelho) e hipotenusa
+    function triangle(M, op, prime, noT) {
+      const T = ap(M, ca, 0), P = ap(M, ca, sa);
       ctx.globalAlpha = op;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(...T); ctx.lineTo(...P); ctx.closePath();
       ctx.fillStyle = prime ? "rgba(239,108,0,0.12)" : "rgba(46,125,50,0.10)"; ctx.fill();
@@ -233,96 +272,103 @@
       const s = Math.min(0.7 * fs, 0.3 * Math.hypot(T[0] - cx, T[1] - cy), 0.3 * Math.hypot(P[0] - T[0], P[1] - T[1]));
       const uo = [(cx - T[0]), (cy - T[1])], up = [(P[0] - T[0]), (P[1] - T[1])];
       const lo = Math.hypot(...uo) || 1, lp = Math.hypot(...up) || 1;
-      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.beginPath();
-      ctx.moveTo(T[0] + uo[0] / lo * s, T[1] + uo[1] / lo * s);
-      ctx.lineTo(T[0] + uo[0] / lo * s + up[0] / lp * s, T[1] + uo[1] / lo * s + up[1] / lp * s);
-      ctx.lineTo(T[0] + up[0] / lp * s, T[1] + up[1] / lp * s); ctx.stroke();
+      if (s > 2) {
+        ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.beginPath();
+        ctx.moveTo(T[0] + uo[0] / lo * s, T[1] + uo[1] / lo * s);
+        ctx.lineTo(T[0] + uo[0] / lo * s + up[0] / lp * s, T[1] + uo[1] / lo * s + up[1] / lp * s);
+        ctx.lineTo(T[0] + up[0] / lp * s, T[1] + up[1] / lp * s); ctx.stroke();
+      }
       dot(cx, cy, 0.22 * fs, C.ink);
       dot(...T, 0.3 * fs, C.ink);
       dot(...P, 0.48 * fs, prime ? C.be : C.al, 3);
       ctx.globalAlpha = 1;
-      if (!labels) return { T, P };
-      // nomes dos vértices: para fora do triângulo
+      // T: para fora do triângulo, do lado oposto a P
       const away = (Q, F, d) => { const v = [Q[0] - F[0], Q[1] - F[1]], l = Math.hypot(...v) || 1; return [Q[0] + v[0] / l * d, Q[1] + v[1] / l * d]; };
-      const G = [(cx + T[0] + P[0]) / 3, (cy + T[1] + P[1]) / 3];
       const pr = prime ? "'" : "", id = prime ? "r" : "o";
-      tex(id + "P", "P" + pr, ...away(P, [cx, cy], 0.85 * fs), fsm * 1.1, C.ink, 0.5, 0.5, true, op);
-      tex(id + "T", "T" + pr, ...away(T, P, 0.9 * fs), fsm * 1.1, C.ink, 0.5, 0.5, true, op);
-      // medidas dos catetos, ao lado de cada um, para fora do triângulo
-      // (no cateto OT um pouco mais longe de O, para não chocar com os arcos dos ângulos)
-      const legLabel = (A, B, src, c, key, f = 0.5) => {
-        const M = [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f];
-        tex(id + key, src, ...away(M, G, 1.1 * fs), fsm, c, 0.5, 0.5, true, op);
-      };
-      legLabel([cx, cy], T, "\\cos\\alpha", C.cos, "c", 0.62);
-      legLabel(T, P, "\\sin\\alpha", C.sin, "s");
+      if (!noT) tex(id + "T", "T" + pr, ...away(T, P, 0.9 * fs), fsm * 1.1, C.ink, 0.5, 0.5, true, op);
       return { T, P };
     }
+    // P com as coordenadas, para fora da circunferência (a crescer para fora)
+    function pLabel(id, src, P, op) {
+      const v = [P[0] - cx, -(P[1] - cy)], l = Math.hypot(...v) || 1, u = [v[0] / l, v[1] / l];
+      tex(id, src, P[0] + u[0] * 0.8 * fs, P[1] - u[1] * 0.8 * fs, fsm * 1.05, C.ink, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1], true, op);
+    }
 
-    // ângulo α (verde) e, rodado, o triângulo original esbatido
-    const lab = (id, src, p, c) => tex(id, src, p[0], p[1], fsm * 1.1, c);
-    const pa = arc(0, a, 0.2 * R, 0, C.al, 2.5, false);
+    // ângulo α (verde) e o triângulo original (esbatido, se houver transformação)
+    arc(0, a, 0.2 * R, 0, C.al, 2.5, false);
     const ra = 0.2 * R + 0.9 * fs;
-    lab("la", "\\alpha", [cx + ra * Math.cos(a / 2), cy - ra * Math.sin(a / 2)], C.al);
-    const P0 = triangle(0, rotated ? 0.4 : 1, true, false).P;
-    hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, off: 0 });
+    tex("la", "\\alpha", cx + ra * Math.cos(a / 2), cy - ra * Math.sin(a / 2), fsm * 1.1, C.al);
+    const op0 = moved ? 0.4 : 1;
+    // (sem o nome T se T' calhar em cima de T, como em −α)
+    const [t1x, t1y] = ap(M, ca, 0), sameT = moved && Math.hypot(t1x - X(ca), t1y - cy) < fs;
+    const P0 = triangle([1, 0, 0, 1], op0, false, sameT).P;
+    pLabel("oP", `P\\,(${X_},\\,${Y_})`, P0, moved ? 0.6 : 1);
+    hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, st: { s: 1, n: 0 } });
 
-    if (rotated) {
-      // ângulo β = α + φ (laranja, em espiral se passar de uma volta)
-      arc(0, a + phi, 0.32 * R, 0.07 * R, C.be, 2.5, true);
-      const tb = (a + phi) / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.9 * fs;
-      lab("lb", "\\beta", [cx + rb * Math.cos(tb), cy - rb * Math.sin(tb)], C.be);
-      // rotação de P até P' (roxo, por fora da circunferência)
-      arc(a, a + phi, 1.17 * R, 0.08 * R, C.rot, 2.5, true);
-      if (S.phi === S.n * PI / 2 && S.n) {
-        const tm = a + phi / 2, rr = 1.17 * R + 0.04 * R * Math.abs(phi) / TAU + 1.1 * fs;
-        tex("lr", (S.n > 0 ? "+" : "") + piTex(S.n, 2, "\\tfrac"), cx + rr * Math.cos(tm), cy - rr * Math.sin(tm), fsm, C.rot);
+    if (moved) {
+      // ângulo β (laranja, em espiral se passar de uma volta), a acompanhar a animação
+      const b0 = A ? beta(A.from) : beta(), b1 = A ? beta(A.to) : beta(), bd = b0 + (b1 - b0) * (A ? ease(A.t) : 1);
+      if (Math.abs(bd) > 0.02) {
+        arc(0, bd, 0.32 * R, 0.07 * R, C.be, 2.5, true);
+        const tb = bd / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.9 * fs;
+        tex("lb", "\\beta", cx + rb * Math.cos(tb), cy - rb * Math.sin(tb), fsm * 1.1, C.be);
       }
-      const P1 = triangle(phi, 1, true, true).P;
-      hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, off: S.n * PI / 2 });
+      // rotação de P até P' (roxo, por fora da circunferência), só quando β = α + nπ/2
+      if (st.s > 0 && st.n !== 0 && (!A || A.kind === "rot")) {
+        const c0 = A ? A.from.n * PI / 2 : 0, c = A ? c0 + (st.n * PI / 2 - c0) * ease(A.t) : st.n * PI / 2;
+        arc(a, a + c, 1.17 * R, 0.08 * R, C.rot, 2.5, true);
+        if (!A) {
+          const tm = a + c / 2, rr = 1.17 * R + 0.04 * R * Math.abs(c) / TAU + 1.1 * fs;
+          tex("lr", (st.n > 0 ? "+" : "") + piTex(st.n, 2, "\\tfrac"), cx + rr * Math.cos(tm), cy - rr * Math.sin(tm), fsm, C.rot);
+        }
+      }
+      const P1 = triangle(M, 1, true).P;
+      if (!A) {
+        const im = images(S);
+        pLabel("rP", `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1);
+        hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, st: { s: S.s, n: S.n } });
+      }
     }
   }
 
-  // botões das rotações
+  // botões: rotações (roxo) e ↺ na 1.ª fila; simetrias (verde-azulado) e x = cos α, y = sin α na 2.ª
   function toggle(b, fs) {
-    const opts = [[-2, "-\\pi"], [-1, "-\\tfrac{\\pi}{2}"], [1, "+\\tfrac{\\pi}{2}"], [2, "+\\pi"]];
-    const rw = b.h * 1.25, gap = 0.4 * fs, bw = (b.w - rw - 4 * gap) / 4;
-    opts.forEach(([d, src], i) => {
-      const x = b.x + i * (bw + gap);
-      const off = (d < 0 ? S.n <= NLIM[0] : S.n >= NLIM[1]);
-      rrect(x, b.y, bw, b.h, 8, C.btn, C.rot, 2);
-      const el = tex("tg" + i, src, x + bw / 2, b.y + b.h / 2, fs * 1.15, off ? C.line : C.rot, 0.5, 0.5, false);
-      fit(el, bw - 0.4 * fs, b.h);
-      hits.push({ kind: "rot", d, rect: { x, y: b.y, w: bw, h: b.h } });
-    });
+    const gap = 0.4 * fs, h = (b.h - gap) / 2, rw = h * 1.25, bw = (b.w - rw - 4 * gap) / 4;
+    const button = (i, row, src, col, kind, d, enabled) => {
+      const x = b.x + i * (bw + gap), y = b.y + row * (h + gap);
+      rrect(x, y, bw, h, 8, C.btn, enabled ? col : C.line, 2);
+      const el = tex(`tg${row}${i}`, src, x + bw / 2, y + h / 2, fs * 1.15, enabled ? col : C.line, 0.5, 0.5, false);
+      fit(el, bw - 0.4 * fs, h);
+      hits.push({ kind, d, rect: { x, y, w: bw, h } });
+    };
+    [[-2, "-\\pi"], [-1, "-\\tfrac{\\pi}{2}"], [1, "+\\tfrac{\\pi}{2}"], [2, "+\\pi"]].forEach(([d, src], i) =>
+      button(i, 0, src, C.rot, "rot", d, ok(OPS.rot(d))));
+    button(0, 1, "\\pi - \\alpha", C.sym, "oy", 0, ok(OPS.oy()));
+    button(1, 1, "-\\alpha", C.sym, "ox", 0, true);
     const x = b.x + b.w - rw;
-    rrect(x, b.y, rw, b.h, 8, C.btn, C.line, 2);
+    rrect(x, b.y, rw, h, 8, C.btn, C.line, 2);
     ctx.font = `700 ${fs * 1.05}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("↺", x + rw / 2, b.y + b.h / 2 + 0.12 * fs);
-    hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h: b.h } });
+    ctx.fillText("↺", x + rw / 2, b.y + h / 2 + 0.12 * fs);
+    hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h } });
+    // x = cos α e y = sin α, à direita das simetrias
+    const lx0 = b.x + 2 * (bw + gap), lw = b.x + b.w - lx0;
+    const el = tex("legend", `${X_} = \\cos\\alpha \\qquad ${Y_} = \\sin\\alpha`, b.x + b.w, b.y + h + gap + h / 2, fs * 1.1, C.ink, 1, 0.5, false);
+    fit(el, lw, h);
   }
 
-  // α = …   β = α + nπ/2 = …
-  function formula(b, fs) {
-    const at = clr(C.al, "\\alpha") + " = " + piTex(S.m, DIV);
-    const bt = S.n === 0 ? "\\beta = \\alpha"
-      : clr(C.be, "\\beta") + " = " + argTex(S.n) + " = " + piTex(S.m + S.n * DIV / 2, DIV);
-    const el = tex("formula", `${at} \\qquad ${bt}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.3, C.ink, L.land ? 0 : 0.5, 0.5, false);
-    fit(el, b.w, b.h);
-  }
-
-  // seno, cosseno e tangente de β em função de α (cores dos catetos)
+  // seno, cosseno e tangente de β em função de α
   function results(b, fs) {
     const sA = clr(C.sin, "\\sin\\alpha"), cA = clr(C.cos, "\\cos\\alpha"), tA = "\\tan\\alpha";
     let rows;
-    if (S.n === 0) {
+    if (S.s > 0 && S.n === 0) {
       rows = [[`\\sin\\alpha`, `${clr(C.sin, "\\overline{TP}")}`], [`\\cos\\alpha`, `${clr(C.cos, "\\overline{OT}")}`],
               [`\\tan\\alpha`, `\\dfrac{${sA}}{${cA}}`]];
     } else {
-      const r = ((S.n % 4) + 4) % 4, arg = `\\left(${argTex(S.n)}\\right)`;
-      const sb = [sA, cA, "-" + sA, "-" + cA][r], cb = [cA, "-" + sA, "-" + cA, sA][r];
-      const tb = r % 2 ? `-\\dfrac{1}{${tA}}` : tA;
-      rows = [[`\\sin${arg}`, sb], [`\\cos${arg}`, cb], [`\\tan${arg}`, tb]];
+      const im = images(S), arg = `\\left(${argTex(S)}\\right)`;
+      const f = ([sg, k]) => (sg < 0 ? "-" : "") + (k ? sA : cA);
+      const sg = im.s[0] * im.c[0];
+      const tb = im.s[1] === 1 ? (sg < 0 ? "-" : "") + tA : `${sg < 0 ? "-" : ""}\\dfrac{1}{${tA}}`;
+      rows = [[`\\sin${arg}`, f(im.s)], [`\\cos${arg}`, f(im.c)], [`\\tan${arg}`, tb]];
     }
     const src = `\\begin{aligned}${rows.map(([l, r]) => `${l} &= ${r}`).join("\\\\[0.35em]")}\\end{aligned}`;
     const el = tex("res", src, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, L.land ? 0 : 0.5, 0.5, false);
@@ -365,9 +411,9 @@
     for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d <= bd) { best = h; bd = d; } }
     return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
   }
-  // α a partir da posição do ponteiro (P ou P'), preso ao 1.º quadrante
+  // α a partir da posição do ponteiro (P ou P', com β = s·α + nπ/2), preso ao 1.º quadrante
   function dragP(h, x, y) {
-    let t = Math.atan2(-(y - h.cy), x - h.cx) - h.off;
+    let t = h.st.s * (Math.atan2(-(y - h.cy), x - h.cx) - h.st.n * PI / 2);
     t = ((t % TAU) + TAU) % TAU;
     if (t > PI / 2) t = t < PI / 2 + 3 * PI / 4 ? PI / 2 : 0;
     setM(t / PI * DIV);
@@ -378,8 +424,8 @@
     const h = hitAt(e.clientX, e.clientY);
     if (!h) return;
     e.preventDefault();
-    if (h.kind === "rot") { setN(S.n + h.d); return; }
-    if (h.kind === "reset") { setN(0); return; }
+    if (h.kind === "rot" || h.kind === "ox" || h.kind === "oy") { apply(h.kind, h.d); return; }
+    if (h.kind === "reset") { reset(); return; }
     if (h.kind === "step") {
       setM(S.m + h.d);
       stopRep();
@@ -402,23 +448,26 @@
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: ←/→ rodam π/2, ↑/↓ mudam α, 0 desfaz a rotação
+  // teclado: ←/→ rodam π/2, ↑/↓ mudam α, h → π − α, v → −α, 0 desfaz tudo
   window.addEventListener("keydown", e => {
-    if (e.key === "ArrowRight") setN(S.n + 1);
-    else if (e.key === "ArrowLeft") setN(S.n - 1);
+    if (e.key === "ArrowRight") apply("rot", 1);
+    else if (e.key === "ArrowLeft") apply("rot", -1);
     else if (e.key === "ArrowUp") setM(S.m + 1);
     else if (e.key === "ArrowDown") setM(S.m - 1);
-    else if (e.key === "0") setN(0);
+    else if (e.key === "h") apply("oy");
+    else if (e.key === "v") apply("ox");
+    else if (e.key === "0") reset();
     else return;
     e.preventDefault();
   });
 
-  // valores iniciais opcionais no endereço, p. ex. index.html#m=4&n=3 (α = 4π/36, rotação de 3π/2)
+  // valores iniciais opcionais no endereço, p. ex. index.html#m=4&n=2&s=-1 (α = 4π/36, β = π − α)
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
-    const q = tok.match(/^([mn])=(-?\d+)$/);
-    if (q) S[q[1]] = clamp(+q[2], ...(q[1] === "m" ? MLIM : NLIM));
+    const q = tok.match(/^([mns])=(-?\d+)$/);
+    if (!q) return;
+    if (q[1] === "s") S.s = +q[2] < 0 ? -1 : 1;
+    else S[q[1]] = clamp(+q[2], ...(q[1] === "m" ? MLIM : NLIM));
   });
-  S.phi = S.n * PI / 2;
 
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
