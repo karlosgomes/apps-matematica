@@ -16,7 +16,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
   - `parametros-k-a/`, `reducao-primeiro-quadrante/` — pensadas para smartphone e projeção: só modo projeção, controlos desenhados dentro da figura (estilo GeoGebra).
 
 ## Página inicial e menu do weblog
-- A página inicial usa o CSS/JS do próprio weblog (`https://karlosgomes.github.io/weblog/site_libs/bootstrap/...`) e tem uma cópia do menu do weblog (`<header id="quarto-header">`), com «Apps de Matemática» ativo. Sem pesquisa nem botão de modo escuro (precisam do Quarto).
+- A página inicial usa o CSS/JS do próprio weblog (`https://karlosgomes.github.io/weblog/site_libs/bootstrap/...`) e tem uma cópia do menu do weblog (`<header id="quarto-header">`), com «Apps de Matemática» ativo. Sem pesquisa (precisa do Quarto). Tem botão de modo escuro próprio (`alternarModo()`), com a mesma chave do weblog no `localStorage` (`quarto-color-scheme` = `alternate`): liga o `bootstrap-dark.min.css` do weblog e a classe `escuro` no `<html>`.
 - **Se o menu do weblog mudar, atualizar aqui à mão** (e também em `~/site/matematica-a-z/index.html`).
 
 ## Convenções de design (pedidas pelo utilizador)
