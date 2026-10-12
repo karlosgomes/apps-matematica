@@ -28,7 +28,7 @@
   const C = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
-    sin: "#d32f2f", cos: "#1565c0", al: "#2e7d32", be: "#ef6c00", rot: "#7b1fa2", sym: "#00838f",
+    sin: "#d32f2f", cos: "#1565c0", al: "#2e7d32", be: "#ef6c00", sym: "#00838f",
   };
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   // α = m·π/36, sempre no 1.º quadrante; o ângulo transformado é β = s·α + n·π/2 (s = ±1)
@@ -349,15 +349,6 @@
         const tb = bd / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.4 * fs, u = [Math.cos(tb), Math.sin(tb)];
         tex("lb", argTex(st, "\\tfrac"), cx + rb * u[0], cy - rb * u[1], fsm * 1.1, C.be, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1]);
       }
-      // rotação de P até P' (roxo, por fora da circunferência), só quando β = α + nπ/2
-      if (st.s > 0 && st.n % 2 && (!A || A.kind === "rot")) {
-        const c0 = A ? A.from.n * PI / 2 : 0, c = A ? c0 + (st.n * PI / 2 - c0) * ease(A.t) : st.n * PI / 2;
-        arc(a, a + c, 1.17 * R, 0.08 * R, C.rot, 2.5, true);
-        if (!A) {
-          const tm = a + c / 2, rr = 1.17 * R + 0.04 * R * Math.abs(c) / TAU + 1.1 * fs;
-          tex("lr", (st.n > 0 ? "+" : "") + piTex(st.n, 2, "\\tfrac"), cx + rr * Math.cos(tm), cy - rr * Math.sin(tm), fsm, C.rot);
-        }
-      }
       if (st.s > 0 && st.n % 4 === 2 && !A) line(...P0, ...ap(M, ca, sa), C.sym, 3, [10, 7]);   // simetria central em O
       const P1 = triangle(M, 1, true).P;
       if (!A) {
@@ -369,7 +360,7 @@
   }
 
   // em cima, em destaque: x = cos α, y = sin α; depois os cinco ângulos numa só fila
-  // (simetrias a verde-azulado, rotação a roxo); por baixo T, ordem do argumento e ↺
+  // (verde-azulado); por baixo T, ordem do argumento e ↺
   function toggle(b, fs) {
     const gap = 0.35 * fs, lh = 1.9 * fs, h = (b.h - lh - 2 * gap) / 2;
     rrect(b.x, b.y, b.w, lh, 8, "#f6f8fb", C.line, 1.5);
@@ -378,7 +369,7 @@
     const y1 = b.y + lh + gap, bw = (b.w - 4 * gap) / 5;
     STATES.forEach((st, i) => {
       const x = b.x + i * (bw + gap), on = same(S, st);
-      const col = st.s > 0 && st.n === 1 ? C.rot : C.sym;
+      const col = C.sym;
       rrect(x, y1, bw, h, 8, on ? col : C.btn, col, 2);
       const el = tex("tg" + st.key, st.src, x + bw / 2, y1 + h / 2, fs * 1.05, on ? "#fff" : col, 0.5, 0.5, false);
       fit(el, bw - 0.3 * fs, h);
