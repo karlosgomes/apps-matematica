@@ -33,7 +33,7 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   // α = m·π/36, sempre no 1.º quadrante; o ângulo transformado é β = s·α + n·π/2 (s = ±1)
   const DIV = 36, MLIM = [1, 17], NLIM = [-8, 8];
-  const S = { m: 6, s: 1, n: 0, hideT: false, rev: false, hideF: false };   // rev: π + α em vez de α + π; hideF: ocultar as fórmulas
+  const S = { m: 6, s: 1, n: 0, hideT: false, rev: false, hideF: false, hideC: false };   // rev: π + α em vez de α + π; hideF: ocultar as fórmulas; hideC: ocultar as coordenadas de P'
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const alpha = () => S.m * PI / DIV;
@@ -353,7 +353,7 @@
       const P1 = triangle(M, 1, true).P;
       if (!A) {
         const im = images(S);
-        pLabel("rP", `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1, turn);
+        pLabel("rP", S.hideC ? "P'" : `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1, turn);
         hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, st: { s: S.s, n: S.n } });
       }
     }
@@ -395,18 +395,30 @@
 
   // caixa de seleção (tick) para mostrar/ocultar as fórmulas, para os alunos as descobrirem primeiro
   function tick(b, fs) {
-    const bs = 0.85 * fs, y = b.y + (b.h - bs) / 2, on = !S.hideF;
-    rrect(b.x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
-    if (on) {
-      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.12 * fs;
-      ctx.beginPath(); ctx.moveTo(b.x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(b.x + 0.43 * bs, y + 0.72 * bs);
-      ctx.lineTo(b.x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
-      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
-    }
-    const txt = "Fórmulas de redução";
-    ctx.font = `${fs * 0.8}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(txt, b.x + bs + 0.4 * fs, b.y + b.h / 2 + 1);
-    hits.push({ kind: "hideF", rect: { x: b.x, y: b.y, w: bs + 0.4 * fs + ctx.measureText(txt).width, h: b.h } });
+    const bs = 0.85 * fs, y = b.y + (b.h - bs) / 2, gap = 0.9 * fs;
+    const t1 = "Fórmulas de redução", t2 = "Coordenadas de P\u2032";
+    // as duas caixas lado a lado; letra mais pequena se não couberem na largura
+    let f = fs * 0.8;
+    ctx.font = `${f}px ${FONT}`;
+    const fixed = 2 * (bs + 0.4 * fs) + gap, tw = ctx.measureText(t1).width + ctx.measureText(t2).width;
+    if (fixed + tw > b.w) { f *= (b.w - fixed) / tw; ctx.font = `${f}px ${FONT}`; }
+    // uma caixa: quadrado (com o visto, se ligada) e o texto à direita; devolve onde acaba
+    const box = (x, on, txt, kind) => {
+      rrect(x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
+      if (on) {
+        ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.12 * fs;
+        ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, y + 0.72 * bs);
+        ctx.lineTo(x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
+        ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+      }
+      ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x + bs + 0.4 * fs, b.y + b.h / 2 + 1);
+      const w = bs + 0.4 * fs + ctx.measureText(txt).width;
+      hits.push({ kind, rect: { x, y: b.y, w, h: b.h } });
+      return x + w;
+    };
+    const x1 = box(b.x, !S.hideF, t1, "hideF");
+    box(x1 + gap, !S.hideC, t2, "hideC");
   }
 
   // seno, cosseno e tangente de β em função de α
@@ -482,6 +494,7 @@
     if (h.kind === "hideT") { S.hideT = !S.hideT; draw(); return; }
     if (h.kind === "rev") { S.rev = !S.rev; draw(); return; }
     if (h.kind === "hideF") { S.hideF = !S.hideF; draw(); return; }
+    if (h.kind === "hideC") { S.hideC = !S.hideC; draw(); return; }
     if (h.kind === "step") {
       setM(S.m + h.d);
       stopRep();
@@ -504,7 +517,7 @@
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: 1 a 5 → os botões (π − α, π + α, −α, π/2 − α, π/2 + α), ↑/↓ mudam α, 0 volta a α, t mostra/oculta T, r troca α + π ⇄ π + α, f mostra/oculta as fórmulas
+  // teclado: 1 a 5 → os botões (π − α, π + α, −α, π/2 − α, π/2 + α), ↑/↓ mudam α, 0 volta a α, t mostra/oculta T, r troca α + π ⇄ π + α, f mostra/oculta as fórmulas, c as coordenadas de P'
   window.addEventListener("keydown", e => {
     if (e.key >= "1" && e.key <= "5") apply(STATES[+e.key - 1]);
     else if (e.key === "ArrowUp") setM(S.m + 1);
@@ -513,6 +526,7 @@
     else if (e.key === "t") { S.hideT = !S.hideT; draw(); }
     else if (e.key === "r") { S.rev = !S.rev; draw(); }
     else if (e.key === "f") { S.hideF = !S.hideF; draw(); }
+    else if (e.key === "c") { S.hideC = !S.hideC; draw(); }
     else return;
     e.preventDefault();
   });
