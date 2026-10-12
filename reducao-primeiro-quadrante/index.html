@@ -174,10 +174,10 @@
     return sg + (q === 1 ? num : `${frac}{${num}}{${q}}`);
   }
   // β = s·α + n·π/2 escrito como nos manuais: α + π/2, π − α, −α, π/2 − α, …
-  function argTex(st) {
+  function argTex(st, frac = "\\frac") {
     if (st.s > 0 && st.n === 0) return "\\alpha";
-    if (st.s > 0) return S.rev ? `${piTex(st.n, 2)} + \\alpha` : `\\alpha ${st.n > 0 ? "+" : "-"} ${piTex(Math.abs(st.n), 2)}`;
-    return st.n === 0 ? "-\\alpha" : `${piTex(st.n, 2)} - \\alpha`;
+    if (st.s > 0) return S.rev ? `${piTex(st.n, 2, frac)} + \\alpha` : `\\alpha ${st.n > 0 ? "+" : "-"} ${piTex(Math.abs(st.n), 2, frac)}`;
+    return st.n === 0 ? "-\\alpha" : `${piTex(st.n, 2, frac)} - \\alpha`;
   }
   // (cos β, sin β) — e as coordenadas de P' — à custa de (cos α, sin α): pares [sinal, 0 = cos/x, 1 = sin/y]
   function images(st) {
@@ -341,12 +341,13 @@
     hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, st: { s: 1, n: 0 } });
 
     if (moved) {
-      // ângulo β (laranja, em espiral se passar de uma volta), a acompanhar a animação
+      // ângulo β (laranja, com o nome do ângulo de destino: π − α, π/2 + α, …; em espiral se passar de uma volta), a acompanhar a animação
       const b0 = A ? beta(A.from) : beta(), b1 = A ? beta(A.to) : beta(), bd = b0 + (b1 - b0) * (A ? ease(A.t) : 1);
       if (Math.abs(bd) > 0.02) {
         arc(0, bd, 0.32 * R, 0.07 * R, C.be, 2.5, true);
-        const tb = bd / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.9 * fs;
-        tex("lb", "\\beta", cx + rb * Math.cos(tb), cy - rb * Math.sin(tb), fsm * 1.1, C.be);
+        // por fora do arco, a crescer para fora (não tapa os α quando o ângulo é pequeno)
+        const tb = bd / 2, rb = 0.32 * R + 0.07 * R * Math.abs(tb) / TAU + 0.4 * fs, u = [Math.cos(tb), Math.sin(tb)];
+        tex("lb", argTex(st, "\\tfrac"), cx + rb * u[0], cy - rb * u[1], fsm * 1.1, C.be, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1]);
       }
       // rotação de P até P' (roxo, por fora da circunferência), só quando β = α + nπ/2
       if (st.s > 0 && st.n % 2 && (!A || A.kind === "rot")) {
