@@ -426,7 +426,7 @@
       rows = [[`\\sin\\alpha`, `${clr(C.sin, "\\overline{TP}")}`], [`\\cos\\alpha`, `${clr(C.cos, "\\overline{OT}")}`],
               [`\\tan\\alpha`, `\\dfrac{${sA}}{${cA}}`]];
     } else {
-      const im = images(S), arg = `\\left(${argTex(S)}\\right)`;
+      const im = images(S), arg = `\\left(${clr(C.be, argTex(S))}\\right)`;
       const f = ([sg, k]) => (sg < 0 ? "-" : "") + (k ? sA : cA);
       const sg = im.s[0] * im.c[0];
       const tb = im.s[1] === 1 ? (sg < 0 ? "-" : "") + tA : `${sg < 0 ? "-" : ""}\\dfrac{1}{${tA}}`;
