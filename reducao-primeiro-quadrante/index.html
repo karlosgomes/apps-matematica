@@ -33,7 +33,8 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   // α = m·π/36, sempre no 1.º quadrante; o ângulo transformado é β = s·α + n·π/2 (s = ±1)
   const DIV = 36, MLIM = [1, 17], NLIM = [-8, 8];
-  const S = { m: 6, s: 1, n: 0, hideT: false, rev: false, hideF: false, hideC: false };   // rev: π + α em vez de α + π; hideF: ocultar as fórmulas; hideC: ocultar as coordenadas de P'
+  const S = { m: 6, s: 1, n: 0, hideT: false, rev: false, hideF: false, hideC: false,   // rev: π + α em vez de α + π; hideF: ocultar as fórmulas; hideC: ocultar as coordenadas de P'
+              lab: false, bd: 180, ls: -1 };   // laboratório: ângulo β ± α, com β qualquer (bd, em graus, de 5° em 5°) e ls = ±1
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const alpha = () => S.m * PI / DIV;
@@ -86,13 +87,30 @@
   const ease = t => t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
   // matriz desenhada agora (a meio da animação, se houver)
   function Mnow() {
+    if (S.lab) return labM();
     if (!A) return Mof(S);
     const e = ease(A.t);
     if (A.kind === "rot") return mul(Rm(e * A.th), A.M0);
     if (A.kind === "cen") return A.M0.map(v => v * (1 - 2 * e));   // passa por O
     return mul(flip(A.psi, 1 - 2 * e), A.M0);
   }
-  const reset = () => apply({ s: 1, n: 0 });
+  const reset = () => S.lab ? setB(180) : apply({ s: 1, n: 0 });
+
+  // ---------- laboratório: β − α (reflexão na reta de ângulo β/2) e β + α (rotação de β), com β qualquer ----------
+  const bRad = () => S.bd * PI / 180;
+  const special = () => S.bd % 90 === 0;   // só aqui os catetos ficam paralelos aos eixos
+  const labM = () => { const b = bRad(), c = Math.cos(b), s = Math.sin(b); return S.ls < 0 ? [c, s, s, -c] : [c, -s, s, c]; };
+  const setB = d => { d = clamp(d, 0, 360); if (d !== S.bd) { S.bd = d; draw(); } };
+  // ao entrar, parte do ângulo escolhido nos botões (π − α → 180° − α, …); ao sair, volta a ele se β for múltiplo de 90°
+  function setLab(on) {
+    A = null;
+    if (on) {
+      if (S.s > 0 && ((S.n % 4) + 4) % 4 === 0) { S.bd = 180; S.ls = -1; }
+      else { S.bd = (((S.n % 4) + 4) % 4) * 90; S.ls = S.s; }
+    } else if (special()) { S.s = S.ls; S.n = S.bd / 90; }
+    else { S.s = 1; S.n = 0; }
+    S.lab = on; draw();
+  }
 
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
@@ -175,6 +193,12 @@
   }
   // β = s·α + n·π/2 escrito como nos manuais: α + π/2, π − α, −α, π/2 − α, …
   function argTex(st, frac = "\\frac") {
+    if (S.lab) {
+      const D = `${S.bd}^\\circ`;
+      if (S.bd === 0) return st.s > 0 ? "\\alpha" : "-\\alpha";
+      if (st.s < 0) return `${D} - \\alpha`;
+      return S.rev ? `${D} + \\alpha` : `\\alpha + ${D}`;
+    }
     if (st.s > 0 && st.n === 0) return "\\alpha";
     if (st.s > 0) return S.rev ? `${piTex(st.n, 2, frac)} + \\alpha` : `\\alpha ${st.n > 0 ? "+" : "-"} ${piTex(Math.abs(st.n), 2, frac)}`;
     return st.n === 0 ? "-\\alpha" : `${piTex(st.n, 2, frac)} - \\alpha`;
@@ -209,6 +233,10 @@
   }
   const X_ = clr(C.cos, "x"), Y_ = clr(C.sin, "y");
   const coord = ([sg, k]) => (sg < 0 ? "-" : "") + (k ? Y_ : X_);
+  // decimal com vírgula, duas casas
+  const num = v => { if (Math.abs(v) < 0.005) v = 0; return (v < 0 ? "-" : "") + Math.abs(v).toFixed(2).replace(".", "{,}"); };
+  // estado equivalente aos botões (β múltiplo de 90°), para as fórmulas
+  const labSt = () => ({ s: S.ls, n: S.bd / 90 });
 
   // ---------- desenho ----------
   let raf = 0;
@@ -238,9 +266,9 @@
       line(X(v), Y(-1.3), X(v), Y(1.3), v % 1 ? C.grid : C.grid2, 1);
     }
     // eixo de simetria (β = −α + c ↔ reflexão na reta de ângulo c/2), por baixo de tudo
-    const st = A ? A.to : S;
+    const st = S.lab ? { s: S.ls, n: S.bd / 90 } : A ? A.to : S;
     if (st.s < 0) {
-      const ps = st.n * PI / 4, e = 1.38, op = A && A.kind !== "rot" ? ease(A.t) : 1;
+      const ps = S.lab ? bRad() / 2 : st.n * PI / 4, e = 1.38, op = A && A.kind !== "rot" ? ease(A.t) : 1;
       ctx.globalAlpha = op;
       line(X(-e * Math.cos(ps)), Y(-e * Math.sin(ps)), X(e * Math.cos(ps)), Y(e * Math.sin(ps)), C.sym, 3, [10, 7]);
       ctx.globalAlpha = 1;
@@ -257,7 +285,7 @@
     tex("O", "O", cx - 0.25 * fs, cy + 0.2 * fs, fsm, C.muted, 1, 0);
 
     const a = alpha(), ca = Math.cos(a), sa = Math.sin(a);
-    const M = Mnow(), moved = A || S.s < 0 || S.n !== 0;
+    const M = Mnow(), moved = S.lab ? !(S.ls > 0 && S.bd % 360 === 0) : A || S.s < 0 || S.n !== 0;
     const ap = (M, u, v) => [X(M[0] * u + M[1] * v), Y(M[2] * u + M[3] * v)];
 
     // arco de um ângulo (em espiral se der mais de uma volta), com seta opcional no fim
@@ -338,11 +366,12 @@
     dA = Math.atan2(Math.sin(dA), Math.cos(dA));
     const turn = moved && !A && Math.abs(dA) < 0.6 ? (dA >= 0 ? 1 : -1) * 0.5 : 0;
     pLabel("oP", `P\\,(${X_},\\,${Y_})`, P0, moved ? 0.6 : 1, -turn);
-    hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, st: { s: 1, n: 0 } });
+    hits.push({ kind: "P", x: P0[0], y: P0[1], r: 1.6 * fs, cx, cy, st: { s: 1, off: 0 } });
 
     if (moved) {
       // ângulo β (laranja, com o nome do ângulo de destino: π − α, π/2 + α, …; em espiral se passar de uma volta), a acompanhar a animação
-      const b0 = A ? beta(A.from) : beta(), b1 = A ? beta(A.to) : beta(), bd = b0 + (b1 - b0) * (A ? ease(A.t) : 1);
+      const b0 = A ? beta(A.from) : beta(), b1 = A ? beta(A.to) : beta();
+      const bd = S.lab ? S.ls * a + bRad() : b0 + (b1 - b0) * (A ? ease(A.t) : 1);
       if (Math.abs(bd) > 0.02) {
         arc(0, bd, 0.32 * R, 0.07 * R, C.be, 2.5, true);
         // por fora do arco, a crescer para fora (não tapa os α quando o ângulo é pequeno)
@@ -350,12 +379,33 @@
         tex("lb", argTex(st, "\\tfrac"), cx + rb * u[0], cy - rb * u[1], fsm * 1.1, C.be, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1]);
       }
       if (st.s > 0 && st.n % 4 === 2 && !A) line(...P0, ...ap(M, ca, sa), C.sym, 3, [10, 7]);   // simetria central em O
+      // laboratório: o triângulo das coordenadas de P' (catetos paralelos aos eixos), a tracejado;
+      // só coincide com o triângulo transformado quando β é múltiplo de 90°
+      if (S.lab) {
+        const [qx, qy] = ap(M, ca, sa);
+        line(cx, cy, qx, cy, "#8a96a3", 4, [8, 6]);
+        line(qx, cy, qx, qy, "#8a96a3", 4, [8, 6]);
+      }
       const P1 = triangle(M, 1, true).P;
       if (!A) {
-        const im = images(S);
-        pLabel("rP", S.hideC ? "P'" : `P'\\,(${coord(im.c)},\\,${coord(im.s)})`, P1, 1, turn);
-        hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, st: { s: S.s, n: S.n } });
+        let src = "P'";
+        if (!S.hideC) {
+          if (!S.lab || special()) { const im = images(S.lab ? labSt() : S); src = `P'\\,(${coord(im.c)},\\,${coord(im.s)})`; }
+          else { const t = S.ls * a + bRad(); src = `P'\\,(${num(Math.cos(t))};\\,${num(Math.sin(t))})`; }
+        }
+        pLabel("rP", src, P1, 1, turn);
+        hits.push({ kind: "P", x: P1[0], y: P1[1], r: 1.6 * fs, cx, cy, st: S.lab ? { s: S.ls, off: bRad() } : { s: S.s, off: S.n * PI / 2 } });
       }
+    }
+    // laboratório: o ponto B, no ângulo β, arrastável
+    if (S.lab) {
+      const b = bRad(), Bx = X(Math.cos(b)), By = Y(Math.sin(b));
+      ctx.beginPath(); ctx.arc(Bx, By, 0.42 * fs, 0, TAU);
+      ctx.fillStyle = C.bg; ctx.fill(); ctx.lineWidth = 3.5; ctx.strokeStyle = C.sym; ctx.stroke();
+      dot(Bx, By, 0.16 * fs, C.sym);
+      const u = [Math.cos(b), Math.sin(b)];
+      tex("lB", "\\beta", Bx + u[0] * 0.95 * fs, By - u[1] * 0.95 * fs, fsm * 1.1, C.sym, 0.5 - 0.5 * u[0], 0.5 + 0.5 * u[1]);
+      hits.push({ kind: "B", x: Bx, y: By, r: 1.4 * fs, cx, cy });
     }
   }
 
@@ -367,7 +417,8 @@
     const lg = tex("legend", `${X_} = \\cos\\alpha, \\qquad ${Y_} = \\sin\\alpha`, b.x + b.w / 2, b.y + lh / 2, fs * 1.3, C.ink, 0.5, 0.5, false);
     fit(lg, b.w - 0.6 * fs, lh);
     const y1 = b.y + lh + gap, bw = (b.w - 4 * gap) / 5;
-    STATES.forEach((st, i) => {
+    if (S.lab) labRow(b, y1, bw, h, gap, fs);
+    else STATES.forEach((st, i) => {
       const x = b.x + i * (bw + gap), on = same(S, st);
       const col = C.sym;
       rrect(x, y1, bw, h, 8, on ? col : C.btn, col, 2);
@@ -385,12 +436,33 @@
     const xT = b.x, xR = xT + sw + gap, wR = bw * 1.15;
     small(xT, sw, "T", !S.hideT, "hideT");
     if (S.hideT) line(xT + 0.3 * sw, y2 + h - 0.25 * h, xT + 0.7 * sw, y2 + 0.25 * h, C.ink, 2);   // T riscado
-    small(xR, wR, S.rev ? "\\pi + \\alpha" : "\\alpha + \\pi", false, "rev");
+    if (!S.lab) small(xR, wR, S.rev ? "\\pi + \\alpha" : "\\alpha + \\pi", false, "rev");
     const x = b.x + b.w - sw;
+    small(x - gap - wR, wR, "\\beta \\pm \\alpha", S.lab, "lab");
     rrect(x, y2, sw, h, 8, C.btn, C.line, 2);
     ctx.font = `700 ${fs * 1.05}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("↺", x + sw / 2, y2 + h / 2 + 0.12 * fs);
     hits.push({ kind: "reset", rect: { x, y: y2, w: sw, h } });
+  }
+
+  // laboratório: β − α ⇄ β + α e o valor de β (de 5° em 5°)
+  function labRow(b, y, bw, h, gap, fs) {
+    [[-1, "\\beta - \\alpha"], [1, "\\beta + \\alpha"]].forEach(([d, src], i) => {
+      const x = b.x + i * (bw + gap), on = S.ls === d;
+      rrect(x, y, bw, h, 8, on ? C.sym : C.btn, C.sym, 2);
+      fit(tex("lg" + i, src, x + bw / 2, y + h / 2, fs * 1.05, on ? "#fff" : C.sym, 0.5, 0.5, false), bw - 0.3 * fs, h);
+      hits.push({ kind: "lsign", d, rect: { x, y, w: bw, h } });
+    });
+    const x0 = b.x + 2 * (bw + gap), x1 = b.x + b.w, sw = h * 1.1;
+    const btn = (x, txt, d) => {
+      rrect(x, y, sw, h, 8, C.btn, C.line, 2);
+      ctx.font = `700 ${fs * 1.1}px ${FONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x + sw / 2, y + h / 2 + 1);
+      hits.push({ kind: "bstep", d, rect: { x, y, w: sw, h } });
+    };
+    btn(x0, "−", -1); btn(x1 - sw, "+", 1);
+    const el = tex("lbv", `${clr(C.sym, "\\beta")} = ${S.bd}^\\circ`, (x0 + x1) / 2, y + h / 2, fs * 1.15, C.ink, 0.5, 0.5, false);
+    fit(el, x1 - x0 - 2 * sw - 0.4 * fs, h);
   }
 
   // caixa de seleção (tick) para mostrar/ocultar as fórmulas, para os alunos as descobrirem primeiro
@@ -424,12 +496,25 @@
   // seno, cosseno e tangente de β em função de α
   function results(b, fs) {
     const sA = clr(C.sin, "\\sin\\alpha"), cA = clr(C.cos, "\\cos\\alpha"), tA = "\\tan\\alpha";
+    const st = S.lab ? labSt() : S;
     let rows;
-    if (S.s > 0 && S.n === 0) {
+    if (S.lab && !special()) {
+      // β qualquer: só valores aproximados; "= ±sin α" aparece apenas quando coincide, para este α
+      const a = alpha(), t = S.ls * a + bRad(), arg = `\\left(${clr(C.be, argTex(st))}\\right)`;
+      const cands = [[1, sA, Math.sin(a)], [-1, sA, Math.sin(a)], [1, cA, Math.cos(a)], [-1, cA, Math.cos(a)]];
+      const same = v => { const c = cands.find(([g, , w]) => Math.abs(v - g * w) < 1e-6); return c ? ` = ${c[0] < 0 ? "-" : ""}${c[1]}` : ""; };
+      rows = [[sA, `\\approx ${num(Math.sin(a))}`], [cA, `\\approx ${num(Math.cos(a))}`],
+              [`\\sin${arg}`, `\\approx ${num(Math.sin(t))}${same(Math.sin(t))}`], [`\\cos${arg}`, `\\approx ${num(Math.cos(t))}${same(Math.cos(t))}`]];
+      const src = `\\begin{aligned}${rows.map(([l, r]) => `${l} &${r}`).join("\\\\[0.3em]")}\\end{aligned}`;
+      const el = tex("res", src, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, L.land ? 0 : 0.5, 0.5, false);
+      fit(el, b.w, b.h);
+      return;
+    }
+    if (st.s > 0 && ((st.n % 4) + 4) % 4 === 0) {
       rows = [[`\\sin\\alpha`, `${clr(C.sin, "\\overline{TP}")}`], [`\\cos\\alpha`, `${clr(C.cos, "\\overline{OT}")}`],
               [`\\tan\\alpha`, `\\dfrac{${sA}}{${cA}}`]];
     } else {
-      const im = images(S), arg = `\\left(${clr(C.be, argTex(S))}\\right)`;
+      const im = images(st), arg = `\\left(${clr(C.be, argTex(st))}\\right)`;
       const f = ([sg, k]) => (sg < 0 ? "-" : "") + (k ? sA : cA);
       const sg = im.s[0] * im.c[0];
       const tb = im.s[1] === 1 ? (sg < 0 ? "-" : "") + tA : `${sg < 0 ? "-" : ""}\\dfrac{1}{${tA}}`;
@@ -443,7 +528,7 @@
   // cursor de α (de π/36 em π/36, no 1.º quadrante)
   function slider(b, fs) {
     const lo = 0, hi = DIV / 2, col = C.al;
-    tex("sl", `${clr(col, "\\alpha")} = ${piTex(S.m, DIV)}`, b.x, b.y + 0.6 * fs, fs * 1.05, C.ink, 0, 0.5, false);
+    tex("sl", `${clr(col, "\\alpha")} = ${S.lab ? S.m * 180 / DIV + "^\\circ" : piTex(S.m, DIV)}`, b.x, b.y + 0.6 * fs, fs * 1.05, C.ink, 0, 0.5, false);
     const bs = 1.75 * fs, ry = b.y + 1.25 * fs, cy = ry + bs / 2;
     const btn = (x, txt, d) => {
       rrect(x, ry, bs, bs, 8, C.btn, C.line, 2);
@@ -461,7 +546,7 @@
     // marcas de π/12 em π/12; numeradas 0, π/4 e π/2
     for (let v = lo; v <= hi; v += 3) {
       line(TX(v), cy + 0.25 * fs, TX(v), cy + 0.45 * fs, C.muted, 1.2);
-      if (v % 9 === 0) tex("s" + v, piTex(v, DIV, "\\tfrac"), TX(v), cy + 0.5 * fs, fs * 0.72, C.muted, 0.5, 0, false);
+      if (v % 9 === 0) tex("s" + v, S.lab ? v * 180 / DIV + "^\\circ" : piTex(v, DIV, "\\tfrac"), TX(v), cy + 0.5 * fs, fs * 0.72, C.muted, 0.5, 0, false);
     }
     dot(TX(S.m), cy, 0.55 * fs, col, 2.5);
     hits.push({ kind: "slide", rect: { x: tx0 - fs, y: ry - 0.3 * fs, w: tx1 - tx0 + 2 * fs, h: bs + 0.6 * fs },
@@ -478,11 +563,19 @@
   }
   // α a partir da posição do ponteiro (P ou P', com β = s·α + nπ/2), preso ao 1.º quadrante
   function dragP(h, x, y) {
-    let t = h.st.s * (Math.atan2(-(y - h.cy), x - h.cx) - h.st.n * PI / 2);
+    let t = h.st.s * (Math.atan2(-(y - h.cy), x - h.cx) - h.st.off);
     t = ((t % TAU) + TAU) % TAU;
     if (t > PI / 2) t = t < PI / 2 + 3 * PI / 4 ? PI / 2 : 0;
     setM(t / PI * DIV);
   }
+  // β a partir da posição do ponteiro: de 5° em 5°, preso aos múltiplos de 90° quando perto
+  function dragB(h, x, y) {
+    const t = ((Math.atan2(-(y - h.cy), x - h.cx) * 180 / PI) + 360) % 360, q = Math.round(t / 90) * 90;
+    let d = Math.abs(t - q) < 6 ? q : Math.round(t / 5) * 5;
+    if (d === 0 || d === 360) d = S.bd > 180 ? 360 : 0;
+    setB(d);
+  }
+  const dragTo = (h, x, y) => h.kind === "slide" ? setM(h.val(x)) : h.kind === "B" ? dragB(h, x, y) : dragP(h, x, y);
   let drag = null, rep = null;
   const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
   cv.addEventListener("pointerdown", e => {
@@ -495,31 +588,35 @@
     if (h.kind === "rev") { S.rev = !S.rev; draw(); return; }
     if (h.kind === "hideF") { S.hideF = !S.hideF; draw(); return; }
     if (h.kind === "hideC") { S.hideC = !S.hideC; draw(); return; }
-    if (h.kind === "step") {
-      setM(S.m + h.d);
+    if (h.kind === "lab") { setLab(!S.lab); return; }
+    if (h.kind === "lsign") { S.ls = h.d; draw(); return; }
+    if (h.kind === "step" || h.kind === "bstep") {
+      const f = h.kind === "step" ? () => setM(S.m + h.d) : () => setB(S.bd + 5 * h.d);
+      f();
       stopRep();
-      rep = setTimeout(() => { rep = setInterval(() => setM(S.m + h.d), 110); }, 400);
+      rep = setTimeout(() => { rep = setInterval(f, 110); }, 400);
       return;
     }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     drag = h;
-    if (h.kind === "slide") setM(h.val(e.clientX)); else dragP(h, e.clientX, e.clientY);
+    dragTo(h, e.clientX, e.clientY);
     cv.style.cursor = "grabbing";
   });
   cv.addEventListener("pointermove", e => {
-    if (drag) {
-      if (drag.kind === "slide") setM(drag.val(e.clientX)); else dragP(drag, e.clientX, e.clientY);
-      return;
-    }
+    if (drag) { dragTo(drag, e.clientX, e.clientY); return; }
     const h = hitAt(e.clientX, e.clientY);
-    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : h.kind === "P" ? "grab" : "pointer";
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : h.kind === "P" || h.kind === "B" ? "grab" : "pointer";
   });
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
   // teclado: 1 a 5 → os botões (π − α, π + α, −α, π/2 − α, π/2 + α), ↑/↓ mudam α, 0 volta a α, t mostra/oculta T, r troca α + π ⇄ π + α, f mostra/oculta as fórmulas, c as coordenadas de P'
+  // l liga/desliga o laboratório; aí 1 → β − α, 2 → β + α, ←/→ mudam β, 0 volta a β = 180°
   window.addEventListener("keydown", e => {
-    if (e.key >= "1" && e.key <= "5") apply(STATES[+e.key - 1]);
+    if (e.key === "l") setLab(!S.lab);
+    else if (S.lab && (e.key === "1" || e.key === "2")) { S.ls = e.key === "1" ? -1 : 1; draw(); }
+    else if (S.lab && (e.key === "ArrowLeft" || e.key === "ArrowRight")) setB(S.bd + (e.key === "ArrowLeft" ? -5 : 5));
+    else if (e.key >= "1" && e.key <= "5") { if (!S.lab) apply(STATES[+e.key - 1]); }
     else if (e.key === "ArrowUp") setM(S.m + 1);
     else if (e.key === "ArrowDown") setM(S.m - 1);
     else if (e.key === "0") reset();
@@ -531,11 +628,13 @@
     e.preventDefault();
   });
 
-  // valores iniciais opcionais no endereço, p. ex. index.html#m=4&n=2&s=-1 (α = 4π/36, β = π − α)
+  // valores iniciais opcionais no endereço, p. ex. index.html#m=4&n=2&s=-1 (α = 4π/36, β = π − α);
+  // b liga o laboratório, p. ex. #b=160&s=-1 (160° − α)
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
-    const q = tok.match(/^([mns])=(-?\d+)$/);
+    const q = tok.match(/^([mnsb])=(-?\d+)$/);
     if (!q) return;
-    if (q[1] === "s") S.s = +q[2] < 0 ? -1 : 1;
+    if (q[1] === "b") { S.lab = true; S.bd = clamp(Math.round(+q[2] / 5) * 5, 0, 360); }
+    else if (q[1] === "s") S.s = S.ls = +q[2] < 0 ? -1 : 1;
     else S[q[1]] = clamp(+q[2], ...(q[1] === "m" ? MLIM : NLIM));
   });
 
