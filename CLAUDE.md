@@ -13,6 +13,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 - `img/logo.png` — logótipo.
 - Uma pasta por app:
   - `funcao-enrolamento/`, `ondas-sonoras/`, `oscilador-harmonico/`, `funcao-sinusoidal-completa/`, `funcao-sinusoidal-simples/` — layout de duas colunas, com «Modo projeção»;
+  - `python/` — editor de Python (CodeMirror 5 via cdnjs + Pyodide 0.26.4 via jsdelivr, no fio principal): programas no `localStorage` (chave `apps-mat-python`), abrir/descarregar .py, link `#codigo=<base64>&nome=…` que cria uma cópia do programa; `input()` usa `prompt()`; `plt.show()` desenha PNG na saída. Um ciclo infinito bloqueia a página (sem botão Parar: o GitHub Pages não dá os cabeçalhos COOP/COEP).
   - `parametros-k-a/`, `reducao-primeiro-quadrante/` — pensadas para smartphone e projeção: só modo projeção, controlos desenhados dentro da figura (estilo GeoGebra).
 
 ## Página inicial e menu do weblog

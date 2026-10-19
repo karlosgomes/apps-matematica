@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python no navegador</title>
+<link rel="icon" href="https://karlosgomes.github.io/weblog/Homem_Guitarra_CG.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  :root { --banner: #170C3A; --bg: #ffffff; --ink: #17202b; --muted: #5b6475; --panel: #f6f7fa; --line: #d5dae2;
+          --accent: #EE6A24; --hover: #FB9E07; --err: #c62828; --ok: #2e7d32;
+          --kw: #7b1fa2; --str: #2e7d32; --num: #1565c0; --com: #8a94a3; --def: #c75000; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
+          --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif;
+         display: flex; flex-direction: column; }
+  header { background: var(--banner); color: #fff; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; }
+  header h1 { font-size: 1.15rem; margin: 0 10px 0 0; font-weight: 700; white-space: nowrap; }
+  header h1 a { color: inherit; text-decoration: none; }
+  .grupo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .espaco { flex: 1; }
+  select, button { font: inherit; font-size: .92rem; border-radius: 6px; border: 1px solid rgba(255,255,255,.35);
+                   background: rgba(255,255,255,.1); color: #fff; padding: 5px 10px; cursor: pointer; }
+  select { max-width: 14em; }
+  select option { color: #17202b; background: #fff; }
+  button:hover, select:hover { background: rgba(255,255,255,.2); }
+  button:disabled { opacity: .5; cursor: default; }
+  #executar { background: var(--accent); border-color: var(--accent); font-weight: 700; padding: 5px 16px; }
+  #executar:hover:not(:disabled) { background: var(--hover); border-color: var(--hover); }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  #editor-caixa { min-width: 0; min-height: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .CodeMirror { flex: 1; height: auto; font: 15px/1.5 "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+                background: var(--bg); color: var(--ink); }
+  .CodeMirror-gutters { background: var(--panel); border-right: 1px solid var(--line); }
+  .CodeMirror-linenumber { color: var(--muted); }
+  .CodeMirror-cursor { border-left-color: var(--ink); }
+  .CodeMirror-selected, .CodeMirror-focused .CodeMirror-selected { background: rgba(238,106,36,.22); }
+  .CodeMirror-matchingbracket { color: var(--accent) !important; font-weight: 600; }
+  .cm-keyword { color: var(--kw); font-weight: 500; } .cm-builtin { color: var(--def); }
+  .cm-string { color: var(--str); } .cm-number { color: var(--num); } .cm-comment { color: var(--com); font-style: italic; }
+  .cm-def { color: var(--def); font-weight: 500; } .cm-operator { color: var(--ink); } .cm-variable-2 { color: var(--ink); }
+  #saida-caixa { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+  .barra { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--line);
+           font-size: .88rem; color: var(--muted); }
+  .barra button { color: var(--ink); border-color: var(--line); background: var(--bg); padding: 2px 10px; font-size: .85rem; }
+  .barra button:hover { background: var(--panel); }
+  #estado { flex: 1; }
+  #estado.ok { color: var(--ok); } #estado.erro { color: var(--err); }
+  #saida { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; font: 15px/1.5 "IBM Plex Mono", ui-monospace, monospace;
+           white-space: pre-wrap; word-break: break-word; }
+  #saida .err { color: var(--err); }
+  #saida .info { color: var(--muted); font-style: italic; }
+  #saida img { display: block; max-width: 100%; margin: 8px 0; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
+  #aviso { font-size: .8rem; color: var(--muted); padding: 6px 14px; border-top: 1px solid var(--line); }
+  #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--banner); color: #fff;
+         padding: 8px 16px; border-radius: 8px; font-size: .92rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  #msg.ver { opacity: 1; }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 55%) 1fr; }
+    #editor-caixa { border-right: 0; border-bottom: 1px solid var(--line); }
+    header { padding: 8px 12px; }
+    select { max-width: 10em; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../">Python</a></h1>
+  <div class="grupo">
+    <select id="lista" aria-label="Programa"></select>
+    <button id="novo" title="Novo programa">Novo</button>
+    <button id="renomear" title="Mudar o nome do programa">Renomear</button>
+    <button id="apagar" title="Apagar este programa">Apagar</button>
+  </div>
+  <div class="grupo">
+    <button id="abrir" title="Abrir um ficheiro .py do computador">Abrir .py</button>
+    <button id="descarregar" title="Guardar o programa num ficheiro .py">Descarregar</button>
+    <button id="partilhar" title="Copiar um link com este programa">Copiar link</button>
+  </div>
+  <span class="espaco"></span>
+  <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
+  <input type="file" id="ficheiro" accept=".py,.txt,text/x-python,text/plain" hidden>
+</header>
+<main>
+  <div id="editor-caixa"><textarea id="codigo"></textarea></div>
+  <div id="saida-caixa">
+    <div class="barra"><span id="estado">A carregar o Python (só demora da primeira vez)…</span><button id="limpar">Limpar</button></div>
+    <pre id="saida"></pre>
+    <div id="aviso">Os programas ficam guardados automaticamente <b>neste navegador</b>. Para os levar para outro computador, use «Descarregar».</div>
+  </div>
+</main>
+<div id="msg" role="status"></div>
+<script>
+(() => {
+  const CHAVE = "apps-mat-python";
+  const EXEMPLO = `# Exemplo: soma dos n primeiros números naturais
+n = 10
+soma = 0
+for k in range(1, n + 1):
+    soma = soma + k
+print("Soma de 1 a", n, "=", soma)
+
+# Gráfico de uma função
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(-2 * np.pi, 2 * np.pi, 400)
+plt.plot(x, np.sin(x), label="sin x")
+plt.plot(x, np.cos(x), label="cos x")
+plt.axhline(0, color="black", lw=0.8)
+plt.axvline(0, color="black", lw=0.8)
+plt.grid(alpha=0.3)
+plt.legend()
+plt.show()
+`;
+  const $ = id => document.getElementById(id);
+  const saida = $("saida"), estado = $("estado"), lista = $("lista"), btnExec = $("executar");
+
+  // ---------- programas guardados no localStorage ----------
+  let dados = { atual: 0, programas: [] };
+  try { const d = JSON.parse(localStorage.getItem(CHAVE)); if (d && d.programas && d.programas.length) dados = d; } catch (e) {}
+  if (!dados.programas.length) dados.programas.push({ nome: "exemplo.py", codigo: EXEMPLO });
+  const guardar = () => { try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (e) {} };
+  const nomeLivre = base => {
+    const nomes = new Set(dados.programas.map(p => p.nome));
+    if (!nomes.has(base + ".py")) return base + ".py";
+    for (let i = 2; ; i++) if (!nomes.has(`${base}-${i}.py`)) return `${base}-${i}.py`;
+  };
+  const comPy = nome => (nome = nome.trim().replace(/[\\/:*?"<>|]/g, "_")) && (/\.py$/i.test(nome) ? nome : nome + ".py");
+
+  // programa enviado num link (#codigo=...): abre como programa novo
+  const m = location.hash.match(/^#codigo=([^&]*)(?:&nome=(.*))?$/);
+  if (m) {
+    try {
+      const codigo = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1])), c => c.charCodeAt(0)));
+      const nome = m[2] ? comPy(decodeURIComponent(m[2])) : "";
+      const igual = dados.programas.findIndex(p => p.codigo === codigo);
+      if (igual >= 0) dados.atual = igual;
+      else { dados.programas.push({ nome: nomeLivre((nome || "recebido.py").replace(/\.py$/i, "")), codigo }); dados.atual = dados.programas.length - 1; }
+      guardar();
+    } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+  }
+  dados.atual = Math.min(Math.max(0, dados.atual | 0), dados.programas.length - 1);
+
+  const editor = CodeMirror.fromTextArea($("codigo"), {
+    mode: "python", lineNumbers: true, indentUnit: 4, tabSize: 4, matchBrackets: true, autofocus: true,
+    extraKeys: {
+      Tab: cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
+      "Shift-Tab": cm => cm.indentSelection("subtract"),
+      "Ctrl-Enter": () => executar(), "Cmd-Enter": () => executar(),
+      "Ctrl-/": "toggleComment",
+    },
+  });
+  let timer = null;
+  editor.on("change", () => {
+    dados.programas[dados.atual].codigo = editor.getValue();
+    clearTimeout(timer); timer = setTimeout(guardar, 400);
+  });
+
+  function mostrarLista() {
+    lista.innerHTML = "";
+    dados.programas.forEach((p, i) => lista.add(new Option(p.nome, i, false, i === dados.atual)));
+  }
+  function abrirPrograma(i) {
+    dados.atual = i; guardar(); mostrarLista();
+    editor.setValue(dados.programas[i].codigo); editor.clearHistory(); editor.focus();
+  }
+  lista.onchange = () => abrirPrograma(+lista.value);
+  abrirPrograma(dados.atual);
+
+  function aviso(texto) {
+    const el = $("msg"); el.textContent = texto; el.classList.add("ver");
+    clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove("ver"), 2500);
+  }
+
+  $("novo").onclick = () => {
+    const nome = prompt("Nome do novo programa:", nomeLivre("programa"));
+    if (nome === null || !comPy(nome)) return;
+    dados.programas.push({ nome: comPy(nome), codigo: "" }); abrirPrograma(dados.programas.length - 1);
+  };
+  $("renomear").onclick = () => {
+    const p = dados.programas[dados.atual];
+    const nome = prompt("Novo nome:", p.nome);
+    if (nome === null || !comPy(nome)) return;
+    p.nome = comPy(nome); guardar(); mostrarLista();
+  };
+  $("apagar").onclick = () => {
+    const p = dados.programas[dados.atual];
+    if (!confirm(`Apagar «${p.nome}»? Não é possível desfazer.`)) return;
+    dados.programas.splice(dados.atual, 1);
+    if (!dados.programas.length) dados.programas.push({ nome: "programa.py", codigo: "" });
+    abrirPrograma(Math.min(dados.atual, dados.programas.length - 1));
+  };
+  $("abrir").onclick = () => $("ficheiro").click();
+  $("ficheiro").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const codigo = await f.text();
+    dados.programas.push({ nome: nomeLivre(comPy(f.name).replace(/\.py$/i, "")), codigo });
+    abrirPrograma(dados.programas.length - 1); e.target.value = "";
+  };
+  $("descarregar").onclick = () => {
+    const p = dados.programas[dados.atual];
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([editor.getValue()], { type: "text/x-python" }));
+    a.download = p.nome; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $("partilhar").onclick = async () => {
+    const p = dados.programas[dados.atual];
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(editor.getValue())));
+    const url = `${location.origin}${location.pathname}#codigo=${encodeURIComponent(b64)}&nome=${encodeURIComponent(p.nome)}`;
+    try { await navigator.clipboard.writeText(url); aviso("Link copiado: quem o abrir recebe uma cópia deste programa."); }
+    catch (e) { prompt("Copie este link:", url); }
+  };
+  $("limpar").onclick = () => { saida.innerHTML = ""; };
+
+  // ---------- saída ----------
+  function escrever(texto, classe) {
+    const ultimo = saida.lastChild;
+    if (ultimo && ultimo.nodeName === "SPAN" && ultimo.className === (classe || "")) ultimo.textContent += texto;
+    else { const s = document.createElement("span"); if (classe) s.className = classe; s.textContent = texto; saida.appendChild(s); }
+    saida.scrollTop = saida.scrollHeight;
+  }
+  window.mostrarFigura = png => {
+    const img = document.createElement("img"); img.src = "data:image/png;base64," + png; img.alt = "Gráfico";
+    saida.appendChild(img); img.onload = () => { saida.scrollTop = saida.scrollHeight; };
+  };
+  const setEstado = (t, c) => { estado.textContent = t; estado.className = c || ""; };
+
+  // ---------- Python (Pyodide) ----------
+  let py = null, aCorrer = false;
+  const PREPARAR = `
+import sys, io, base64, builtins, js
+def _input(msg=""):
+    print(msg, end="")
+    r = js.prompt(str(msg) if msg else "Escreva um valor:")
+    if r is None:
+        raise KeyboardInterrupt("input cancelado")
+    print(r)
+    return r
+builtins.input = _input
+`;
+  const MPL = `
+import matplotlib
+matplotlib.use("agg")
+import matplotlib.pyplot as plt
+def _show(*a, **k):
+    import io, base64, js
+    for n in plt.get_fignums():
+        buf = io.BytesIO()
+        plt.figure(n).savefig(buf, format="png", dpi=110, bbox_inches="tight")
+        js.mostrarFigura(base64.b64encode(buf.getvalue()).decode())
+    plt.close("all")
+plt.show = _show
+`;
+  async function iniciar() {
+    try {
+      py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+      py.setStdout({ batched: t => escrever(t + "\n") });
+      py.setStderr({ batched: t => escrever(t + "\n", "err") });
+      await py.runPythonAsync(PREPARAR);
+      btnExec.disabled = false; btnExec.textContent = "▶ Executar";
+      setEstado("Pronto. Ctrl+Enter para executar.");
+    } catch (e) {
+      setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro");
+    }
+  }
+
+  let mplPronto = false;
+  async function executar() {
+    if (!py || aCorrer) return;
+    aCorrer = true; btnExec.disabled = true; guardar();
+    const codigo = editor.getValue();
+    saida.innerHTML = "";
+    setEstado("A executar…");
+    await new Promise(r => setTimeout(r, 20));   // deixa o navegador atualizar o ecrã
+    const t0 = performance.now();
+    try {
+      // instala as bibliotecas usadas (numpy, matplotlib, sympy, …) só quando são precisas
+      await py.loadPackagesFromImports(codigo, { messageCallback: msg => /^Loading /.test(msg) && setEstado("A instalar bibliotecas… (só da primeira vez)"), errorCallback: () => {} });
+      if (!mplPronto && /\bmatplotlib\b/.test(codigo)) { await py.runPythonAsync(MPL); mplPronto = true; }
+      setEstado("A executar…");
+      await py.runPythonAsync(codigo, { globals: py.toPy({ __name__: "__main__" }) });
+      if (mplPronto) await py.runPythonAsync("plt.show()");
+      setEstado(`Terminado em ${((performance.now() - t0) / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 2 })} s.`, "ok");
+    } catch (e) {
+      escrever(limparErro(String(e.message || e)), "err");
+      setEstado("O programa tem um erro.", "erro");
+    }
+    aCorrer = false; btnExec.disabled = false;
+  }
+  // mostra só a parte do erro que diz respeito ao programa do aluno
+  function limparErro(msg) {
+    const linhas = msg.split("\n"), i = linhas.findIndex(l => l.includes('File "<exec>"'));
+    const util = i >= 0 ? ["Traceback (most recent call last):", ...linhas.slice(i)] : linhas;
+    return util.join("\n").replace(/File "<exec>", line (\d+)/g, "Linha $1").replace(/\n+$/, "") + "\n";
+  }
+  btnExec.onclick = executar;
+  iniciar();
+})();
+</script>
+</body>
+</html>
