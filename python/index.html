@@ -12,6 +12,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
 <script>
   // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
   try {
@@ -58,6 +60,9 @@
   .CodeMirror-cursor { border-left-color: var(--ink); }
   .CodeMirror-selected, .CodeMirror-focused .CodeMirror-selected { background: rgba(238,106,36,.22); }
   .CodeMirror-matchingbracket { color: var(--accent) !important; font-weight: 600; }
+  .CodeMirror-hints { font: 14px/1.5 "IBM Plex Mono", ui-monospace, monospace; background: var(--bg); border-color: var(--line); max-height: 14em; }
+  .CodeMirror-hint { color: var(--ink); padding: 0 8px; }
+  li.CodeMirror-hint-active { background: var(--accent); color: #fff; }
   /* .cm-s-default: para se sobrepor às cores do tema do CodeMirror */
   .cm-s-default .cm-keyword { color: var(--kw); font-weight: 500; } .cm-s-default .cm-builtin { color: var(--def); }
   .cm-s-default .cm-string { color: var(--str); } .cm-s-default .cm-number { color: var(--num); }
@@ -269,8 +274,34 @@ plt.show()
       "Shift-Tab": cm => cm.indentSelection("subtract"),
       "Ctrl-Enter": () => executar(), "Cmd-Enter": () => executar(),
       "Ctrl-/": "toggleComment",
+      "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
     },
   });
+  // ---------- autocompletar (Ctrl+Espaço) ----------
+  // nomes do próprio programa + palavras do Python + funções mais usadas de math, numpy e matplotlib
+  const PALAVRAS = ("False None True and as break continue def elif else for from global if import in is lambda not or pass return while " +
+    "print input int float str len range list sum min max abs round sorted append enumerate zip type bool tuple dict set map " +
+    "math numpy matplotlib.pyplot sqrt pi e sin cos tan asin acos atan atan2 log log10 log2 exp floor ceil factorial radians degrees").split(" ");
+  const MODULOS = {
+    math: "sqrt pi e tau inf sin cos tan asin acos atan atan2 sinh cosh tanh log log10 log2 exp floor ceil trunc factorial comb perm gcd lcm radians degrees hypot isclose fabs".split(" "),
+    np: "array linspace arange zeros ones sqrt pi e sin cos tan arcsin arccos arctan exp log log10 abs round floor ceil sum mean median std min max cumsum polyfit polyval roots linalg random".split(" "),
+    plt: "plot scatter bar hist show title xlabel ylabel xlim ylim axis grid legend axhline axvline text annotate figure subplot subplots fill_between savefig".split(" "),
+    random: "random randint uniform choice shuffle sample seed".split(" "),
+  };
+  MODULOS.numpy = MODULOS.np;
+  function sugestoes(cm) {
+    const cur = cm.getCursor(), antes = cm.getLine(cur.line).slice(0, cur.ch);
+    const [, modulo, inicio] = antes.match(/(?:(\w+)\.)?(\w*)$/);
+    let lista;
+    if (modulo) lista = MODULOS[modulo] || [];
+    else {
+      const doc = cm.getValue().match(/[A-Za-z_]\w*/g) || [];
+      lista = [...new Set([...doc, ...PALAVRAS])];
+    }
+    lista = lista.filter(p => p.startsWith(inicio) && p !== inicio).sort((a, b) => a.localeCompare(b, "pt"));
+    return { list: lista, from: CodeMirror.Pos(cur.line, cur.ch - inicio.length), to: cur };
+  }
+
   let timer = null;
   editor.on("beforeChange", (cm, ch) => {
     if (exemplo() && ch.origin !== "setValue") { ch.cancel(); aviso("O exemplo não se pode alterar. Carregue em «Novo» para escrever um programa seu."); }
@@ -370,7 +401,7 @@ plt.show()
   function receber(m) {
     if (m.tipo === "pronto") {
       pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
-      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter para executar.");
+      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome.");
     }
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
     else if (m.tipo === "out") escrever(m.t);
@@ -526,7 +557,8 @@ plt.show()
 
   btnExec.onclick = executar;
   btnParar.onclick = parar;
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && aCorrer) { e.preventDefault(); parar(); } });
+  // na fase de captura, para se saber se a lista do autocompletar está aberta (o Esc fecha-a sem parar o programa)
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && aCorrer && !editor.state.completionActive) { e.preventDefault(); parar(); } }, true);
 
   // o sw.js põe os cabeçalhos COOP/COEP (o GitHub Pages não deixa); da primeira vez é preciso recarregar
   (async () => {
