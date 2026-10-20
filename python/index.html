@@ -225,9 +225,14 @@ plt.show()
   const saida = $("saida"), estado = $("estado"), lista = $("lista"), btnExec = $("executar");
 
   // ---------- programas guardados no localStorage ----------
-  let dados = { atual: 0, programas: [] };
-  try { const d = JSON.parse(localStorage.getItem(CHAVE)); if (d && d.programas && d.programas.length) dados = d; } catch (e) {}
-  if (!dados.programas.length) dados.programas.push({ nome: "exemplo.py", codigo: EXEMPLO });
+  // o exemplo é fixo (atual = −1): está sempre no topo da lista e não se pode alterar nem apagar
+  let dados = { atual: -1, programas: [] };
+  try { const d = JSON.parse(localStorage.getItem(CHAVE)); if (d && Array.isArray(d.programas)) dados = d; } catch (e) {}
+  // versões antigas guardavam o exemplo como um programa normal: se não foi alterado, deixa de ser preciso
+  const velho = dados.programas.findIndex(p => p.nome === "exemplo.py" && p.codigo === EXEMPLO);
+  if (velho >= 0) { dados.programas.splice(velho, 1); if (dados.atual >= velho) dados.atual--; }
+  const exemplo = () => dados.atual < 0;
+  const nomeAtual = () => exemplo() ? "exemplo.py" : dados.programas[dados.atual].nome;
   const guardar = () => { try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (e) {} };
   const nomeLivre = base => {
     const nomes = new Set(dados.programas.map(p => p.nome));
@@ -249,7 +254,7 @@ plt.show()
     } catch (e) {}
     history.replaceState(null, "", location.pathname);
   }
-  dados.atual = Math.min(Math.max(0, dados.atual | 0), dados.programas.length - 1);
+  dados.atual = Math.min(Math.max(-1, dados.atual | 0), dados.programas.length - 1);
 
   const editor = CodeMirror.fromTextArea($("codigo"), {
     mode: "python", lineNumbers: true, indentUnit: 4, tabSize: 4, matchBrackets: true, autofocus: true,
@@ -261,25 +266,31 @@ plt.show()
     },
   });
   let timer = null;
+  editor.on("beforeChange", (cm, ch) => {
+    if (exemplo() && ch.origin !== "setValue") { ch.cancel(); aviso("O exemplo não se pode alterar. Carregue em «Novo» para escrever um programa seu."); }
+  });
   editor.on("change", () => {
+    if (exemplo()) return;
     dados.programas[dados.atual].codigo = editor.getValue();
     clearTimeout(timer); timer = setTimeout(guardar, 400);
   });
 
   function mostrarLista() {
     lista.innerHTML = "";
+    lista.add(new Option("exemplo.py (só leitura)", -1, false, exemplo()));
     dados.programas.forEach((p, i) => lista.add(new Option(p.nome, i, false, i === dados.atual)));
   }
   function abrirPrograma(i) {
     dados.atual = i; guardar(); mostrarLista();
-    editor.setValue(dados.programas[i].codigo); editor.clearHistory(); editor.focus();
+    editor.setValue(exemplo() ? EXEMPLO : dados.programas[i].codigo); editor.clearHistory(); editor.focus();
+    $("renomear").disabled = $("apagar").disabled = exemplo();
   }
   lista.onchange = () => abrirPrograma(+lista.value);
   abrirPrograma(dados.atual);
 
   function aviso(texto) {
     const el = $("msg"); el.textContent = texto; el.classList.add("ver");
-    clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove("ver"), 2500);
+    clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove("ver"), 3500);
   }
 
   $("novo").onclick = () => {
@@ -297,8 +308,7 @@ plt.show()
     const p = dados.programas[dados.atual];
     if (!confirm(`Apagar «${p.nome}»? Não é possível desfazer.`)) return;
     dados.programas.splice(dados.atual, 1);
-    if (!dados.programas.length) dados.programas.push({ nome: "programa.py", codigo: "" });
-    abrirPrograma(Math.min(dados.atual, dados.programas.length - 1));
+    abrirPrograma(Math.min(dados.atual, dados.programas.length - 1));   // sem programas, volta ao exemplo
   };
   $("abrir").onclick = () => $("ficheiro").click();
   $("ficheiro").onchange = async e => {
@@ -308,15 +318,13 @@ plt.show()
     abrirPrograma(dados.programas.length - 1); e.target.value = "";
   };
   $("descarregar").onclick = () => {
-    const p = dados.programas[dados.atual];
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([editor.getValue()], { type: "text/x-python" }));
-    a.download = p.nome; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    a.download = nomeAtual(); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $("partilhar").onclick = async () => {
-    const p = dados.programas[dados.atual];
     const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(editor.getValue())));
-    const url = `${location.origin}${location.pathname}#codigo=${encodeURIComponent(b64)}&nome=${encodeURIComponent(p.nome)}`;
+    const url = `${location.origin}${location.pathname}#codigo=${encodeURIComponent(b64)}&nome=${encodeURIComponent(nomeAtual())}`;
     try { await navigator.clipboard.writeText(url); aviso("Link copiado: quem o abrir recebe uma cópia deste programa."); }
     catch (e) { prompt("Copie este link:", url); }
   };
