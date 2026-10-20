@@ -74,6 +74,12 @@
            white-space: pre-wrap; word-break: break-word; }
   #saida .err { color: var(--err); }
   #saida .info { color: var(--muted); font-style: italic; }
+  #saida .ajuda { display: block; margin: 10px 0 4px; padding: 8px 12px; border-left: 4px solid var(--accent); border-radius: 0 6px 6px 0;
+                  background: var(--bg); font: 15px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif; white-space: normal; }
+  #saida .ajuda b { display: block; margin-bottom: 2px; }
+  #saida .ajuda code { font: .93em "IBM Plex Mono", ui-monospace, monospace; background: var(--panel); padding: 0 4px; border-radius: 3px; }
+  #saida .ajuda button { font: inherit; font-weight: 700; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; }
+  .linha-erro { background: rgba(198,40,40,.16); }
   #saida .entrada { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px;
                     padding: 0 6px; min-width: 8em; width: 40%; outline: none; }
   #saida img { display: block; max-width: 100%; margin: 8px 0; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
@@ -376,14 +382,14 @@ plt.show()
     else if (m.tipo === "fim") acabar(`Terminado em ${((performance.now() - t0) / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 2 })} s.`, "ok");
     else if (m.tipo === "erro") {
       if (/KeyboardInterrupt/.test(m.t)) { escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
-      else { escrever(limparErro(m.t), "err"); acabar("O programa tem um erro.", "erro"); }
+      else { escrever(limparErro(m.t), "err"); explicarErro(m.t); acabar("O programa tem um erro.", "erro"); }
     }
   }
   function executar() {
     if (!pronto || aCorrer) return;
     aCorrer = true; guardar();
     btnExec.hidden = true; btnParar.hidden = false;
-    saida.innerHTML = ""; setEstado("A executar…");
+    saida.innerHTML = ""; setEstado("A executar…"); tirarMarca();
     t0 = performance.now();
     if (sab) interromper[0] = 0;
     worker.postMessage({ tipo: "executar", codigo: editor.getValue() });
@@ -433,6 +439,91 @@ plt.show()
     const util = i >= 0 ? ["Traceback (most recent call last):", ...linhas.slice(i).filter(l => !/, in _input$/.test(l))] : linhas;
     return util.join("\n").replace(/File "<exec>", line (\d+)/g, "Linha $1").replace(/\n+$/, "") + "\n";
   }
+
+  // ---------- explicação do erro em português ----------
+  // [tipo, padrão da mensagem, título, explicação]: a primeira regra que serve é a usada; $1, $2… são os grupos do padrão
+  const C = t => `<code>${t}</code>`;
+  const MATH = ["sqrt", "pi", "sin", "cos", "tan", "asin", "acos", "atan", "log", "log10", "exp", "floor", "ceil", "factorial", "radians", "degrees"];
+  const REGRAS = [
+    ["SyntaxError", /'([([{])' was never closed/, "Falta fechar um parêntese", `Abriu ${C("$1")} e não o fechou. Conte os parênteses: cada ${C("(")} precisa de um ${C(")")}. Às vezes o erro está numa linha anterior.`],
+    ["SyntaxError", /unmatched '(.)'/, "Parêntese a mais", `Há um ${C("$1")} que fecha um parêntese que não foi aberto.`],
+    ["SyntaxError", /closing parenthesis '(.)' does not match opening parenthesis '(.)'/, "Parênteses trocados", `Abriu com ${C("$2")} mas fechou com ${C("$1")}.`],
+    ["SyntaxError", /expected ':'/, "Falta o sinal :", `As linhas que começam por ${C("if")}, ${C("elif")}, ${C("else")}, ${C("for")}, ${C("while")} e ${C("def")} terminam com dois pontos, por exemplo ${C("for k in range(10):")}.`],
+    ["SyntaxError", /unterminated (triple-quoted )?string/, "Faltam as aspas a fechar o texto", `Um texto começa e acaba com aspas iguais: ${C('"olá"')} ou ${C("'olá'")}.`],
+    ["SyntaxError", /Maybe you meant '==' or ':=' instead of '='/, "Para comparar usa-se ==", `${C("=")} guarda um valor numa variável; para comparar dois valores (por exemplo num ${C("if")}) escreve-se ${C("==")}: ${C("if x == 0:")}.`],
+    ["SyntaxError", /Perhaps you forgot a comma/, "Falta uma vírgula (ou um operador)", `Entre os valores de um ${C("print(…)")} ou de uma lista põe-se uma vírgula. Se for uma conta, falta talvez um ${C("*")}, ${C("+")} ou ${C("-")}.`],
+    ["SyntaxError", /invalid decimal literal/, "Número seguido de letras", `Para multiplicar escreve-se sempre ${C("*")}: ${C("2*x")} e não ${C("2x")}. Os nomes das variáveis também não podem começar por um algarismo.`],
+    ["SyntaxError", /invalid character '(.)'/, "Carácter que o Python não conhece", `O carácter ${C("$1")} não pode ser usado aqui. Use ${C("*")} para multiplicar, ${C("/")} para dividir, ${C("**")} para potências (${C("x**2")}) e aspas direitas ${C('"')}.`],
+    ["SyntaxError", /invalid non-printable character/, "Carácter invisível", "Há um carácter invisível na linha (muitas vezes vem de um texto copiado). Apague a linha e escreva-a de novo."],
+    ["SyntaxError", /cannot assign to (expression|literal|function call)/, "Do lado esquerdo do = tem de estar uma variável", `Escreve-se ${C("y = 2*x + 1")} (a variável à esquerda, a conta à direita) e não ${C("2*x + 1 = y")}. Para comparar use ${C("==")}.`],
+    ["SyntaxError", /Missing parentheses in call to 'print'/, "Faltam os parênteses do print", `Escreve-se ${C('print("olá")')}, com parênteses.`],
+    ["SyntaxError", /'return' outside function/, "return fora de uma função", `${C("return")} só se usa dentro de uma função (${C("def …:")}). Verifique o recuo da linha.`],
+    ["SyntaxError", /'(break|continue)' (not properly in|outside) loop/, "$1 fora de um ciclo", `${C("$1")} só se usa dentro de um ${C("for")} ou ${C("while")}. Verifique o recuo da linha.`],
+    ["SyntaxError", /incomplete input|unexpected EOF/, "O programa acaba a meio", "Falta fechar alguma coisa (parêntese, aspas) ou falta o bloco de um if/for/def no fim do programa."],
+    ["SyntaxError", /expected 'else' after 'if' expression/, "Falta o else", "Numa expressão do tipo «a if condição else b» é obrigatório o else."],
+    ["SyntaxError", /.*/, "Erro de escrita (sintaxe)", "O Python não percebe esta linha. Procure parênteses ou aspas por fechar, um : em falta ou um * em falta numa multiplicação. Às vezes o erro está na linha anterior."],
+    ["IndentationError", /expected an indented block after '(\w+)'/, "Falta recuar as linhas do bloco", `As linhas que estão dentro do ${C("$1")} têm de começar mais à direita (4 espaços, ou a tecla Tab) do que a linha do ${C("$1")}.`],
+    ["IndentationError", /expected an indented block/, "Falta recuar as linhas do bloco", "Depois de uma linha que acaba em : as linhas seguintes têm de começar mais à direita (4 espaços ou Tab)."],
+    ["IndentationError", /unexpected indent/, "Linha recuada sem razão", "Esta linha começa mais à direita do que a anterior, mas não está dentro de nenhum if/for/while/def. Tire os espaços do início."],
+    ["IndentationError", /unindent does not match/, "Recuo desalinhado", "Esta linha não está alinhada com nenhuma das linhas de cima. As linhas do mesmo bloco têm de começar exatamente na mesma coluna."],
+    ["TabError", /.*/, "Tabs misturados com espaços", "O recuo mistura Tabs e espaços. Apague os espaços do início das linhas e recue-as de novo."],
+    ["NameError", /name '(true|false|none)' is not defined/i, "Maiúscula em falta", `Em Python escreve-se ${C("True")}, ${C("False")} e ${C("None")}, com maiúscula.`],
+    ["NameError", new RegExp(`name '(${MATH.join("|")})' is not defined`), "Falta importar o módulo math", `${C("$1")} está no módulo ${C("math")}. Escreva no início do programa ${C("from math import *")} (ou ${C("import math")} e depois ${C("math.$1")}).`],
+    ["NameError", /name '(np|plt)' is not defined/, "Falta importar a biblioteca", `Escreva no início do programa ${C("import numpy as np")} ou ${C("import matplotlib.pyplot as plt")}.`],
+    ["NameError", /name '(\w+)' is not defined\. Did you mean: '(\w+)'/, "Nome desconhecido: $1", `O Python não conhece ${C("$1")}. Queria escrever ${C("$2")}? Repare nas maiúsculas e minúsculas.`],
+    ["NameError", /name '(\w+)' is not defined/, "Nome desconhecido: $1", `O Python não conhece ${C("$1")}. Verifique se está bem escrito, se a variável recebeu um valor <i>antes</i> desta linha, ou, se é um texto, se faltam as aspas: ${C('"$1"')}.`],
+    ["UnboundLocalError", /'(\w+)'/, "Variável usada antes de ter valor", `Dentro da função usa-se ${C("$1")} antes de lhe dar um valor. Passe o valor como argumento da função (ou dê-lhe um valor dentro dela).`],
+    ["TypeError", /can only concatenate str \(not "(\w+)"\) to str/, "Texto + número", `Não se pode juntar texto e números com ${C("+")}. No ${C("print")} separe-os por vírgulas: ${C('print("x =", x)')}, ou converta o número com ${C("str(x)")}.`],
+    ["TypeError", /unsupported operand type\(s\) for .*'str'|'[<>]=?' not supported between instances of 'str'|can't multiply sequence by non-int/, "Conta com texto", `Um dos valores é texto (${C("str")}). Atenção: ${C("input()")} devolve sempre texto; para obter um número use ${C('int(input("…"))')} ou ${C('float(input("…"))')}.`],
+    ["TypeError", /'(int|float)' object is not callable/, "Falta um * antes do parêntese", `Para multiplicar por um parêntese escreve-se ${C("2*(x + 1)")} e não ${C("2(x + 1)")}. (Pode também ter dado a uma variável o nome de uma função.)`],
+    ["TypeError", /'(\w+)' object is not callable/, "Isto não é uma função", `Usou parênteses depois de algo que não é uma função. Talvez uma variável tenha o mesmo nome de uma função (por exemplo ${C("sum = 0")} e depois ${C("sum(…)")}).`],
+    ["TypeError", /'(int|float)' object is not (subscriptable|iterable)/, "Um número não é uma lista", `Usou um número como se fosse uma lista. Para percorrer os números de 0 a n − 1 use ${C("for k in range(n):")}.`],
+    ["TypeError", /(\w+)\(\) missing (\d+) required positional argument/, "Faltam argumentos", `A função ${C("$1")} precisa de mais $2 valor(es) entre os parênteses.`],
+    ["TypeError", /(\w+)\(\) takes (\d+) positional arguments? but (\d+) (was|were) given/, "Argumentos a mais", `A função ${C("$1")} recebe $2 valor(es), mas foram dados $3.`],
+    ["TypeError", /must be real number, not str/, "Conta com texto", `Esperava-se um número mas veio texto. Se o valor veio de ${C("input()")}, converta-o com ${C("float(…)")}.`],
+    ["ValueError", /could not convert string to float: '(-?\d+),(\d+)'/, "Use ponto decimal", `Em Python escreve-se ${C("$1.$2")}, com ponto, e não com vírgula.`],
+    ["ValueError", /invalid literal for int\(\) with base 10: '(-?\d+[.,]\d+)'/, "Não é um número inteiro", `${C("int(…)")} só aceita inteiros. Para números com casas decimais use ${C("float(…)")} (e ponto decimal).`],
+    ["ValueError", /(invalid literal for int\(\)|could not convert string to float).*: '(.*)'/, "Não é um número", `O valor ${C("'$2'")} não é um número, por isso não pode ser convertido.`],
+    ["ValueError", /math domain error/, "Fora do domínio", `A função foi calculada fora do domínio: por exemplo ${C("sqrt")} de um número negativo, ${C("log")} de 0 ou de um negativo, ou ${C("acos")}/${C("asin")} de um valor fora de [−1, 1].`],
+    ["ValueError", /too many values to unpack/, "Valores a mais", "Há mais valores do que variáveis do lado esquerdo do =."],
+    ["ValueError", /not enough values to unpack/, "Valores a menos", "Há menos valores do que variáveis do lado esquerdo do =."],
+    ["ZeroDivisionError", /.*/, "Divisão por zero", "O programa dividiu por 0 (com /, // ou %). Verifique o valor do divisor nesta linha."],
+    ["IndexError", /.*/, "Posição que não existe", `As posições de uma lista com n elementos vão de 0 a n − 1. Por exemplo, numa lista de 3 elementos ${C("lista[3]")} já não existe.`],
+    ["KeyError", /.*/, "Chave que não existe", "O dicionário não tem esta chave. Verifique se está bem escrita."],
+    ["AttributeError", /module '(\w+)' has no attribute '(\w+)'\. Did you mean: '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Queria escrever ${C("$3")}?`],
+    ["AttributeError", /module '(\w+)' has no attribute '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Verifique se está bem escrito (maiúsculas e minúsculas contam).`],
+    ["AttributeError", /'(\w+)' object has no attribute '(\w+)'/, "$2 não existe", `Um valor do tipo ${C("$1")} não tem ${C(".$2")}. Verifique se está bem escrito ou se a variável tem o valor que pensa.`],
+    ["ModuleNotFoundError", /No module named '([\w.]+)'/, "Módulo desconhecido: $1", `Verifique se o nome está bem escrito. Alguns módulos não estão disponíveis no navegador.`],
+    ["ImportError", /cannot import name '(\w+)' from '(\w+)'/, "$1 não existe em $2", `Verifique se ${C("$1")} está bem escrito.`],
+    ["RecursionError", /.*/, "A função não para de se chamar", "A função chama-se a si própria sem parar. Falta um caso de paragem (por exemplo, «se n == 0, devolve 1») ou ele nunca é atingido."],
+    ["OverflowError", /.*/, "Número grande demais", "O resultado é grande demais para um número decimal (float). Experimente valores mais pequenos."],
+    ["MemoryError", /.*/, "Memória esgotada", "O programa usou memória demais: talvez uma lista que cresce sem parar dentro de um ciclo."],
+  ];
+  const esc = t => t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  function explicarErro(msg) {
+    const linhas = msg.trim().split("\n");
+    const ultima = linhas[linhas.length - 1].match(/^(\w+): ?(.*)$/);
+    if (!ultima) return;
+    const [, tipo, texto] = ultima;
+    let regra = null, g = null;
+    for (const r of REGRAS) if (r[0] === tipo && (g = texto.match(r[1]))) { regra = r; break; }
+    if (!regra) return;
+    const troca = t => t.replace(/\$(\d)/g, (_, i) => esc(g[i] || ""));
+    const n = [...msg.matchAll(/File "<exec>", line (\d+)/g)].pop();   // a linha mais funda do programa do aluno
+    const caixa = document.createElement("span"); caixa.className = "ajuda";
+    caixa.innerHTML = `<b>${n ? `<button title="Ir para a linha">Linha ${n[1]}</button>: ` : ""}${troca(esc(regra[2]))}</b>${troca(regra[3])}`;
+    saida.appendChild(caixa); saida.scrollTop = saida.scrollHeight;
+    if (n) {
+      const i = Math.min(+n[1], editor.lineCount()) - 1;
+      marca = editor.addLineClass(i, "background", "linha-erro");
+      caixa.querySelector("button").onclick = () => { editor.setCursor(i, 0); editor.scrollIntoView({ line: i, ch: 0 }, 80); editor.focus(); };
+    }
+  }
+  // a linha do erro fica marcada no editor até se mudar o programa ou executar outra vez
+  let marca = null;
+  function tirarMarca() { if (marca) { editor.removeLineClass(marca, "background", "linha-erro"); marca = null; } }
+  editor.on("change", tirarMarca);
+
   btnExec.onclick = executar;
   btnParar.onclick = parar;
   document.addEventListener("keydown", e => { if (e.key === "Escape" && aCorrer) { e.preventDefault(); parar(); } });
