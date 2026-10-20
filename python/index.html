@@ -12,6 +12,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script>
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  try {
+    const t = localStorage.getItem("quarto-color-scheme");
+    if (t) document.documentElement.dataset.theme = t === "alternate" ? "dark" : "light";
+  } catch (e) {}
+</script>
 <style>
   :root { --banner: #170C3A; --bg: #ffffff; --ink: #17202b; --muted: #5b6475; --panel: #f6f7fa; --line: #d5dae2;
           --accent: #EE6A24; --hover: #FB9E07; --err: #c62828; --ok: #2e7d32;
@@ -20,6 +27,9 @@
     :root:not([data-theme="light"]) { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
           --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
   }
+  :root[data-theme="dark"] { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
+          --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
+  #tema { font-size: 1.05rem; line-height: 1; padding: 5px 9px; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--ink); font: 16px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif;
@@ -48,9 +58,11 @@
   .CodeMirror-cursor { border-left-color: var(--ink); }
   .CodeMirror-selected, .CodeMirror-focused .CodeMirror-selected { background: rgba(238,106,36,.22); }
   .CodeMirror-matchingbracket { color: var(--accent) !important; font-weight: 600; }
-  .cm-keyword { color: var(--kw); font-weight: 500; } .cm-builtin { color: var(--def); }
-  .cm-string { color: var(--str); } .cm-number { color: var(--num); } .cm-comment { color: var(--com); font-style: italic; }
-  .cm-def { color: var(--def); font-weight: 500; } .cm-operator { color: var(--ink); } .cm-variable-2 { color: var(--ink); }
+  /* .cm-s-default: para se sobrepor às cores do tema do CodeMirror */
+  .cm-s-default .cm-keyword { color: var(--kw); font-weight: 500; } .cm-s-default .cm-builtin { color: var(--def); }
+  .cm-s-default .cm-string { color: var(--str); } .cm-s-default .cm-number { color: var(--num); }
+  .cm-s-default .cm-comment { color: var(--com); font-style: italic; } .cm-s-default .cm-def { color: var(--def); font-weight: 500; }
+  .cm-s-default .cm-operator, .cm-s-default .cm-variable, .cm-s-default .cm-variable-2, .cm-s-default .cm-property { color: var(--ink); }
   #saida-caixa { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
   .barra { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--line);
            font-size: .88rem; color: var(--muted); }
@@ -92,6 +104,7 @@
     <button id="partilhar" title="Copiar um link com este programa">Copiar link</button>
   </div>
   <span class="espaco"></span>
+  <button id="tema" aria-label="Alternar modo claro/escuro"></button>
   <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
   <button id="parar" hidden title="Parar o programa (Esc)">■ Parar</button>
   <input type="file" id="ficheiro" accept=".py,.txt,text/x-python,text/plain" hidden>
@@ -196,6 +209,19 @@ plt.legend()
 plt.show()
 `;
   const $ = id => document.getElementById(id);
+
+  // ---------- modo claro/escuro ----------
+  const raiz = document.documentElement, btnTema = $("tema");
+  const escuro = () => raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const mostrarTema = () => { btnTema.textContent = escuro() ? "☀" : "☾"; btnTema.title = escuro() ? "Modo claro" : "Modo escuro"; };
+  btnTema.onclick = () => {
+    const novo = escuro() ? "light" : "dark";
+    raiz.dataset.theme = novo;
+    try { localStorage.setItem("quarto-color-scheme", novo === "dark" ? "alternate" : "default"); } catch (e) {}
+    mostrarTema();
+  };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", mostrarTema);
+  mostrarTema();
   const saida = $("saida"), estado = $("estado"), lista = $("lista"), btnExec = $("executar");
 
   // ---------- programas guardados no localStorage ----------
