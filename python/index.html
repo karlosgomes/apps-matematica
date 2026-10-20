@@ -12,7 +12,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <style>
   :root { --banner: #170C3A; --bg: #ffffff; --ink: #17202b; --muted: #5b6475; --panel: #f6f7fa; --line: #d5dae2;
           --accent: #EE6A24; --hover: #FB9E07; --err: #c62828; --ok: #2e7d32;
@@ -38,6 +37,8 @@
   button:disabled { opacity: .5; cursor: default; }
   #executar { background: var(--accent); border-color: var(--accent); font-weight: 700; padding: 5px 16px; }
   #executar:hover:not(:disabled) { background: var(--hover); border-color: var(--hover); }
+  #parar { background: #c62828; border-color: #c62828; font-weight: 700; padding: 5px 16px; }
+  #parar:hover { background: #e53935; border-color: #e53935; }
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
   #editor-caixa { min-width: 0; min-height: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
   .CodeMirror { flex: 1; height: auto; font: 15px/1.5 "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -61,6 +62,8 @@
            white-space: pre-wrap; word-break: break-word; }
   #saida .err { color: var(--err); }
   #saida .info { color: var(--muted); font-style: italic; }
+  #saida .entrada { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px;
+                    padding: 0 6px; min-width: 8em; width: 40%; outline: none; }
   #saida img { display: block; max-width: 100%; margin: 8px 0; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
   #aviso { font-size: .8rem; color: var(--muted); padding: 6px 14px; border-top: 1px solid var(--line); }
   #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--banner); color: #fff;
@@ -90,6 +93,7 @@
   </div>
   <span class="espaco"></span>
   <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
+  <button id="parar" hidden title="Parar o programa (Esc)">■ Parar</button>
   <input type="file" id="ficheiro" accept=".py,.txt,text/x-python,text/plain" hidden>
 </header>
 <main>
@@ -101,6 +105,73 @@
   </div>
 </main>
 <div id="msg" role="status"></div>
+<script type="text/plain" id="worker">
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
+let py, ctl = null, bytes = null, mplPronto = false;
+// input(): espera (Atomics.wait) que a página escreva a resposta no SharedArrayBuffer
+function pedirInput(msg) {
+  if (!ctl) return false;
+  Atomics.store(ctl, 0, 0);
+  postMessage({ tipo: "input", msg });
+  Atomics.wait(ctl, 0, 0);
+  if (Atomics.load(ctl, 0) === 2) return null;
+  return new TextDecoder().decode(bytes.slice(0, ctl[1]));
+}
+const PREPARAR = `
+import builtins, _pagina
+def _input(msg=""):
+    r = _pagina.input(str(msg))
+    if r is False:
+        raise RuntimeError("input() não funciona neste navegador: recarregue a página.")
+    if r is None:
+        raise KeyboardInterrupt
+    return r
+builtins.input = _input
+`;
+const MPL = `
+import matplotlib
+matplotlib.use("agg")
+import matplotlib.pyplot as plt
+def _show(*a, **k):
+    import io, base64, _pagina
+    for n in plt.get_fignums():
+        buf = io.BytesIO()
+        plt.figure(n).savefig(buf, format="png", dpi=110, bbox_inches="tight")
+        _pagina.figura(base64.b64encode(buf.getvalue()).decode())
+    plt.close("all")
+plt.show = _show
+`;
+onmessage = async e => {
+  const m = e.data;
+  if (m.tipo === "iniciar") {
+    try {
+      py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+      py.setStdout({ batched: t => postMessage({ tipo: "out", t: t + "\n" }) });
+      py.setStderr({ batched: t => postMessage({ tipo: "err", t: t + "\n" }) });
+      py.registerJsModule("_pagina", { input: pedirInput, figura: png => postMessage({ tipo: "fig", png }) });
+      if (m.sab) { ctl = new Int32Array(m.sab, 0, 2); bytes = new Uint8Array(m.sab, 16); py.setInterruptBuffer(new Uint8Array(m.sab, 8, 1)); }
+      await py.runPythonAsync(PREPARAR);
+      postMessage({ tipo: "pronto" });
+    } catch (err) { postMessage({ tipo: "falhou", t: String(err && (err.stack || err)) }); }
+  }
+  else if (m.tipo === "executar") {
+    const codigo = m.codigo;
+    try {
+      // instala as bibliotecas usadas (numpy, matplotlib, sympy, …) só quando são precisas
+      await py.loadPackagesFromImports(codigo, { messageCallback: msg => /^Loading /.test(msg) && postMessage({ tipo: "instalar" }), errorCallback: () => {} });
+      if (!mplPronto && /\bmatplotlib\b/.test(codigo)) { await py.runPythonAsync(MPL); mplPronto = true; }
+      postMessage({ tipo: "executar" });
+      const globais = py.toPy({ __name__: "__main__" });
+      try { await py.runPythonAsync(codigo, { globals: globais }); } finally { globais.destroy(); }
+      if (mplPronto) await py.runPythonAsync("plt.show()");
+      postMessage({ tipo: "fim" });
+    } catch (err) {
+      if (mplPronto) try { py.runPython("plt.close('all')"); } catch (e2) {}
+      postMessage({ tipo: "erro", t: String(err.message || err) });
+    }
+  }
+};
+</script>
 <script>
 (() => {
   const CHAVE = "apps-mat-python";
@@ -232,82 +303,117 @@ plt.show()
     else { const s = document.createElement("span"); if (classe) s.className = classe; s.textContent = texto; saida.appendChild(s); }
     saida.scrollTop = saida.scrollHeight;
   }
-  window.mostrarFigura = png => {
+  function mostrarFigura(png) {
     const img = document.createElement("img"); img.src = "data:image/png;base64," + png; img.alt = "Gráfico";
     saida.appendChild(img); img.onload = () => { saida.scrollTop = saida.scrollHeight; };
-  };
+  }
   const setEstado = (t, c) => { estado.textContent = t; estado.className = c || ""; };
 
-  // ---------- Python (Pyodide) ----------
-  let py = null, aCorrer = false;
-  const PREPARAR = `
-import sys, io, base64, builtins, js
-def _input(msg=""):
-    print(msg, end="")
-    r = js.prompt(str(msg) if msg else "Escreva um valor:")
-    if r is None:
-        raise KeyboardInterrupt("input cancelado")
-    print(r)
-    return r
-builtins.input = _input
-`;
-  const MPL = `
-import matplotlib
-matplotlib.use("agg")
-import matplotlib.pyplot as plt
-def _show(*a, **k):
-    import io, base64, js
-    for n in plt.get_fignums():
-        buf = io.BytesIO()
-        plt.figure(n).savefig(buf, format="png", dpi=110, bbox_inches="tight")
-        js.mostrarFigura(base64.b64encode(buf.getvalue()).decode())
-    plt.close("all")
-plt.show = _show
-`;
-  async function iniciar() {
-    try {
-      py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
-      py.setStdout({ batched: t => escrever(t + "\n") });
-      py.setStderr({ batched: t => escrever(t + "\n", "err") });
-      await py.runPythonAsync(PREPARAR);
-      btnExec.disabled = false; btnExec.textContent = "▶ Executar";
-      setEstado("Pronto. Ctrl+Enter para executar.");
-    } catch (e) {
-      setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro");
+  // ---------- Python (Pyodide num worker, para se poder parar) ----------
+  // Com isolamento (cabeçalhos COOP/COEP postos pelo sw.js) há SharedArrayBuffer: o «Parar» interrompe o
+  // Python (KeyboardInterrupt) e o input() espera pela resposta. Sem isolamento, «Parar» recomeça o worker.
+  const sab = self.crossOriginIsolated ? new SharedArrayBuffer(16 + 65536) : null;
+  const ctl = sab && new Int32Array(sab, 0, 2);        // [0]: 0 à espera, 1 resposta, 2 cancelado; [1]: n.º de bytes
+  const interromper = sab && new Uint8Array(sab, 8, 1);
+  const bytes = sab && new Uint8Array(sab, 16);
+  let worker = null, pronto = false, aCorrer = false, t0 = 0, timerParar = null, campo = null;
+  const btnParar = $("parar");
+
+  function criarWorker() {
+    pronto = false; btnExec.disabled = true; btnExec.textContent = "A carregar…";
+    if (sab) interromper[0] = 0;   // pedido de paragem que o worker anterior não chegou a ler
+    worker = new Worker(URL.createObjectURL(new Blob([$("worker").textContent], { type: "text/javascript" })));
+    worker.onmessage = e => receber(e.data);
+    worker.onerror = e => { console.error("worker:", e.message); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); };
+    worker.postMessage({ tipo: "iniciar", sab });
+  }
+  function receber(m) {
+    if (m.tipo === "pronto") {
+      pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
+      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter para executar.");
     }
+    else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
+    else if (m.tipo === "out") escrever(m.t);
+    else if (m.tipo === "err") escrever(m.t, "err");
+    else if (m.tipo === "fig") mostrarFigura(m.png);
+    else if (m.tipo === "instalar") setEstado("A instalar bibliotecas… (só da primeira vez)");
+    else if (m.tipo === "executar") setEstado("A executar…");
+    else if (m.tipo === "input") pedir(m.msg);
+    else if (m.tipo === "fim") acabar(`Terminado em ${((performance.now() - t0) / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 2 })} s.`, "ok");
+    else if (m.tipo === "erro") {
+      if (/KeyboardInterrupt/.test(m.t)) { escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
+      else { escrever(limparErro(m.t), "err"); acabar("O programa tem um erro.", "erro"); }
+    }
+  }
+  function executar() {
+    if (!pronto || aCorrer) return;
+    aCorrer = true; guardar();
+    btnExec.hidden = true; btnParar.hidden = false;
+    saida.innerHTML = ""; setEstado("A executar…");
+    t0 = performance.now();
+    if (sab) interromper[0] = 0;
+    worker.postMessage({ tipo: "executar", codigo: editor.getValue() });
+  }
+  function acabar(texto, classe) {
+    clearTimeout(timerParar); fecharCampo();
+    aCorrer = false; btnExec.hidden = false; btnParar.hidden = true;
+    setEstado(texto, classe); editor.focus();
+  }
+  function parar() {
+    if (!aCorrer) return;
+    setEstado("A parar…");
+    if (sab) {
+      if (campo) { fecharCampo(); Atomics.store(ctl, 0, 2); Atomics.notify(ctl, 0); }
+      interromper[0] = 2;   // SIGINT: o Python lança KeyboardInterrupt
+    }
+    // se o Python não responder (p. ex. preso numa função do numpy), deita-se fora e recomeça-se
+    timerParar = setTimeout(() => {
+      worker.terminate();
+      escrever("Programa interrompido.\n", "info");
+      acabar("Interrompido. A recarregar o Python…");
+      criarWorker();
+    }, sab ? 1500 : 0);
   }
 
-  let mplPronto = false;
-  async function executar() {
-    if (!py || aCorrer) return;
-    aCorrer = true; btnExec.disabled = true; guardar();
-    const codigo = editor.getValue();
-    saida.innerHTML = "";
-    setEstado("A executar…");
-    await new Promise(r => setTimeout(r, 20));   // deixa o navegador atualizar o ecrã
-    const t0 = performance.now();
-    try {
-      // instala as bibliotecas usadas (numpy, matplotlib, sympy, …) só quando são precisas
-      await py.loadPackagesFromImports(codigo, { messageCallback: msg => /^Loading /.test(msg) && setEstado("A instalar bibliotecas… (só da primeira vez)"), errorCallback: () => {} });
-      if (!mplPronto && /\bmatplotlib\b/.test(codigo)) { await py.runPythonAsync(MPL); mplPronto = true; }
+  // input(): campo de texto na própria saída
+  function pedir(msg) {
+    const linha = document.createElement("span"); linha.className = "pedido"; linha.textContent = msg;
+    const inp = document.createElement("input"); inp.className = "entrada"; inp.setAttribute("aria-label", msg || "Valor");
+    linha.appendChild(inp); saida.appendChild(linha); campo = linha;
+    setEstado("À espera de um valor (Enter para confirmar)…");
+    inp.focus(); saida.scrollTop = saida.scrollHeight;
+    inp.onkeydown = e => {
+      if (e.key !== "Enter") return;
+      const b = new TextEncoder().encode(inp.value).slice(0, bytes.length);
+      bytes.set(b); ctl[1] = b.length;
+      linha.textContent = msg + inp.value + "\n"; linha.className = ""; campo = null;
       setEstado("A executar…");
-      await py.runPythonAsync(codigo, { globals: py.toPy({ __name__: "__main__" }) });
-      if (mplPronto) await py.runPythonAsync("plt.show()");
-      setEstado(`Terminado em ${((performance.now() - t0) / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 2 })} s.`, "ok");
-    } catch (e) {
-      escrever(limparErro(String(e.message || e)), "err");
-      setEstado("O programa tem um erro.", "erro");
-    }
-    aCorrer = false; btnExec.disabled = false;
+      Atomics.store(ctl, 0, 1); Atomics.notify(ctl, 0);
+    };
   }
+  function fecharCampo() { if (campo) { campo.textContent = campo.firstChild.textContent + "\n"; campo.className = ""; campo = null; } }
+
   // mostra só a parte do erro que diz respeito ao programa do aluno
   function limparErro(msg) {
     const linhas = msg.split("\n"), i = linhas.findIndex(l => l.includes('File "<exec>"'));
-    const util = i >= 0 ? ["Traceback (most recent call last):", ...linhas.slice(i)] : linhas;
+    const util = i >= 0 ? ["Traceback (most recent call last):", ...linhas.slice(i).filter(l => !/, in _input$/.test(l))] : linhas;
     return util.join("\n").replace(/File "<exec>", line (\d+)/g, "Linha $1").replace(/\n+$/, "") + "\n";
   }
   btnExec.onclick = executar;
-  iniciar();
+  btnParar.onclick = parar;
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && aCorrer) { e.preventDefault(); parar(); } });
+
+  // o sw.js põe os cabeçalhos COOP/COEP (o GitHub Pages não deixa); da primeira vez é preciso recarregar
+  (async () => {
+    if (!self.crossOriginIsolated && "serviceWorker" in navigator && location.protocol !== "file:") {
+      try {
+        await navigator.serviceWorker.register("sw.js");
+        await navigator.serviceWorker.ready;
+        if (!sessionStorage.getItem(CHAVE + "-recarregado")) { sessionStorage.setItem(CHAVE + "-recarregado", "1"); location.reload(); return; }
+      } catch (e) {}
+    }
+    criarWorker();
+  })();
 })();
 </script>
 </body>
