@@ -142,28 +142,27 @@
 
   /* ecrã largo: opções numa coluna à esquerda; o desenho à direita fica preso no ecrã enquanto se desce nas opções */
   .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
-  /* (em modo projeção não: o desenho fica em cima, a toda a largura, e os controlos por baixo, lado a lado) */
   @media (min-width: 1100px) {
-    :root:not([data-proj]) .cols { grid-template-columns: minmax(270px, 21%) minmax(0, 1fr); }
-    :root:not([data-proj]) .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-    :root:not([data-proj]) .cols .plot-card { order: 2; position: sticky; top: 16px; }
+    .cols { grid-template-columns: minmax(270px, 21%) minmax(0, 1fr); }
+    .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .cols .plot-card { order: 2; position: sticky; top: 16px; }
     /* coluna das opções mais compacta, para o desenho ter mais espaço */
-    :root:not([data-proj]) .cols .panels .card { padding: 10px; gap: 8px; }
-    :root:not([data-proj]) .cols h2 { font-size: 0.85rem; }
-    :root:not([data-proj]) .cols .param { grid-template-columns: 1fr 4.8rem; gap: 8px; }
-    :root:not([data-proj]) .cols .num { font-size: 0.85rem; padding: 3px 5px; }
-    :root:not([data-proj]) .cols .row { gap: 6px; }
-    :root:not([data-proj]) .cols .lbl { font-size: 0.8rem; }
-    :root:not([data-proj]) .cols button.b, :root:not([data-proj]) .cols .seg button { font-size: 0.8rem; padding: 4px 8px; }
-    :root:not([data-proj]) .cols .checks { gap: 5px 8px; }
-    :root:not([data-proj]) .cols .chk { font-size: 0.85rem; gap: 6px; }
-    :root:not([data-proj]) .cols .chk input { width: 15px; height: 15px; }
-    :root:not([data-proj]) .cols .seg button { white-space: nowrap; }
+    .cols .panels .card { padding: 10px; gap: 8px; }
+    .cols h2 { font-size: 0.85rem; }
+    .cols .param { grid-template-columns: 1fr 4.8rem; gap: 8px; }
+    .cols .num { font-size: 0.85rem; padding: 3px 5px; }
+    .cols .row { gap: 6px; }
+    .cols .lbl { font-size: 0.8rem; }
+    .cols button.b, .cols .seg button { font-size: 0.8rem; padding: 4px 8px; }
+    .cols .checks { gap: 5px 8px; }
+    .cols .chk { font-size: 0.85rem; gap: 6px; }
+    .cols .chk input { width: 15px; height: 15px; }
+    .cols .seg button { white-space: nowrap; }
     /* as quatro janelas do gráfico numa grelha 2 × 2, para não partirem o texto */
-    :root:not([data-proj]) .cols #win { display: grid; grid-template-columns: 1fr 1fr; }
-    :root:not([data-proj]) .cols #win button { border-left: 0; }
-    :root:not([data-proj]) .cols #win button:nth-child(even) { border-left: 1px solid var(--line); }
-    :root:not([data-proj]) .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .cols #win { display: grid; grid-template-columns: 1fr 1fr; }
+    .cols #win button { border-left: 0; }
+    .cols #win button:nth-child(even) { border-left: 1px solid var(--line); }
+    .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
   /* modo projeção: texto e traços maiores, mais contraste, tema claro */
@@ -173,6 +172,17 @@
   :root[data-proj] .hint { font-size: 1rem; }
   :root[data-hidectl] .cols { grid-template-columns: minmax(0, 1fr); }
   :root[data-hidectl] .panels { display: none; }
+  /* controlos na folha do desenho, por baixo da figura (só no modo projeção) */
+  .ovl { display: none; }
+  :root[data-proj] .ovl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 10px 8px 4px; margin-top: 4px; border-top: 1px solid var(--line); line-height: 1.4; }
+  .ov { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); }
+  .ov label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .ov i { font-family: var(--font); font-size: 1.3rem; }
+  .ov input[type="range"] { width: 220px; accent-color: var(--arc); margin: 0; }
+  .ov input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--c, var(--axis)); }
+  .ov button.b { font-family: var(--font); font-size: 1rem; padding: 4px 12px; }
+  .ov output { min-width: 4.5em; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .ovchk { font-family: var(--font); font-weight: 700; font-size: 1.1rem; color: var(--c, var(--ink)); }
 </style>
 </head>
 <body>
@@ -189,6 +199,7 @@
   <main class="cols">
   <section class="card plot-card" aria-label="Circunferência unitária e gráficos">
     <div id="plot"></div>
+    <div class="ovl" id="ovl" aria-label="Controlos no desenho"></div>
     <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
   </section>
 
@@ -417,6 +428,38 @@
   for (const key of ["cos", "sin", "tan", "line", "full", "link"])
     $("sh-" + key).onchange = e => { S.show[key] = e.target.checked; };
 
+  // ---------- controlos na folha do desenho (só no modo projeção) ----------
+  // cópias compactas dos controlos principais, por baixo da figura
+  const ovl = $("ovl");
+  const ovR = {};
+  function buildOverlay() {
+    const add = html => { const d = document.createElement("div"); d.className = "ov"; d.innerHTML = html; ovl.appendChild(d); return d; };
+    const dt = add(`<label><i>t</i><input type="range" min="${tR.min}" max="${tR.max}" step="${tR.step}" aria-label="t"></label><output></output>`);
+    ovR.t = dt.querySelector("input"); ovR.out = dt.querySelector("output");
+    ovR.t.addEventListener("input", () => { tR.value = ovR.t.value; tR.dispatchEvent(new Event("input")); });
+    const db = add(`<button class="b" id="ov-back"></button><button class="b" id="ov-fwd"></button><button class="b" id="ov-zero">↺ <i>t</i> = 0</button>`);
+    db.querySelector("#ov-back").onclick = () => $("back").click();
+    db.querySelector("#ov-fwd").onclick = () => $("fwd").click();
+    db.querySelector("#ov-zero").onclick = () => $("zero").click();
+    const dk = add(`<label class="ovchk" style="--c: var(--cos)"><input type="checkbox" data-k="sh-cos"> cos</label>` +
+      `<label class="ovchk" style="--c: var(--sin)"><input type="checkbox" data-k="sh-sin"> sin</label>` +
+      `<label class="ovchk" style="--c: var(--tan)"><input type="checkbox" data-k="sh-tan"> tan</label>` +
+      `<label class="ovchk" style="--c: var(--arc)"><input type="checkbox" data-k="sh-line"> reta</label>` +
+      `<label class="ovchk"><input type="checkbox" data-k="sh-graph"> gráficos</label>`);
+    dk.querySelectorAll("input").forEach(i => i.addEventListener("change", () => { const m = $(i.dataset.k); m.checked = i.checked; m.dispatchEvent(new Event("change")); }));
+  }
+  let ovLast = "";
+  function syncOverlay() {
+    const key = [S.t, S.dir, VAL.t, ...["sh-cos", "sh-sin", "sh-tan", "sh-line", "sh-graph"].map(k => $(k).checked)].join("|");
+    if (key === ovLast) return;
+    ovLast = key;
+    ovR.t.value = S.t; ovR.out.textContent = VAL.t.replace("-", "−");
+    $("ov-fwd").textContent = S.dir === 1 ? "❚❚" : "▶";
+    $("ov-back").textContent = S.dir === -1 ? "❚❚" : "◀";
+    ovl.querySelectorAll(".ovchk input").forEach(i => { i.checked = $(i.dataset.k).checked; });
+  }
+  buildOverlay();
+
   // ---------- cores (lidas do CSS, atualizadas com o tema) ----------
   let C = {};
   function readColors() {
@@ -462,7 +505,7 @@
   function maxH() {
     if (!wide.matches) return Infinity;
     const hint = holder.parentElement.querySelector(".hint");
-    return Math.max(300, innerHeight - 32 - 18 - (hint ? hint.offsetHeight : 0));
+    return Math.max(300, innerHeight - 32 - 18 - (hint ? hint.offsetHeight : 0) - ovl.offsetHeight);
   }
 
   function layout() {
@@ -570,6 +613,7 @@
       if (v >= TMAX || v <= -TMAX) { v = Math.max(-TMAX, Math.min(TMAX, v)); setDir(0); }
       setT(v, { snap: false });
     }
+    if (K > 1) syncOverlay();
     background(C.panel);
     drawCircle();
     if (!L.g) return;

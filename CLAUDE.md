@@ -31,7 +31,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 
 ## Modo projeção
 - As cinco apps de duas colunas têm «Modo projeção» (chave `apps-mat-projecao` no `localStorage`, fator K = 1,5 aplicado envolvendo `textSize`/`strokeWeight` do p5). Manter as novas apps coerentes com isto.
-- Na `funcao-enrolamento`, em modo projeção os controlos ficam por baixo do desenho (lado a lado), mesmo em ecrãs largos: as regras da coluna à esquerda estão em `:root:not([data-proj]) .cols …`. O ponto P na circunferência mostra só o nome (sem coordenadas), a pedido do utilizador.
+- No modo projeção, a `funcao-sinusoidal-simples` e a `funcao-enrolamento` têm uma faixa `.ovl` por baixo da figura, dentro do cartão do desenho, com cópias compactas dos controlos principais (`buildOverlay`/`syncOverlay`: as cópias passam o valor ao controlo original e disparam o seu evento). A altura da figura desconta a altura da faixa. Na enrolamento: t, ◀/▶, t = 0 e cos, sin, tan, reta, gráficos. O ponto P na circunferência mostra só o nome (sem coordenadas), a pedido do utilizador.
 
 ## Armadilhas do p5
 - O p5 guarda as cores de `stroke`/`fill` em cache: **nunca** envolver chamadas de cor do p5 em `drawingContext.save()/restore()` (as cores deixam de se aplicar sem erro).
