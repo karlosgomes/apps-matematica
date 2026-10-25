@@ -22,7 +22,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 
 ## Convenções de design (pedidas pelo utilizador)
 - Ecrãs largos: controlos numa coluna estreita e compacta à esquerda; a figura à direita, fixa (`position: sticky`) e com a altura limitada ao ecrã, para estar sempre toda visível. A figura deve ter o máximo de espaço.
-- Valores escritos diretamente na figura (ex.: P(cos t; sin t) junto de P), em vez de um cartão de valores à parte. Evitar blocos de texto explicativo que não foram pedidos.
+- Valores escritos diretamente na figura (ex.: (t; sin t) junto do ponto do gráfico), em vez de um cartão de valores à parte. Evitar blocos de texto explicativo que não foram pedidos.
 - O referencial fica **estático** quando os parâmetros mudam, para se ver o efeito da mudança; oferecer a opção de manter os traços anteriores.
 - Estado inicial mínimo (ex.: só a primeira onda selecionada).
 - Preferir acrescentar uma variante a uma app existente (opção/alternador) em vez de criar uma app nova.
@@ -31,6 +31,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 
 ## Modo projeção
 - As cinco apps de duas colunas têm «Modo projeção» (chave `apps-mat-projecao` no `localStorage`, fator K = 1,5 aplicado envolvendo `textSize`/`strokeWeight` do p5). Manter as novas apps coerentes com isto.
+- Na `funcao-enrolamento`, em modo projeção os controlos ficam por baixo do desenho (lado a lado), mesmo em ecrãs largos: as regras da coluna à esquerda estão em `:root:not([data-proj]) .cols …`. O ponto P na circunferência mostra só o nome (sem coordenadas), a pedido do utilizador.
 
 ## Armadilhas do p5
 - O p5 guarda as cores de `stroke`/`fill` em cache: **nunca** envolver chamadas de cor do p5 em `drawingContext.save()/restore()` (as cores deixam de se aplicar sem erro).
