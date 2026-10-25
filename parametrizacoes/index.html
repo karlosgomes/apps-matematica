@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Parametrizações</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff, 0 0 6px #fff; }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixas de texto (a expressão de P e o intervalo de t), postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.5em; border: 2px solid #b3bfcc; border-radius: 8px;
+         background: #fff; color: #17202b; font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
+  .inp:focus { border-color: #2e7d32; }
+  .inp.bad { border-color: #d32f2f; background: #fff5f5; }
+</style>
+</head>
+<body>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Curva descrita pelo ponto P(x(t), y(t)) e gráficos de x(t) e y(t)"></canvas>
+<input class="inp" id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Coordenadas do ponto, por exemplo P(cos(t), sin(t))">
+<input class="inp" id="ta" type="text" spellcheck="false" autocomplete="off" aria-label="Início do intervalo de t">
+<input class="inp" id="tb" type="text" spellcheck="false" autocomplete="off" aria-label="Fim do intervalo de t">
+<script>
+(() => {
+  // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
+  const PI = Math.PI, TAU = 2 * PI;
+  const C = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
+    x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f",
+  };
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const N = 2000;                       // amostras da curva
+  const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"]];
+  const DUR = 8;                        // segundos para percorrer o intervalo todo, à velocidade média
+  const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
+              showX: true, showY: true, full: true, coords: false };
+
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  // ---------- expressões: x(t), y(t) e os extremos do intervalo ----------
+  // aceita sin/sen, cos, tan/tg, sqrt, abs, exp, ln, log, arcsin…, pi/π, e; multiplicação implícita (2t, 3cos t);
+  // cos^2(t); "sin 2t" = sin(2t). Separador das coordenadas: ";" (e aí a vírgula é decimal) ou ",".
+  const FN = {
+    sin: Math.sin, sen: Math.sin, cos: Math.cos, tan: Math.tan, tg: Math.tan, sqrt: Math.sqrt, abs: Math.abs, exp: Math.exp,
+    ln: Math.log, log: Math.log10, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    arcsin: Math.asin, arccos: Math.acos, arctan: Math.atan, arcsen: Math.asin, arctg: Math.atan,
+  };
+  const CONST = { pi: PI, "π": PI, e: Math.E };
+  const NAMES = [...Object.keys(FN), ...Object.keys(CONST), "t"].sort((p, q) => q.length - p.length);
+  class Err extends Error {}
+
+  function tokens(src, comma) {
+    src = src.replace(/[−–]/g, "-").replace(/[×·]/g, "*").replace(/²/g, "^2").replace(/³/g, "^3").replace(/√/g, "sqrt");
+    const out = [];
+    let i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (/\s/.test(c)) { i++; continue; }
+      const m = src.slice(i).match(comma ? /^\d+(?:[.,]\d+)?|^[.,]\d+/ : /^\d+(?:\.\d+)?|^\.\d+/);
+      if (m) { out.push({ k: "num", v: parseFloat(m[0].replace(",", ".")) }); i += m[0].length; continue; }
+      if ("+-*/^()|".includes(c)) { out.push({ k: c }); i++; continue; }
+      if (/[a-zA-Zπ]/.test(c)) {
+        const name = NAMES.find(n => src.startsWith(n, i) || src.slice(i, i + n.length).toLowerCase() === n);
+        if (!name) throw new Err(`não conheço «${src.slice(i).match(/^[a-zA-Zπ]+/)[0]}»`);
+        out.push(name === "t" ? { k: "t" } : name in CONST ? { k: "const", name } : { k: "fn", name });
+        i += name.length; continue;
+      }
+      throw new Err(`símbolo inesperado «${c}»`);
+    }
+    return out;
+  }
+  function parse(src, comma = false) {
+    const tk = tokens(src, comma);
+    let p = 0;
+    const peek = () => tk[p], eat = k => { if (tk[p] && tk[p].k === k) return tk[p++]; return null; };
+    let bars = 0;   // dentro de |…|, uma barra fecha o módulo (não abre outro)
+    const startsAtom = t => t && (t.k === "num" || t.k === "t" || t.k === "const" || t.k === "fn" || t.k === "(" || (t.k === "|" && !bars));
+    function expr() {
+      let a = term();
+      for (;;) {
+        if (eat("+")) a = { k: "+", a, b: term() };
+        else if (eat("-")) a = { k: "-", a, b: term() };
+        else return a;
+      }
+    }
+    function term() {
+      let a = unary();
+      for (;;) {
+        if (eat("*")) a = { k: "*", a, b: unary() };
+        else if (eat("/")) a = { k: "/", a, b: unary() };
+        else if (startsAtom(peek())) a = { k: "*", a, b: power(), imp: true };
+        else return a;
+      }
+    }
+    function unary() {
+      if (eat("-")) return { k: "neg", a: unary() };
+      if (eat("+")) return unary();
+      return power();
+    }
+    function power() {
+      const a = atom();
+      if (eat("^")) return { k: "^", a, b: unary() };
+      return a;
+    }
+    function atom() {
+      const t = tk[p++];
+      if (!t) throw new Err("a expressão está incompleta");
+      if (t.k === "num") return { k: "num", v: t.v };
+      if (t.k === "t") return { k: "t" };
+      if (t.k === "const") return { k: "const", name: t.name };
+      if (t.k === "(") { const a = expr(); if (!eat(")")) throw new Err("falta fechar um parêntese"); return { k: "par", a }; }
+      if (t.k === "|" && !bars) { bars++; const a = expr(); bars--; if (!eat("|")) throw new Err("falta fechar o módulo |…|"); return { k: "fn", name: "abs", a }; }
+      if (t.k === "fn") {
+        let pw = null;
+        if (eat("^")) pw = atom();
+        let arg;
+        if (eat("(")) { arg = expr(); if (!eat(")")) throw new Err("falta fechar um parêntese"); }
+        else {
+          // sem parênteses: o argumento são os fatores seguintes (sin 2t = sin(2t)), até outra função ou operador
+          const ok = q => q && (q.k === "num" || q.k === "t" || q.k === "const");
+          if (!ok(peek())) throw new Err(`falta o argumento de ${t.name}`);
+          arg = power();
+          while (ok(peek())) arg = { k: "*", a: arg, b: power(), imp: true };
+        }
+        const f = { k: "fn", name: t.name, a: arg };
+        return pw ? { k: "^", a: f, b: pw, fnpow: true } : f;
+      }
+      throw new Err(t.k === ")" ? "há um parêntese a mais" : `«${t.k}» fora do sítio`);
+    }
+    if (!tk.length) throw new Err("falta a expressão");
+    const a = expr();
+    if (p < tk.length) throw new Err(tk[p].k === ")" ? "há um parêntese a mais" : "não percebi o fim da expressão");
+    return a;
+  }
+  // árvore → função de t
+  function compile(n) {
+    switch (n.k) {
+      case "num": { const v = n.v; return () => v; }
+      case "t": return t => t;
+      case "const": { const v = CONST[n.name]; return () => v; }
+      case "par": return compile(n.a);
+      case "neg": { const f = compile(n.a); return t => -f(t); }
+      case "fn": { const f = compile(n.a), g = FN[n.name]; return t => g(f(t)); }
+      case "^": { const f = compile(n.a), g = compile(n.b); return t => Math.pow(f(t), g(t)); }
+      default: {
+        const f = compile(n.a), g = compile(n.b);
+        if (n.k === "+") return t => f(t) + g(t);
+        if (n.k === "-") return t => f(t) - g(t);
+        if (n.k === "*") return t => f(t) * g(t);
+        return t => f(t) / g(t);
+      }
+    }
+  }
+  const hasT = n => n.k === "t" || (n.a && hasT(n.a)) || (n.b && hasT(n.b));
+  // árvore → LaTeX (para se ver como a app leu a expressão)
+  const TEXFN = { sin: "\\sin", sen: "\\sin", cos: "\\cos", tan: "\\tan", tg: "\\tan", ln: "\\ln", log: "\\log",
+    asin: "\\arcsin", acos: "\\arccos", atan: "\\arctan", arcsin: "\\arcsin", arccos: "\\arccos", arctan: "\\arctan", arcsen: "\\arcsin", arctg: "\\arctan" };
+  const numTex = v => String(+v.toFixed(6)).replace(".", "{,}");
+  const simple = n => n.k === "t" || n.k === "num" || n.k === "const" || (n.k === "*" && n.imp && simple(n.a) && simple(n.b) && n.b.k !== "num");
+  const strip = n => n.k === "par" ? strip(n.a) : n;
+  function tex(n) {
+    switch (n.k) {
+      case "num": return numTex(n.v);
+      case "t": return "t";
+      case "const": return n.name === "e" ? "e" : "\\pi";
+      case "par": return `\\left(${tex(n.a)}\\right)`;
+      case "neg": return "-" + (["+", "-"].includes(n.a.k) ? `\\left(${tex(n.a)}\\right)` : tex(n.a));
+      case "+": return `${tex(n.a)} + ${tex(n.b)}`;
+      case "-": return `${tex(n.a)} - ${["+", "-"].includes(n.b.k) ? `\\left(${tex(n.b)}\\right)` : tex(n.b)}`;
+      case "*": {
+        const wrap = m => ["+", "-"].includes(m.k) ? `\\left(${tex(m)}\\right)` : tex(m);
+        const b = strip(n.b);
+        const numFirst = b.k === "num" || b.k === "neg" || (b.k === "^" && strip(b.a).k === "num") || (b.k === "*" && strip(b.a).k === "num");
+        return wrap(n.a) + (numFirst ? " \\times " : n.a.k === "fn" ? "\\," : " ") + wrap(n.b);
+      }
+      case "/": {
+        const fr = inExp ? "\\frac" : "\\dfrac", a = strip(n.a);
+        return a.k === "neg" ? `-${fr}{${tex(strip(a.a))}}{${tex(strip(n.b))}}` : `${fr}{${tex(a)}}{${tex(strip(n.b))}}`;
+      }
+      case "^": {
+        if (n.fnpow) { const f = n.a; return fnTex(f, `^{${expTex(n.b)}}`); }
+        const a = n.a, base = ["num", "t", "const", "par"].includes(a.k) && !(a.k === "num" && a.v < 0) ? tex(a) : `\\left(${tex(a)}\\right)`;
+        return `${base}^{${expTex(n.b)}}`;
+      }
+      case "fn": return fnTex(n, "");
+    }
+    return "?";
+  }
+  let inExp = false;
+  function expTex(n) { const o = inExp; inExp = true; const s = tex(strip(n)); inExp = o; return s; }
+  function fnTex(n, pw) {
+    const a = strip(n.a);
+    if (n.name === "sqrt") return pw ? `\\left(\\sqrt{${tex(a)}}\\right)${pw}` : `\\sqrt{${tex(a)}}`;
+    if (n.name === "abs") return `\\left|${tex(a)}\\right|${pw}`;
+    if (n.name === "exp") return pw ? `\\left(e^{${expTex(a)}}\\right)${pw}` : `e^{${expTex(a)}}`;
+    return TEXFN[n.name] + pw + (simple(a) ? " " + tex(a) : `\\left(${tex(a)}\\right)`);
+  }
+
+  // "P(x(t), y(t))" → nome, x(t), y(t)
+  function readPoint(src) {
+    let name = "P", body = src.trim();
+    const m = body.match(/^([A-Za-z])\s*('*)\s*\((.*)\)\s*$/s);
+    if (m && !/^(t|e)$/.test(m[1])) { name = m[1] + m[2]; body = m[3]; }
+    else if (/^\(.*\)$/s.test(body)) body = body.slice(1, -1);
+    // separa no ";" ou na vírgula fora de parênteses
+    const semi = body.includes(";"), sep = semi ? ";" : ",";
+    let depth = 0, cut = -1, n = 0;
+    for (let i = 0; i < body.length; i++) {
+      const c = body[i];
+      if (c === "(") depth++; else if (c === ")") depth--;
+      else if (c === sep && depth === 0) { cut = i; n++; }
+    }
+    if (n !== 1) throw new Err(n ? "há coordenadas a mais" : `separa x(t) e y(t) com ${semi ? "«;»" : "uma vírgula ou «;»"}`);
+    const xs = body.slice(0, cut), ys = body.slice(cut + 1);
+    let X, Y;
+    try { X = parse(xs, semi); } catch (e) { throw new Err("em x(t): " + e.message); }
+    try { Y = parse(ys, semi); } catch (e) { throw new Err("em y(t): " + e.message); }
+    return { name, X, Y, fx: compile(X), fy: compile(Y) };
+  }
+  function readNum(src) {
+    const n = parse(src, true);
+    if (hasT(n)) throw new Err("o extremo não pode ter t");
+    const v = compile(n)(0);
+    if (!isFinite(v)) throw new Err("extremo inválido");
+    return { v, pi: /pi|π/i.test(src) };
+  }
+
+  // ---------- amostras ----------
+  let P = null, CV = null, err = "", errA = false, errB = false, piAxis = true;
+  function sample() {
+    const T = new Float64Array(N + 1), X = new Float64Array(N + 1), Y = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; T[i] = t; X[i] = P.fx(t); Y[i] = P.fy(t); }
+    CV = { T, X, Y };
+  }
+  function update() {
+    let ok = true;
+    try { P = readPoint(S.src); err = ""; } catch (e) { err = e.message; ok = false; if (!P) P = readPoint("P(cos(t), sin(t))"); }
+    let a = S.a, b = S.b, pa = false, pb = false;
+    errA = errB = false;
+    try { const r = readNum(S.aSrc); a = r.v; pa = r.pi; } catch (e) { errA = true; }
+    try { const r = readNum(S.bSrc); b = r.v; pb = r.pi; } catch (e) { errB = true; }
+    if (!errA && !errB && !(b > a)) { errA = errB = true; if (!err) err = "o intervalo tem de ter início menor do que o fim"; }
+    if (!errA && !errB) { S.a = a; S.b = b; piAxis = pa || pb || (a === 0 && b === 0); }
+    else if (!err) err = "não percebi o intervalo de t";
+    S.t = clamp(S.t, S.a, S.b);
+    $expr.classList.toggle("bad", !ok);
+    $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
+    sample(); draw();
+  }
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const $expr = document.getElementById("expr"), $ta = document.getElementById("ta"), $tb = document.getElementById("tb");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // disposição: em cima a expressão de P e o intervalo de t, depois x(t) e y(t) em LaTeX;
+  // no meio a curva (à esquerda ou em cima) e os gráficos (à direita ou em baixo); em baixo o tempo e as opções
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 24, 14, 26);
+    const pad = Math.round(fs * 0.7), gap = 0.4 * fs;
+    const land = W > H * 1.15 && W >= 640;
+    const L = { fs, pad, land };
+    const ih = 2.1 * fs, lh = 1.9 * fs, rowA = 2.2 * fs, rowB = 1.9 * fs;
+    const iw = 5.2 * fs, groupW = 2.6 * fs + iw + 1.1 * fs + iw + 0.9 * fs;   // «t ∈ [» a «;» b «]»
+    const w = W - 2 * pad;
+    let y = pad;
+    if (w >= 24 * fs + groupW) {
+      L.expr = { x: pad, y, w: w - groupW - fs, h: ih };
+      L.int = { x: W - pad - groupW, y, w: groupW, h: ih, iw };
+      y += ih + gap;
+    } else {
+      L.expr = { x: pad, y, w, h: ih }; y += ih + gap;
+      L.int = { x: pad, y, w: groupW, h: ih, iw }; y += ih + gap;
+    }
+    L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
+    const twoB = w < 36 * fs;
+    const bottom = rowA + gap + rowB + (twoB ? gap + rowB : 0);
+    const yb = H - pad - bottom;
+    L.rowA = { x: pad, y: yb, w, h: rowA };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, two: twoB };
+    const mh = yb - gap - y;
+    if (land) {
+      const cw = Math.min(mh, w * 0.46);
+      L.curve = { x: pad, y, w: cw, h: mh };
+      L.graph = { x: pad + cw + 1.5 * fs, y, w: w - cw - 1.5 * fs, h: mh };
+    } else {
+      const ch = Math.round(mh * 0.55);
+      L.curve = { x: pad, y, w, h: ch };
+      L.graph = { x: pad, y: y + ch + gap, w, h: mh - ch - gap };
+    }
+    return L;
+  }
+
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function dot(x, y, r, fill, ring) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    if (ring) { ctx.lineWidth = ring; ctx.strokeStyle = C.bg; ctx.stroke(); }
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function place(el, r, fs) {
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+    el.style.fontSize = fs + "px";
+  }
+
+  // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  function piTex(p, q, frac = "\\frac") {
+    if (p === 0) return "0";
+    const g = gcd(Math.abs(p), q); p /= g; q /= g;
+    const sg = p < 0 ? "-" : "", num = (Math.abs(p) === 1 ? "" : Math.abs(p)) + "\\pi";
+    return sg + (q === 1 ? num : `${frac}{${num}}{${q}}`);
+  }
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = true, op = 1) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};opacity:${op};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+  }
+  const X_ = clr(C.x, "x"), Y_ = clr(C.y, "y");
+  // decimal com vírgula (até d casas, sem zeros à direita)
+  const fmt = (v, d = 2) => { if (Math.abs(v) < 0.5 * 10 ** -d) v = 0; return (+v.toFixed(d)).toString().replace(".", "{,}"); };
+
+  // marcas «bonitas» (1, 2, 5 × 10^k) ou múltiplos de π/q
+  function ticks(lo, hi, px, minPx, pi) {
+    const span = hi - lo, n = Math.max(1, px / minPx);
+    if (pi) {
+      const q = [12, 6, 4, 3, 2, 1, 0.5, 0.25, 0.1].find(q => PI / q * n >= span) ?? 0.1;
+      if (q >= 1) {
+        const st = PI / q, out = [];
+        for (let k = Math.ceil(lo / st - 1e-9); k * st <= hi + 1e-9; k++) out.push({ v: k * st, s: piTex(k, q, "\\tfrac") });
+        return out;
+      }
+    }
+    const raw = span / n, p10 = 10 ** Math.floor(Math.log10(raw));
+    const st = [1, 2, 5, 10].map(m => m * p10).find(s => s >= raw);
+    const out = [];
+    for (let k = Math.ceil(lo / st - 1e-9); k * st <= hi + 1e-9; k++) out.push({ v: k * st, s: fmt(k * st, 6) });
+    return out;
+  }
+  // intervalo que contém os valores (sem deixar que alguns valores enormes, p. ex. de 1/t, estraguem a escala)
+  function range(arrs) {
+    const v = [];
+    for (const a of arrs) for (let i = 0; i < a.length; i++) if (isFinite(a[i])) v.push(a[i]);
+    if (!v.length) return [-1, 1];
+    v.sort((p, q) => p - q);
+    let lo = v[0], hi = v[v.length - 1];
+    const q1 = v[Math.floor(v.length * 0.02)], q2 = v[Math.ceil(v.length * 0.98) - 1];
+    if (hi - lo > 8 * (q2 - q1 || 1)) { lo = q1; hi = q2; }
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+    // o zero entra se estiver perto (para se verem os eixos)
+    const s = hi - lo;
+    if (lo > 0 && lo < 0.6 * s) lo = 0;
+    if (hi < 0 && -hi < 0.6 * s) hi = 0;
+    return [lo, hi];
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+
+  function paint() {
+    L = layout(); hits = []; used = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    inputs(fs);
+    legend(L.leg, fs);
+    curve(L.curve, fs);
+    graph(L.graph, fs);
+    rowA(L.rowA, fs);
+    rowB(L.rowB, fs);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+  }
+
+  function inputs(fs) {
+    place($expr, L.expr, fs * 1.15);
+    const g = L.int, f = fs * 1.15;
+    texAt("tin", "t \\in \\big[", g.x, g.y + g.h / 2, f, C.ink, 0, 0.5, false);
+    const xa = g.x + 2.6 * fs;
+    place($ta, { x: xa, y: g.y, w: g.iw, h: g.h }, f);
+    texAt("tsc", ";", xa + g.iw + 0.55 * fs, g.y + g.h / 2, f, C.ink, 0.5, 0.5, false);
+    const xb = xa + g.iw + 1.1 * fs;
+    place($tb, { x: xb, y: g.y, w: g.iw, h: g.h }, f);
+    texAt("tcl", "\\big]", xb + g.iw + 0.3 * fs, g.y + g.h / 2, f, C.ink, 0, 0.5, false);
+  }
+  // como a app leu a expressão (ou o que está mal)
+  function legend(b, fs) {
+    rrect(b.x, b.y, b.w, b.h, 8, "#f6f8fb", C.line, 1.5);
+    let el;
+    if (err) {
+      el = texAt("leg", `\\text{${err.replace(/[{}\\]/g, "")}}`, b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.bad, 0.5, 0.5, false);
+    } else {
+      const src = `${X_}(t) = ${tex(P.X)}, \\qquad ${Y_}(t) = ${tex(P.Y)}`;
+      el = texAt("leg", src, b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, 0.5, 0.5, false);
+    }
+    fit(el, b.w - 0.6 * fs, b.h);
+  }
+  // índice da amostra no instante t
+  const idx = t => clamp(Math.floor((t - S.a) / (S.b - S.a) * N), 0, N);
+
+  // traça uma polilinha das amostras i0..i1 (e até ao ponto final), partida onde há saltos ou valores inválidos
+  function poly(px, py, i0, i1, end, maxJump) {
+    ctx.beginPath();
+    let pen = false, lx = 0, ly = 0;
+    const go = (x, y) => {
+      if (!isFinite(x) || !isFinite(y)) { pen = false; return; }
+      if (pen && Math.hypot(x - lx, y - ly) > maxJump) pen = false;
+      pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      pen = true; lx = x; ly = y;
+    };
+    for (let i = i0; i <= i1; i++) go(px(i), py(i));
+    if (end) go(end[0], end[1]);
+    ctx.stroke();
+  }
+
+  // lugar geométrico de P, com a mesma escala nos dois eixos (para as circunferências serem redondas);
+  // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
+  function curve(g, fs) {
+    let [x0, x1] = range([CV.X]), [y0, y1] = range([CV.Y]);
+    const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
+    let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
+    if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
+    const cx = g.x + g.w / 2 - (x0 + x1) / 2 * kx, cy = g.y + g.h / 2 + (y0 + y1) / 2 * ky;
+    const X = u => cx + u * kx, Y = v => cy - v * ky;
+    const vx0 = (g.x - cx) / kx, vx1 = (g.x + g.w - cx) / kx, vy0 = (cy - g.y - g.h) / ky, vy1 = (cy - g.y) / ky;
+    ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
+    // grelha e eixos (se a origem estiver fora, os eixos ficam na borda)
+    const tx = ticks(vx0, vx1, g.w, 3.2 * fs, false), ty = ticks(vy0, vy1, g.h, 2.4 * fs, false);
+    for (const t of tx) line(X(t.v), g.y, X(t.v), g.y + g.h, C.grid, 1);
+    for (const t of ty) line(g.x, Y(t.v), g.x + g.w, Y(t.v), C.grid, 1);
+    const ax = clamp(Y(0), g.y + 0.2 * fs, g.y + g.h - 1.2 * fs), ay = clamp(X(0), g.x + 1.6 * fs, g.x + g.w - 0.2 * fs);
+    line(g.x, ax, g.x + g.w - 0.2 * fs, ax, C.axis, 1.8);
+    line(ay, g.y + g.h, ay, g.y + 0.2 * fs, C.axis, 1.8);
+    tri(g.x + g.w - 0.2 * fs, ax, 1, 0, fs * 0.45, C.axis);
+    tri(ay, g.y + 0.2 * fs, 0, -1, fs * 0.45, C.axis);
+    ctx.restore();
+    texAt("cx", "x", g.x + g.w - 0.3 * fs, ax + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
+    texAt("cy", "y", ay + 0.45 * fs, g.y + 0.2 * fs, fs * 1.1, C.ink, 0, 0);
+    tx.forEach((t, i) => { const px = X(t.v); if (Math.abs(t.v) > 1e-9 && px > g.x + fs && px < g.x + g.w - 1.5 * fs) texAt("cxt" + i, t.s, px, ax + 0.25 * fs, fs * 0.72, C.muted, 0.5, 0); });
+    ty.forEach((t, i) => { const py = Y(t.v); if (Math.abs(t.v) > 1e-9 && py > g.y + 1.2 * fs && py < g.y + g.h - 0.6 * fs) texAt("cyt" + i, t.s, ay - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
+    if (Y(0) >= g.y && Y(0) <= g.y + g.h && X(0) >= g.x && X(0) <= g.x + g.w) texAt("cO", "O", X(0) - 0.25 * fs, Y(0) + 0.2 * fs, fs * 0.8, C.muted, 1, 0);
+
+    ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
+    const i = idx(S.t), xt = P.fx(S.t), yt = P.fy(S.t), jump = Math.max(g.w, g.h) * 0.5;
+    ctx.lineJoin = ctx.lineCap = "round";
+    if (S.full) { ctx.globalAlpha = 0.3; ctx.strokeStyle = C.cur; ctx.lineWidth = 2.5; poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = C.cur; ctx.lineWidth = 3.5;
+    poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, i, [X(xt), Y(yt)], jump);
+    ctx.lineJoin = ctx.lineCap = "butt";
+    if (isFinite(xt) && isFinite(yt)) {
+      const PX = X(xt), PY = Y(yt);
+      // projeções de P nos eixos: x(t) a azul, y(t) a vermelho
+      line(PX, PY, PX, ax, C.x, 2, [6, 5]);
+      line(PX, PY, ay, PY, C.y, 2, [6, 5]);
+      dot(PX, ax, 0.22 * fs, C.x); dot(ay, PY, 0.22 * fs, C.y);
+      ctx.restore();
+      dot(PX, PY, 0.48 * fs, C.pt, 3);
+      const name = P.name.replace(/'/g, "'");
+      const src = S.coords ? `${name}\\,(${clr(C.x, fmt(xt))};\\,${clr(C.y, fmt(yt))})` : name;
+      // a etiqueta foge do centro da figura
+      const dx = PX - (g.x + g.w / 2), dy = PY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
+      const el = texAt("pn", src, PX + dx / d * 0.9 * fs, PY + dy / d * 0.9 * fs, fs * 1.05, C.ink, 0.5 - 0.5 * dx / d, 0.5 - 0.5 * dy / d);
+      // sem sair da área da figura
+      const r = el.getBoundingClientRect();
+      const sx = r.left < g.x ? g.x - r.left : r.right > g.x + g.w ? g.x + g.w - r.right : 0;
+      const sy = r.top < g.y ? g.y - r.top : r.bottom > g.y + g.h ? g.y + g.h - r.bottom : 0;
+      if (sx) el.style.left = parseFloat(el.style.left) + sx + "px";
+      if (sy) el.style.top = parseFloat(el.style.top) + sy + "px";
+      hits.push({ kind: "P", x: PX, y: PY, r: 1.6 * fs, map: { X, Y } });
+    } else ctx.restore();
+    hits.push({ kind: "curveArea", rect: g, map: { X, Y } });
+  }
+
+  // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
+  function graph(g, fs) {
+    const arrs = [S.showX && CV.X, S.showY && CV.Y].filter(Boolean);
+    let [v0, v1] = range(arrs.length ? arrs : [CV.X, CV.Y]);
+    const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
+    const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
+    const TX = t => gx0 + (t - S.a) / (S.b - S.a) * (gx1 - gx0);
+    const VY = v => gy1 - (v - v0) / (v1 - v0) * (gy1 - gy0);
+    const tt = ticks(S.a, S.b, gx1 - gx0, 3.4 * fs, piAxis), tv = ticks(v0, v1, gy1 - gy0, 2.2 * fs, false);
+    for (const t of tt) line(TX(t.v), gy0, TX(t.v), gy1, C.grid, 1, [5, 5]);
+    for (const t of tv) line(gx0, VY(t.v), gx1, VY(t.v), C.grid, 1, [5, 5]);
+    const hz = v0 <= 0 && v1 >= 0 ? VY(0) : v0 > 0 ? gy1 : gy0, vt = S.a <= 0 && S.b >= 0 ? TX(0) : gx0;
+    line(gx0 - 0.3 * fs, hz, gx1 + 0.9 * fs, hz, C.axis, 1.8);
+    line(vt, gy1 + 0.3 * fs, vt, gy0 - 0.9 * fs, C.axis, 1.8);
+    tri(gx1 + 0.9 * fs, hz, 1, 0, fs * 0.45, C.axis);
+    tri(vt, gy0 - 0.9 * fs, 0, -1, fs * 0.45, C.axis);
+    texAt("gt", "t", gx1 + 0.9 * fs, hz + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
+    const lab = [S.showX && `${X_}(t)`, S.showY && `${Y_}(t)`].filter(Boolean).join(",\\ ");
+    if (lab) texAt("gy", lab, vt + 0.45 * fs, gy0 - 0.9 * fs, fs * 1.05, C.ink, 0, 0.3);
+    tt.forEach((t, i) => { const px = TX(t.v); if (Math.abs(px - vt) > 0.6 * fs) texAt("gtt" + i, t.s, px, hz + 0.3 * fs, fs * 0.72, C.muted, 0.5, 0); });
+    tv.forEach((t, i) => { const py = VY(t.v); if (Math.abs(py - hz) > 0.4 * fs && py > gy0 - 0.2 * fs) texAt("gvt" + i, t.s, vt - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
+
+    ctx.save(); ctx.beginPath(); ctx.rect(g.x, gy0 - 0.5 * fs, g.w, gy1 - gy0 + fs); ctx.clip();
+    const i = idx(S.t), jump = (gy1 - gy0) * 0.7;
+    // linha do instante t
+    line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
+    ctx.lineJoin = ctx.lineCap = "round";
+    const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
+    for (const [on, A, f, col] of series) {
+      if (!on) continue;
+      if (S.full) { ctx.globalAlpha = 0.25; ctx.strokeStyle = col; ctx.lineWidth = 2.5; poly(j => TX(CV.T[j]), j => VY(A[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
+      ctx.strokeStyle = col; ctx.lineWidth = 3.5;
+      poly(j => TX(CV.T[j]), j => VY(A[j]), 0, i, [TX(S.t), VY(f(S.t))], jump);
+    }
+    ctx.lineJoin = ctx.lineCap = "butt";
+    ctx.restore();
+    for (const [on, , f, col] of series) {
+      const v = f(S.t);
+      if (on && isFinite(v) && VY(v) > gy0 - fs && VY(v) < gy1 + fs) dot(TX(S.t), VY(v), 0.42 * fs, col, 3);
+    }
+    hits.push({ kind: "graph", rect: { x: gx0 - fs, y: g.y, w: gx1 - gx0 + 2 * fs, h: g.h }, val: px => S.a + (px - gx0) / (gx1 - gx0) * (S.b - S.a) });
+  }
+
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, texSrc = null, fs = 16) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    if (texSrc) fit(texAt("b" + kind + (extra.v ?? ""), texSrc, x + w / 2, y + h / 2, fs * 1.05, on ? "#fff" : col, 0.5, 0.5, false), w - 0.3 * fs, h);
+    else {
+      ctx.font = `700 ${fs * 0.95}px ${FONT}`; ctx.fillStyle = on ? "#fff" : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, x + w / 2, y + h / 2 + 1);
+    }
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+
+  // ▶/❚❚, ↺ e o cursor de t
+  function rowA(b, fs) {
+    const bs = b.h, gap = 0.4 * fs;
+    button(b.x, b.y, bs * 1.3, bs, S.run ? "❚❚" : "▶", S.run, "play", {}, C.pt, null, fs);
+    button(b.x + bs * 1.3 + gap, b.y, bs, bs, "↺", false, "reset", {}, C.muted, null, fs);
+    const lx = b.x + bs * 2.3 + 2 * gap;
+    const lab = texAt("tv", `t = ${fmt(S.t)}`, lx, b.y + b.h / 2, fs * 1.1, C.ink, 0, 0.5, false);
+    const tx0 = lx + 6.2 * fs, tx1 = b.x + b.w - 0.6 * fs, cy = b.y + b.h * 0.38;
+    const TX = v => tx0 + (v - S.a) / (S.b - S.a) * (tx1 - tx0);
+    ctx.lineCap = "round";
+    line(tx0, cy, tx1, cy, C.grid2, 0.32 * fs);
+    line(tx0, cy, TX(S.t), cy, C.pt, 0.32 * fs);
+    ctx.lineCap = "butt";
+    const tk = ticks(S.a, S.b, tx1 - tx0, 3.6 * fs, piAxis);
+    tk.forEach((t, i) => {
+      line(TX(t.v), cy + 0.25 * fs, TX(t.v), cy + 0.45 * fs, C.muted, 1.2);
+      texAt("st" + i, t.s, TX(t.v), cy + 0.5 * fs, fs * 0.68, C.muted, 0.5, 0, false);
+    });
+    dot(TX(S.t), cy, 0.55 * fs, C.pt, 2.5);
+    hits.push({ kind: "slide", rect: { x: tx0 - fs, y: b.y - 0.2 * fs, w: tx1 - tx0 + 2 * fs, h: b.h + 0.4 * fs }, val: px => S.a + (px - tx0) / (tx1 - tx0) * (S.b - S.a) });
+    void lab;
+  }
+
+  // gráficos x(t)/y(t), velocidade e as caixas (curvas completas, coordenadas);
+  // em ecrãs estreitos, as caixas passam para uma segunda linha
+  function rowB(b, fs) {
+    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs;
+    button(b.x, b.y, bw, h, "", S.showX, "showX", {}, C.x, "x(t)", fs);
+    button(b.x + bw + gap, b.y, bw, h, "", S.showY, "showY", {}, C.y, "y(t)", fs);
+    const sw = (b.two ? 3.7 : 4.4) * fs, sx = b.x + b.w - 3 * sw;
+    SPEEDS.forEach(([v, t], i) => button(sx + i * sw, b.y, sw - 2, h, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9));
+    const y = b.two ? b.y + h + gap : b.y, x0 = b.two ? b.x : b.x + 2 * bw + gap + 1.2 * fs;
+    const room = (b.two ? b.x + b.w : sx - fs) - x0, bs = 0.85 * fs, t1 = "Curvas completas", t2 = `Coordenadas de ${P.name}`;
+    let f = fs * 0.85;
+    ctx.font = `${f}px ${FONT}`;
+    const fixed = 2 * (bs + 0.4 * fs) + 1.1 * fs, tw = ctx.measureText(t1).width + ctx.measureText(t2).width;
+    if (fixed + tw > room) { f *= Math.max(0.5, (room - fixed) / tw); ctx.font = `${f}px ${FONT}`; }
+    const x1 = cbox(y, h, x0, bs, fs, S.full, t1, { kind: "full" }) + 1.1 * fs;
+    cbox(y, h, x1, bs, fs, S.coords, t2, { kind: "coords" });
+  }
+  function cbox(y0, h, x, bs, fs, on, txt, hit) {
+    const y = y0 + (h - bs) / 2;
+    rrect(x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.12 * fs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, y + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(txt, x + bs + 0.4 * fs, y0 + h / 2 + 1);
+    const w = bs + 0.4 * fs + ctx.measureText(txt).width;
+    hits.push({ ...hit, rect: { x, y: y0, w, h } });
+    return x + w;
+  }
+
+  // ---------- tempo ----------
+  let last = 0;
+  function tick(now) {
+    if (!S.run) return;
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    S.t += (S.b - S.a) / DUR * S.speed * dt;
+    if (S.t >= S.b) { S.t = S.b; S.run = false; }
+    paint();
+    if (S.run) requestAnimationFrame(tick);
+  }
+  function play(on) {
+    if (on && S.t >= S.b - 1e-9) S.t = S.a;   // no fim, recomeça
+    S.run = on;
+    if (on) { last = performance.now(); requestAnimationFrame(tick); }
+    draw();
+  }
+  const setT = t => { S.t = clamp(t, S.a, S.b); draw(); };
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  function hitAt(x, y) {
+    let best = null, bd = Infinity;
+    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d <= bd) { best = h; bd = d; } }
+    return best || hits.find(h => h.rect && h.kind !== "curveArea" && inRect(h.rect, x, y)) || null;
+  }
+  // arrastar P: a amostra mais próxima do ponteiro (se houver várias, a mais perto do t atual)
+  function dragP(h, x, y) {
+    const { X, Y } = h.map;
+    let best = -1, bd = Infinity;
+    const d2 = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) { const d = Math.hypot(X(CV.X[i]) - x, Y(CV.Y[i]) - y); d2[i] = isFinite(d) ? d : Infinity; if (d2[i] < bd) bd = d2[i]; }
+    let dt = Infinity;
+    for (let i = 0; i <= N; i++) if (d2[i] <= bd + 6) { const e = Math.abs(CV.T[i] - S.t); if (e < dt) { dt = e; best = i; } }
+    if (best >= 0) setT(CV.T[best]);
+  }
+  const dragTo = (h, x, y) => h.kind === "P" ? dragP(h, x, y) : setT(h.val(x));
+  let drag = null;
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "play") { play(!S.run); return; }
+    if (h.kind === "reset") { S.run = false; setT(S.a); return; }
+    if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
+    if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
+    if (h.kind === "full") { S.full = !S.full; draw(); return; }
+    if (h.kind === "coords") { S.coords = !S.coords; draw(); return; }
+    if (h.kind === "speed") { S.speed = h.v; draw(); return; }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    S.run = false;
+    drag = h;
+    dragTo(h, e.clientX, e.clientY);
+    cv.style.cursor = "grabbing";
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) { dragTo(drag, e.clientX, e.clientY); return; }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" || h.kind === "graph" ? "ew-resize" : h.kind === "P" ? "grab" : "pointer";
+  });
+  const end = () => { drag = null; cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
+
+  // caixas de texto: a curva atualiza-se enquanto se escreve
+  $expr.value = S.src; $ta.value = S.aSrc; $tb.value = S.bSrc;
+  $expr.addEventListener("input", () => { S.src = $expr.value; update(); });
+  $ta.addEventListener("input", () => { S.aSrc = $ta.value; update(); });
+  $tb.addEventListener("input", () => { S.bSrc = $tb.value; update(); });
+  [$expr, $ta, $tb].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); }));
+
+  // teclado (fora das caixas de texto): espaço liga/desliga o tempo, ←/→ mudam t, 0 volta ao início,
+  // x/y mostram/ocultam os gráficos, c a curva completa
+  window.addEventListener("keydown", e => {
+    if (e.target.classList && e.target.classList.contains("inp")) return;
+    const st = (S.b - S.a) / 200;
+    if (e.key === " ") play(!S.run);
+    else if (e.key === "ArrowRight") { S.run = false; setT(S.t + st); }
+    else if (e.key === "ArrowLeft") { S.run = false; setT(S.t - st); }
+    else if (e.key === "0") { S.run = false; setT(S.a); }
+    else if (e.key === "x") { S.showX = !S.showX; draw(); }
+    else if (e.key === "y") { S.showY = !S.showY; draw(); }
+    else if (e.key === "c") { S.full = !S.full; draw(); }
+    else return;
+    e.preventDefault();
+  });
+
+  // valores iniciais opcionais no endereço, p. ex. index.html#p=P(2cos(t),sin(t))&a=0&b=2pi
+  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
+    const q = tok.match(/^([pab])=(.*)$/s);
+    if (!q) return;
+    if (q[1] === "p") $expr.value = S.src = q[2];
+    else if (q[1] === "a") $ta.value = S.aSrc = q[2];
+    else $tb.value = S.bSrc = q[2];
+  });
+
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  update();
+  resize();
+})();
+</script>
+</body>
+</html>
