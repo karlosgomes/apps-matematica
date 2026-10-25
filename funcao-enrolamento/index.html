@@ -200,7 +200,7 @@
   <section class="card plot-card" aria-label="Circunferência unitária e gráficos">
     <div id="plot"></div>
     <div class="ovl" id="ovl" aria-label="Controlos no desenho"></div>
-    <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
+    <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista na horizontal; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
   </section>
 
   <section class="panels">
@@ -938,8 +938,7 @@
         setT(gtx(Math.max(L.g.x0, Math.min(L.g.x1, x))), { keepView: true });
       } else if (mode === "pan") {
         const dt = (x - st0.x) / gw * (st0.b - st0.a);
-        V.a = st0.a - dt; V.b = st0.b - dt;
-        V.dy = Math.max(-L.g.k * 3, Math.min(L.g.k * 3, st0.dy + (y - st0.y)));
+        V.a = st0.a - dt; V.b = st0.b - dt;   // só na horizontal: o eixo dos t não sai do lugar
       } else if (mode === "stretch") {
         // para a direita estica, para a esquerda encolhe; o ponto onde se agarrou fica fixo
         const w = Math.max(0.4, Math.min(24 * PI, (st0.b - st0.a) * Math.exp(-(x - st0.x) / 150)));
