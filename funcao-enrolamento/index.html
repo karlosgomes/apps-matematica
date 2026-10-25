@@ -743,7 +743,7 @@
     line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]));
     // troço enrolado [0, t]
     if (b - a > 1e-6) {
-      noFill(); stroke(C.arc); strokeWeight(5); strokeCap(ROUND);
+      noFill(); stroke(C.arc); strokeWeight(3.5); strokeCap(ROUND);
       beginShape();
       const n = Math.max(2, Math.ceil((b - a) / 0.02));
       for (let i = 0; i <= n; i++) {
@@ -798,8 +798,9 @@
     if (!S.hidePi) for (let k = Math.ceil(a / st); k <= Math.floor(b / st); k++) {
       const X = gx(k * st), mult = k % S.m === 0;   // mult: múltiplo de π
       if (st * ppu >= 8 || k % skipPi === 0) {
-        stroke(mult ? C["grid-strong"] : C.grid); strokeWeight(1);
+        stroke(mult ? C["grid-strong"] : C.grid); strokeWeight(1); dashed(true);
         line(X, g.top + 10, X, g.bot - 10);
+        dashed(false);
       }
       stroke(C.pi); strokeWeight(k % skipPi === 0 ? 2 : 1.2);
       if (st * ppu >= 4 || k % skipPi === 0) line(X, cy - 5, X, cy + 5);
@@ -808,6 +809,8 @@
     const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 26 * K) || 50;
     for (let k = Math.ceil(a); k <= Math.floor(b); k++) {
       if (k === 0 || k % skipInt !== 0) continue;
+      // sem marcas de π, a grelha vertical fica nos inteiros rotulados
+      if (S.hidePi) { stroke(C.grid); strokeWeight(1); dashed(true); line(gx(k), g.top + 10, gx(k), g.bot - 10); dashed(false); }
       stroke(C.ink); strokeWeight(1.2);
       line(gx(k), cy - 4, gx(k), cy);
       label(String(k).replace("-", "−"), gx(k), cy - 12, C.ink, 11);
@@ -828,7 +831,7 @@
 
     // troço [0, t] desenrolado no eixo (só com "reta a enrolar")
     if (S.show.line) {
-      stroke(C.arc); strokeWeight(5); strokeCap(ROUND);
+      stroke(C.arc); strokeWeight(3.5); strokeCap(ROUND);
       line(gx(0), cy, gx(t), cy);
       noStroke(); fill(C.arc); circle(gx(0), cy, 7);
     }
@@ -910,7 +913,7 @@
       ly += 18;
     }
     if (S.show.line) {
-      stroke(C.arc); strokeWeight(5); line(lx, ly, lx + 18, ly);
+      stroke(C.arc); strokeWeight(3.5); line(lx, ly, lx + 18, ly);
       label("troço [0, t] desenrolado", lx + 24, ly, C.arc, 13, LEFT, CENTER, true);
     }
   }
