@@ -10,17 +10,19 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #2e7d32; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #5cc26a; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
   .tx .katex { font-size: 1em; }
-  .tx.halo { text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff, 0 0 6px #fff; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
   /* caixas de texto (a expressão de P e o intervalo de t), postas por cima do canvas pelo layout */
-  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.5em; border: 2px solid #b3bfcc; border-radius: 8px;
-         background: #fff; color: #17202b; font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
-  .inp:focus { border-color: #2e7d32; }
-  .inp.bad { border-color: #d32f2f; background: #fff5f5; }
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.5em; border: 2px solid var(--line); border-radius: 8px;
+         background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
 </style>
 </head>
 <body>
@@ -31,17 +33,34 @@
 <input class="inp" id="tb" type="text" spellcheck="false" autocomplete="off" aria-label="Fim do intervalo de t">
 <script>
 (() => {
-  // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
+  // Pensada para projeção: contraste forte, controlos desenhados na própria folha (à Geogebra); tema claro ou escuro
   const PI = Math.PI, TAU = 2 * PI;
-  const C = {
+  const LIGHT = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
-    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
     x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f",
   };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    x: "#64a8ff", y: "#ff6b6b", cur: "#5cc26a", pt: "#ffa040", bad: "#ff6b6b",
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   const N = 2000;                       // amostras da curva
-  const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"]];
-  const DUR = 8;                        // segundos para percorrer o intervalo todo, à velocidade média
+  // velocidade: lenta, média e rápida percorrem o intervalo todo em 16, 8 e 4 segundos; «tempo real»: t avança 1 por segundo
+  const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"], [0, "tempo real"]];
+  const DUR = 8;
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
               showX: true, showY: true, full: true, coords: false };
 
@@ -292,11 +311,11 @@
       L.int = { x: pad, y, w: groupW, h: ih, iw }; y += ih + gap;
     }
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
-    const twoB = w < 36 * fs;
-    const bottom = rowA + gap + rowB + (twoB ? gap + rowB : 0);
+    const nB = w >= 40 * fs ? 1 : w >= 29 * fs ? 2 : 3;   // linhas da faixa das opções
+    const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
     L.rowA = { x: pad, y: yb, w, h: rowA };
-    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, two: twoB };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB };
     const mh = yb - gap - y;
     if (land) {
       const cw = Math.min(mh, w * 0.46);
@@ -365,7 +384,7 @@
     const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
     if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
   }
-  const X_ = clr(C.x, "x"), Y_ = clr(C.y, "y");
+  const X_ = () => clr(C.x, "x"), Y_ = () => clr(C.y, "y");
   // decimal com vírgula (até d casas, sem zeros à direita)
   const fmt = (v, d = 2) => { if (Math.abs(v) < 0.5 * 10 ** -d) v = 0; return (+v.toFixed(d)).toString().replace(".", "{,}"); };
 
@@ -433,12 +452,16 @@
   }
   // como a app leu a expressão (ou o que está mal)
   function legend(b, fs) {
-    rrect(b.x, b.y, b.w, b.h, 8, "#f6f8fb", C.line, 1.5);
+    // botão do modo claro/escuro, à direita da faixa
+    const tw = b.h * 1.3;
+    button(b.x + b.w - tw, b.y, tw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, null, fs * 1.1);
+    b = { ...b, w: b.w - tw - 0.4 * fs };
+    rrect(b.x, b.y, b.w, b.h, 8, C.band, C.line, 1.5);
     let el;
     if (err) {
       el = texAt("leg", `\\text{${err.replace(/[{}\\]/g, "")}}`, b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.bad, 0.5, 0.5, false);
     } else {
-      const src = `${X_}(t) = ${tex(P.X)}, \\qquad ${Y_}(t) = ${tex(P.Y)}`;
+      const src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
       el = texAt("leg", src, b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, 0.5, 0.5, false);
     }
     fit(el, b.w - 0.6 * fs, b.h);
@@ -489,11 +512,11 @@
     if (Y(0) >= g.y && Y(0) <= g.y + g.h && X(0) >= g.x && X(0) <= g.x + g.w) texAt("cO", "O", X(0) - 0.25 * fs, Y(0) + 0.2 * fs, fs * 0.8, C.muted, 1, 0);
 
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
-    const i = idx(S.t), xt = P.fx(S.t), yt = P.fy(S.t), jump = Math.max(g.w, g.h) * 0.5;
+    const xt = P.fx(S.t), yt = P.fy(S.t), jump = Math.max(g.w, g.h) * 0.5;
     ctx.lineJoin = ctx.lineCap = "round";
-    if (S.full) { ctx.globalAlpha = 0.3; ctx.strokeStyle = C.cur; ctx.lineWidth = 2.5; poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
-    ctx.strokeStyle = C.cur; ctx.lineWidth = 3.5;
-    poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, i, [X(xt), Y(yt)], jump);
+    // o lugar geométrico fica todo desenhado (sem rasto): P limita-se a percorrê-lo
+    ctx.strokeStyle = C.cur; ctx.lineWidth = 2.5;
+    poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, N, null, jump);
     ctx.lineJoin = ctx.lineCap = "butt";
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
@@ -536,7 +559,7 @@
     tri(gx1 + 0.9 * fs, hz, 1, 0, fs * 0.45, C.axis);
     tri(vt, gy0 - 0.9 * fs, 0, -1, fs * 0.45, C.axis);
     texAt("gt", "t", gx1 + 0.9 * fs, hz + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
-    const lab = [S.showX && `${X_}(t)`, S.showY && `${Y_}(t)`].filter(Boolean).join(",\\ ");
+    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`].filter(Boolean).join(",\\ ");
     if (lab) texAt("gy", lab, vt + 0.45 * fs, gy0 - 0.9 * fs, fs * 1.05, C.ink, 0, 0.3);
     tt.forEach((t, i) => { const px = TX(t.v); if (Math.abs(px - vt) > 0.6 * fs) texAt("gtt" + i, t.s, px, hz + 0.3 * fs, fs * 0.72, C.muted, 0.5, 0); });
     tv.forEach((t, i) => { const py = VY(t.v); if (Math.abs(py - hz) > 0.4 * fs && py > gy0 - 0.2 * fs) texAt("gvt" + i, t.s, vt - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
@@ -549,7 +572,7 @@
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
     for (const [on, A, f, col] of series) {
       if (!on) continue;
-      if (S.full) { ctx.globalAlpha = 0.25; ctx.strokeStyle = col; ctx.lineWidth = 2.5; poly(j => TX(CV.T[j]), j => VY(A[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
+      if (S.full) { ctx.globalAlpha = dark ? 0.4 : 0.25; ctx.strokeStyle = col; ctx.lineWidth = 2.5; poly(j => TX(CV.T[j]), j => VY(A[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
       ctx.strokeStyle = col; ctx.lineWidth = 3.5;
       poly(j => TX(CV.T[j]), j => VY(A[j]), 0, i, [TX(S.t), VY(f(S.t))], jump);
     }
@@ -564,9 +587,9 @@
 
   function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, texSrc = null, fs = 16) {
     rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
-    if (texSrc) fit(texAt("b" + kind + (extra.v ?? ""), texSrc, x + w / 2, y + h / 2, fs * 1.05, on ? "#fff" : col, 0.5, 0.5, false), w - 0.3 * fs, h);
+    if (texSrc) fit(texAt("b" + kind + (extra.v ?? ""), texSrc, x + w / 2, y + h / 2, fs * 1.05, on ? C.on : col, 0.5, 0.5, false), w - 0.3 * fs, h);
     else {
-      ctx.font = `700 ${fs * 0.95}px ${FONT}`; ctx.fillStyle = on ? "#fff" : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `700 ${fs * 0.95}px ${FONT}`; ctx.fillStyle = on ? C.on : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(txt, x + w / 2, y + h / 2 + 1);
     }
     hits.push({ kind, ...extra, rect: { x, y, w, h } });
@@ -595,16 +618,20 @@
     void lab;
   }
 
-  // gráficos x(t)/y(t), velocidade e as caixas (curvas completas, coordenadas);
-  // em ecrãs estreitos, as caixas passam para uma segunda linha
+  // gráficos x(t)/y(t), velocidade e as caixas (curvas completas, coordenadas), numa, duas ou três linhas:
+  // 1: tudo; 2: botões e velocidade | caixas; 3: botões | velocidade | caixas
   function rowB(b, fs) {
-    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs;
+    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs, line = k => b.y + k * (h + gap);
     button(b.x, b.y, bw, h, "", S.showX, "showX", {}, C.x, "x(t)", fs);
     button(b.x + bw + gap, b.y, bw, h, "", S.showY, "showY", {}, C.y, "y(t)", fs);
-    const sw = (b.two ? 3.7 : 4.4) * fs, sx = b.x + b.w - 3 * sw;
-    SPEEDS.forEach(([v, t], i) => button(sx + i * sw, b.y, sw - 2, h, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9));
-    const y = b.two ? b.y + h + gap : b.y, x0 = b.two ? b.x : b.x + 2 * bw + gap + 1.2 * fs;
-    const room = (b.two ? b.x + b.w : sx - fs) - x0, bs = 0.85 * fs, t1 = "Curvas completas", t2 = `Coordenadas de ${P.name}`;
+    const sf = fs * (b.n > 1 ? 0.8 : 0.9);
+    ctx.font = `700 ${sf * 0.95}px ${FONT}`;
+    const ws = SPEEDS.map(([, t]) => ctx.measureText(t).width + 1.1 * fs), sw = ws.reduce((p, q) => p + q, 0);
+    const sx = b.n === 3 ? b.x : b.x + b.w - sw, sy = b.n === 3 ? line(1) : b.y;
+    let xs = sx;
+    SPEEDS.forEach(([v, t], i) => { button(xs, sy, ws[i] - 2, h, t, S.speed === v, "speed", { v }, C.muted, null, sf); xs += ws[i]; });
+    const y = line(b.n - 1), x0 = b.n > 1 ? b.x : b.x + 2 * bw + gap + 1.2 * fs;
+    const room = (b.n > 1 ? b.x + b.w : sx - fs) - x0, bs = 0.85 * fs, t1 = "Gráficos completos", t2 = `Coordenadas de ${P.name}`;
     let f = fs * 0.85;
     ctx.font = `${f}px ${FONT}`;
     const fixed = 2 * (bs + 0.4 * fs) + 1.1 * fs, tw = ctx.measureText(t1).width + ctx.measureText(t2).width;
@@ -616,7 +643,7 @@
     const y = y0 + (h - bs) / 2;
     rrect(x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
     if (on) {
-      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.12 * fs;
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.12 * fs;
       ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, y + 0.72 * bs);
       ctx.lineTo(x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
       ctx.lineCap = "butt"; ctx.lineJoin = "miter";
@@ -633,7 +660,7 @@
   function tick(now) {
     if (!S.run) return;
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    S.t += (S.b - S.a) / DUR * S.speed * dt;
+    S.t += S.speed === 0 ? dt : (S.b - S.a) / DUR * S.speed * dt;
     if (S.t >= S.b) { S.t = S.b; S.run = false; }
     paint();
     if (S.run) requestAnimationFrame(tick);
@@ -677,6 +704,7 @@
     if (h.kind === "full") { S.full = !S.full; draw(); return; }
     if (h.kind === "coords") { S.coords = !S.coords; draw(); return; }
     if (h.kind === "speed") { S.speed = h.v; draw(); return; }
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     S.run = false;
     drag = h;
@@ -699,7 +727,7 @@
   [$expr, $ta, $tb].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); }));
 
   // teclado (fora das caixas de texto): espaço liga/desliga o tempo, ←/→ mudam t, 0 volta ao início,
-  // x/y mostram/ocultam os gráficos, c a curva completa
+  // x/y mostram/ocultam os gráficos, c o resto dos gráficos (esbatido)
   window.addEventListener("keydown", e => {
     if (e.target.classList && e.target.classList.contains("inp")) return;
     const st = (S.b - S.a) / 200;
