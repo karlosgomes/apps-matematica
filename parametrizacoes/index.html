@@ -57,12 +57,13 @@
   }
   setDark(dark, false);
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
-  const N = 2000;                       // amostras da curva
+  const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
+  const CAP = 150000;                   // máximo de pontos depois de refinar
   // velocidade: lenta, média e rápida percorrem o intervalo todo em 16, 8 e 4 segundos; «tempo real»: t avança 1 por segundo
   const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"], [0, "tempo real"]];
   const DUR = 8;
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
-              showX: true, showY: true, full: true, coords: false };
+              showX: true, showY: true, full: true, coords: false, seg: false, proj: true };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -256,10 +257,30 @@
 
   // ---------- amostras ----------
   let P = null, CV = null, err = "", errA = false, errB = false, piAxis = true;
+  // amostras de t: primeiro N uniformes; depois, cada troço onde P anda muito (p. ex. cos(t²) com t grande)
+  // é partido em mais pedaços, para a curva não virar um emaranhado de cordas
+  let cvId = 0;
   function sample() {
-    const T = new Float64Array(N + 1), X = new Float64Array(N + 1), Y = new Float64Array(N + 1);
-    for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; T[i] = t; X[i] = P.fx(t); Y[i] = P.fy(t); }
-    CV = { T, X, Y };
+    const T0 = new Float64Array(N + 1), X0 = new Float64Array(N + 1), Y0 = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; T0[i] = t; X0[i] = P.fx(t); Y0[i] = P.fy(t); }
+    const rx = range([X0]), ry = range([Y0]), sx = rx[1] - rx[0], sy = ry[1] - ry[0], sm = Math.max(sx, sy), tol = 1 / 600;
+    const m = new Uint16Array(N);
+    let total = 1;
+    for (let i = 0; i < N; i++) {
+      const dx = Math.abs(X0[i + 1] - X0[i]), dy = Math.abs(Y0[i + 1] - Y0[i]);
+      const d = Math.max(Math.hypot(dx, dy) / sm, dx / sx, dy / sy);
+      m[i] = isFinite(d) ? clamp(Math.ceil(d / tol), 1, 2000) : 1;
+      total += m[i];
+    }
+    if (total > CAP) { const k = total / CAP; total = 1; for (let i = 0; i < N; i++) { m[i] = Math.max(1, Math.floor(m[i] / k)); total += m[i]; } }
+    const T = new Float64Array(total), X = new Float64Array(total), Y = new Float64Array(total);
+    let j = 0;
+    for (let i = 0; i < N; i++) for (let k = 0; k < m[i]; k++) {
+      const t = k ? T0[i] + (T0[i + 1] - T0[i]) * k / m[i] : T0[i];
+      T[j] = t; X[j] = k ? P.fx(t) : X0[i]; Y[j] = k ? P.fy(t) : Y0[i]; j++;
+    }
+    T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
+    CV = { T, X, Y, n: total - 1, rx, ry, id: ++cvId };
   }
   function update() {
     let ok = true;
@@ -311,11 +332,18 @@
       L.int = { x: pad, y, w: groupW, h: ih, iw }; y += ih + gap;
     }
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
-    const nB = w >= 40 * fs ? 1 : w >= 29 * fs ? 2 : 3;   // linhas da faixa das opções
+    // faixa das opções: x(t), y(t) e velocidade numa linha (a velocidade passa para baixo se não couber);
+    // as quatro caixas na mesma linha, se couberem, senão numa ou duas linhas por baixo
+    const o = optWidths(fs), btns = 2 * 4.2 * fs + gap;
+    const spLine = btns + 1.2 * fs + o.speed > w;
+    let cbRows = 0, cbInline = false;
+    if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
+    else cbRows = o.boxes <= w ? 1 : 2;
+    const nB = 1 + (spLine ? 1 : 0) + cbRows;
     const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
     L.rowA = { x: pad, y: yb, w, h: rowA };
-    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows };
     const mh = yb - gap - y;
     if (land) {
       const cw = Math.min(mh, w * 0.46);
@@ -467,10 +495,15 @@
     fit(el, b.w - 0.6 * fs, b.h);
   }
   // índice da amostra no instante t
-  const idx = t => clamp(Math.floor((t - S.a) / (S.b - S.a) * N), 0, N);
+  function idx(t) {   // última amostra com T ≤ t
+    let lo = 0, hi = CV.n;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (CV.T[mid] <= t) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
 
   // traça uma polilinha das amostras i0..i1 (e até ao ponto final), partida onde há saltos ou valores inválidos
-  function poly(px, py, i0, i1, end, maxJump) {
+  function poly(px, py, i0, i1, end, maxJump, c = ctx) {
+    const ctx = c;
     ctx.beginPath();
     let pen = false, lx = 0, ly = 0;
     const go = (x, y) => {
@@ -483,11 +516,44 @@
     if (end) go(end[0], end[1]);
     ctx.stroke();
   }
+  // o mesmo para os gráficos (t a crescer): os pontos que caem na mesma coluna de píxeis juntam-se num traço vertical
+  function polyCols(px, py, i0, i1, end, maxJump, c = ctx) {
+    c.beginPath();
+    let pen = false, col = 0, lo = 0, hi = 0, ly = 0;
+    const flush = () => { if (pen && hi > lo) { c.lineTo(col, lo); c.lineTo(col, hi); c.lineTo(col, ly); } };
+    const go = (x, y) => {
+      if (!isFinite(x) || !isFinite(y)) { flush(); pen = false; return; }
+      y = clamp(y, -1e5, 1e5);
+      if (pen && Math.abs(y - ly) > maxJump) { flush(); pen = false; }
+      const k = Math.round(x * 2) / 2;
+      if (!pen) { c.moveTo(x, y); pen = true; col = k; lo = hi = ly = y; return; }
+      if (k === col) { if (y < lo) lo = y; if (y > hi) hi = y; ly = y; return; }
+      flush(); c.lineTo(x, y); col = k; lo = hi = ly = y;
+    };
+    for (let i = i0; i <= i1; i++) go(px(i), py(i));
+    if (end) go(end[0], end[1]);
+    c.stroke();
+  }
+  // camada guardada (o lugar geométrico e o resto esbatido dos gráficos só se redesenham quando algo muda)
+  const layers = {};
+  function cached(name, key, paintIt) {
+    let L = layers[name];
+    if (!L) L = layers[name] = { cv: document.createElement("canvas"), key: null };
+    if (L.key !== key) {
+      const dpr = cv.width / W;
+      L.cv.width = cv.width; L.cv.height = cv.height;
+      const c = L.cv.getContext("2d");
+      c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+      paintIt(c);
+      L.key = key;
+    }
+    ctx.drawImage(L.cv, 0, 0, W, H);
+  }
 
   // lugar geométrico de P, com a mesma escala nos dois eixos (para as circunferências serem redondas);
   // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
   function curve(g, fs) {
-    let [x0, x1] = range([CV.X]), [y0, y1] = range([CV.Y]);
+    let [x0, x1] = CV.rx, [y0, y1] = CV.ry;
     const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
     let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
     if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
@@ -511,19 +577,24 @@
     ty.forEach((t, i) => { const py = Y(t.v); if (Math.abs(t.v) > 1e-9 && py > g.y + 1.2 * fs && py < g.y + g.h - 0.6 * fs) texAt("cyt" + i, t.s, ay - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
     if (Y(0) >= g.y && Y(0) <= g.y + g.h && X(0) >= g.x && X(0) <= g.x + g.w) texAt("cO", "O", X(0) - 0.25 * fs, Y(0) + 0.2 * fs, fs * 0.8, C.muted, 1, 0);
 
-    ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     const xt = P.fx(S.t), yt = P.fy(S.t), jump = Math.max(g.w, g.h) * 0.5;
-    ctx.lineJoin = ctx.lineCap = "round";
     // o lugar geométrico fica todo desenhado (sem rasto): P limita-se a percorrê-lo
-    ctx.strokeStyle = C.cur; ctx.lineWidth = 2.5;
-    poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, N, null, jump);
-    ctx.lineJoin = ctx.lineCap = "butt";
+    cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy].join("|"), c => {
+      c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
+      c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
+      poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
+      c.restore();
+    });
+    ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
-      // projeções de P nos eixos: x(t) a azul, y(t) a vermelho
-      line(PX, PY, PX, ax, C.x, 2, [6, 5]);
-      line(PX, PY, ay, PY, C.y, 2, [6, 5]);
-      dot(PX, ax, 0.22 * fs, C.x); dot(ay, PY, 0.22 * fs, C.y);
+      if (S.seg) { ctx.lineCap = "round"; line(X(0), Y(0), PX, PY, C.ink, 2.5); ctx.lineCap = "butt"; }
+      // projeções ortogonais de P nos eixos: x(t) a azul, y(t) a vermelho
+      if (S.proj) {
+        line(PX, PY, PX, ax, C.x, 2, [6, 5]);
+        line(PX, PY, ay, PY, C.y, 2, [6, 5]);
+        dot(PX, ax, 0.22 * fs, C.x); dot(ay, PY, 0.22 * fs, C.y);
+      }
       ctx.restore();
       dot(PX, PY, 0.48 * fs, C.pt, 3);
       const name = P.name.replace(/'/g, "'");
@@ -544,8 +615,8 @@
 
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
-    const arrs = [S.showX && CV.X, S.showY && CV.Y].filter(Boolean);
-    let [v0, v1] = range(arrs.length ? arrs : [CV.X, CV.Y]);
+    const rs = [S.showX && CV.rx, S.showY && CV.ry].filter(Boolean);
+    let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
     const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
     const TX = t => gx0 + (t - S.a) / (S.b - S.a) * (gx1 - gx0);
@@ -570,11 +641,14 @@
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
+    if (S.full) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY].join("|"), c => {
+      c.lineJoin = c.lineCap = "round"; c.globalAlpha = dark ? 0.4 : 0.25; c.lineWidth = 2.5;
+      for (const [on, A, , col] of series) if (on) { c.strokeStyle = col; polyCols(j => TX(CV.T[j]), j => VY(A[j]), 0, CV.n, null, jump, c); }
+    });
     for (const [on, A, f, col] of series) {
       if (!on) continue;
-      if (S.full) { ctx.globalAlpha = dark ? 0.4 : 0.25; ctx.strokeStyle = col; ctx.lineWidth = 2.5; poly(j => TX(CV.T[j]), j => VY(A[j]), 0, N, null, jump); ctx.globalAlpha = 1; }
       ctx.strokeStyle = col; ctx.lineWidth = 3.5;
-      poly(j => TX(CV.T[j]), j => VY(A[j]), 0, i, [TX(S.t), VY(f(S.t))], jump);
+      polyCols(j => TX(CV.T[j]), j => VY(A[j]), 0, i, [TX(S.t), VY(f(S.t))], jump);
     }
     ctx.lineJoin = ctx.lineCap = "butt";
     ctx.restore();
@@ -618,26 +692,42 @@
     void lab;
   }
 
-  // gráficos x(t)/y(t), velocidade e as caixas (curvas completas, coordenadas), numa, duas ou três linhas:
-  // 1: tudo; 2: botões e velocidade | caixas; 3: botões | velocidade | caixas
+  // larguras da velocidade (botões a 60%) e das quatro caixas
+  const SPF = 0.6;
+  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [`Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"]]; }
+  function optWidths(fs) {
+    ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
+    const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
+    ctx.font = `${fs * 0.85}px ${FONT}`;
+    const bs = 0.85 * fs, bw = boxTexts().map(([t]) => bs + 0.4 * fs + ctx.measureText(t).width);
+    return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + 3 * 1.1 * fs };
+  }
+  // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
-    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs, line = k => b.y + k * (h + gap);
+    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
     button(b.x, b.y, bw, h, "", S.showX, "showX", {}, C.x, "x(t)", fs);
     button(b.x + bw + gap, b.y, bw, h, "", S.showY, "showY", {}, C.y, "y(t)", fs);
-    const sf = fs * (b.n > 1 ? 0.8 : 0.9);
-    ctx.font = `700 ${sf * 0.95}px ${FONT}`;
-    const ws = SPEEDS.map(([, t]) => ctx.measureText(t).width + 1.1 * fs), sw = ws.reduce((p, q) => p + q, 0);
-    const sx = b.n === 3 ? b.x : b.x + b.w - sw, sy = b.n === 3 ? line(1) : b.y;
+    // velocidade: botões pequenos (60%), centrados na linha
+    const sh = h * SPF, sx = b.spLine ? b.x : b.x + b.w - o.speed, sy = (b.spLine ? line(1) : b.y) + (h - sh) / 2;
     let xs = sx;
-    SPEEDS.forEach(([v, t], i) => { button(xs, sy, ws[i] - 2, h, t, S.speed === v, "speed", { v }, C.muted, null, sf); xs += ws[i]; });
-    const y = line(b.n - 1), x0 = b.n > 1 ? b.x : b.x + 2 * bw + gap + 1.2 * fs;
-    const room = (b.n > 1 ? b.x + b.w : sx - fs) - x0, bs = 0.85 * fs, t1 = "Gráficos completos", t2 = `Coordenadas de ${P.name}`;
-    let f = fs * 0.85;
-    ctx.font = `${f}px ${FONT}`;
-    const fixed = 2 * (bs + 0.4 * fs) + 1.1 * fs, tw = ctx.measureText(t1).width + ctx.measureText(t2).width;
-    if (fixed + tw > room) { f *= Math.max(0.5, (room - fixed) / tw); ctx.font = `${f}px ${FONT}`; }
-    const x1 = cbox(y, h, x0, bs, fs, S.full, t1, { kind: "full" }) + 1.1 * fs;
-    cbox(y, h, x1, bs, fs, S.coords, t2, { kind: "coords" });
+    SPEEDS.forEach(([v, t], i) => { button(xs, sy, o.sp[i] - 2, sh, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9 * SPF * 1.15); xs += o.sp[i]; });
+    // caixas
+    const items = boxTexts(), bs = 0.85 * fs;
+    ctx.font = `${fs * 0.85}px ${FONT}`;
+    const put = (y, x0, list, room) => {
+      // letra mais pequena se não couberem
+      const textW = list.reduce((p, [, , w]) => p + w - bs - 0.4 * fs, 0);
+      const fixed = list.reduce((p, [, , w]) => p + w, 0) + (list.length - 1) * 1.1 * fs - textW;
+      const f = fs * 0.85 * (fixed + textW > room ? Math.max(0.55, (room - fixed) / textW) : 1);
+      ctx.font = `${f}px ${FONT}`;
+      let x = x0;
+      for (const [t, k] of list) x = cbox(y, h, x, bs, fs, S[k], t, { kind: "box", k }) + 1.1 * fs;
+    };
+    const withW = items.map(([t, k], i) => [t, k, o.bw[i]]);
+    const first = 1 + (b.spLine ? 1 : 0);
+    if (b.cbInline) put(b.y, b.x + 2 * bw + gap + 1.2 * fs, withW, sx - 1.2 * fs - (b.x + 2 * bw + gap + 1.2 * fs));
+    else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
+    else { put(line(first), b.x, withW.slice(0, 2), b.w); put(line(first + 1), b.x, withW.slice(2), b.w); }
   }
   function cbox(y0, h, x, bs, fs, on, txt, hit) {
     const y = y0 + (h - bs) / 2;
@@ -684,10 +774,10 @@
   function dragP(h, x, y) {
     const { X, Y } = h.map;
     let best = -1, bd = Infinity;
-    const d2 = new Float64Array(N + 1);
-    for (let i = 0; i <= N; i++) { const d = Math.hypot(X(CV.X[i]) - x, Y(CV.Y[i]) - y); d2[i] = isFinite(d) ? d : Infinity; if (d2[i] < bd) bd = d2[i]; }
+    const n = CV.n, d2 = new Float64Array(n + 1);
+    for (let i = 0; i <= n; i++) { const d = Math.hypot(X(CV.X[i]) - x, Y(CV.Y[i]) - y); d2[i] = isFinite(d) ? d : Infinity; if (d2[i] < bd) bd = d2[i]; }
     let dt = Infinity;
-    for (let i = 0; i <= N; i++) if (d2[i] <= bd + 6) { const e = Math.abs(CV.T[i] - S.t); if (e < dt) { dt = e; best = i; } }
+    for (let i = 0; i <= n; i++) if (d2[i] <= bd + 6) { const e = Math.abs(CV.T[i] - S.t); if (e < dt) { dt = e; best = i; } }
     if (best >= 0) setT(CV.T[best]);
   }
   const dragTo = (h, x, y) => h.kind === "P" ? dragP(h, x, y) : setT(h.val(x));
@@ -701,8 +791,7 @@
     if (h.kind === "reset") { S.run = false; setT(S.a); return; }
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
-    if (h.kind === "full") { S.full = !S.full; draw(); return; }
-    if (h.kind === "coords") { S.coords = !S.coords; draw(); return; }
+    if (h.kind === "box") { S[h.k] = !S[h.k]; draw(); return; }
     if (h.kind === "speed") { S.speed = h.v; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
