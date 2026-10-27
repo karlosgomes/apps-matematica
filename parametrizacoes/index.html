@@ -404,6 +404,14 @@
     ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
     ctx.closePath(); ctx.fill();
   }
+  // vetor de (x0, y0) até à borda do ponto de raio r em (x1, y1)
+  function vector(x0, y0, x1, y1, c, r, fs) {
+    const d = Math.hypot(x1 - x0, y1 - y0), s = 0.6 * fs;
+    if (d < r + 1.5 * s) { ctx.lineCap = "round"; line(x0, y0, x1, y1, c, 2.5); ctx.lineCap = "butt"; return; }
+    const ux = (x1 - x0) / d, uy = (y1 - y0) / d, tx = x1 - ux * (r + 2), ty = y1 - uy * (r + 2);
+    ctx.lineCap = "round"; line(x0, y0, tx - ux * s * 0.8, ty - uy * s * 0.8, c, 2.5); ctx.lineCap = "butt";
+    tri(tx - ux * s, ty - uy * s, ux, uy, s, c);
+  }
   function dot(x, y, r, fill, ring) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
     ctx.fillStyle = fill; ctx.fill();
@@ -627,7 +635,7 @@
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
-      if (S.seg) { ctx.lineCap = "round"; line(X(0), Y(0), PX, PY, C.ink, 2.5); ctx.lineCap = "butt"; }
+      if (S.seg) vector(X(0), Y(0), PX, PY, C.ink, 0.48 * fs, fs);
       // projeções ortogonais de P nos eixos, com a cor da coordenada que cada traço mede (como nos gráficos):
       // o traço vertical tem comprimento |y(t)| (vermelho) e o horizontal |x(t)| (azul); os pés marcam x(t) e y(t) nos eixos
       if (S.proj) {
@@ -655,9 +663,12 @@
       const qx = Q.fx(S.t), qy = Q.fy(S.t);
       if (isFinite(qx) && isFinite(qy) && X(qx) > g.x - fs && X(qx) < g.x + g.w + fs && Y(qy) > g.y - fs && Y(qy) < g.y + g.h + fs) {
         const QX = X(qx), QY = Y(qy);
-        if (S.seg) { ctx.lineCap = "round"; line(X(0), Y(0), QX, QY, C.q, 2.5); ctx.lineCap = "butt"; }
+        if (S.seg) vector(X(0), Y(0), QX, QY, C.q, 0.4 * fs, fs);
         dot(QX, QY, 0.4 * fs, C.q, 3);
-        const dx = QX - (g.x + g.w / 2), dy = QY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
+        let dx = QX - (g.x + g.w / 2), dy = QY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
+        // com o vetor OQ, a letra fica ao lado da seta (perpendicular a OQ)
+        const ox = QX - X(0), oy = QY - Y(0), od = Math.hypot(ox, oy);
+        if (S.seg && od > fs) { dx = oy; dy = -ox; d = od; if (dx * (QX - (g.x + g.w / 2)) + dy * (QY - (g.y + g.h / 2)) > 0) { dx = -dx; dy = -dy; } }
         // do lado de dentro, para não chocar com a etiqueta de P
         texAt("qn", Q.name, QX - dx / d * 0.85 * fs, QY - dy / d * 0.85 * fs, fs * 0.85, C.q, 0.5 + 0.5 * dx / d, 0.5 + 0.5 * dy / d);
       }
@@ -763,12 +774,30 @@
   const SPF = 0.6, XYW = 2.9, RW = 4.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
   const CBFONT = '"KaTeX_Main", "Times New Roman", serif';   // a mesma letra dos botões x(t) e y(t)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
-  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter traços", "ghost"]]; }
+  // VEC antes de uma palavra (p. ex. OP) põe-lhe uma seta por cima (vetor)
+  const VEC = "\u20d7", plain = t => t.split(VEC).join("");
+  function vecText(t, x, y) {
+    const parts = t.split(VEC);
+    let cx = x;
+    parts.forEach((part, i) => {
+      if (i) {   // a palavra marcada vai até ao próximo espaço
+        const word = part.split(" ")[0], w = ctx.measureText(word).width, f = parseFloat(ctx.font);
+        const ay = y - 0.62 * f, hs = 0.2 * f;
+        ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = Math.max(1, 0.07 * f); ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(cx + 0.05 * f, ay); ctx.lineTo(cx + w - 0.02 * f, ay);
+        ctx.moveTo(cx + w - hs, ay - 0.6 * hs); ctx.lineTo(cx + w - 0.02 * f, ay); ctx.lineTo(cx + w - hs, ay + 0.6 * hs);
+        ctx.stroke(); ctx.lineCap = "butt";
+      }
+      ctx.fillText(part, cx, y);
+      cx += ctx.measureText(part).width;
+    });
+  }
+  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Vetores ${VEC}O${P.name} e ${VEC}O${Q.name}` : `Vetor ${VEC}O${P.name}`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter traços", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = [];
     ctx.font = `${fs * CBF}px ${CBFONT}`;
-    const bs = CBS * fs, texts = boxTexts().map(([t]) => t), M = t => ctx.measureText(t).width;
+    const bs = CBS * fs, texts = boxTexts().map(([t]) => t), M = t => ctx.measureText(plain(t)).width;
     const bw = texts.map(t => bs + 0.35 * fs + M(t));
     // o mesmo texto partido em duas linhas, no espaço que deixa as linhas mais equilibradas
     const split = texts.map(t => {
@@ -821,9 +850,9 @@
     }
     ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     // txt: texto, ou duas linhas (lista)
-    const lines = Array.isArray(txt) ? txt : [txt], lh = parseFloat(ctx.font) * 1.05;
-    lines.forEach((l, i) => ctx.fillText(l, x + bs + 0.35 * fs, y0 + h / 2 + 1 + (i - (lines.length - 1) / 2) * lh));
-    const w = bs + 0.35 * fs + Math.max(...lines.map(l => ctx.measureText(l).width));
+    const lines = Array.isArray(txt) ? txt : [txt], lh = parseFloat(ctx.font) * (lines.length > 1 && lines.slice(1).some(l => l.includes(VEC)) ? 1.3 : 1.05);
+    lines.forEach((l, i) => vecText(l, x + bs + 0.35 * fs, y0 + h / 2 + 1 + (i - (lines.length - 1) / 2) * lh));
+    const w = bs + 0.35 * fs + Math.max(...lines.map(l => ctx.measureText(plain(l)).width));
     hits.push({ ...hit, rect: { x, y: y0, w, h } });
     return x + w;
   }
