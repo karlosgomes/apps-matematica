@@ -59,11 +59,11 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
-  // velocidade: lenta, média e rápida percorrem o intervalo todo em 16, 8 e 4 segundos; «tempo real»: t avança 1 por segundo
-  const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"], [0, "tempo real"]];
+  // velocidade: lenta e rápida percorrem o intervalo todo em 8 e 4 segundos; «tempo real»: t avança 1 por segundo
+  const SPEEDS = [[1, "lenta"], [2, "rápida"], [0, "tempo real"]];
   const DUR = 8;
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
-              showX: true, showY: true, full: true, coords: false, seg: false, proj: true, showQ: false };
+              showX: true, showY: true, full: true, coords: false, seg: false, proj: true, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -270,6 +270,12 @@
     return { name, X, Y, fx: compile(X), fy: compile(Y), same: tex(X) === tex(P.X) && tex(Y) === tex(P.Y) };
   }
   let Q = null, QV = null;
+  // traço anterior: ao começar a editar uma caixa de texto, guarda-se a parametrização que estava desenhada
+  let GH = null, pending = null, ghId = 0;
+  function snapshot() {
+    if (err || errA || errB) return null;
+    return { src: S.src, a: S.a, b: S.b, CV, id: ++ghId };
+  }
   function sampleQ() {
     Q = makeQ();
     const X = new Float64Array(N + 1), Y = new Float64Array(N + 1);
@@ -318,7 +324,9 @@
     S.t = clamp(S.t, S.a, S.b);
     $expr.classList.toggle("bad", !ok);
     $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
-    sample(); draw();
+    sample();
+    if (pending && ok && !errA && !errB && (S.src !== pending.src || S.a !== pending.a || S.b !== pending.b)) GH = pending;
+    draw();
   }
 
   // ---------- canvas ----------
@@ -361,7 +369,11 @@
     const spLine = btns + 1.2 * fs + o.speed > w;
     let cbRows = 0, cbInline = false;
     if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
-    else cbRows = o.boxes <= w ? 1 : 2;
+    else {
+      // uma linha, se couberem; senão três por linha; senão (telemóvel) três linhas de duas
+      const groupW = k => Math.max(...Array.from({ length: Math.ceil(o.bw.length / k) }, (_, i) => o.bw.slice(i * k, i * k + k)).map(g => g.reduce((p, q) => p + q, 0) + (g.length - 1) * 1.1 * fs));
+      cbRows = o.boxes <= w ? 1 : groupW(3) <= w ? 2 : 3;
+    }
     const nB = 1 + (spLine ? 1 : 0) + cbRows;
     const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
@@ -440,7 +452,7 @@
   const fmt = (v, d = 2) => { if (Math.abs(v) < 0.5 * 10 ** -d) v = 0; return (+v.toFixed(d)).toString().replace(".", "{,}"); };
 
   // marcas «bonitas» (1, 2, 5 × 10^k) ou múltiplos de π/q
-  function ticks(lo, hi, px, minPx, pi) {
+  function ticks(lo, hi, px, minPx, pi, int = false) {
     const span = hi - lo, n = Math.max(1, px / minPx);
     if (pi) {
       const q = [12, 6, 4, 3, 2, 1, 0.5, 0.25, 0.1].find(q => PI / q * n >= span) ?? 0.1;
@@ -451,7 +463,8 @@
       }
     }
     const raw = span / n, p10 = 10 ** Math.floor(Math.log10(raw));
-    const st = [1, 2, 5, 10].map(m => m * p10).find(s => s >= raw);
+    let st = [1, 2, 5, 10].map(m => m * p10).find(s => s >= raw);
+    if (int) st = Math.max(1, st);
     const out = [];
     for (let k = Math.ceil(lo / st - 1e-9); k * st <= hi + 1e-9; k++) out.push({ v: k * st, s: fmt(k * st, 6) });
     return out;
@@ -579,6 +592,8 @@
   // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
   function curve(g, fs) {
     let [x0, x1] = CV.rx, [y0, y1] = CV.ry;
+    const old = S.ghost && GH;
+    if (old) { x0 = Math.min(x0, GH.CV.rx[0]); x1 = Math.max(x1, GH.CV.rx[1]); y0 = Math.min(y0, GH.CV.ry[0]); y1 = Math.max(y1, GH.CV.ry[1]); }
     const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
     let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
     if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
@@ -587,7 +602,7 @@
     const vx0 = (g.x - cx) / kx, vx1 = (g.x + g.w - cx) / kx, vy0 = (cy - g.y - g.h) / ky, vy1 = (cy - g.y) / ky;
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     // grelha e eixos (se a origem estiver fora, os eixos ficam na borda)
-    const tx = ticks(vx0, vx1, g.w, 3.2 * fs, false), ty = ticks(vy0, vy1, g.h, 2.4 * fs, false);
+    const tx = ticks(vx0, vx1, g.w, 3.2 * fs, false, true), ty = ticks(vy0, vy1, g.h, 2.4 * fs, false, true);
     for (const t of tx) line(X(t.v), g.y, X(t.v), g.y + g.h, C.grid, 1);
     for (const t of ty) line(g.x, Y(t.v), g.x + g.w, Y(t.v), C.grid, 1);
     const ax = clamp(Y(0), g.y + 0.2 * fs, g.y + g.h - 1.2 * fs), ay = clamp(X(0), g.x + 1.6 * fs, g.x + g.w - 0.2 * fs);
@@ -607,6 +622,11 @@
     cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy].join("|"), c => {
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
       c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
+      if (old) {   // traço anterior, cinzento e tracejado, por baixo
+        c.save(); c.globalAlpha = 0.6; c.strokeStyle = C.muted; c.lineWidth = 2; c.setLineDash([6, 5]);
+        poly(j => X(GH.CV.X[j]), j => Y(GH.CV.Y[j]), 0, GH.CV.n, null, jump, c);
+        c.restore();
+      }
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
       if (S.showQ && !Q.same) {   // caminho de Q no mesmo intervalo de t, a tracejado
         c.strokeStyle = C.q; c.lineWidth = 2; c.setLineDash([7, 6]);
@@ -614,7 +634,7 @@
         c.setLineDash([]);
       }
       c.restore();
-    }, S.showQ);
+    }, [S.showQ, old ? GH.id : 0].join("|"));
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
@@ -632,7 +652,7 @@
       const src = S.coords ? `${name}\\,(${clr(C.x, fmt(xt))};\\,${clr(C.y, fmt(yt))})` : name;
       // a etiqueta foge do centro da figura
       const dx = PX - (g.x + g.w / 2), dy = PY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
-      const el = texAt("pn", src, PX + dx / d * 0.9 * fs, PY + dy / d * 0.9 * fs, fs * 1.05, C.ink, 0.5 - 0.5 * dx / d, 0.5 - 0.5 * dy / d);
+      const el = texAt("pn", src, PX + dx / d * 0.9 * fs, PY + dy / d * 0.9 * fs, fs * 0.85, C.ink, 0.5 - 0.5 * dx / d, 0.5 - 0.5 * dy / d);
       // sem sair da área da figura
       const r = el.getBoundingClientRect();
       const sx = r.left < g.x ? g.x - r.left : r.right > g.x + g.w ? g.x + g.w - r.right : 0;
@@ -650,7 +670,7 @@
         dot(QX, QY, 0.4 * fs, C.q, 3);
         const dx = QX - (g.x + g.w / 2), dy = QY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
         // do lado de dentro, para não chocar com a etiqueta de P
-        texAt("qn", Q.name, QX - dx / d * 0.85 * fs, QY - dy / d * 0.85 * fs, fs * 1.05, C.q, 0.5 + 0.5 * dx / d, 0.5 + 0.5 * dy / d);
+        texAt("qn", Q.name, QX - dx / d * 0.85 * fs, QY - dy / d * 0.85 * fs, fs * 0.85, C.q, 0.5 + 0.5 * dx / d, 0.5 + 0.5 * dy / d);
       }
     }
     hits.push({ kind: "curveArea", rect: g, map: { X, Y } });
@@ -659,6 +679,8 @@
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
     const rs = [S.showX && CV.rx, S.showY && CV.ry].filter(Boolean);
+    const gh = S.ghost && GH;
+    if (gh) { if (S.showX) rs.push(GH.CV.rx); if (S.showY) rs.push(GH.CV.ry); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
     const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
@@ -684,9 +706,18 @@
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
-    if (S.full) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY].join("|"), c => {
-      c.lineJoin = c.lineCap = "round"; c.globalAlpha = dark ? 0.4 : 0.25; c.lineWidth = 2.5;
-      for (const [on, A, , col] of series) if (on) { c.strokeStyle = col; polyCols(j => TX(CV.T[j]), j => VY(A[j]), 0, CV.n, null, jump, c); }
+    if (S.full || gh) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.full, gh ? GH.id : 0].join("|"), c => {
+      c.lineJoin = c.lineCap = "round";
+      if (gh) {   // traço anterior: tracejado, nas cores de x(t) e y(t)
+        c.save(); c.globalAlpha = 0.55; c.lineWidth = 2; c.setLineDash([6, 5]);
+        if (S.showX) { c.strokeStyle = C.x; polyCols(j => TX(GH.CV.T[j]), j => VY(GH.CV.X[j]), 0, GH.CV.n, null, jump, c); }
+        if (S.showY) { c.strokeStyle = C.y; polyCols(j => TX(GH.CV.T[j]), j => VY(GH.CV.Y[j]), 0, GH.CV.n, null, jump, c); }
+        c.restore();
+      }
+      if (S.full) {
+        c.globalAlpha = dark ? 0.4 : 0.25; c.lineWidth = 2.5;
+        for (const [on, A, , col] of series) if (on) { c.strokeStyle = col; polyCols(j => TX(CV.T[j]), j => VY(A[j]), 0, CV.n, null, jump, c); }
+      }
     });
     for (const [on, A, f, col] of series) {
       if (!on) continue;
@@ -737,13 +768,14 @@
   }
 
   // larguras da velocidade (botões a 60%) e das caixas; os botões pequenos (velocidade, ▶, ↺, x(t), y(t)) têm todos este tamanho
-  const SPF = 0.6, XYW = 2.9, CBS = 0.72, CBF = 0.75;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
+  const SPF = 0.6, XYW = 2.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
+  const CBFONT = '"KaTeX_Main", "Times New Roman", serif';   // a mesma letra dos botões x(t) e y(t)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
-  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"]]; }
+  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter o traço anterior", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
-    ctx.font = `${fs * CBF}px ${FONT}`;
+    ctx.font = `${fs * CBF}px ${CBFONT}`;
     const bs = CBS * fs, bw = boxTexts().map(([t]) => bs + 0.35 * fs + ctx.measureText(t).width);
     return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + (bw.length - 1) * 1.1 * fs };
   }
@@ -759,13 +791,13 @@
     SPEEDS.forEach(([v, t], i) => { button(xs, sy, o.sp[i] - 2, sh, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9 * SPF * 1.15); xs += o.sp[i]; });
     // caixas
     const items = boxTexts(), bs = CBS * fs;
-    ctx.font = `${fs * CBF}px ${FONT}`;
+    ctx.font = `${fs * CBF}px ${CBFONT}`;
     const put = (y, x0, list, room) => {
       // letra mais pequena se não couberem
       const textW = list.reduce((p, [, , w]) => p + w - bs - 0.35 * fs, 0);
       const fixed = list.reduce((p, [, , w]) => p + w, 0) + (list.length - 1) * 1.1 * fs - textW;
       const f = fs * CBF * (fixed + textW > room ? Math.max(0.55, (room - fixed) / textW) : 1);
-      ctx.font = `${f}px ${FONT}`;
+      ctx.font = `${f}px ${CBFONT}`;
       let x = x0;
       for (const [t, k] of list) x = cbox(y, h, x, bs, fs, S[k], t, { kind: "box", k }) + 1.1 * fs;
     };
@@ -773,7 +805,10 @@
     const first = 1 + (b.spLine ? 1 : 0);
     if (b.cbInline) put(b.y, b.x + 2 * bw + gap + 1.2 * fs, withW, sx - 1.2 * fs - (b.x + 2 * bw + gap + 1.2 * fs));
     else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
-    else { put(line(first), b.x, withW.slice(0, 3), b.w); put(line(first + 1), b.x, withW.slice(3), b.w); }
+    else {
+      const k = b.cbRows === 2 ? 3 : 2;
+      for (let r = 0; r < b.cbRows; r++) put(line(first + r), b.x, withW.slice(r * k, r * k + k), b.w);
+    }
   }
   function cbox(y0, h, x, bs, fs, on, txt, hit) {
     const y = y0 + (h - bs) / 2;
@@ -856,6 +891,10 @@
 
   // caixas de texto: a curva atualiza-se enquanto se escreve
   $expr.value = S.src; $ta.value = S.aSrc; $tb.value = S.bSrc;
+  [$expr, $ta, $tb].forEach(el => {
+    el.addEventListener("focus", () => { pending = snapshot(); });
+    el.addEventListener("blur", () => { pending = null; });
+  });
   $expr.addEventListener("input", () => { S.src = $expr.value; update(); });
   $ta.addEventListener("input", () => { S.aSrc = $ta.value; update(); });
   $tb.addEventListener("input", () => { S.bSrc = $tb.value; update(); });
