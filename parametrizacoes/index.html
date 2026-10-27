@@ -59,10 +59,8 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
-  // velocidade: lenta e rápida percorrem o intervalo todo em 8 e 4 segundos; «tempo real»: t avança 1 por segundo
-  const SPEEDS = [[1, "lenta"], [2, "rápida"], [0, "tempo real"]];
-  const DUR = 8;
-  const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
+  // o tempo corre sempre em tempo real: t avança 1 por segundo
+  const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
               showX: false, showY: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -776,7 +774,7 @@
   function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter o traço anterior", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
-    const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
+    const sp = [];
     ctx.font = `${fs * CBF}px ${CBFONT}`;
     const bs = CBS * fs, texts = boxTexts().map(([t]) => t), M = t => ctx.measureText(t).width;
     const bw = texts.map(t => bs + 0.35 * fs + M(t));
@@ -796,10 +794,7 @@
     const xh = SMALL.h(fs), xy = b.y + (h - xh) / 2;
     button(b.x, xy, bw, xh, "", S.showX, "showX", {}, C.x, "x(t)", SMALL.f(fs) * 1.1);
     button(b.x + bw + gap, xy, bw, xh, "", S.showY, "showY", {}, C.y, "y(t)", SMALL.f(fs) * 1.1);
-    // velocidade: botões pequenos (60%), centrados na linha
-    const sh = h * SPF, sx = b.spLine ? b.x : b.x + b.w - o.speed, sy = (b.spLine ? line(1) : b.y) + (h - sh) / 2;
-    let xs = sx;
-    SPEEDS.forEach(([v, t], i) => { button(xs, sy, o.sp[i] - 2, sh, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9 * SPF * 1.15); xs += o.sp[i]; });
+    const sx = b.x + b.w;
     // caixas
     const items = boxTexts(), bs = CBS * fs;
     ctx.font = `${fs * CBF}px ${CBFONT}`;
@@ -844,7 +839,7 @@
   function tick(now) {
     if (!S.run) return;
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    S.t += S.speed === 0 ? dt : (S.b - S.a) / DUR * S.speed * dt;
+    S.t += dt;
     if (S.t >= S.b) { S.t = S.b; S.run = false; }
     paint();
     if (S.run) requestAnimationFrame(tick);
@@ -886,7 +881,6 @@
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; draw(); return; }
-    if (h.kind === "speed") { S.speed = h.v; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     S.run = false;
