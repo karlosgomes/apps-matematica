@@ -38,12 +38,12 @@
   const LIGHT = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
-    x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f", q: "#7b1fa2",
+    x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f", q: "#7b1fa2", r: "#00838f",
   };
   const DARK = {
     bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
     axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
-    x: "#64a8ff", y: "#ff6b6b", cur: "#5cc26a", pt: "#ffa040", bad: "#ff6b6b", q: "#d09cff",
+    x: "#64a8ff", y: "#ff6b6b", cur: "#5cc26a", pt: "#ffa040", bad: "#ff6b6b", q: "#d09cff", r: "#4dd0e1",
   };
   const C = { ...LIGHT };
   // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
@@ -61,7 +61,7 @@
   const CAP = 150000;                   // máximo de pontos depois de refinar
   // o tempo corre sempre em tempo real: t avança 1 por segundo
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
-              showX: false, showY: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
+              showX: false, showY: false, showR: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -301,7 +301,9 @@
       T[j] = t; X[j] = k ? P.fx(t) : X0[i]; Y[j] = k ? P.fy(t) : Y0[i]; j++;
     }
     T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
-    CV = { T, X, Y, n: total - 1, rx, ry, id: ++cvId };
+    // quociente y(t)/x(t) (declive de OP)
+    const R = Y.map((y, i) => y / X[i]), rr = range([Y0.map((y, i) => y / X0[i])]);
+    CV = { T, X, Y, R, n: total - 1, rx, ry, rr, id: ++cvId };
     Q = makeQ();
   }
   function update() {
@@ -362,7 +364,7 @@
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
     // faixa das opções: x(t), y(t) e velocidade numa linha (a velocidade passa para baixo se não couber);
     // as quatro caixas na mesma linha, se couberem, senão numa ou duas linhas por baixo
-    const o = optWidths(fs), btns = 2 * XYW * fs + gap;
+    const o = optWidths(fs), btns = (2 * XYW + RW) * fs + 2 * gap;
     const spLine = btns + 1.2 * fs + o.speed > w;
     let cbRows = 0, cbInline = false, cbWrap = false;
     if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
@@ -665,9 +667,9 @@
 
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
-    const rs = [S.showX && CV.rx, S.showY && CV.ry].filter(Boolean);
+    const rs = [S.showX && CV.rx, S.showY && CV.ry, S.showR && CV.rr].filter(Boolean);
     const gh = S.ghost ? GHS : [];
-    for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); }
+    for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); if (S.showR) rs.push(G.CV.rr); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
     const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
@@ -682,7 +684,7 @@
     tri(gx1 + 0.9 * fs, hz, 1, 0, fs * 0.45, C.axis);
     tri(vt, gy0 - 0.9 * fs, 0, -1, fs * 0.45, C.axis);
     texAt("gt", "t", gx1 + 0.9 * fs, hz + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
-    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`].filter(Boolean).join(",\\ ");
+    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`, S.showR && clr(C.r, "y(t)/x(t)")].filter(Boolean).join(",\\ ");
     if (lab) texAt("gy", lab, vt + 0.45 * fs, gy0 - 0.9 * fs, fs * 1.05, C.ink, 0, 0.3);
     tt.forEach((t, i) => { const px = TX(t.v); if (Math.abs(px - vt) > 0.6 * fs) texAt("gtt" + i, t.s, px, hz + 0.3 * fs, fs * 0.72, C.muted, 0.5, 0); });
     tv.forEach((t, i) => { const py = VY(t.v); if (Math.abs(py - hz) > 0.4 * fs && py > gy0 - 0.2 * fs) texAt("gvt" + i, t.s, vt - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
@@ -692,14 +694,15 @@
     // linha do instante t
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
-    const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
-    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
+    const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y], [S.showR, CV.R, t => P.fy(t) / P.fx(t), C.r]];
+    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
       c.lineJoin = c.lineCap = "round";
       if (gh.length) {   // traços mantidos: tracejados, nas cores de x(t) e y(t)
         c.save(); c.globalAlpha = 0.55; c.lineWidth = 2; c.setLineDash([6, 5]);
         for (const G of gh) {
           if (S.showX) { c.strokeStyle = C.x; polyCols(j => TX(G.CV.T[j]), j => VY(G.CV.X[j]), 0, G.CV.n, null, jump, c); }
           if (S.showY) { c.strokeStyle = C.y; polyCols(j => TX(G.CV.T[j]), j => VY(G.CV.Y[j]), 0, G.CV.n, null, jump, c); }
+          if (S.showR) { c.strokeStyle = C.r; polyCols(j => TX(G.CV.T[j]), j => VY(G.CV.R[j]), 0, G.CV.n, null, jump, c); }
         }
         c.restore();
       }
@@ -757,7 +760,7 @@
   }
 
   // larguras da velocidade (botões a 60%) e das caixas; os botões pequenos (velocidade, ▶, ↺, x(t), y(t)) têm todos este tamanho
-  const SPF = 0.6, XYW = 2.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
+  const SPF = 0.6, XYW = 2.9, RW = 4.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
   const CBFONT = '"KaTeX_Main", "Times New Roman", serif';   // a mesma letra dos botões x(t) e y(t)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
   function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter traços", "ghost"]]; }
@@ -783,6 +786,7 @@
     const xh = SMALL.h(fs), xy = b.y + (h - xh) / 2;
     button(b.x, xy, bw, xh, "", S.showX, "showX", {}, C.x, "x(t)", SMALL.f(fs) * 1.1);
     button(b.x + bw + gap, xy, bw, xh, "", S.showY, "showY", {}, C.y, "y(t)", SMALL.f(fs) * 1.1);
+    button(b.x + 2 * (bw + gap), xy, RW * fs, xh, "", S.showR, "showR", {}, C.r, "y(t)/x(t)", SMALL.f(fs) * 1.1);
     const sx = b.x + b.w;
     // caixas
     const items = boxTexts(), bs = CBS * fs;
@@ -798,7 +802,8 @@
     };
     const withW = items.map(([t, k], i) => b.cbWrap ? [o.split[i], k, o.bw2[i]] : [t, k, o.bw[i]]);
     const first = 1 + (b.spLine ? 1 : 0);
-    if (b.cbInline) put(b.y, b.x + 2 * bw + gap + 1.2 * fs, withW, sx - 1.2 * fs - (b.x + 2 * bw + gap + 1.2 * fs));
+    const bx1 = b.x + 2 * (bw + gap) + RW * fs + 1.2 * fs;
+    if (b.cbInline) put(b.y, bx1, withW, sx - 1.2 * fs - bx1);
     else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
     else {
       const k = b.cbRows === 2 ? 3 : 2;
@@ -869,6 +874,7 @@
     if (h.kind === "reset") { S.run = false; setT(S.a); return; }
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
+    if (h.kind === "showR") { S.showR = !S.showR; draw(); return; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "ghost" && !S.ghost) GHS = []; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
@@ -907,6 +913,7 @@
     else if (e.key === "0") { S.run = false; setT(S.a); }
     else if (e.key === "x") { S.showX = !S.showX; draw(); }
     else if (e.key === "y") { S.showY = !S.showY; draw(); }
+    else if (e.key === "r") { S.showR = !S.showR; draw(); }
     else if (e.key === "c") { S.full = !S.full; draw(); }
     else return;
     e.preventDefault();
