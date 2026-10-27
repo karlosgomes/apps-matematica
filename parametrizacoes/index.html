@@ -404,13 +404,20 @@
     ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
     ctx.closePath(); ctx.fill();
   }
-  // vetor de (x0, y0) até à borda do ponto de raio r em (x1, y1)
+  // vetor de (x0, y0) até à borda do ponto de raio r em (x1, y1), acabado em arpão duplo (duas farpas)
   function vector(x0, y0, x1, y1, c, r, fs) {
-    const d = Math.hypot(x1 - x0, y1 - y0), s = 0.6 * fs;
-    if (d < r + 1.5 * s) { ctx.lineCap = "round"; line(x0, y0, x1, y1, c, 2.5); ctx.lineCap = "butt"; return; }
-    const ux = (x1 - x0) / d, uy = (y1 - y0) / d, tx = x1 - ux * (r + 2), ty = y1 - uy * (r + 2);
-    ctx.lineCap = "round"; line(x0, y0, tx - ux * s * 0.8, ty - uy * s * 0.8, c, 2.5); ctx.lineCap = "butt";
-    tri(tx - ux * s, ty - uy * s, ux, uy, s, c);
+    const d = Math.hypot(x1 - x0, y1 - y0), s = 0.7 * fs;
+    ctx.lineCap = "round";
+    if (d < r + 1.5 * s) { line(x0, y0, x1, y1, c, 2.5); ctx.lineCap = "butt"; return; }
+    const ux = (x1 - x0) / d, uy = (y1 - y0) / d, tx = x1 - ux * r, ty = y1 - uy * r;
+    line(x0, y0, tx, ty, c, 2.5);
+    ctx.lineJoin = "round"; ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - ux * s + uy * 0.42 * s, ty - uy * s - ux * 0.42 * s);
+    ctx.lineTo(tx - ux * s * 0.75, ty - uy * s * 0.75);
+    ctx.lineTo(tx - ux * s - uy * 0.42 * s, ty - uy * s + ux * 0.42 * s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.lineCap = "butt"; ctx.lineJoin = "miter";
   }
   function dot(x, y, r, fill, ring) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
