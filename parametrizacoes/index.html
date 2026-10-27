@@ -268,8 +268,9 @@
     return { name, X, Y, fx: compile(X), fy: compile(Y), same: tex(X) === tex(P.X) && tex(Y) === tex(P.Y) };
   }
   let Q = null, QV = null;
-  // traço anterior: ao começar a editar uma caixa de texto, guarda-se a parametrização que estava desenhada
-  let GH = null, pending = null, ghId = 0;
+  // traços mantidos: ao começar a editar uma caixa de texto, guarda-se a parametrização que estava desenhada;
+  // com «Manter traços» ligado, cada edição acrescenta essa fotografia à lista GHS (até se desligar a caixa)
+  let GHS = [], pending = null, ghId = 0;
   function snapshot() {
     if (err || errA || errB) return null;
     return { src: S.src, a: S.a, b: S.b, CV, id: ++ghId };
@@ -323,7 +324,8 @@
     $expr.classList.toggle("bad", !ok);
     $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
     sample();
-    if (pending && ok && !errA && !errB && (S.src !== pending.src || S.a !== pending.a || S.b !== pending.b)) GH = pending;
+    if (S.ghost && pending && ok && !errA && !errB && (S.src !== pending.src || S.a !== pending.a || S.b !== pending.b) && !GHS.includes(pending))
+      GHS.push(pending);
     draw();
   }
 
@@ -592,8 +594,8 @@
   // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
   function curve(g, fs) {
     let [x0, x1] = CV.rx, [y0, y1] = CV.ry;
-    const old = S.ghost && GH;
-    if (old) { x0 = Math.min(x0, GH.CV.rx[0]); x1 = Math.max(x1, GH.CV.rx[1]); y0 = Math.min(y0, GH.CV.ry[0]); y1 = Math.max(y1, GH.CV.ry[1]); }
+    const old = S.ghost ? GHS : [];
+    for (const G of old) { x0 = Math.min(x0, G.CV.rx[0]); x1 = Math.max(x1, G.CV.rx[1]); y0 = Math.min(y0, G.CV.ry[0]); y1 = Math.max(y1, G.CV.ry[1]); }
     const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
     let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
     if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
@@ -622,9 +624,9 @@
     cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy].join("|"), c => {
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
       c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
-      if (old) {   // traço anterior, cinzento e tracejado, por baixo
+      if (old.length) {   // traços mantidos, cinzentos e tracejados, por baixo
         c.save(); c.globalAlpha = 0.6; c.strokeStyle = C.muted; c.lineWidth = 2; c.setLineDash([6, 5]);
-        poly(j => X(GH.CV.X[j]), j => Y(GH.CV.Y[j]), 0, GH.CV.n, null, jump, c);
+        for (const G of old) poly(j => X(G.CV.X[j]), j => Y(G.CV.Y[j]), 0, G.CV.n, null, jump, c);
         c.restore();
       }
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
@@ -634,7 +636,7 @@
         c.setLineDash([]);
       }
       c.restore();
-    }, [S.showQ, old ? GH.id : 0].join("|"));
+    }, [S.showQ, old.map(G => G.id).join(",")].join("|"));
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
@@ -679,8 +681,8 @@
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
     const rs = [S.showX && CV.rx, S.showY && CV.ry].filter(Boolean);
-    const gh = S.ghost && GH;
-    if (gh) { if (S.showX) rs.push(GH.CV.rx); if (S.showY) rs.push(GH.CV.ry); }
+    const gh = S.ghost ? GHS : [];
+    for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
     const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
@@ -706,12 +708,14 @@
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y]];
-    if (S.full || gh) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.full, gh ? GH.id : 0].join("|"), c => {
+    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
       c.lineJoin = c.lineCap = "round";
-      if (gh) {   // traço anterior: tracejado, nas cores de x(t) e y(t)
+      if (gh.length) {   // traços mantidos: tracejados, nas cores de x(t) e y(t)
         c.save(); c.globalAlpha = 0.55; c.lineWidth = 2; c.setLineDash([6, 5]);
-        if (S.showX) { c.strokeStyle = C.x; polyCols(j => TX(GH.CV.T[j]), j => VY(GH.CV.X[j]), 0, GH.CV.n, null, jump, c); }
-        if (S.showY) { c.strokeStyle = C.y; polyCols(j => TX(GH.CV.T[j]), j => VY(GH.CV.Y[j]), 0, GH.CV.n, null, jump, c); }
+        for (const G of gh) {
+          if (S.showX) { c.strokeStyle = C.x; polyCols(j => TX(G.CV.T[j]), j => VY(G.CV.X[j]), 0, G.CV.n, null, jump, c); }
+          if (S.showY) { c.strokeStyle = C.y; polyCols(j => TX(G.CV.T[j]), j => VY(G.CV.Y[j]), 0, G.CV.n, null, jump, c); }
+        }
         c.restore();
       }
       if (S.full) {
@@ -771,7 +775,7 @@
   const SPF = 0.6, XYW = 2.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
   const CBFONT = '"KaTeX_Main", "Times New Roman", serif';   // a mesma letra dos botões x(t) e y(t)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
-  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter o traço anterior", "ghost"]]; }
+  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter traços", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = [];
@@ -880,7 +884,7 @@
     if (h.kind === "reset") { S.run = false; setT(S.a); return; }
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
-    if (h.kind === "box") { S[h.k] = !S[h.k]; draw(); return; }
+    if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "ghost" && !S.ghost) GHS = []; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     S.run = false;
