@@ -367,18 +367,20 @@
     // as quatro caixas na mesma linha, se couberem, senão numa ou duas linhas por baixo
     const o = optWidths(fs), btns = 2 * XYW * fs + gap;
     const spLine = btns + 1.2 * fs + o.speed > w;
-    let cbRows = 0, cbInline = false;
+    let cbRows = 0, cbInline = false, cbWrap = false;
     if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
+    else if (o.boxes <= w) cbRows = 1;
     else {
-      // uma linha, se couberem; senão três por linha; senão (telemóvel) três linhas de duas
-      const groupW = k => Math.max(...Array.from({ length: Math.ceil(o.bw.length / k) }, (_, i) => o.bw.slice(i * k, i * k + k)).map(g => g.reduce((p, q) => p + q, 0) + (g.length - 1) * 1.1 * fs));
-      cbRows = o.boxes <= w ? 1 : groupW(3) <= w ? 2 : 3;
+      // texto das caixas em duas linhas: todas numa linha, se couberem; senão três por linha; senão duas
+      cbWrap = true;
+      const groupW = k => Math.max(...Array.from({ length: Math.ceil(o.bw2.length / k) }, (_, i) => o.sum(o.bw2.slice(i * k, i * k + k))));
+      cbRows = o.boxes2 <= w ? 1 : groupW(3) <= w ? 2 : 3;
     }
     const nB = 1 + (spLine ? 1 : 0) + cbRows;
     const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
     L.rowA = { x: pad, y: yb, w, h: rowA };
-    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows, cbWrap };
     const mh = yb - gap - y;
     if (land) {
       const cw = Math.min(mh, w * 0.46);
@@ -776,8 +778,17 @@
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
     ctx.font = `${fs * CBF}px ${CBFONT}`;
-    const bs = CBS * fs, bw = boxTexts().map(([t]) => bs + 0.35 * fs + ctx.measureText(t).width);
-    return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + (bw.length - 1) * 1.1 * fs };
+    const bs = CBS * fs, texts = boxTexts().map(([t]) => t), M = t => ctx.measureText(t).width;
+    const bw = texts.map(t => bs + 0.35 * fs + M(t));
+    // o mesmo texto partido em duas linhas, no espaço que deixa as linhas mais equilibradas
+    const split = texts.map(t => {
+      let best = [t], bwid = M(t);
+      t.split(" ").forEach((_, i, ws) => { if (!i) return; const l = [ws.slice(0, i).join(" "), ws.slice(i).join(" ")], m = Math.max(M(l[0]), M(l[1])); if (m < bwid) { best = l; bwid = m; } });
+      return best;
+    });
+    const bw2 = split.map(l => bs + 0.35 * fs + Math.max(...l.map(M)));
+    const sum = a => a.reduce((p, q) => p + q, 0) + (a.length - 1) * 1.1 * fs;
+    return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, bw2, split, boxes: sum(bw), boxes2: sum(bw2), sum };
   }
   // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
@@ -801,7 +812,7 @@
       let x = x0;
       for (const [t, k] of list) x = cbox(y, h, x, bs, fs, S[k], t, { kind: "box", k }) + 1.1 * fs;
     };
-    const withW = items.map(([t, k], i) => [t, k, o.bw[i]]);
+    const withW = items.map(([t, k], i) => b.cbWrap ? [o.split[i], k, o.bw2[i]] : [t, k, o.bw[i]]);
     const first = 1 + (b.spLine ? 1 : 0);
     if (b.cbInline) put(b.y, b.x + 2 * bw + gap + 1.2 * fs, withW, sx - 1.2 * fs - (b.x + 2 * bw + gap + 1.2 * fs));
     else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
@@ -820,8 +831,10 @@
       ctx.lineCap = "butt"; ctx.lineJoin = "miter";
     }
     ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(txt, x + bs + 0.35 * fs, y0 + h / 2 + 1);
-    const w = bs + 0.35 * fs + ctx.measureText(txt).width;
+    // txt: texto, ou duas linhas (lista)
+    const lines = Array.isArray(txt) ? txt : [txt], lh = parseFloat(ctx.font) * 1.05;
+    lines.forEach((l, i) => ctx.fillText(l, x + bs + 0.35 * fs, y0 + h / 2 + 1 + (i - (lines.length - 1) / 2) * lh));
+    const w = bs + 0.35 * fs + Math.max(...lines.map(l => ctx.measureText(l).width));
     hits.push({ ...hit, rect: { x, y: y0, w, h } });
     return x + w;
   }
