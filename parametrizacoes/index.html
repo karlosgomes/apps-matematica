@@ -268,9 +268,9 @@
     return { name, X, Y, fx: compile(X), fy: compile(Y), same: tex(X) === tex(P.X) && tex(Y) === tex(P.Y) };
   }
   let Q = null, QV = null;
-  // traços mantidos: ao começar a editar uma caixa de texto, guarda-se a parametrização que estava desenhada;
-  // com «Manter traços» ligado, cada edição acrescenta essa fotografia à lista GHS (até se desligar a caixa)
-  let GHS = [], pending = null, ghId = 0;
+  // traços mantidos (só nos gráficos de x(t) e y(t)): ao começar a editar uma caixa de texto, guarda-se a parametrização
+  // que estava desenhada; com «Manter traços» ligado, cada edição acrescenta essa fotografia à lista GHS (até se desligar a caixa)
+  let GHS = [], pending = null, ghId = 0, lastKey = null;
   function snapshot() {
     if (err || errA || errB) return null;
     return { src: S.src, a: S.a, b: S.b, CV, id: ++ghId };
@@ -320,6 +320,9 @@
     if (!errA && !errB && !(b > a)) { errA = errB = true; if (!err) err = "o intervalo tem de ter início menor do que o fim"; }
     if (!errA && !errB) { S.a = a; S.b = b; piAxis = pa || pb || (a === 0 && b === 0); }
     else if (!err) err = "não percebi o intervalo de t";
+    // parametrização nova (expressão ou intervalo): o tempo volta ao início
+    const key = [P.X && tex(P.X), P.Y && tex(P.Y), S.a, S.b].join("|");
+    if (ok && key !== lastKey) { if (lastKey !== null) S.t = S.a; lastKey = key; }
     S.t = clamp(S.t, S.a, S.b);
     $expr.classList.toggle("bad", !ok);
     $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
@@ -594,8 +597,6 @@
   // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
   function curve(g, fs) {
     let [x0, x1] = CV.rx, [y0, y1] = CV.ry;
-    const old = S.ghost ? GHS : [];
-    for (const G of old) { x0 = Math.min(x0, G.CV.rx[0]); x1 = Math.max(x1, G.CV.rx[1]); y0 = Math.min(y0, G.CV.ry[0]); y1 = Math.max(y1, G.CV.ry[1]); }
     const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
     let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
     if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
@@ -624,11 +625,6 @@
     cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy].join("|"), c => {
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
       c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
-      if (old.length) {   // traços mantidos, cinzentos e tracejados, por baixo
-        c.save(); c.globalAlpha = 0.6; c.strokeStyle = C.muted; c.lineWidth = 2; c.setLineDash([6, 5]);
-        for (const G of old) poly(j => X(G.CV.X[j]), j => Y(G.CV.Y[j]), 0, G.CV.n, null, jump, c);
-        c.restore();
-      }
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
       if (S.showQ && !Q.same) {   // caminho de Q no mesmo intervalo de t, a tracejado
         c.strokeStyle = C.q; c.lineWidth = 2; c.setLineDash([7, 6]);
@@ -636,7 +632,7 @@
         c.setLineDash([]);
       }
       c.restore();
-    }, [S.showQ, old.map(G => G.id).join(",")].join("|"));
+    }, S.showQ);
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
