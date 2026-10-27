@@ -265,21 +265,15 @@
   function makeQ() {
     const X = swapArg(P.X), Y = swapArg(P.Y);
     const name = P.name[0] === "Q" ? "R" : "Q";
-    return { name, X, Y, fx: compile(X), fy: compile(Y), same: tex(X) === tex(P.X) && tex(Y) === tex(P.Y) };
+    return { name, X, Y, fx: compile(X), fy: compile(Y) };
   }
-  let Q = null, QV = null;
+  let Q = null;
   // traços mantidos (só nos gráficos de x(t) e y(t)): ao começar a editar uma caixa de texto, guarda-se a parametrização
   // que estava desenhada; com «Manter traços» ligado, cada edição acrescenta essa fotografia à lista GHS (até se desligar a caixa)
   let GHS = [], pending = null, ghId = 0, lastKey = null;
   function snapshot() {
     if (err || errA || errB) return null;
     return { src: S.src, a: S.a, b: S.b, CV, id: ++ghId };
-  }
-  function sampleQ() {
-    Q = makeQ();
-    const X = new Float64Array(N + 1), Y = new Float64Array(N + 1);
-    for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; X[i] = Q.fx(t); Y[i] = Q.fy(t); }
-    QV = { X, Y };
   }
 
   // ---------- amostras ----------
@@ -308,7 +302,7 @@
     }
     T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
     CV = { T, X, Y, n: total - 1, rx, ry, id: ++cvId };
-    sampleQ();
+    Q = makeQ();
   }
   function update() {
     let ok = true;
@@ -626,13 +620,8 @@
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
       c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
-      if (S.showQ && !Q.same) {   // caminho de Q no mesmo intervalo de t, a tracejado
-        c.strokeStyle = C.q; c.lineWidth = 2; c.setLineDash([7, 6]);
-        poly(j => X(QV.X[j]), j => Y(QV.Y[j]), 0, N, null, jump, c);
-        c.setLineDash([]);
-      }
       c.restore();
-    }, S.showQ);
+    });
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
