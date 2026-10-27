@@ -342,7 +342,7 @@
     const pad = Math.round(fs * 0.7), gap = 0.4 * fs;
     const land = W > H * 1.15 && W >= 640;
     const L = { fs, pad, land };
-    const ih = 1.55 * fs, lh = 1.9 * fs, rowA = 2.2 * fs, rowB = 1.9 * fs;
+    const ih = 1.55 * fs, lh = 1.9 * fs, rowA = 1.9 * fs, rowB = 1.9 * fs;
     const iw = 5.2 * fs, groupW = 2.6 * fs + iw + 1.1 * fs + iw + 0.9 * fs;   // «t ∈ [» a «;» b «]»
     const w = W - 2 * pad;
     let y = pad;
@@ -619,10 +619,11 @@
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
       if (S.seg) { ctx.lineCap = "round"; line(X(0), Y(0), PX, PY, C.ink, 2.5); ctx.lineCap = "butt"; }
-      // projeções ortogonais de P nos eixos: x(t) a azul, y(t) a vermelho
+      // projeções ortogonais de P nos eixos, com a cor da coordenada que cada traço mede (como nos gráficos):
+      // o traço vertical tem comprimento |y(t)| (vermelho) e o horizontal |x(t)| (azul); os pés marcam x(t) e y(t) nos eixos
       if (S.proj) {
-        line(PX, PY, PX, ax, C.x, 2, [6, 5]);
-        line(PX, PY, ay, PY, C.y, 2, [6, 5]);
+        line(PX, PY, PX, ax, C.y, 2, [6, 5]);
+        line(PX, PY, ay, PY, C.x, 2, [6, 5]);
         dot(PX, ax, 0.22 * fs, C.x); dot(ay, PY, 0.22 * fs, C.y);
       }
       ctx.restore();
@@ -645,6 +646,7 @@
       const qx = Q.fx(S.t), qy = Q.fy(S.t);
       if (isFinite(qx) && isFinite(qy) && X(qx) > g.x - fs && X(qx) < g.x + g.w + fs && Y(qy) > g.y - fs && Y(qy) < g.y + g.h + fs) {
         const QX = X(qx), QY = Y(qy);
+        if (S.seg) { ctx.lineCap = "round"; line(X(0), Y(0), QX, QY, C.q, 2.5); ctx.lineCap = "butt"; }
         dot(QX, QY, 0.4 * fs, C.q, 3);
         const dx = QX - (g.x + g.w / 2), dy = QY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
         // do lado de dentro, para não chocar com a etiqueta de P
@@ -721,28 +723,28 @@
     const tx0 = lx + 6.2 * fs, tx1 = b.x + b.w - 0.6 * fs, cy = b.y + b.h * 0.38;
     const TX = v => tx0 + (v - S.a) / (S.b - S.a) * (tx1 - tx0);
     ctx.lineCap = "round";
-    line(tx0, cy, tx1, cy, C.grid2, 0.32 * fs);
-    line(tx0, cy, TX(S.t), cy, C.pt, 0.32 * fs);
+    line(tx0, cy, tx1, cy, C.grid2, 0.22 * fs);
+    line(tx0, cy, TX(S.t), cy, C.pt, 0.22 * fs);
     ctx.lineCap = "butt";
     const tk = ticks(S.a, S.b, tx1 - tx0, 3.6 * fs, piAxis);
     tk.forEach((t, i) => {
-      line(TX(t.v), cy + 0.25 * fs, TX(t.v), cy + 0.45 * fs, C.muted, 1.2);
-      texAt("st" + i, t.s, TX(t.v), cy + 0.5 * fs, fs * 0.68, C.muted, 0.5, 0, false);
+      line(TX(t.v), cy + 0.2 * fs, TX(t.v), cy + 0.36 * fs, C.muted, 1.2);
+      texAt("st" + i, t.s, TX(t.v), cy + 0.4 * fs, fs * 0.62, C.muted, 0.5, 0, false);
     });
-    dot(TX(S.t), cy, 0.55 * fs, C.pt, 2.5);
+    dot(TX(S.t), cy, 0.42 * fs, C.pt, 2.5);
     hits.push({ kind: "slide", rect: { x: tx0 - fs, y: b.y - 0.2 * fs, w: tx1 - tx0 + 2 * fs, h: b.h + 0.4 * fs }, val: px => S.a + (px - tx0) / (tx1 - tx0) * (S.b - S.a) });
     void lab;
   }
 
   // larguras da velocidade (botões a 60%) e das caixas; os botões pequenos (velocidade, ▶, ↺, x(t), y(t)) têm todos este tamanho
-  const SPF = 0.6, XYW = 2.9;
+  const SPF = 0.6, XYW = 2.9, CBS = 0.72, CBF = 0.75;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
-  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [`Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"]]; }
+  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
-    ctx.font = `${fs * 0.85}px ${FONT}`;
-    const bs = 0.85 * fs, bw = boxTexts().map(([t]) => bs + 0.4 * fs + ctx.measureText(t).width);
+    ctx.font = `${fs * CBF}px ${FONT}`;
+    const bs = CBS * fs, bw = boxTexts().map(([t]) => bs + 0.35 * fs + ctx.measureText(t).width);
     return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + (bw.length - 1) * 1.1 * fs };
   }
   // gráficos x(t)/y(t), velocidade e as caixas
@@ -756,13 +758,13 @@
     let xs = sx;
     SPEEDS.forEach(([v, t], i) => { button(xs, sy, o.sp[i] - 2, sh, t, S.speed === v, "speed", { v }, C.muted, null, fs * 0.9 * SPF * 1.15); xs += o.sp[i]; });
     // caixas
-    const items = boxTexts(), bs = 0.85 * fs;
-    ctx.font = `${fs * 0.85}px ${FONT}`;
+    const items = boxTexts(), bs = CBS * fs;
+    ctx.font = `${fs * CBF}px ${FONT}`;
     const put = (y, x0, list, room) => {
       // letra mais pequena se não couberem
-      const textW = list.reduce((p, [, , w]) => p + w - bs - 0.4 * fs, 0);
+      const textW = list.reduce((p, [, , w]) => p + w - bs - 0.35 * fs, 0);
       const fixed = list.reduce((p, [, , w]) => p + w, 0) + (list.length - 1) * 1.1 * fs - textW;
-      const f = fs * 0.85 * (fixed + textW > room ? Math.max(0.55, (room - fixed) / textW) : 1);
+      const f = fs * CBF * (fixed + textW > room ? Math.max(0.55, (room - fixed) / textW) : 1);
       ctx.font = `${f}px ${FONT}`;
       let x = x0;
       for (const [t, k] of list) x = cbox(y, h, x, bs, fs, S[k], t, { kind: "box", k }) + 1.1 * fs;
@@ -777,14 +779,14 @@
     const y = y0 + (h - bs) / 2;
     rrect(x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
     if (on) {
-      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.12 * fs;
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
       ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, y + 0.72 * bs);
       ctx.lineTo(x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
       ctx.lineCap = "butt"; ctx.lineJoin = "miter";
     }
     ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(txt, x + bs + 0.4 * fs, y0 + h / 2 + 1);
-    const w = bs + 0.4 * fs + ctx.measureText(txt).width;
+    ctx.fillText(txt, x + bs + 0.35 * fs, y0 + h / 2 + 1);
+    const w = bs + 0.35 * fs + ctx.measureText(txt).width;
     hits.push({ ...hit, rect: { x, y: y0, w, h } });
     return x + w;
   }
