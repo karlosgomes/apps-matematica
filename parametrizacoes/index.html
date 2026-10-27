@@ -63,7 +63,7 @@
   const SPEEDS = [[1, "lenta"], [2, "rápida"], [0, "tempo real"]];
   const DUR = 8;
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
-              showX: true, showY: true, full: true, coords: false, seg: false, proj: true, showQ: false, ghost: false };
+              showX: true, showY: true, full: true, seg: false, proj: true, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -649,7 +649,7 @@
       ctx.restore();
       dot(PX, PY, 0.48 * fs, C.pt, 3);
       const name = P.name.replace(/'/g, "'");
-      const src = S.coords ? `${name}\\,(${clr(C.x, fmt(xt))};\\,${clr(C.y, fmt(yt))})` : name;
+      const src = name;
       // a etiqueta foge do centro da figura
       const dx = PX - (g.x + g.w / 2), dy = PY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
       const el = texAt("pn", src, PX + dx / d * 0.9 * fs, PY + dy / d * 0.9 * fs, fs * 0.85, C.ink, 0.5 - 0.5 * dx / d, 0.5 - 0.5 * dy / d);
@@ -771,7 +771,7 @@
   const SPF = 0.6, XYW = 2.9, CBS = 0.66, CBF = 0.72;   // CBS, CBF: tamanho do quadrado e da letra das caixas (× fs)
   const CBFONT = '"KaTeX_Main", "Times New Roman", serif';   // a mesma letra dos botões x(t) e y(t)
   const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
-  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter o traço anterior", "ghost"]]; }
+  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Segmentos [O${P.name}] e [O${Q.name}]` : `Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter o traço anterior", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
