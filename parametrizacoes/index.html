@@ -38,12 +38,12 @@
   const LIGHT = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
-    x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f",
+    x: "#1565c0", y: "#d32f2f", cur: "#2e7d32", pt: "#ef6c00", bad: "#d32f2f", q: "#7b1fa2",
   };
   const DARK = {
     bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
     axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
-    x: "#64a8ff", y: "#ff6b6b", cur: "#5cc26a", pt: "#ffa040", bad: "#ff6b6b",
+    x: "#64a8ff", y: "#ff6b6b", cur: "#5cc26a", pt: "#ffa040", bad: "#ff6b6b", q: "#d09cff",
   };
   const C = { ...LIGHT };
   // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
@@ -63,7 +63,7 @@
   const SPEEDS = [[0.5, "lenta"], [1, "média"], [2, "rápida"], [0, "tempo real"]];
   const DUR = 8;
   const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, speed: 1,
-              showX: true, showY: true, full: true, coords: false, seg: false, proj: true };
+              showX: true, showY: true, full: true, coords: false, seg: false, proj: true, showQ: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -255,6 +255,28 @@
     return { v, pi: /pi|π/i.test(src) };
   }
 
+  // ponto de comparação Q: as mesmas funções, mas com o argumento trocado por t
+  // (P(cos(t²), sin(t²)) → Q(cos t, sin t); P(2cos 3t, sin 3t) → Q(2cos t, sin t))
+  function swapArg(n) {
+    if (n.k === "fn" && hasT(n.a)) return { k: "fn", name: n.name, a: { k: "t" } };
+    const m = { ...n };
+    if (n.a) m.a = swapArg(n.a);
+    if (n.b) m.b = swapArg(n.b);
+    return m;
+  }
+  function makeQ() {
+    const X = swapArg(P.X), Y = swapArg(P.Y);
+    const name = P.name[0] === "Q" ? "R" : "Q";
+    return { name, X, Y, fx: compile(X), fy: compile(Y), same: tex(X) === tex(P.X) && tex(Y) === tex(P.Y) };
+  }
+  let Q = null, QV = null;
+  function sampleQ() {
+    Q = makeQ();
+    const X = new Float64Array(N + 1), Y = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; X[i] = Q.fx(t); Y[i] = Q.fy(t); }
+    QV = { X, Y };
+  }
+
   // ---------- amostras ----------
   let P = null, CV = null, err = "", errA = false, errB = false, piAxis = true;
   // amostras de t: primeiro N uniformes; depois, cada troço onde P anda muito (p. ex. cos(t²) com t grande)
@@ -281,6 +303,7 @@
     }
     T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
     CV = { T, X, Y, n: total - 1, rx, ry, id: ++cvId };
+    sampleQ();
   }
   function update() {
     let ok = true;
@@ -319,7 +342,7 @@
     const pad = Math.round(fs * 0.7), gap = 0.4 * fs;
     const land = W > H * 1.15 && W >= 640;
     const L = { fs, pad, land };
-    const ih = 2.1 * fs, lh = 1.9 * fs, rowA = 2.2 * fs, rowB = 1.9 * fs;
+    const ih = 1.55 * fs, lh = 1.9 * fs, rowA = 2.2 * fs, rowB = 1.9 * fs;
     const iw = 5.2 * fs, groupW = 2.6 * fs + iw + 1.1 * fs + iw + 0.9 * fs;   // «t ∈ [» a «;» b «]»
     const w = W - 2 * pad;
     let y = pad;
@@ -334,7 +357,7 @@
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
     // faixa das opções: x(t), y(t) e velocidade numa linha (a velocidade passa para baixo se não couber);
     // as quatro caixas na mesma linha, se couberem, senão numa ou duas linhas por baixo
-    const o = optWidths(fs), btns = 2 * 4.2 * fs + gap;
+    const o = optWidths(fs), btns = 2 * XYW * fs + gap;
     const spLine = btns + 1.2 * fs + o.speed > w;
     let cbRows = 0, cbInline = false;
     if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
@@ -468,8 +491,8 @@
   }
 
   function inputs(fs) {
-    place($expr, L.expr, fs * 1.15);
-    const g = L.int, f = fs * 1.15;
+    place($expr, L.expr, fs * 0.95);
+    const g = L.int, f = fs * 0.95;
     texAt("tin", "t \\in \\big[", g.x, g.y + g.h / 2, f, C.ink, 0, 0.5, false);
     const xa = g.x + 2.6 * fs;
     place($ta, { x: xa, y: g.y, w: g.iw, h: g.h }, f);
@@ -489,7 +512,8 @@
     if (err) {
       el = texAt("leg", `\\text{${err.replace(/[{}\\]/g, "")}}`, b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.bad, 0.5, 0.5, false);
     } else {
-      const src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
+      let src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
+      if (S.showQ) src += ` \\qquad ${clr(C.q, `${Q.name}\\left(${tex(Q.X)},\\ ${tex(Q.Y)}\\right)`)}`;
       el = texAt("leg", src, b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, 0.5, 0.5, false);
     }
     fit(el, b.w - 0.6 * fs, b.h);
@@ -536,7 +560,8 @@
   }
   // camada guardada (o lugar geométrico e o resto esbatido dos gráficos só se redesenham quando algo muda)
   const layers = {};
-  function cached(name, key, paintIt) {
+  function cached(name, key, paintIt, extra = "") {
+    key += "|" + extra;
     let L = layers[name];
     if (!L) L = layers[name] = { cv: document.createElement("canvas"), key: null };
     if (L.key !== key) {
@@ -583,8 +608,13 @@
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
       c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
+      if (S.showQ && !Q.same) {   // caminho de Q no mesmo intervalo de t, a tracejado
+        c.strokeStyle = C.q; c.lineWidth = 2; c.setLineDash([7, 6]);
+        poly(j => X(QV.X[j]), j => Y(QV.Y[j]), 0, N, null, jump, c);
+        c.setLineDash([]);
+      }
       c.restore();
-    });
+    }, S.showQ);
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, g.y, g.w, g.h); ctx.clip();
     if (isFinite(xt) && isFinite(yt)) {
       const PX = X(xt), PY = Y(yt);
@@ -610,6 +640,17 @@
       if (sy) el.style.top = parseFloat(el.style.top) + sy + "px";
       hits.push({ kind: "P", x: PX, y: PY, r: 1.6 * fs, map: { X, Y } });
     } else ctx.restore();
+    // ponto Q (argumento t), por cima
+    if (S.showQ) {
+      const qx = Q.fx(S.t), qy = Q.fy(S.t);
+      if (isFinite(qx) && isFinite(qy) && X(qx) > g.x - fs && X(qx) < g.x + g.w + fs && Y(qy) > g.y - fs && Y(qy) < g.y + g.h + fs) {
+        const QX = X(qx), QY = Y(qy);
+        dot(QX, QY, 0.4 * fs, C.q, 3);
+        const dx = QX - (g.x + g.w / 2), dy = QY - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
+        // do lado de dentro, para não chocar com a etiqueta de P
+        texAt("qn", Q.name, QX - dx / d * 0.85 * fs, QY - dy / d * 0.85 * fs, fs * 1.05, C.q, 0.5 + 0.5 * dx / d, 0.5 + 0.5 * dy / d);
+      }
+    }
     hits.push({ kind: "curveArea", rect: g, map: { X, Y } });
   }
 
@@ -671,10 +712,11 @@
 
   // ▶/❚❚, ↺ e o cursor de t
   function rowA(b, fs) {
-    const bs = b.h, gap = 0.4 * fs;
-    button(b.x, b.y, bs * 1.3, bs, S.run ? "❚❚" : "▶", S.run, "play", {}, C.pt, null, fs);
-    button(b.x + bs * 1.3 + gap, b.y, bs, bs, "↺", false, "reset", {}, C.muted, null, fs);
-    const lx = b.x + bs * 2.3 + 2 * gap;
+    // ▶ e ↺ do tamanho dos botões da velocidade
+    const bs = SMALL.h(fs), gap = 0.4 * fs, by = b.y + (b.h - bs) / 2, sf = SMALL.f(fs);
+    button(b.x, by, 2.3 * fs, bs, S.run ? "❚❚" : "▶", S.run, "play", {}, C.pt, null, sf);
+    button(b.x + 2.3 * fs + gap, by, 1.9 * fs, bs, "↺", false, "reset", {}, C.muted, null, sf);
+    const lx = b.x + 4.2 * fs + 2 * gap;
     const lab = texAt("tv", `t = ${fmt(S.t)}`, lx, b.y + b.h / 2, fs * 1.1, C.ink, 0, 0.5, false);
     const tx0 = lx + 6.2 * fs, tx1 = b.x + b.w - 0.6 * fs, cy = b.y + b.h * 0.38;
     const TX = v => tx0 + (v - S.a) / (S.b - S.a) * (tx1 - tx0);
@@ -692,21 +734,23 @@
     void lab;
   }
 
-  // larguras da velocidade (botões a 60%) e das quatro caixas
-  const SPF = 0.6;
-  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [`Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"]]; }
+  // larguras da velocidade (botões a 60%) e das caixas; os botões pequenos (velocidade, ▶, ↺, x(t), y(t)) têm todos este tamanho
+  const SPF = 0.6, XYW = 2.9;
+  const SMALL = { h: fs => 1.9 * fs * SPF, f: fs => fs * 0.9 * SPF * 1.15 };
+  function boxTexts() { return [["Gráficos completos", "full"], [`Coordenadas de ${P.name}`, "coords"], [`Segmento [O${P.name}]`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = SPEEDS.map(([, t]) => ctx.measureText(t).width + 0.8 * fs);
     ctx.font = `${fs * 0.85}px ${FONT}`;
     const bs = 0.85 * fs, bw = boxTexts().map(([t]) => bs + 0.4 * fs + ctx.measureText(t).width);
-    return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + 3 * 1.1 * fs };
+    return { sp, speed: sp.reduce((p, q) => p + q, 0), bw, boxes: bw.reduce((p, q) => p + q, 0) + (bw.length - 1) * 1.1 * fs };
   }
   // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
-    const gap = 0.4 * fs, h = b.h, bw = 4.2 * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
-    button(b.x, b.y, bw, h, "", S.showX, "showX", {}, C.x, "x(t)", fs);
-    button(b.x + bw + gap, b.y, bw, h, "", S.showY, "showY", {}, C.y, "y(t)", fs);
+    const gap = 0.4 * fs, h = b.h, bw = XYW * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
+    const xh = SMALL.h(fs), xy = b.y + (h - xh) / 2;
+    button(b.x, xy, bw, xh, "", S.showX, "showX", {}, C.x, "x(t)", SMALL.f(fs) * 1.1);
+    button(b.x + bw + gap, xy, bw, xh, "", S.showY, "showY", {}, C.y, "y(t)", SMALL.f(fs) * 1.1);
     // velocidade: botões pequenos (60%), centrados na linha
     const sh = h * SPF, sx = b.spLine ? b.x : b.x + b.w - o.speed, sy = (b.spLine ? line(1) : b.y) + (h - sh) / 2;
     let xs = sx;
@@ -727,7 +771,7 @@
     const first = 1 + (b.spLine ? 1 : 0);
     if (b.cbInline) put(b.y, b.x + 2 * bw + gap + 1.2 * fs, withW, sx - 1.2 * fs - (b.x + 2 * bw + gap + 1.2 * fs));
     else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
-    else { put(line(first), b.x, withW.slice(0, 2), b.w); put(line(first + 1), b.x, withW.slice(2), b.w); }
+    else { put(line(first), b.x, withW.slice(0, 3), b.w); put(line(first + 1), b.x, withW.slice(3), b.w); }
   }
   function cbox(y0, h, x, bs, fs, on, txt, hit) {
     const y = y0 + (h - bs) / 2;
