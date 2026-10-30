@@ -66,7 +66,7 @@
   const CAP = 150000;                   // máximo de pontos depois de refinar
   // o tempo corre sempre em tempo real: t avança 1 por segundo
   const S = { src: "P(cos(t), sin(t))", qSrc: "Q(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
-              showX: false, showY: false, showR: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
+              showX: false, showY: false, showR: false, showXQ: false, showYQ: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -382,24 +382,29 @@
     const land = W > H * 1.15 && W >= 640;
     const L = { fs, pad, land };
     const ih = 1.55 * fs, lh = 1.9 * fs, rowA = 1.9 * fs, rowB = 1.9 * fs;
-    const iw = 5.2 * fs, groupW = 2.6 * fs + iw + 1.1 * fs + iw + 0.9 * fs;   // «t ∈ [» a «;» b «]»
+    const iw = 4.4 * fs, groupW = 2.6 * fs + iw + 1.1 * fs + iw + 0.9 * fs;   // «t ∈ [» a «;» b «]»
     const w = W - 2 * pad;
+    // em cima: cada ponto com a sua caixa e, à direita, os botões dos seus gráficos
+    // (P: x(t), y(t), y(t)/x(t); Q: x_Q(t), y_Q(t)); P e Q na mesma linha se couberem, senão uma linha cada
+    const pB = (2 * XYW + RW) * fs + 2 * gap, qB = 2 * XYW * fs + gap;
     let y = pad;
-    if (w >= 24 * fs + groupW) {
-      L.expr = { x: pad, y, w: w - groupW - fs, h: ih };
-      L.int = { x: W - pad - groupW, y, w: groupW, h: ih, iw };
+    if (S.showQ && w >= 24 * fs + pB + qB) {
+      const av = w - pB - qB - 2 * gap - fs, pw = Math.round(av * 0.58);
+      L.expr = { x: pad, y, w: pw, h: ih }; L.pBtn = { x: pad + pw + gap, y };
+      L.qexpr = { x: L.pBtn.x + pB + fs, y, w: av - pw, h: ih }; L.qBtn = { x: pad + w - qB, y };
       y += ih + gap;
     } else {
-      L.expr = { x: pad, y, w, h: ih }; y += ih + gap;
-      L.int = { x: pad, y, w: groupW, h: ih, iw }; y += ih + gap;
+      L.expr = { x: pad, y, w: w - pB - gap, h: ih }; L.pBtn = { x: pad + w - pB, y }; y += ih + gap;
+      if (S.showQ) { L.qexpr = { x: pad, y, w: w - pB - gap, h: ih }; L.qBtn = { x: L.pBtn.x, y }; y += ih + gap; }
     }
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
-    // faixa das opções: x(t), y(t) e velocidade numa linha (a velocidade passa para baixo se não couber);
-    // as quatro caixas na mesma linha, se couberem, senão numa ou duas linhas por baixo
-    const o = optWidths(fs), btns = (2 * XYW + RW) * fs + 2 * gap;
-    const spLine = btns + 1.2 * fs + o.speed > w;
+    // intervalo de t: em ecrãs largos à direita do cursor de t; senão numa linha por baixo,
+    // com as caixas na mesma linha se couberem (senão as caixas em linhas por baixo)
+    const intA = w >= 22 * fs + groupW;
+    const o = optWidths(fs), btns = groupW;
+    const spLine = !intA && btns + 1.2 * fs + o.speed > w;
     let cbRows = 0, cbInline = false, cbWrap = false;
-    if (!spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
+    if (!intA && !spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
     else if (o.boxes <= w) cbRows = 1;
     else {
       // texto das caixas em duas linhas: todas numa linha, se couberem; senão três por linha; senão duas
@@ -407,11 +412,13 @@
       const groupW = k => Math.max(...Array.from({ length: Math.ceil(o.bw2.length / k) }, (_, i) => o.sum(o.bw2.slice(i * k, i * k + k))));
       cbRows = o.boxes2 <= w ? 1 : groupW(3) <= w ? 2 : 3;
     }
-    const nB = 1 + (spLine ? 1 : 0) + cbRows;
+    const nB = (intA ? 0 : 1) + (spLine ? 1 : 0) + cbRows;
     const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
     L.rowA = { x: pad, y: yb, w, h: rowA };
-    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows, cbWrap };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows, cbWrap, intA };
+    L.int = intA ? { x: pad + w - groupW, y: yb + (rowA - ih) / 2, w: groupW, h: ih, iw } : { x: pad, y: L.rowB.y + (rowB - ih) / 2, w: groupW, h: ih, iw };
+    L.rowA.end = intA ? L.int.x - 1.2 * fs : pad + w;   // onde acaba o cursor de t
     const mh = yb - gap - y;
     if (land) {
       const cw = Math.min(mh, w * 0.46);
@@ -552,14 +559,19 @@
   }
 
   function inputs(fs) {
-    // com «Ponto Q», a caixa da expressão de P parte-se em duas: P e Q
-    const e = L.expr;
+    place($expr, L.expr, fs * 0.95);
+    if (S.showQ) { place($qexpr, L.qexpr, fs * 0.95); $qexpr.style.display = ""; } else $qexpr.style.display = "none";
+    // os botões dos gráficos, à direita da caixa de cada ponto (da mesma altura)
+    const bw = XYW * fs, gap = 0.4 * fs, h = L.expr.h, bf = SMALL.f(fs) * 1.25;
+    let { x, y } = L.pBtn;
+    button(x, y, bw, h, "", S.showX, "showX", {}, C.x, "x(t)", bf);
+    button(x + bw + gap, y, bw, h, "", S.showY, "showY", {}, C.y, "y(t)", bf);
+    button(x + 2 * (bw + gap), y, RW * fs, h, "", S.showR, "showR", {}, C.r, "y(t)/x(t)", bf);
     if (S.showQ) {
-      const wp = Math.round(e.w * 0.58);
-      place($expr, { ...e, w: wp }, fs * 0.95);
-      place($qexpr, { ...e, x: e.x + wp + 0.4 * fs, w: e.w - wp - 0.4 * fs }, fs * 0.95);
-      $qexpr.style.display = "";
-    } else { place($expr, e, fs * 0.95); $qexpr.style.display = "none"; }
+      ({ x, y } = L.qBtn);
+      button(x, y, bw, h, "", S.showXQ, "showXQ", {}, C.q, "x_Q(t)", bf);
+      button(x + bw + gap, y, bw, h, "", S.showYQ, "showYQ", {}, C.q, "y_Q(t)", bf);
+    }
     const g = L.int, f = fs * 0.95;
     texAt("tin", "t \\in \\big[", g.x, g.y + g.h / 2, f, C.ink, 0, 0.5, false);
     const xa = g.x + 2.6 * fs;
@@ -733,7 +745,7 @@
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
     const sq = S.showQ;   // com «Ponto Q», também os gráficos de Q (a roxo), para os botões ligados
-    const rs = [S.showX && CV.rx, S.showY && CV.ry, S.showR && CV.rr, sq && S.showX && QV.rx, sq && S.showY && QV.ry, sq && S.showR && QV.rr].filter(Boolean);
+    const rs = [S.showX && CV.rx, S.showY && CV.ry, S.showR && CV.rr, sq && S.showXQ && QV.rx, sq && S.showYQ && QV.ry, sq && S.showR && QV.rr].filter(Boolean);
     const gh = S.ghost ? GHS : [];
     for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); if (S.showR) rs.push(G.CV.rr); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
@@ -765,7 +777,7 @@
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y], [S.showR, CV.R, t => P.fy(t) / P.fx(t), C.r]];
-    const qser = [[sq && S.showX, QV.X, Q.fx, "x_Q"], [sq && S.showY, QV.Y, Q.fy, "y_Q"], [sq && S.showR, QV.R, t => Q.fy(t) / Q.fx(t), "y_Q/x_Q"]];
+    const qser = [[sq && S.showXQ, QV.X, Q.fx, "x_Q"], [sq && S.showYQ, QV.Y, Q.fy, "y_Q"], [sq && S.showR, QV.R, t => Q.fy(t) / Q.fx(t), "y_Q/x_Q"]];
     if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, sq, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
       c.lineJoin = c.lineCap = "round";
       if (gh.length) {   // traços mantidos: tracejados, nas cores de x(t) e y(t)
@@ -841,7 +853,7 @@
     button(b.x + 2.3 * fs + gap, by, 1.9 * fs, bs, "↺", false, "reset", {}, C.muted, null, sf);
     const lx = b.x + 4.2 * fs + 2 * gap;
     const lab = texAt("tv", `t = ${fmt(S.t)}`, lx, b.y + b.h / 2, fs * 1.1, C.ink, 0, 0.5, false);
-    const tx0 = lx + 6.2 * fs, tx1 = b.x + b.w - 0.6 * fs, cy = b.y + b.h * 0.38;
+    const tx0 = lx + 6.2 * fs, tx1 = b.end - 0.6 * fs, cy = b.y + b.h * 0.38;
     const TX = v => tx0 + (v - S.a) / (S.b - S.a) * (tx1 - tx0);
     ctx.lineCap = "round";
     line(tx0, cy, tx1, cy, C.grid2, 0.22 * fs);
@@ -899,10 +911,8 @@
   // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
     const gap = 0.4 * fs, h = b.h, bw = XYW * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
-    const xh = SMALL.h(fs), xy = b.y + (h - xh) / 2;
-    button(b.x, xy, bw, xh, "", S.showX, "showX", {}, C.x, "x(t)", SMALL.f(fs) * 1.1);
-    button(b.x + bw + gap, xy, bw, xh, "", S.showY, "showY", {}, C.y, "y(t)", SMALL.f(fs) * 1.1);
-    button(b.x + 2 * (bw + gap), xy, RW * fs, xh, "", S.showR, "showR", {}, C.r, "y(t)/x(t)", SMALL.f(fs) * 1.1);
+    // o intervalo de t fica à esquerda (posto por inputs(), em L.int)
+    const bend = b.x + L.int.w;
     const sx = b.x + b.w;
     // caixas
     const items = boxTexts(), bs = CBS * fs;
@@ -917,8 +927,8 @@
       for (const [t, k] of list) x = cbox(y, h, x, bs, fs, S[k], t, { kind: "box", k }) + 1.1 * fs;
     };
     const withW = items.map(([t, k], i) => b.cbWrap ? [o.split[i], k, o.bw2[i]] : [t, k, o.bw[i]]);
-    const first = 1 + (b.spLine ? 1 : 0);
-    const bx1 = b.x + 2 * (bw + gap) + RW * fs + 1.2 * fs;
+    const first = (b.intA ? 0 : 1) + (b.spLine ? 1 : 0);
+    const bx1 = bend + 1.2 * fs;
     if (b.cbInline) put(b.y, bx1, withW, sx - 1.2 * fs - bx1);
     else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
     else {
@@ -991,6 +1001,8 @@
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
     if (h.kind === "showR") { S.showR = !S.showR; draw(); return; }
+    if (h.kind === "showXQ") { S.showXQ = !S.showXQ; draw(); return; }
+    if (h.kind === "showYQ") { S.showYQ = !S.showYQ; draw(); return; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "ghost" && !S.ghost) GHS = []; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
