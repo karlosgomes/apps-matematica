@@ -65,7 +65,7 @@
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
   // o tempo corre sempre em tempo real: t avança 1 por segundo
-  const S = { src: "P(cos(t), sin(t))", qSrc: "", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
+  const S = { src: "P(cos(t), sin(t))", qSrc: "Q(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
               showX: false, showY: false, showR: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -267,7 +267,8 @@
     if (n.b) m.b = swapArg(n.b);
     return m;
   }
-  // (ou a referência escrita na caixa de Q, p. ex. Q(cos t, sin t), para comparar com P(1 + 2cos 2t, 2 + 2sin 2t))
+  // (ou a referência escrita na caixa de Q, que começa com Q(cos t, sin t), para comparar com P(1 + 2cos 2t, 2 + 2sin 2t);
+  // se a caixa ficar vazia, Q volta a ser automático)
   let errQ = false;
   function makeQ() {
     const name = P.name[0] === "Q" ? "R" : "Q";
@@ -581,7 +582,7 @@
     } else {
       let src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
       if (S.showQ) src += ` \\qquad ${clr(C.q, `${Q.name}\\left(${tex(Q.X)},\\ ${tex(Q.Y)}\\right)`)}`;
-      el = texAt("leg", src, b.x + b.w / 2, b.y + b.h / 2, fs * 1.2, C.ink, 0.5, 0.5, false);
+      el = texAt("leg", src, b.x + 0.5 * fs, b.y + b.h / 2, fs * 1.2, C.ink, 0, 0.5, false);   // encostado à esquerda
     }
     fit(el, b.w - 0.6 * fs, b.h);
   }
