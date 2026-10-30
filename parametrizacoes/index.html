@@ -308,7 +308,24 @@
     T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
     // quociente y(t)/x(t) (declive de OP)
     const R = Y.map((y, i) => y / X[i]), rr = range([Y0.map((y, i) => y / X0[i])]);
-    return { T, X, Y, R, n: total - 1, rx, ry, rr };
+    // assíntotas verticais de y(t)/x(t): onde x(t) = 0 e y(t) ≠ 0 — quando x troca de sinal (bissecção)
+    // ou quando |x| tem um mínimo que toca em 0, sem trocar de sinal (p. ex. cos² t)
+    const As = [], add = t0 => { if (Math.abs(P.fx(t0)) < 1e-6 && Math.abs(P.fy(t0)) > 1e-6 && !(As.length && t0 - As[As.length - 1] < 1e-6)) As.push(t0); };
+    for (let i = 0; i < total - 1 && As.length < 200; i++) {
+      const x0 = X[i], x1 = X[i + 1];
+      if (!isFinite(x0) || !isFinite(x1) || x1 === 0) continue;
+      if (x0 === 0) { add(T[i]); continue; }
+      if (Math.sign(x0) !== Math.sign(x1)) {
+        let lo = T[i], hi = T[i + 1];
+        for (let k = 0; k < 50; k++) { const m = (lo + hi) / 2; if (Math.sign(P.fx(m)) === Math.sign(x0)) lo = m; else hi = m; }
+        add((lo + hi) / 2);
+      } else if (i + 2 < total && Math.abs(x1) < Math.abs(x0) && Math.abs(x1) <= Math.abs(X[i + 2]) && Math.sign(X[i + 2]) === Math.sign(x1)) {
+        let lo = T[i], hi = T[i + 2];   // mínimo de |x| por secção dourada
+        for (let k = 0; k < 80; k++) { const m1 = lo + (hi - lo) * 0.382, m2 = lo + (hi - lo) * 0.618; if (Math.abs(P.fx(m1)) < Math.abs(P.fx(m2))) hi = m2; else lo = m1; }
+        add((lo + hi) / 2);
+      }
+    }
+    return { T, X, Y, R, n: total - 1, rx, ry, rr, As };
   }
   function update() {
     let ok = true;
@@ -694,6 +711,7 @@
     const gh = S.ghost ? GHS : [];
     for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); if (S.showR) rs.push(G.CV.rr); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
+    if (S.showR) [v0, v1] = [-20, 20];   // com y(t)/x(t), escala fixa
     const ml = 2.6 * fs, mr = 1.4 * fs, mt = 1.6 * fs, mb = 1.3 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
     const TX = t => gx0 + (t - S.a) / (S.b - S.a) * (gx1 - gx0);
@@ -715,6 +733,11 @@
 
     ctx.save(); ctx.beginPath(); ctx.rect(g.x, gy0 - 0.5 * fs, g.w, gy1 - gy0 + fs); ctx.clip();
     const i = idx(S.t), jump = (gy1 - gy0) * 0.7;
+    // assíntotas verticais de y(t)/x(t) (e de y_Q/x_Q, com Q ligado), a tracejado
+    if (S.showR) {
+      if (sq) for (const t of QV.As) line(TX(t), gy0, TX(t), gy1, C.q, 1.5, [8, 6]);
+      for (const t of CV.As) line(TX(t), gy0, TX(t), gy1, C.r, 1.5, [8, 6]);   // as de P por cima, se coincidirem
+    }
     // linha do instante t
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
