@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #2e7d32; --bad: #d32f2f; --badbg: #fff5f5; }
-  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #5cc26a; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #2e7d32; --bad: #d32f2f; --badbg: #fff5f5; --q: #7b1fa2; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #5cc26a; --bad: #ff6b6b; --badbg: #3a1f22; --q: #d09cff; color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
@@ -23,12 +23,17 @@
          background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
   .inp:focus { border-color: var(--focus); }
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  /* a expressão de Q (só com «Ponto Q» ligado; vazia = automática) */
+  #qexpr { color: var(--q); }
+  #qexpr:focus { border-color: var(--q); }
+  #qexpr::placeholder { color: var(--q); opacity: 0.6; }
 </style>
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
 <canvas id="cv" aria-label="Curva descrita pelo ponto P(x(t), y(t)) e gráficos de x(t) e y(t)"></canvas>
 <input class="inp" id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Coordenadas do ponto, por exemplo P(cos(t), sin(t))">
+<input class="inp" id="qexpr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Q automático" aria-label="Coordenadas do ponto de referência Q, por exemplo Q(cos(t), sin(t)); vazio, Q é automático">
 <input class="inp" id="ta" type="text" spellcheck="false" autocomplete="off" aria-label="Início do intervalo de t">
 <input class="inp" id="tb" type="text" spellcheck="false" autocomplete="off" aria-label="Fim do intervalo de t">
 <script>
@@ -60,7 +65,7 @@
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
   // o tempo corre sempre em tempo real: t avança 1 por segundo
-  const S = { src: "P(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
+  const S = { src: "P(cos(t), sin(t))", qSrc: "", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
               showX: false, showY: false, showR: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -225,8 +230,8 @@
   }
 
   // "P(x(t), y(t))" → nome, x(t), y(t)
-  function readPoint(src) {
-    let name = "P", body = src.trim();
+  function readPoint(src, name = "P") {
+    let body = src.trim();
     const m = body.match(/^([A-Za-z])\s*('*)\s*\((.*)\)\s*$/s);
     if (m && !/^(t|e)$/.test(m[1])) { name = m[1] + m[2]; body = m[3]; }
     else if (/^\(.*\)$/s.test(body)) body = body.slice(1, -1);
@@ -262,9 +267,13 @@
     if (n.b) m.b = swapArg(n.b);
     return m;
   }
+  // (ou a referência escrita na caixa de Q, p. ex. Q(cos t, sin t), para comparar com P(1 + 2cos 2t, 2 + 2sin 2t))
+  let errQ = false;
   function makeQ() {
-    const X = swapArg(P.X), Y = swapArg(P.Y);
     const name = P.name[0] === "Q" ? "R" : "Q";
+    errQ = false;
+    if (S.qSrc.trim()) try { return readPoint(S.qSrc, name); } catch (e) { errQ = true; }
+    const X = swapArg(P.X), Y = swapArg(P.Y);
     return { name, X, Y, fx: compile(X), fy: compile(Y) };
   }
   let Q = null;
@@ -344,6 +353,7 @@
     $expr.classList.toggle("bad", !ok);
     $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
     sample();
+    $qexpr.classList.toggle("bad", errQ);
     if (S.ghost && pending && ok && !errA && !errB && (S.src !== pending.src || S.a !== pending.a || S.b !== pending.b) && !GHS.includes(pending))
       GHS.push(pending);
     draw();
@@ -352,7 +362,7 @@
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
   const ctx = cv.getContext("2d");
-  const $expr = document.getElementById("expr"), $ta = document.getElementById("ta"), $tb = document.getElementById("tb");
+  const $expr = document.getElementById("expr"), $qexpr = document.getElementById("qexpr"), $ta = document.getElementById("ta"), $tb = document.getElementById("tb");
   let W = 0, H = 0, L = null, hits = [];
   function resize() {
     const dpr = Math.min(3, window.devicePixelRatio || 1);
@@ -541,7 +551,14 @@
   }
 
   function inputs(fs) {
-    place($expr, L.expr, fs * 0.95);
+    // com «Ponto Q», a caixa da expressão de P parte-se em duas: P e Q
+    const e = L.expr;
+    if (S.showQ) {
+      const wp = Math.round(e.w * 0.58);
+      place($expr, { ...e, w: wp }, fs * 0.95);
+      place($qexpr, { ...e, x: e.x + wp + 0.4 * fs, w: e.w - wp - 0.4 * fs }, fs * 0.95);
+      $qexpr.style.display = "";
+    } else { place($expr, e, fs * 0.95); $qexpr.style.display = "none"; }
     const g = L.int, f = fs * 0.95;
     texAt("tin", "t \\in \\big[", g.x, g.y + g.h / 2, f, C.ink, 0, 0.5, false);
     const xa = g.x + 2.6 * fs;
@@ -629,6 +646,8 @@
   // se assim a curva ficasse demasiado achatada (p. ex. y = tan t), cada eixo tem a sua escala
   function curve(g, fs) {
     let [x0, x1] = CV.rx, [y0, y1] = CV.ry;
+    // com Q, o referencial inclui também o caminho de Q
+    if (S.showQ) { x0 = Math.min(x0, QV.rx[0]); x1 = Math.max(x1, QV.rx[1]); y0 = Math.min(y0, QV.ry[0]); y1 = Math.max(y1, QV.ry[1]); }
     const m = 1.3 * fs, gw = g.w - 2 * m, gh = g.h - 2 * m;
     let kx = gw / (x1 - x0), ky = gh / (y1 - y0);
     if (Math.max(kx / ky, ky / kx) < 4) kx = ky = Math.min(kx, ky);
@@ -654,9 +673,16 @@
 
     const xt = P.fx(S.t), yt = P.fy(S.t), jump = Math.max(g.w, g.h) * 0.5;
     // o lugar geométrico fica todo desenhado (sem rasto): P limita-se a percorrê-lo
-    cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy].join("|"), c => {
+    // com Q, o caminho de Q fica por baixo, esbatido a roxo (só se vê onde não coincide com o de P)
+    cached("curve", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, kx, ky, cx, cy, S.showQ].join("|"), c => {
       c.save(); c.beginPath(); c.rect(g.x, g.y, g.w, g.h); c.clip();
-      c.lineJoin = c.lineCap = "round"; c.strokeStyle = C.cur; c.lineWidth = 2.5;
+      c.lineJoin = c.lineCap = "round";
+      if (S.showQ) {
+        c.globalAlpha = dark ? 0.55 : 0.45; c.strokeStyle = C.q; c.lineWidth = 2.5;
+        poly(j => X(QV.X[j]), j => Y(QV.Y[j]), 0, QV.n, null, jump, c);
+        c.globalAlpha = 1;
+      }
+      c.strokeStyle = C.cur; c.lineWidth = 2.5;
       poly(j => X(CV.X[j]), j => Y(CV.Y[j]), 0, CV.n, null, jump, c);
       c.restore();
     });
@@ -846,7 +872,7 @@
       cx += ctx.measureText(part).width;
     });
   }
-  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Vetores ${VEC}O${P.name} e ${VEC}O${Q.name}` : `Vetor ${VEC}O${P.name}`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (argumento t)`, "showQ"], ["Manter traços", "ghost"]]; }
+  function boxTexts() { return [["Gráficos completos", "full"], [S.showQ ? `Vetores ${VEC}O${P.name} e ${VEC}O${Q.name}` : `Vetor ${VEC}O${P.name}`, "seg"], [`Projeções de ${P.name}`, "proj"], [`Ponto ${Q ? Q.name : "Q"} (${S.qSrc.trim() && !errQ ? "referência" : "argumento t"})`, "showQ"], ["Manter traços", "ghost"]]; }
   function optWidths(fs) {
     ctx.font = `700 ${fs * 0.9 * SPF * 1.15}px ${FONT}`;
     const sp = [];
@@ -975,15 +1001,16 @@
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
   // caixas de texto: a curva atualiza-se enquanto se escreve
-  $expr.value = S.src; $ta.value = S.aSrc; $tb.value = S.bSrc;
-  [$expr, $ta, $tb].forEach(el => {
+  $expr.value = S.src; $qexpr.value = S.qSrc; $ta.value = S.aSrc; $tb.value = S.bSrc;
+  [$expr, $qexpr, $ta, $tb].forEach(el => {
     el.addEventListener("focus", () => { pending = snapshot(); });
     el.addEventListener("blur", () => { pending = null; });
   });
   $expr.addEventListener("input", () => { S.src = $expr.value; update(); });
+  $qexpr.addEventListener("input", () => { S.qSrc = $qexpr.value; update(); });
   $ta.addEventListener("input", () => { S.aSrc = $ta.value; update(); });
   $tb.addEventListener("input", () => { S.bSrc = $tb.value; update(); });
-  [$expr, $ta, $tb].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); }));
+  [$expr, $qexpr, $ta, $tb].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); }));
 
   // teclado (fora das caixas de texto): espaço liga/desliga o tempo, ←/→ mudam t, 0 volta ao início,
   // x/y mostram/ocultam os gráficos, c o resto dos gráficos (esbatido)
@@ -1002,11 +1029,13 @@
     e.preventDefault();
   });
 
-  // valores iniciais opcionais no endereço, p. ex. index.html#p=P(2cos(t),sin(t))&a=0&b=2pi
+  // valores iniciais opcionais no endereço, p. ex. index.html#p=P(2cos(t),sin(t))&a=0&b=2pi;
+  // q liga o ponto Q com essa referência, p. ex. #p=P(1+2cos(2t),2+2sin(2t))&q=Q(cos(t),sin(t))
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
-    const q = tok.match(/^([pab])=(.*)$/s);
+    const q = tok.match(/^([pqab])=(.*)$/s);
     if (!q) return;
     if (q[1] === "p") $expr.value = S.src = q[2];
+    else if (q[1] === "q") { $qexpr.value = S.qSrc = q[2]; S.showQ = true; }
     else if (q[1] === "a") $ta.value = S.aSrc = q[2];
     else $tb.value = S.bSrc = q[2];
   });
