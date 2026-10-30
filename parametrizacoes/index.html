@@ -751,9 +751,6 @@
     tri(gx1 + 0.9 * fs, hz, 1, 0, fs * 0.45, C.axis);
     tri(vt, gy0 - 0.9 * fs, 0, -1, fs * 0.45, C.axis);
     texAt("gt", "t", gx1 + 0.9 * fs, hz + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
-    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`, S.showR && clr(C.r, "y(t)/x(t)"),
-                 sq && S.showX && clr(C.q, "x_Q(t)"), sq && S.showY && clr(C.q, "y_Q(t)"), sq && S.showR && clr(C.q, "y_Q(t)/x_Q(t)")].filter(Boolean).join(",\\ ");
-    if (lab) texAt("gy", lab, vt + 0.45 * fs, gy0 - 0.9 * fs, fs * 1.05, C.ink, 0, 0.3);
     tt.forEach((t, i) => { const px = TX(t.v); if (Math.abs(px - vt) > 0.6 * fs) texAt("gtt" + i, t.s, px, hz + 0.3 * fs, fs * 0.72, C.muted, 0.5, 0); });
     tv.forEach((t, i) => { const py = VY(t.v); if (Math.abs(py - hz) > 0.4 * fs && py > gy0 - 0.2 * fs) texAt("gvt" + i, t.s, vt - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
 
@@ -801,18 +798,28 @@
     }
     ctx.lineJoin = ctx.lineCap = "butt";
     ctx.restore();
-    for (const [on, , f, col] of series) {
+    // pontos à frente das curvas, cada um com o nome da sua função ao lado (x_P, y_P, …; x_Q, y_Q, … a roxo)
+    const tags = [], pn = ["x_P", "y_P", "y_P/x_P"];
+    series.forEach(([on, , f, col], k) => {
       const v = f(S.t);
-      if (on && isFinite(v) && VY(v) > gy0 - fs && VY(v) < gy1 + fs) dot(TX(S.t), VY(v), 0.42 * fs, col, 3);
-    }
-    // pontos de Q, com o nome da curva ao lado (x_Q, y_Q)
+      if (!on || !isFinite(v) || VY(v) < gy0 - fs || VY(v) > gy1 + fs) return;
+      dot(TX(S.t), VY(v), 0.42 * fs, col, 3);
+      tags.push({ id: "gp" + k, name: pn[k], col, y: VY(v) });
+    });
     qser.forEach(([on, , f, name], k) => {
       const v = f(S.t);
       if (!on || !isFinite(v) || VY(v) < gy0 - fs || VY(v) > gy1 + fs) return;
       dot(TX(S.t), VY(v), 0.32 * fs, C.q, 2.5);
-      const right = TX(S.t) < gx1 - 3 * fs;
-      texAt("gq" + k, name, TX(S.t) + (right ? 0.55 : -0.55) * fs, VY(v), fs * 0.8, C.q, right ? 0 : 1, 0.5);
+      tags.push({ id: "gq" + k, name, col: C.q, y: VY(v) });
     });
+    // afastados na vertical, para os nomes não se taparem quando os valores estão perto
+    tags.sort((p, q) => p.y - q.y);
+    const sp = 0.95 * fs;
+    for (let k = 1; k < tags.length; k++) tags[k].y = Math.max(tags[k].y, tags[k - 1].y + sp);
+    const over = tags.length ? tags[tags.length - 1].y - (gy1 + 0.5 * fs) : 0;
+    if (over > 0) for (let k = tags.length - 1; k >= 0; k--) tags[k].y = Math.min(tags[k].y - over, k < tags.length - 1 ? tags[k + 1].y - sp : Infinity);
+    const right = TX(S.t) < gx1 - 3.5 * fs;
+    for (const tg of tags) texAt(tg.id, tg.name, TX(S.t) + (right ? 0.65 : -0.65) * fs, tg.y, fs * 0.8, tg.col, right ? 0 : 1, 0.5);
     hits.push({ kind: "graph", rect: { x: gx0 - fs, y: g.y, w: gx1 - gx0 + 2 * fs, h: g.h }, val: px => S.a + (px - gx0) / (gx1 - gx0) * (S.b - S.a) });
   }
 
