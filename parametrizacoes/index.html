@@ -277,11 +277,16 @@
   }
 
   // ---------- amostras ----------
-  let P = null, CV = null, err = "", errA = false, errB = false, piAxis = true;
+  let P = null, CV = null, QV = null, err = "", errA = false, errB = false, piAxis = true;
   // amostras de t: primeiro N uniformes; depois, cada troço onde P anda muito (p. ex. cos(t²) com t grande)
   // é partido em mais pedaços, para a curva não virar um emaranhado de cordas
   let cvId = 0;
   function sample() {
+    CV = { ...sampleOf(P), id: ++cvId };
+    Q = makeQ();
+    QV = sampleOf(Q);   // os gráficos de Q (com «Ponto Q» ligado)
+  }
+  function sampleOf(P) {
     const T0 = new Float64Array(N + 1), X0 = new Float64Array(N + 1), Y0 = new Float64Array(N + 1);
     for (let i = 0; i <= N; i++) { const t = S.a + (S.b - S.a) * i / N; T0[i] = t; X0[i] = P.fx(t); Y0[i] = P.fy(t); }
     const rx = range([X0]), ry = range([Y0]), sx = rx[1] - rx[0], sy = ry[1] - ry[0], sm = Math.max(sx, sy), tol = 1 / 600;
@@ -303,8 +308,7 @@
     T[j] = T0[N]; X[j] = X0[N]; Y[j] = Y0[N];
     // quociente y(t)/x(t) (declive de OP)
     const R = Y.map((y, i) => y / X[i]), rr = range([Y0.map((y, i) => y / X0[i])]);
-    CV = { T, X, Y, R, n: total - 1, rx, ry, rr, id: ++cvId };
-    Q = makeQ();
+    return { T, X, Y, R, n: total - 1, rx, ry, rr };
   }
   function update() {
     let ok = true;
@@ -548,9 +552,9 @@
     fit(el, b.w - 0.6 * fs, b.h);
   }
   // índice da amostra no instante t
-  function idx(t) {   // última amostra com T ≤ t
-    let lo = 0, hi = CV.n;
-    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (CV.T[mid] <= t) lo = mid; else hi = mid - 1; }
+  function idx(t, V = CV) {   // última amostra com T ≤ t
+    let lo = 0, hi = V.n;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (V.T[mid] <= t) lo = mid; else hi = mid - 1; }
     return lo;
   }
 
@@ -685,7 +689,8 @@
 
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
-    const rs = [S.showX && CV.rx, S.showY && CV.ry, S.showR && CV.rr].filter(Boolean);
+    const sq = S.showQ;   // com «Ponto Q», também os gráficos de Q (a roxo), para os botões ligados
+    const rs = [S.showX && CV.rx, S.showY && CV.ry, S.showR && CV.rr, sq && S.showX && QV.rx, sq && S.showY && QV.ry, sq && S.showR && QV.rr].filter(Boolean);
     const gh = S.ghost ? GHS : [];
     for (const G of gh) { if (S.showX) rs.push(G.CV.rx); if (S.showY) rs.push(G.CV.ry); if (S.showR) rs.push(G.CV.rr); }
     let [v0, v1] = rs.length ? [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))] : CV.rx;
@@ -702,7 +707,8 @@
     tri(gx1 + 0.9 * fs, hz, 1, 0, fs * 0.45, C.axis);
     tri(vt, gy0 - 0.9 * fs, 0, -1, fs * 0.45, C.axis);
     texAt("gt", "t", gx1 + 0.9 * fs, hz + 0.4 * fs, fs * 1.1, C.ink, 1, 0);
-    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`, S.showR && clr(C.r, "y(t)/x(t)")].filter(Boolean).join(",\\ ");
+    const lab = [S.showX && `${X_()}(t)`, S.showY && `${Y_()}(t)`, S.showR && clr(C.r, "y(t)/x(t)"),
+                 sq && S.showX && clr(C.q, "x_Q(t)"), sq && S.showY && clr(C.q, "y_Q(t)"), sq && S.showR && clr(C.q, "y_Q(t)/x_Q(t)")].filter(Boolean).join(",\\ ");
     if (lab) texAt("gy", lab, vt + 0.45 * fs, gy0 - 0.9 * fs, fs * 1.05, C.ink, 0, 0.3);
     tt.forEach((t, i) => { const px = TX(t.v); if (Math.abs(px - vt) > 0.6 * fs) texAt("gtt" + i, t.s, px, hz + 0.3 * fs, fs * 0.72, C.muted, 0.5, 0); });
     tv.forEach((t, i) => { const py = VY(t.v); if (Math.abs(py - hz) > 0.4 * fs && py > gy0 - 0.2 * fs) texAt("gvt" + i, t.s, vt - 0.3 * fs, py, fs * 0.72, C.muted, 1, 0.5); });
@@ -713,7 +719,8 @@
     line(TX(S.t), gy0 - 0.3 * fs, TX(S.t), gy1 + 0.3 * fs, C.pt, 1.5, [4, 4]);
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y], [S.showR, CV.R, t => P.fy(t) / P.fx(t), C.r]];
-    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
+    const qser = [[sq && S.showX, QV.X, Q.fx, "x_Q"], [sq && S.showY, QV.Y, Q.fy, "y_Q"], [sq && S.showR, QV.R, t => Q.fy(t) / Q.fx(t), "y_Q/x_Q"]];
+    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, sq, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
       c.lineJoin = c.lineCap = "round";
       if (gh.length) {   // traços mantidos: tracejados, nas cores de x(t) e y(t)
         c.save(); c.globalAlpha = 0.55; c.lineWidth = 2; c.setLineDash([6, 5]);
@@ -727,8 +734,17 @@
       if (S.full) {
         c.globalAlpha = dark ? 0.4 : 0.25; c.lineWidth = 2.5;
         for (const [on, A, , col] of series) if (on) { c.strokeStyle = col; polyCols(j => TX(CV.T[j]), j => VY(A[j]), 0, CV.n, null, jump, c); }
+        c.lineWidth = 2; c.strokeStyle = C.q;
+        for (const [on, A] of qser) if (on) polyCols(j => TX(QV.T[j]), j => VY(A[j]), 0, QV.n, null, jump, c);
       }
     });
+    // Q primeiro (mais fino), para P ficar por cima
+    const iq = idx(S.t, QV);
+    for (const [on, A, f] of qser) {
+      if (!on) continue;
+      ctx.strokeStyle = C.q; ctx.lineWidth = 2.5;
+      polyCols(j => TX(QV.T[j]), j => VY(A[j]), 0, iq, [TX(S.t), VY(f(S.t))], jump);
+    }
     for (const [on, A, f, col] of series) {
       if (!on) continue;
       ctx.strokeStyle = col; ctx.lineWidth = 3.5;
@@ -740,6 +756,14 @@
       const v = f(S.t);
       if (on && isFinite(v) && VY(v) > gy0 - fs && VY(v) < gy1 + fs) dot(TX(S.t), VY(v), 0.42 * fs, col, 3);
     }
+    // pontos de Q, com o nome da curva ao lado (x_Q, y_Q)
+    qser.forEach(([on, , f, name], k) => {
+      const v = f(S.t);
+      if (!on || !isFinite(v) || VY(v) < gy0 - fs || VY(v) > gy1 + fs) return;
+      dot(TX(S.t), VY(v), 0.32 * fs, C.q, 2.5);
+      const right = TX(S.t) < gx1 - 3 * fs;
+      texAt("gq" + k, name, TX(S.t) + (right ? 0.55 : -0.55) * fs, VY(v), fs * 0.8, C.q, right ? 0 : 1, 0.5);
+    });
     hits.push({ kind: "graph", rect: { x: gx0 - fs, y: g.y, w: gx1 - gx0 + 2 * fs, h: g.h }, val: px => S.a + (px - gx0) / (gx1 - gx0) * (S.b - S.a) });
   }
 
