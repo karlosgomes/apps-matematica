@@ -593,7 +593,7 @@
       el = texAt("leg", `\\text{${err.replace(/[{}\\]/g, "")}}`, b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.bad, 0.5, 0.5, false);
     } else {
       const src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
-      el = texAt("leg", src, b.x + 0.5 * fs, b.y + b.h / 2, fs * 1.2, C.ink, 0, 0.5, false);   // encostado à esquerda
+      el = texAt("leg", src, b.x + 0.5 * fs, b.y + b.h / 2, fs * 1.05, C.ink, 0, 0.5, false);   // encostado à esquerda
     }
     fit(el, b.w - 0.6 * fs, b.h);
   }
