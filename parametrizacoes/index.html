@@ -64,8 +64,9 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
-  // o tempo corre em tempo real (t avança 1 por segundo), ou mais devagar (<<) ou mais depressa (>>)
-  const SLOW = 0.25, FAST = 4;
+  // o tempo corre em tempo real (t avança 1 por segundo); cada toque em >> duplica a velocidade
+  // e cada toque em << reduz para metade (de ×1/8 a ×16)
+  const RMIN = 1 / 8, RMAX = 16;
   const S = { src: "P(cos(t), sin(t))", qSrc: "Q(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, rate: 1,
               showX: false, showY: false, showR: false, showXQ: false, showYQ: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
@@ -856,7 +857,14 @@
     button(b.x + 2.3 * fs + gap, by, 1.9 * fs, bs, "↺", false, "reset", {}, C.muted, null, sf);
     const lx = b.x + 4.2 * fs + 2 * gap;
     const lab = texAt("tv", `t = ${fmt(S.t)}`, lx, b.y + b.h / 2, fs * 1.1, C.ink, 0, 0.5, false);
-    const tx0 = lx + 6.2 * fs, tx1 = b.end - 0.6 * fs, cy = b.y + b.h * 0.38;
+    // fator da velocidade (só fora do tempo real); tocar nele volta a ×1
+    let tx0 = lx + 6.2 * fs;
+    if (S.rate !== 1) {
+      const el = texAt("tr", `\\times ${fmt(S.rate, 3)}`, tx0 - 0.4 * fs, b.y + b.h / 2, fs * 1.0, C.pt, 0, 0.5, false);
+      hits.push({ kind: "rate1", rect: { x: tx0 - 0.6 * fs, y: b.y, w: el.offsetWidth + 0.4 * fs, h: b.h } });
+      tx0 += el.offsetWidth + 0.6 * fs;
+    }
+    const tx1 = b.end - 0.6 * fs, cy = b.y + b.h * 0.38;
     const TX = v => tx0 + (v - S.a) / (S.b - S.a) * (tx1 - tx0);
     ctx.lineCap = "round";
     line(tx0, cy, tx1, cy, C.grid2, 0.22 * fs);
@@ -914,10 +922,10 @@
   // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
     const gap = 0.4 * fs, h = b.h, bw = XYW * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
-    // << e >> por baixo de ▶ e ↺ (tocar outra vez volta ao tempo real)
+    // << e >> por baixo de ▶ e ↺ (cada toque: velocidade a dobrar ou a metade)
     const rh = SMALL.h(fs), ry = b.y + (h - rh) / 2, sf = SMALL.f(fs);
-    button(b.x, ry, 2.3 * fs, rh, "<<", S.rate === SLOW, "rate", { v: SLOW }, C.pt, null, sf);
-    button(b.x + 2.3 * fs + gap, ry, 1.9 * fs, rh, ">>", S.rate === FAST, "rate", { v: FAST }, C.pt, null, sf);
+    button(b.x, ry, 2.3 * fs, rh, "<<", S.rate < 1, "rate", { v: 0.5 }, C.pt, null, sf);
+    button(b.x + 2.3 * fs + gap, ry, 1.9 * fs, rh, ">>", S.rate > 1, "rate", { v: 2 }, C.pt, null, sf);
     // o intervalo de t fica a seguir (posto por inputs(), em L.int)
     const bend = b.x + b.lead + L.int.w;
     const sx = b.x + b.w;
@@ -1005,7 +1013,8 @@
     if (!h) return;
     e.preventDefault();
     if (h.kind === "play") { play(!S.run); return; }
-    if (h.kind === "rate") { S.rate = S.rate === h.v ? 1 : h.v; if (S.rate !== 1 && !S.run) play(true); else draw(); return; }
+    if (h.kind === "rate") { S.rate = clamp(S.rate * h.v, RMIN, RMAX); if (S.rate !== 1 && !S.run) play(true); else draw(); return; }
+    if (h.kind === "rate1") { S.rate = 1; draw(); return; }
     if (h.kind === "reset") { S.run = false; setT(S.a); return; }
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
