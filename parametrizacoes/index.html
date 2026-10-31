@@ -64,8 +64,9 @@
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
   const N = 2000;                       // amostras uniformes da curva (depois refinadas onde a curva anda depressa)
   const CAP = 150000;                   // máximo de pontos depois de refinar
-  // o tempo corre sempre em tempo real: t avança 1 por segundo
-  const S = { src: "P(cos(t), sin(t))", qSrc: "Q(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false,
+  // o tempo corre em tempo real (t avança 1 por segundo), ou mais devagar (<<) ou mais depressa (>>)
+  const SLOW = 0.25, FAST = 4;
+  const S = { src: "P(cos(t), sin(t))", qSrc: "Q(cos(t), sin(t))", aSrc: "0", bSrc: "2pi", a: 0, b: TAU, t: 0, run: false, rate: 1,
               showX: false, showY: false, showR: false, showXQ: false, showYQ: false, full: false, seg: false, proj: false, showQ: false, ghost: false };
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -400,24 +401,26 @@
     L.leg = { x: pad, y, w, h: lh }; y += lh + gap;
     // intervalo de t: em ecrãs largos à direita do cursor de t; senão numa linha por baixo,
     // com as caixas na mesma linha se couberem (senão as caixas em linhas por baixo)
-    const intA = w >= 22 * fs + groupW;
-    const o = optWidths(fs), btns = groupW;
-    const spLine = !intA && btns + 1.2 * fs + o.speed > w;
+    // << e >> (velocidade) por baixo de ▶ e ↺: a primeira linha de baixo começa depois deles (lead);
+    // em ecrãs largos todas as linhas das caixas ficam alinhadas a seguir a eles
+    const intA = w >= 22 * fs + groupW, lead = 4.2 * fs + gap + 1.2 * fs;
+    const o = optWidths(fs), btns = groupW, wB = intA ? w - lead : w;
+    const spLine = !intA && lead + btns + 1.2 * fs + o.speed > w;
     let cbRows = 0, cbInline = false, cbWrap = false;
-    if (!intA && !spLine && btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
-    else if (o.boxes <= w) cbRows = 1;
+    if (!intA && !spLine && lead + btns + 2.4 * fs + o.speed + o.boxes <= w) cbInline = true;
+    else if (o.boxes <= wB) cbRows = 1;
     else {
       // texto das caixas em duas linhas: todas numa linha, se couberem; senão três por linha; senão duas
       cbWrap = true;
       const groupW = k => Math.max(...Array.from({ length: Math.ceil(o.bw2.length / k) }, (_, i) => o.sum(o.bw2.slice(i * k, i * k + k))));
-      cbRows = o.boxes2 <= w ? 1 : groupW(3) <= w ? 2 : 3;
+      cbRows = o.boxes2 <= wB ? 1 : groupW(3) <= wB ? 2 : 3;
     }
     const nB = (intA ? 0 : 1) + (spLine ? 1 : 0) + cbRows;
     const bottom = rowA + nB * (gap + rowB);
     const yb = H - pad - bottom;
     L.rowA = { x: pad, y: yb, w, h: rowA };
-    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows, cbWrap, intA };
-    L.int = intA ? { x: pad + w - groupW, y: yb + (rowA - ih) / 2, w: groupW, h: ih, iw } : { x: pad, y: L.rowB.y + (rowB - ih) / 2, w: groupW, h: ih, iw };
+    L.rowB = { x: pad, y: yb + rowA + gap, w, h: rowB, n: nB, spLine, cbInline, cbRows, cbWrap, intA, lead };
+    L.int = intA ? { x: pad + w - groupW, y: yb + (rowA - ih) / 2, w: groupW, h: ih, iw } : { x: pad + lead, y: L.rowB.y + (rowB - ih) / 2, w: groupW, h: ih, iw };
     L.rowA.end = intA ? L.int.x - 1.2 * fs : pad + w;   // onde acaba o cursor de t
     const mh = yb - gap - y;
     if (land) {
@@ -911,8 +914,12 @@
   // gráficos x(t)/y(t), velocidade e as caixas
   function rowB(b, fs) {
     const gap = 0.4 * fs, h = b.h, bw = XYW * fs, line = k => b.y + k * (h + gap), o = optWidths(fs);
-    // o intervalo de t fica à esquerda (posto por inputs(), em L.int)
-    const bend = b.x + L.int.w;
+    // << e >> por baixo de ▶ e ↺ (tocar outra vez volta ao tempo real)
+    const rh = SMALL.h(fs), ry = b.y + (h - rh) / 2, sf = SMALL.f(fs);
+    button(b.x, ry, 2.3 * fs, rh, "<<", S.rate === SLOW, "rate", { v: SLOW }, C.pt, null, sf);
+    button(b.x + 2.3 * fs + gap, ry, 1.9 * fs, rh, ">>", S.rate === FAST, "rate", { v: FAST }, C.pt, null, sf);
+    // o intervalo de t fica a seguir (posto por inputs(), em L.int)
+    const bend = b.x + b.lead + L.int.w;
     const sx = b.x + b.w;
     // caixas
     const items = boxTexts(), bs = CBS * fs;
@@ -929,11 +936,12 @@
     const withW = items.map(([t, k], i) => b.cbWrap ? [o.split[i], k, o.bw2[i]] : [t, k, o.bw[i]]);
     const first = (b.intA ? 0 : 1) + (b.spLine ? 1 : 0);
     const bx1 = bend + 1.2 * fs;
+    const cx0 = b.intA ? b.x + b.lead : b.x, cw = b.intA ? b.w - b.lead : b.w;
     if (b.cbInline) put(b.y, bx1, withW, sx - 1.2 * fs - bx1);
-    else if (b.cbRows === 1) put(line(first), b.x, withW, b.w);
+    else if (b.cbRows === 1) put(line(first), cx0, withW, cw);
     else {
       const k = b.cbRows === 2 ? 3 : 2;
-      for (let r = 0; r < b.cbRows; r++) put(line(first + r), b.x, withW.slice(r * k, r * k + k), b.w);
+      for (let r = 0; r < b.cbRows; r++) put(line(first + r), cx0, withW.slice(r * k, r * k + k), cw);
     }
   }
   function cbox(y0, h, x, bs, fs, on, txt, hit) {
@@ -959,7 +967,7 @@
   function tick(now) {
     if (!S.run) return;
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    S.t += dt;
+    S.t += dt * S.rate;
     if (S.t >= S.b) { S.t = S.b; S.run = false; }
     paint();
     if (S.run) requestAnimationFrame(tick);
@@ -997,6 +1005,7 @@
     if (!h) return;
     e.preventDefault();
     if (h.kind === "play") { play(!S.run); return; }
+    if (h.kind === "rate") { S.rate = S.rate === h.v ? 1 : h.v; if (S.rate !== 1 && !S.run) play(true); else draw(); return; }
     if (h.kind === "reset") { S.run = false; setT(S.a); return; }
     if (h.kind === "showX") { S.showX = !S.showX; draw(); return; }
     if (h.kind === "showY") { S.showY = !S.showY; draw(); return; }
