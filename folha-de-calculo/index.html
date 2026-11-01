@@ -205,7 +205,7 @@
   const HF = window.HyperFormula;
   if (!HF) { document.body.innerHTML = "<p style='padding:2em'>Não foi possível carregar a folha de cálculo. Verifique a ligação à Internet e recarregue a página.</p>"; return; }
   HF.registerLanguage("enUS", HF.languages.enUS);
-  // funções que faltam ao HyperFormula: INTERCEPT, FORECAST(.LINEAR), MODE(.SNGL), PERMUT
+  // funções que faltam ao HyperFormula: INTERCEPT, FORECAST(.LINEAR), MODE(.SNGL), PERMUT, RANK(.EQ/.AVG)
   const { FunctionPlugin, FunctionArgumentType: T, CellError, ErrorType } = HF;
   const pares = (ys, xs) => {
     const Y = ys.valuesFromTopLeftCorner(), X = xs.valuesFromTopLeftCorner(), p = [];
@@ -221,7 +221,16 @@
     if (!sxx) return null;
     const a = sxy / sxx; return { a, b: my - a * mx, r: syy ? sxy / Math.sqrt(sxx * syy) : NaN };
   }
+  // posição de x entre os números de ref (que pode ser uma matriz): 1 = o maior (desc) ou o menor; empates com a mesma posição (eq) ou a média (avg)
+  function posicao(x, ref, desc) {
+    const v = ref.valuesFromTopLeftCorner ? ref.valuesFromTopLeftCorner().filter(n => typeof n === "number") : [ref];
+    if (!v.includes(x)) return null;
+    const antes = v.filter(n => desc ? n > x : n < x).length, iguais = v.filter(n => n === x).length;
+    return { eq: antes + 1, avg: antes + (iguais + 1) / 2 };
+  }
   class Extra extends FunctionPlugin {
+    rank(ast, st) { return this.runFunction(ast.args, st, this.metadata("RANK"), (x, ref, o) => { const r = posicao(x, ref, !o); return r ? r.eq : new CellError(ErrorType.NA); }); }
+    rankavg(ast, st) { return this.runFunction(ast.args, st, this.metadata("RANK.AVG"), (x, ref, o) => { const r = posicao(x, ref, !o); return r ? r.avg : new CellError(ErrorType.NA); }); }
     intercept(ast, st) { return this.runFunction(ast.args, st, this.metadata("INTERCEPT"), (ys, xs) => { const p = pares(ys, xs); if (!p) return new CellError(ErrorType.NA); const r = regressao(p); return r ? r.b : new CellError(ErrorType.DIV_BY_ZERO); }); }
     forecast(ast, st) { return this.runFunction(ast.args, st, this.metadata("FORECAST"), (x0, ys, xs) => { const p = pares(ys, xs); if (!p) return new CellError(ErrorType.NA); const r = regressao(p); return r ? r.a * x0 + r.b : new CellError(ErrorType.DIV_BY_ZERO); }); }
     moda(ast, st) {
@@ -242,6 +251,9 @@
     MODE: { method: "moda", parameters: [{ argumentType: T.ANY }], repeatLastArgs: 1 },
     "MODE.SNGL": { method: "moda", parameters: [{ argumentType: T.ANY }], repeatLastArgs: 1 },
     PERMUT: { method: "permut", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.NUMBER }] },
+    RANK: { method: "rank", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.RANGE }, { argumentType: T.NUMBER, defaultValue: 0 }] },
+    "RANK.EQ": { method: "rank", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.RANGE }, { argumentType: T.NUMBER, defaultValue: 0 }] },
+    "RANK.AVG": { method: "rankavg", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.RANGE }, { argumentType: T.NUMBER, defaultValue: 0 }] },
   };
   const nomes = Object.fromEntries(Object.keys(Extra.implementedFunctions).map(k => [k, k]));
   HF.registerFunctionPlugin(Extra, { enGB: nomes, enUS: nomes });
@@ -507,6 +519,12 @@
     COMBIN: ["n, k", "combinações"], PERMUT: ["n, k", "arranjos sem repetição"], RAND: ["", "número aleatório entre 0 e 1"],
     RANDBETWEEN: ["bottom, top", "inteiro aleatório entre bottom e top"], IF: ["logical_test, value_if_true, value_if_false", "se… então… senão…"],
     SEQUENCE: ["rows, [columns], [start], [step]", "sucessão de números (preenche várias células)"],
+    RANK: ["number, ref, [order]", "posição do número em ref (1 = o maior; order = 1: 1 = o menor); empates com a mesma posição"],
+    "RANK.EQ": ["number, ref, [order]", "o mesmo que RANK"], "RANK.AVG": ["number, ref, [order]", "posição, com a média nos empates"],
+    ROUNDDOWN: ["number, num_digits", "arredonda por defeito"], ROUNDUP: ["number, num_digits", "arredonda por excesso"], TRUNC: ["number, [num_digits]", "corta as casas decimais"],
+    SUMPRODUCT: ["array1, [array2], …", "soma dos produtos"], LARGE: ["array, k", "o k-ésimo maior valor"], SMALL: ["array, k", "o k-ésimo menor valor"],
+    GEOMEAN: ["number1, [number2], …", "média geométrica"], HARMEAN: ["number1, [number2], …", "média harmónica"],
+    INDEX: ["array, row_num, [column_num]", "valor na linha e coluna dadas"], MATCH: ["lookup_value, lookup_array, [match_type]", "posição de um valor (0 = exato)"],
   };
   const FUNCOES = [...new Set([...Object.keys(AJUDA), ...HF.getRegisteredFunctionNames("enUS").sort()])];
   const sugEl = $("sug");
