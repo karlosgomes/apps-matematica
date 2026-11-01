@@ -6,567 +6,643 @@
 <title>Do método de Jefferson ao método de Hondt</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root {
-    --bg: #eef2f6;
-    --panel: #ffffff;
-    --ink: #17202b;
-    --muted: #5b6776;
-    --line: #d6dde6;
-    --soft: #f4f6f9;
-    --axis: #36414d;
-    --btn: #eef2f6;
-    --btn-hover: #e1e7ee;
-    --d: #ef6c00;
-    --ok: #2e7d32;
-    --bad: #c62828;
-    --focus: #1565c0;
-    --c0: #1565c0; --c1: #d32f2f; --c2: #2e7d32; --c3: #7b1fa2; --c4: #00838f; --c5: #6d4c41; --c6: #ad1457;
-    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #0f1419; --panel: #171e26; --ink: #e6ebf1; --muted: #9aa6b4; --line: #2a3440; --soft: #1c242d;
-      --axis: #aab4c0; --btn: #202a35; --btn-hover: #2a3642; --d: #ffa040; --ok: #5cc26a; --bad: #ff6b6b; --focus: #64a8ff;
-      --c0: #64a8ff; --c1: #ff6b6b; --c2: #5cc26a; --c3: #d09cff; --c4: #4dd0e1; --c5: #c8a27c; --c6: #f48fb1;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0f1419; --panel: #171e26; --ink: #e6ebf1; --muted: #9aa6b4; --line: #2a3440; --soft: #1c242d;
-    --axis: #aab4c0; --btn: #202a35; --btn-hover: #2a3642; --d: #ffa040; --ok: #5cc26a; --bad: #ff6b6b; --focus: #64a8ff;
-    --c0: #64a8ff; --c1: #ff6b6b; --c2: #5cc26a; --c3: #d09cff; --c4: #4dd0e1; --c5: #c8a27c; --c6: #f48fb1;
-  }
-
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font-family: var(--font); font-size: 15px; line-height: 1.4;
-    padding-inline: 16px; padding-block: 16px 24px;
-  }
-  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
-  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
-  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
-  .projbar { display: flex; gap: 8px; align-items: center; }
-
-  main { display: grid; grid-template-columns: minmax(300px, 360px) 1fr; gap: 14px; align-items: start; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  @media (min-width: 901px) { .controls { position: sticky; top: 16px; } }
-
-  .controls, .stage { display: grid; gap: 10px; min-width: 0; }
-  .box {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 10px 12px 12px; display: grid; gap: 8px; min-width: 0;
-  }
-  .box h2 { margin: 0; font-size: 0.95rem; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .stage .box h2 { font-size: 1.05rem; color: var(--ink); }
-  .stage .box h2 .step { color: var(--muted); font-weight: 400; }
-  .hint { font-size: 0.85rem; color: var(--muted); }
-
-  .btn {
-    font: inherit; font-weight: 700; font-size: 0.95rem;
-    padding: 6px 12px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line); white-space: nowrap;
-  }
-  .btn:hover { background: var(--btn-hover); }
-  .btn.small { font-size: 0.82rem; padding: 3px 9px; font-weight: 400; }
-  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); }
-
-  input[type="text"] {
-    font-family: var(--mono); font-size: 0.92rem; color: var(--ink); background: var(--bg);
-    border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; text-align: right;
-    font-variant-numeric: tabular-nums; width: 100%; min-width: 0;
-  }
-  input[type="text"].bad { border-color: var(--bad); }
-  .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.95rem; }
-  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--axis); cursor: pointer; }
-
-  /* listas */
-  .lists { display: grid; grid-template-columns: 14px 1fr 6.5rem 1.6rem; gap: 6px 8px; align-items: center; }
-  .lists .sw { width: 14px; height: 14px; border-radius: 3px; background: var(--c); }
-  .lists input.name { text-align: left; font-family: var(--font); font-weight: 700; color: var(--c); }
-  .lists .del { padding: 0; width: 1.6rem; height: 1.6rem; font-weight: 400; }
-  .lists .head { font-size: 0.8rem; color: var(--muted); }
-  .seats { display: flex; align-items: center; gap: 8px; }
-  .seats input { width: 4rem; text-align: center; }
-  .facts { font-family: var(--mono); font-size: 0.88rem; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-variant-numeric: tabular-nums; }
-  .facts dt { color: var(--muted); font-family: var(--font); }
-  .facts dd { margin: 0; }
-
-  /* divisor */
-  .drow { display: grid; grid-template-columns: auto 1fr 6.5rem; gap: 10px; align-items: center; }
-  .drow label { font-style: italic; font-size: 1.3rem; color: var(--d); font-weight: 700; padding-inline: 4px; }
-  .drow input[type="range"] { width: 100%; accent-color: var(--d); margin: 0; }
-  .drow input[type="text"] { font-size: 1.05rem; border-color: var(--d); }
-  .nudge { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-
-  table.t { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-  table.t th, table.t td { padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-  table.t th { font-size: 0.85rem; color: var(--muted); font-weight: 700; vertical-align: bottom; }
-  table.t td { font-family: var(--mono); font-size: 0.98rem; }
-  table.t td.name, table.t th.name { text-align: left; font-family: var(--font); font-weight: 700; }
-  table.t td.seat { font-weight: 700; font-size: 1.1rem; }
-  table.t td .q { color: var(--muted); }
-  table.t tfoot td { border-bottom: 0; font-weight: 700; }
-  .tscroll { overflow-x: auto; }
-  .narrow { display: none; }
-  @media (max-width: 560px) {
-    table.t th, table.t td { padding: 4px 5px; }
-    table.t td { font-size: 0.9rem; }
-    table.t td .q, .wide { display: none; }
-    .narrow { display: inline; }
-  }
-
-  .verdict { font-weight: 700; font-size: 1.05rem; padding: 6px 10px; border-radius: 6px; background: var(--soft); }
-  .verdict.ok { color: var(--ok); }
-  .verdict.low, .verdict.high { color: var(--bad); }
-  .tries { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.85rem; }
-  .tries .lab { color: var(--muted); }
-  .chip { font-family: var(--mono); padding: 2px 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft); cursor: pointer; }
-  .chip.ok { border-color: var(--ok); color: var(--ok); }
-  .chip.low, .chip.high { color: var(--bad); }
-
-  /* eixo do divisor */
-  #axis svg { display: block; width: 100%; height: auto; overflow: visible; }
-  #axis text { font-family: var(--font); }
-  #axis .mono { font-family: var(--mono); }
-
-  /* tabela de Hondt */
-  table.h td { position: relative; }
-  table.h td.on { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--ink); font-weight: 500; }
-  table.h td.off { color: var(--muted); }
-  table.h td.next { outline: 2px dashed var(--d); outline-offset: -3px; }
-  table.h td .rk { font-family: var(--font); font-size: 0.72rem; font-weight: 700; color: var(--c); margin-right: 6px; }
-  table.h th.k, table.h td.k { text-align: center; font-family: var(--font); color: var(--muted); }
-  table.h td.hot, #axis .hot { outline: 3px solid var(--d); outline-offset: -2px; }
-  .key { padding: 8px 10px; border-radius: 6px; background: var(--soft); font-size: 0.98rem; display: grid; gap: 6px; }
-  .key b.d { color: var(--d); }
-
-  /* modo projeção: texto maior, mais contraste, tema claro */
-  :root[data-proj] { --muted: #333d4a; --line: #b3bfcc; --axis: #1f2833; }
-  :root[data-proj] { font-size: 19px; }
-  :root[data-proj] body { font-size: 18px; }
-  :root[data-proj] table.t td { font-size: 1.15rem; }
-  :root[data-proj] table.t th { font-size: 1rem; }
-  :root[data-hidectl] main { grid-template-columns: 1fr; }
-  :root[data-hidectl] .controls { display: none; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root { --band: #f6f8fb; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --band: #1c242d; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--band), 0 0 3px var(--band), 0 0 4px var(--band), 0 0 6px var(--band); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixas de texto (votos, lugares e divisor), postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.5em; border: 2px solid var(--line); border-radius: 8px;
+         background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  #dval, #seats { text-align: center; font-family: "IBM Plex Mono", ui-monospace, monospace; padding: 0 0.2em; }
+  #dval { border-color: var(--focus); }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Do método de Jefferson ao método de Hondt</h1>
-    <div class="projbar">
-      <button class="btn small" id="hidectl" hidden>Esconder controlos</button>
-      <button class="btn small" id="proj" aria-pressed="false" title="Texto maior, para projetar na sala">📽 Modo projeção</button>
-      <button class="btn small" id="theme" title="Modo claro / escuro">☾</button>
-    </div>
-  </header>
-  <main>
-    <section class="controls" aria-label="Dados">
-      <div class="box">
-        <h2>Eleição <button class="btn small" id="example" title="Assembleia de Alunos: 11 lugares, 4 listas">↺ Exemplo</button></h2>
-        <div class="seats"><span>Lugares a distribuir</span>
-          <button class="btn small" id="n-minus" aria-label="Menos um lugar">−</button>
-          <input type="text" id="n" inputmode="numeric" value="11" aria-label="Número de lugares">
-          <button class="btn small" id="n-plus" aria-label="Mais um lugar">+</button>
-        </div>
-        <div class="lists" id="lists"></div>
-        <div><button class="btn small" id="add">+ Lista</button></div>
-        <dl class="facts" id="facts"></dl>
-      </div>
-      <div class="box">
-        <h2>Mostrar</h2>
-        <label class="check"><input type="checkbox" id="show-axis"> 2. Onde muda o número de lugares</label>
-        <label class="check"><input type="checkbox" id="show-hondt"> 3. Tabela do método de Hondt</label>
-      </div>
-    </section>
-
-    <section class="stage" aria-label="Métodos">
-      <div class="box" id="jefferson">
-        <h2><span><span class="step">1.</span> Método de Jefferson: divisor modificado, por tentativas</span></h2>
-        <div class="drow">
-          <label for="d-range">d</label>
-          <input type="range" id="d-range" min="1" max="200" step="0.01" value="100">
-          <input type="text" id="d" inputmode="decimal" aria-label="Divisor d">
-        </div>
-        <div class="nudge">
-          <button class="btn small" data-step="-10">−10</button>
-          <button class="btn small" data-step="-1">−1</button>
-          <button class="btn small" data-step="-0.1">−0,1</button>
-          <button class="btn small" data-step="0.1">+0,1</button>
-          <button class="btn small" data-step="1">+1</button>
-          <button class="btn small" data-step="10">+10</button>
-          <button class="btn small" id="d-std">d = divisor padrão</button>
-        </div>
-        <div class="tscroll"><table class="t" id="jtable"></table></div>
-        <div class="verdict" id="verdict" aria-live="polite"></div>
-        <div class="tries" id="tries"></div>
-      </div>
-
-      <div class="box" id="axis-box" hidden>
-        <h2><span><span class="step">2.</span> Onde muda o número de lugares?</span></h2>
-        <div class="hint" id="axis-hint"></div>
-        <div id="axis"></div>
-      </div>
-
-      <div class="box" id="hondt-box" hidden>
-        <h2><span><span class="step">3.</span> Método de Hondt: os maiores quocientes</span></h2>
-        <div class="tscroll"><table class="t h" id="htable"></table></div>
-        <div class="key" id="key"></div>
-      </div>
-    </section>
-  </main>
-</div>
-
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Método de Jefferson (divisor por tentativas), gráfico dos lugares em função dos votos e tabela do método de Hondt"></canvas>
+<input class="inp" id="votes" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Votos das listas, separados por ponto e vírgula; por exemplo A 606; B 341; C 191; D 68">
+<input class="inp" id="seats" type="text" inputmode="numeric" autocomplete="off" aria-label="Número de lugares">
+<input class="inp" id="dval" type="text" inputmode="decimal" autocomplete="off" aria-label="Divisor d">
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
-  const MAXL = 7;
-  const EXAMPLE = { n: 11, lists: [["A", 606], ["B", 341], ["C", 191], ["D", 68]] };
-  const S = { n: 11, lists: [], d: 0, tries: [] };
+  // Pensada para projeção: contraste forte, controlos desenhados na própria folha; tema claro ou escuro
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    d: "#ef6c00", ok: "#2e7d32", bad: "#c62828",
+    L: ["#1565c0", "#d32f2f", "#2e7d32", "#7b1fa2", "#00838f", "#6d4c41", "#ad1457", "#455a64"],
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    d: "#ffa040", ok: "#5cc26a", bad: "#ff6b6b",
+    L: ["#64a8ff", "#ff6b6b", "#5cc26a", "#d09cff", "#4dd0e1", "#c8a27c", "#f48fb1", "#b0bec5"],
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+  const MAXL = 8;
+
+  // exemplo da ficha de MACS: Assembleia de Alunos, 11 lugares, 4 listas
+  const S = { n: 11, src: "A 606; B 341; C 191; D 68", lists: [], d: 0, tries: [], showGraph: false, showHondt: false, hot: null };
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
   // ---------- números ----------
   const fmt = (x, dec = 2) => {
     if (!isFinite(x)) return "—";
-    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec).replace(/\.?0+$/, "");
-    if (s === "-0") s = "0";
+    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec);
+    if (s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
     return s.replace(".", ",").replace(/^-/, "−");
   };
   const fmtInt = x => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const texNum = x => fmt(x).replace(",", "{,}");
   const parseNum = s => {
     s = String(s).trim().replace(/\s/g, "").replace("−", "-").replace(",", ".");
-    if (!/^-?\d*\.?\d+$/.test(s)) return NaN;
-    return parseFloat(s);
+    return /^-?\d*\.?\d+$/.test(s) ? parseFloat(s) : NaN;
   };
   // parte inteira de v/d (a folga evita 606/(606/6) = 5,9999…)
   const seatsOf = (v, d) => Math.floor(v / d + 1e-9);
-  const tex = (el, src) => { try { katex.render(src, el, { throwOnError: false }); } catch (e) { el.textContent = src; } };
+
+  // ---------- leitura dos votos: "A 606; B 341; …" (o nome é opcional; sem nome: A, B, C, …) ----------
+  function readVotes(src) {
+    const parts = src.split(/[;\n]/).map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) throw new Error("Escreve pelo menos duas listas, separadas por ponto e vírgula.");
+    if (parts.length > MAXL) throw new Error(`No máximo ${MAXL} listas.`);
+    const used = new Set();
+    return parts.map((p, i) => {
+      const m = p.match(/^(.*?)[\s:=]*(\d[\d\s.]*)$/);
+      if (!m) throw new Error(`Não percebi «${p}»: escreve o nome (opcional) e o número de votos.`);
+      let name = m[1].trim().replace(/[:=]$/, "").trim();
+      const v = parseInt(m[2].replace(/[\s.]/g, ""), 10);
+      if (!name) name = "ABCDEFGH"[i];
+      if (used.has(name)) name += "′";
+      used.add(name);
+      return { name, v };
+    });
+  }
 
   // ---------- cálculos ----------
-  const valid = () => S.lists.filter(l => l.v > 0);
-  const total = () => valid().reduce((p, l) => p + l.v, 0);
+  const total = () => S.lists.reduce((p, l) => p + l.v, 0);
   const stdDiv = () => total() / S.n;
-  // quocientes de Hondt v/k, do maior para o menor (com a lista e o k)
-  function quotients(extra = 3) {
+  const seatsAt = d => S.lists.map(l => l.v > 0 ? seatsOf(l.v, d) : 0);
+  const sumAt = d => seatsAt(d).reduce((p, x) => p + x, 0);
+  // quocientes de Hondt v/k, do maior para o menor
+  function quotients() {
     const q = [];
-    const kmax = S.n + extra;
-    S.lists.forEach((l, i) => { if (l.v > 0) for (let k = 1; k <= kmax; k++) q.push({ i, k, q: l.v / k }); });
+    S.lists.forEach((l, i) => { if (l.v > 0) for (let k = 1; k <= S.n + 3; k++) q.push({ i, k, q: l.v / k }); });
     q.sort((a, b) => b.q - a.q || a.i - b.i);
     return q;
   }
-  const seatsAt = d => S.lists.map(l => l.v > 0 ? seatsOf(l.v, d) : 0);
-
-  // ---------- dados (lado esquerdo) ----------
-  function color(i) { return `var(--c${i % 7})`; }
-  function buildLists() {
-    const box = $("lists");
-    box.innerHTML = `<span></span><span class="head">Lista</span><span class="head" style="text-align:right">Votos</span><span></span>`;
-    S.lists.forEach((l, i) => {
-      const sw = document.createElement("span"); sw.className = "sw"; sw.style.setProperty("--c", color(i));
-      const nm = document.createElement("input"); nm.type = "text"; nm.className = "name"; nm.value = l.name; nm.style.setProperty("--c", color(i));
-      nm.setAttribute("aria-label", "Nome da lista " + (i + 1));
-      nm.addEventListener("input", () => { l.name = nm.value.trim() || "?"; render(); });
-      const vv = document.createElement("input"); vv.type = "text"; vv.inputMode = "numeric"; vv.value = l.v ? fmtInt(l.v) : "";
-      vv.setAttribute("aria-label", "Votos da lista " + (i + 1));
-      vv.addEventListener("input", () => {
-        const x = parseNum(vv.value);
-        const ok = Number.isInteger(x) && x >= 0;
-        vv.classList.toggle("bad", !ok);
-        if (ok) { l.v = x; dataChanged(); }
-      });
-      const del = document.createElement("button"); del.className = "btn small del"; del.textContent = "×"; del.title = "Retirar a lista";
-      del.disabled = S.lists.length <= 2;
-      del.addEventListener("click", () => { S.lists.splice(i, 1); buildLists(); dataChanged(); });
-      box.append(sw, nm, vv, del);
-    });
-    $("add").disabled = S.lists.length >= MAXL;
-  }
-  $("add").addEventListener("click", () => {
-    const used = new Set(S.lists.map(l => l.name));
-    const name = "ABCDEFGHIJ".split("").find(c => !used.has(c)) || "?";
-    S.lists.push({ name, v: 0 });
-    buildLists(); dataChanged();
-  });
-  function setN(n) {
-    if (!Number.isInteger(n) || n < 1 || n > 60) { $("n").classList.add("bad"); return; }
-    $("n").classList.remove("bad");
-    S.n = n; $("n").value = n; dataChanged();
-  }
-  $("n").addEventListener("input", () => setN(parseNum($("n").value)));
-  $("n-minus").addEventListener("click", () => setN(S.n - 1));
-  $("n-plus").addEventListener("click", () => setN(S.n + 1));
-  function loadExample() {
-    S.n = EXAMPLE.n; $("n").value = S.n; $("n").classList.remove("bad");
-    S.lists = EXAMPLE.lists.map(([name, v]) => ({ name, v }));
-    buildLists(); dataChanged();
-  }
-  $("example").addEventListener("click", loadExample);
-
-  // os dados mudaram: o divisor volta ao divisor padrão e as tentativas recomeçam
+  let Q = [];
+  // intervalo do cursor do divisor e escala do gráfico (fixos enquanto os dados não mudam)
+  let DR = [1, 2], YMAX = 5, XMAX = 100;
   function dataChanged() {
-    S.tries = [];
-    const t = total();
-    if (t > 0) setD(stdDiv(), false);
-    writeHash();
-    render();
-  }
-
-  // ---------- divisor ----------
-  function rangeBounds() {
-    const q = quotients();
+    Q = quotients();
     const dp = stdDiv();
-    const lo = Math.max(0.01, Math.min(dp, (q[S.n + 2] || q[q.length - 1] || { q: dp }).q) * 0.8);
-    const hi = Math.max(dp, (q[S.n - 1] || { q: dp }).q) * 1.25;
-    return [lo, hi];
+    const lo = Math.min(dp, (Q[S.n + 2] || Q[Q.length - 1]).q) * 0.8;
+    const hi = Math.max(dp, (Q[S.n - 1] || Q[0]).q) * 1.25;
+    DR = [Math.max(0.01, lo), hi];
+    const vmax = Math.max(...S.lists.map(l => l.v));
+    YMAX = clamp(Math.ceil(vmax / DR[0]), 2, 40);
+    XMAX = vmax * 1.12;
+    S.tries = [];
+    S.d = dp;
+    writeHash();
   }
-  function setD(d, log = true) {
-    if (!(d > 0)) return;
-    S.d = Math.round(d * 100) / 100;
+  // o passo do divisor: 0,1 (ou 0,01 com números pequenos, 1 com números grandes)
+  const STEP = () => DR[1] < 20 ? 0.01 : DR[1] < 2000 ? 0.1 : 1;
+  const round = d => { const s = STEP(); return Math.round(d / s) * s; };
+  function setD(d, log, exact) {
+    d = clamp(d, 0.01, 1e9);
+    if (!exact) d = round(d);
+    if (d !== S.d) { S.d = d; draw(); }
     if (log) logTry();
-    render();
   }
   function logTry() {
-    const s = seatsAt(S.d).reduce((p, x) => p + x, 0);
     const last = S.tries[S.tries.length - 1];
     if (last && last.d === S.d) return;
-    S.tries.push({ d: S.d, s });
-    if (S.tries.length > 12) S.tries.shift();
+    S.tries.push({ d: S.d, s: sumAt(S.d) });
+    if (S.tries.length > 10) S.tries.shift();
+    draw();
   }
-  const dRange = $("d-range"), dText = $("d");
-  dRange.addEventListener("input", () => { S.d = Math.round(parseFloat(dRange.value) * 100) / 100; render(false); });
-  dRange.addEventListener("change", () => { logTry(); render(); });
-  dText.addEventListener("change", () => {
-    const x = parseNum(dText.value);
-    if (x > 0) { dText.classList.remove("bad"); setD(x); } else dText.classList.add("bad");
-  });
-  dText.addEventListener("keydown", e => { if (e.key === "Enter") dText.dispatchEvent(new Event("change")); });
-  document.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => setD(Math.max(0.01, S.d + parseFloat(b.dataset.step)))));
-  $("d-std").addEventListener("click", () => setD(stdDiv()));
 
-  // ---------- desenho ----------
-  function render(syncRange = true) {
-    const t = total();
-    const ok = t > 0 && S.n >= 1;
-    // factos
-    $("facts").innerHTML = ok
-      ? `<dt>Total de votos</dt><dd>${fmtInt(t)}</dd><dt>Divisor padrão</dt><dd>${fmtInt(t)} ÷ ${S.n} ≈ ${fmt(stdDiv())}</dd>`
-      : `<dt>Faltam dados</dt><dd>escreve os votos das listas</dd>`;
-    if (!ok) { $("jtable").innerHTML = ""; $("verdict").textContent = ""; return; }
-
-    // cursor do divisor
-    const [lo, hi] = rangeBounds();
-    dRange.min = lo.toFixed(2); dRange.max = hi.toFixed(2);
-    if (syncRange) dRange.value = S.d;
-    else if (S.d < lo || S.d > hi) dRange.value = S.d;
-    if (document.activeElement !== dText) { dText.value = fmt(S.d); dText.classList.remove("bad"); }
-
-    // 1. tabela de Jefferson
-    const seats = seatsAt(S.d), sum = seats.reduce((p, x) => p + x, 0);
-    let h = `<thead><tr><th class="name">Lista</th><th>Votos</th><th id="th-q"></th><th><span class="wide" id="th-s"></span><span class="narrow" id="th-s2"></span></th></tr></thead><tbody>`;
-    S.lists.forEach((l, i) => {
-      const q = l.v / S.d;
-      h += `<tr style="--c:${color(i)}"><td class="name" style="color:var(--c)">${esc(l.name)}</td><td>${fmtInt(l.v)}</td>`
-        + `<td><span class="q">${fmtInt(l.v)} ÷ ${fmt(S.d)} =</span> ${fmt(q, 3)}</td><td class="seat">${seats[i]}</td></tr>`;
-    });
-    h += `</tbody><tfoot><tr><td class="name">Total</td><td>${fmtInt(t)}</td><td></td><td class="seat">${sum}</td></tr></tfoot>`;
-    $("jtable").innerHTML = h;
-    tex($("th-q"), "\\dfrac{\\text{votos}}{d}");
-    tex($("th-s"), "\\text{lugares} = \\left\\lfloor \\dfrac{\\text{votos}}{d} \\right\\rfloor");
-    tex($("th-s2"), "\\left\\lfloor \\dfrac{\\text{votos}}{d} \\right\\rfloor");
-    const v = $("verdict");
-    if (sum === S.n) { v.className = "verdict ok"; v.textContent = `✓ ${sum} lugares: este divisor serve.`; }
-    else if (sum < S.n) { v.className = "verdict low"; v.textContent = `Só ${sum} lugares — faltam ${S.n - sum}: é preciso diminuir o divisor.`; }
-    else { v.className = "verdict high"; v.textContent = `${sum} lugares — sobram ${sum - S.n}: é preciso aumentar o divisor.`; }
-
-    // tentativas
-    const tr = $("tries");
-    tr.innerHTML = S.tries.length ? `<span class="lab">Tentativas:</span>` : "";
-    S.tries.forEach(x => {
-      const c = document.createElement("span");
-      c.className = "chip " + (x.s === S.n ? "ok" : x.s < S.n ? "low" : "high");
-      c.textContent = `d = ${fmt(x.d)} → ${x.s}`;
-      c.title = "Voltar a este divisor";
-      c.addEventListener("click", () => setD(x.d, false));
-      tr.append(c);
-    });
-
-    if (!$("axis-box").hidden) drawAxis(seats);
-    if (!$("hondt-box").hidden) drawHondt();
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const $votes = document.getElementById("votes"), $seats = document.getElementById("seats"), $dval = document.getElementById("dval");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
   }
-  const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-  // 2. eixo do divisor: cada lista ganha o k-ésimo lugar quando d desce até votos/k
-  function drawAxis(seats) {
-    const box = $("axis");
-    const W = Math.max(320, box.clientWidth || 700);
-    const L = S.lists.map((l, i) => ({ l, i })).filter(o => o.l.v > 0);
-    const proj = document.documentElement.dataset.proj !== undefined;
-    const fs = proj ? 17 : 14, rowH = proj ? 46 : 38, ml = proj ? 60 : 48, mr = proj ? 54 : 44, top = 18;
-    const H = top + L.length * rowH + 46;
-    const [lo, hi] = rangeBounds();
-    const pad = proj ? 16 : 14;   // os pontos das pontas não encostam aos nomes
-    const X = d => ml + pad + (d - lo) / (hi - lo) * (W - ml - mr - 2 * pad);
-    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Eixo do divisor">`;
-    // marcas do eixo
-    const step = niceStep((hi - lo) / Math.max(3, Math.floor((W - ml - mr) / 90)));
-    const yA = top + L.length * rowH + 6;
-    s += `<line x1="${ml}" y1="${yA}" x2="${W - mr + 10}" y2="${yA}" stroke="var(--axis)" stroke-width="1.5"/>`;
-    s += `<path d="M${W - mr + 16},${yA} l-8,-4 v8 z" fill="var(--axis)"/>`;
-    s += `<text x="${W - mr + 20}" y="${yA + 5}" font-size="${fs + 4}" font-style="italic" font-weight="700" fill="var(--d)">d</text>`;
-    for (let x = Math.ceil(lo / step) * step; x <= hi + 1e-9; x += step) {
-      s += `<line x1="${X(x)}" y1="${top - 6}" x2="${X(x)}" y2="${yA}" stroke="var(--line)" stroke-width="1"/>`;
-      s += `<text x="${X(x)}" y="${yA + fs + 6}" font-size="${fs - 1}" text-anchor="middle" fill="var(--muted)" class="mono">${fmt(x)}</text>`;
+  // disposição: em cima os votos e os lugares; em baixo o divisor e as opções; no meio os quadros
+  // (Jefferson sempre; o gráfico e a tabela de Hondt quando ligados)
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 30, 13, 22);
+    const pad = Math.round(fs * 0.7), gap = 0.6 * fs;
+    const land = W > H * 1.15 && W >= 640;
+    const L = { fs, pad, land };
+    const w = W - 2 * pad, ih = 1.75 * fs;
+    let y = pad;
+    // Votos [……] Lugares [..] ☾
+    const sw = 3.2 * fs, tw = ih * 1.3, seatsLab = 4.6 * fs, votesLab = 3.4 * fs;
+    if (w > 30 * fs) {
+      L.votes = { x: pad + votesLab, y, w: w - votesLab - seatsLab - sw - tw - 1.6 * fs, h: ih };
+      L.seats = { x: L.votes.x + L.votes.w + 0.8 * fs + seatsLab, y, w: sw, h: ih };
+    } else {
+      L.votes = { x: pad + votesLab, y, w: w - votesLab, h: ih }; y += ih + 0.4 * fs;
+      L.seats = { x: pad + seatsLab, y, w: sw, h: ih };
     }
-    // uma linha por lista: pontos em votos/k
-    L.forEach(({ l, i }, r) => {
-      const y = top + r * rowH + rowH / 2;
-      const c = color(i);
-      s += `<line x1="${ml}" y1="${y}" x2="${W - mr}" y2="${y}" stroke="${c}" stroke-opacity="0.25" stroke-width="2"/>`;
-      s += `<text x="${ml - 10}" y="${y + 5}" font-size="${fs + 1}" font-weight="700" text-anchor="end" fill="${c}">${esc(l.name)}</text>`;
-      let beyond = 0;
-      for (let k = 1; k <= S.n + 3; k++) {
-        const q = l.v / k;
-        if (q > hi) { beyond++; continue; }
-        if (q < lo) break;
-        const on = q >= S.d - 1e-9;
-        const rr = proj ? 11 : 9;
-        s += `<g data-key="${i}-${k}"><title>${esc(l.name)}: ${fmtInt(l.v)} ÷ ${k} = ${fmt(q)}</title>`
-          + `<circle cx="${X(q)}" cy="${y}" r="${rr}" fill="${on ? c : "var(--panel)"}" stroke="${c}" stroke-width="2"/>`
-          + `<text x="${X(q)}" y="${y + 4.5}" font-size="${fs - 2}" font-weight="700" text-anchor="middle" fill="${on ? "var(--panel)" : c}">${k}</text></g>`;
+    L.theme = { x: W - pad - tw, y, w: tw, h: ih };
+    y += ih + gap + (err ? 0.6 * fs : 0);
+    // em baixo: cursor do divisor e opções
+    const rowD = 3.3 * fs, rowO = 1.5 * fs;
+    const oneRowOpt = w > 46 * fs;
+    const bottom = rowD + gap + rowO * (oneRowOpt ? 1 : 2) + (oneRowOpt ? 0 : 0.3 * fs);
+    const yb = H - pad - bottom;
+    L.dRow = { x: pad, y: yb, w, h: rowD };
+    L.opt = { x: pad, y: yb + rowD + gap, w, h: rowO, two: !oneRowOpt };
+    // quadros: Jefferson com a altura do que tem; o gráfico e a tabela de Hondt ocupam o resto
+    const main = { x: pad, y, w, h: yb - gap - y };
+    const G = S.showGraph, Hd = S.showHondt;
+    const jh = Math.min(main.h, jNeed(fs, !land && (G || Hd) ? 1.35 : 1.75));
+    if (land && (G || Hd)) {
+      const jw = Math.min(main.w * 0.44, 32 * fs), rx = main.x + jw + gap, rw = main.w - jw - gap;
+      if (G && Hd && main.w >= 52 * fs) {   // ecrã largo: três colunas (Jefferson, Hondt, gráfico)
+        const cw = (main.w - 2 * gap) * 0.31;
+        L.J = { x: main.x, y: main.y, w: cw, h: jh };
+        L.G = { x: main.x + cw + gap, y: main.y, w: main.w - 2 * (cw + gap), h: main.h };
+        L.H = { x: main.x + main.w - cw, y: main.y, w: cw, h: main.h };
+      } else if (G && Hd) {   // à esquerda Jefferson e Hondt, à direita o gráfico
+        L.J = { x: main.x, y: main.y, w: jw, h: jh };
+        L.H = { x: main.x, y: main.y + jh + gap, w: jw, h: main.h - jh - gap };
+        L.G = { x: rx, y: main.y, w: rw, h: main.h };
+      } else {
+        L.J = { x: main.x, y: main.y, w: jw, h: jh };
+        L[G ? "G" : "H"] = { x: rx, y: main.y, w: rw, h: main.h };
       }
-      if (beyond) s += `<text x="${W - mr + 6}" y="${y + 5}" font-size="${fs - 1}" fill="${c}" font-weight="700">+${beyond}</text>`;
-      s += `<text x="${W - 2}" y="${y + 5}" font-size="${fs + 1}" font-weight="700" text-anchor="end" fill="${c}">${seats[i]}</text>`;
-    });
-    // o divisor atual
-    if (S.d >= lo && S.d <= hi) {
-      s += `<line x1="${X(S.d)}" y1="${top - 10}" x2="${X(S.d)}" y2="${yA}" stroke="var(--d)" stroke-width="2.5" stroke-dasharray="6 4"/>`;
-      s += `<text x="${X(S.d)}" y="${top - 13}" font-size="${fs}" text-anchor="middle" fill="var(--d)" font-weight="700" class="mono">d = ${fmt(S.d)}</text>`;
+    } else if (land) {
+      const jw = Math.min(main.w, 36 * fs);
+      L.J = { x: main.x + (main.w - jw) / 2, y: main.y, w: jw, h: jh };
+    } else {
+      L.J = { x: main.x, y: main.y, w: main.w, h: jh };
+      let yy = main.y + jh + gap, rest = main.y + main.h - yy;
+      if (G && Hd) { const gh = (rest - gap) * 7 / (7 + hondtRows() + 4); L.G = { x: main.x, y: yy, w: main.w, h: gh }; yy += gh + gap; rest -= gh + gap; }
+      if (G && !Hd) L.G = { x: main.x, y: yy, w: main.w, h: rest };
+      if (Hd) L.H = { x: main.x, y: yy, w: main.w, h: rest };
     }
-    s += `</svg>`;
-    box.innerHTML = s;
-    $("axis-hint").innerHTML = `O ponto <b>k</b> da lista está em <i>votos</i> ÷ <i>k</i>: quando <i>d</i> desce abaixo desse valor, a lista ganha o <b>k</b>.º lugar. `
-      + `Os pontos cheios (à direita de <i>d</i>) são os lugares; à direita de cada linha, o total da lista (+n: pontos à direita, fora do eixo).`;
+    return L;
+  }
+  // altura do quadro de Jefferson: título, cabeçalho, linhas, veredicto e tentativas
+  const jNeed = (fs, rr = 1.75) => (1.7 + 1.6 + (S.lists.length + 1) * rr + 1.5 + (S.tries.length ? 1.4 : 0) + 0.5) * fs;
+  function hondtRows() {
+    if (!Q.length) return 3;
+    const qn = Q[S.n - 1], qn1 = Q[S.n];
+    return Math.max(...seatsAt(S.d), qn ? qn.k : 1, qn1 ? qn1.k : 1) + 1;
+  }
+
+  // ---------- desenho: primitivas ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1, dash) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400) {
+    ctx.font = `${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16, texSrc = null) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    if (texSrc) fit(texAt("b" + kind, texSrc, x + w / 2, y + h / 2, px, on ? C.on : C.ink), w - 0.3 * px, h);
+    else text(txt, x + w / 2, y + h / 2 + 1, px, on ? C.on : C.ink, "center", FONT, 700);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  function cbox(x, y, h, bs, fs, on, txt, hit) {
+    const yy = y + (h - bs) / 2;
+    rrect(x, yy, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const w = bs + 0.4 * fs + text(txt, x + bs + 0.4 * fs, y + h / 2 + 1, fs * 0.85, C.ink);
+    hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  function place(el, r, px) {
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+    el.style.fontSize = px + "px";
   }
   function niceStep(raw) {
     const p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
     return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
   }
 
-  // 3. tabela de Hondt: votos/1, votos/2, … ; os n maiores quocientes dão os lugares
-  function drawHondt() {
-    const q = quotients();
-    const rank = new Map();
-    q.forEach((o, r) => rank.set(o.i + "-" + o.k, r + 1));
-    const seats = seatsAt(S.d);
-    const qn = q[S.n - 1], qn1 = q[S.n];
-    const K = Math.max(...seats, qn ? qn.k : 1, qn1 ? qn1.k : 1) + 1;
-    let h = `<thead><tr><th class="k">÷</th>` + S.lists.map((l, i) => `<th style="color:${color(i)}">${esc(l.name)}<br><span style="font-weight:400" class="mono">${fmtInt(l.v)}</span></th>`).join("") + `</tr></thead><tbody>`;
-    for (let k = 1; k <= K; k++) {
-      h += `<tr><td class="k">${k}</td>`;
-      S.lists.forEach((l, i) => {
-        if (!(l.v > 0)) { h += `<td></td>`; return; }
-        const val = l.v / k, key = i + "-" + k, rk = rank.get(key);
-        const on = val >= S.d - 1e-9;
-        const nxt = qn1 && qn1.i === i && qn1.k === k;
-        h += `<td data-key="${key}" class="${on ? "on" : "off"}${nxt ? " next" : ""}" style="--c:${color(i)}">${on && rk ? `<span class="rk">${rk}.º</span>` : ""}${fmt(val)}</td>`;
-      });
-      h += `</tr>`;
+  // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = false) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
     }
-    h += `</tbody>`;
-    $("htable").innerHTML = h;
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+    return el;
+  }
+  const D_ = () => clr(C.d, "d");
 
-    const key = $("key");
-    if (!qn) { key.textContent = ""; return; }
-    const tie = qn1 && Math.abs(qn.q - qn1.q) < 1e-9;
-    const nm = o => `<b style="color:${color(o.i)}">${esc(S.lists[o.i].name)}</b>`;
-    key.innerHTML =
-      `<div>Nas células coloridas, o quociente é maior ou igual a <b class="d">d = ${fmt(S.d)}</b>: são exatamente os lugares do método de Jefferson (a ordem 1.º, 2.º, … é a ordem dos quocientes).</div>`
-      + (tie
-        ? `<div>O ${S.n}.º e o ${S.n + 1}.º quocientes são iguais (${fmt(qn.q)}): há um empate e nenhum divisor dá exatamente ${S.n} lugares.</div>`
-        : `<div>Método de Hondt: os <b>${S.n}</b> maiores quocientes dão os lugares. O ${S.n}.º maior, ${nm(qn)} ${fmtInt(S.lists[qn.i].v)} ÷ ${qn.k} = <b>${fmt(qn.q)}</b>, é o maior divisor que serve no método de Jefferson; `
-          + (qn1 ? `o seguinte (a tracejado), ${nm(qn1)} ${fmtInt(S.lists[qn1.i].v)} ÷ ${qn1.k} = ${fmt(qn1.q)}, já daria ${S.n + 1} lugares. Serve qualquer divisor <i>d</i> com ${fmt(qn1.q)} &lt; <i>d</i> ≤ ${fmt(qn.q)}.` : "")
-          + ` <button class="btn small" id="use-qn">Usar d = ${fmt(qn.q)}</button></div>`);
-    const u = $("use-qn");
-    if (u) u.addEventListener("click", () => setD(qn.q));
+  // ---------- desenho ----------
+  let raf = 0, err = "";
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+  function paint() {
+    L = layout(); hits = []; used = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    top(fs);
+    if (S.lists.length) {
+      jefferson(L.J, fs);
+      if (L.G) graph(L.G, fs);
+      if (L.H) hondt(L.H, fs);
+      dRow(L.dRow, fs);
+      options(L.opt, fs);
+    }
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
 
-  // realce cruzado: célula da tabela de Hondt ↔ ponto do eixo
-  function hot(keyv, on) {
-    document.querySelectorAll(`[data-key="${keyv}"]`).forEach(el => {
-      if (el.tagName === "TD") el.classList.toggle("hot", on);
-      else { const c = el.querySelector("circle"); if (c) c.setAttribute("stroke-width", on ? 5 : 2); }
+  function top(fs) {
+    const v = L.votes, s = L.seats;
+    place($votes, v, fs * 0.95);
+    text("Votos", L.pad, v.y + v.h / 2 + 1, fs * 0.95, C.ink, "left", FONT, 700);
+    place($seats, s, fs * 0.95);
+    text("Lugares", s.x - 0.4 * fs, s.y + s.h / 2 + 1, fs * 0.95, C.ink, "right", FONT, 700);
+    button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+    if (err) text(err, v.x, Math.max(v.y, s.y) + v.h + 0.45 * fs, fs * 0.75, C.bad);
+  }
+
+  // um quadro: fundo leve e título
+  function panel(b, fs, title, reserve = 0) {
+    rrect(b.x, b.y, b.w, b.h, 10, C.band, C.line, 1.2);
+    const f = Math.min(fs * 0.9, fs * 0.9 * (b.w - 1.4 * fs - reserve) / tw(title, fs * 0.9, FONT, 700));
+    text(title, b.x + 0.7 * fs, b.y + 0.85 * fs, f, C.muted, "left", FONT, 700);
+    return { x: b.x + 0.7 * fs, y: b.y + 1.7 * fs, w: b.w - 1.4 * fs, h: b.h - 2.2 * fs };
+  }
+
+  // 1. Jefferson: votos ÷ d, parte inteira, total e veredicto; as tentativas
+  function jefferson(b, fs) {
+    const c = panel(b, fs, "1.  Método de Jefferson: divisor por tentativas");
+    const nL = S.lists.length, rows = nL + 1;
+    const extra = 1.6 + 1.4 + (S.tries.length ? 1.4 : 0);   // cabeçalho, veredicto, tentativas (em fs)
+    const rh = clamp((c.h - extra * fs) / rows, 1.1 * fs, 2.1 * fs), px = clamp(rh * 0.5, 11, fs * 1.05);
+    // colunas: lista | votos | votos ÷ d | lugares
+    const xs = [c.x, c.x + c.w * 0.32, c.x + c.w * 0.68, c.x + c.w];
+    const hy = c.y + 0.7 * fs, D = D_();
+    texAt("jh1", "\\text{votos}", xs[1], hy, fs * 0.85, C.muted, 1, 0.5);
+    texAt("jh2", `\\dfrac{\\text{votos}}{${D}}`, xs[2], hy, fs * 0.85, C.muted, 1, 0.5);
+    texAt("jh3", `\\left\\lfloor\\dfrac{\\text{votos}}{${D}}\\right\\rfloor`, xs[3], hy, fs * 0.85, C.muted, 1, 0.5);
+    let y = c.y + 1.6 * fs;
+    line(c.x, y, c.x + c.w, y, C.line, 1);
+    const seats = seatsAt(S.d);
+    S.lists.forEach((l, i) => {
+      const yy = y + rh * (i + 0.5), col = C.L[i % 8];
+      text(l.name, xs[0], yy, px * 1.05, col, "left", FONT, 700);
+      text(fmtInt(l.v), xs[1], yy, px, C.ink, "right", MONO);
+      text(fmt(l.v / S.d, 3), xs[2], yy, px, C.ink, "right", MONO);
+      text(String(seats[i]), xs[3], yy, px * 1.15, col, "right", MONO, 600);
+      line(c.x, y + rh * (i + 1), c.x + c.w, y + rh * (i + 1), C.grid2, 1);
     });
+    const sum = seats.reduce((p, x) => p + x, 0), yt = y + rh * (nL + 0.5);
+    text("Total", xs[0], yt, px * 1.05, C.ink, "left", FONT, 700);
+    text(fmtInt(total()), xs[1], yt, px, C.ink, "right", MONO, 600);
+    text(String(sum), xs[3], yt, px * 1.15, C.ink, "right", MONO, 600);
+    // veredicto
+    y += rh * rows + 0.75 * fs;
+    const msg = sum === S.n ? [`✓  ${sum} lugares: este divisor serve`, C.ok]
+      : sum < S.n ? [`${sum} lugares: faltam ${S.n - sum}, é preciso diminuir o divisor`, C.bad]
+      : [`${sum} lugares: sobram ${sum - S.n}, é preciso aumentar o divisor`, C.bad];
+    const mw = tw(msg[0], fs * 0.95, FONT, 700);
+    text(msg[0], c.x, y, Math.min(fs * 0.95, fs * 0.95 * c.w / mw), msg[1], "left", FONT, 700);
+    // tentativas, das mais recentes para as mais antigas (tocar numa volta a esse divisor)
+    if (S.tries.length) {
+      y += 1.4 * fs;
+      let x = c.x + text("Tentativas:", c.x, y, fs * 0.72, C.muted) + 0.4 * fs;
+      const ch = 1.15 * fs, f = fs * 0.68;
+      for (let i = S.tries.length - 1; i >= 0; i--) {
+        const t = S.tries[i], s = `${fmt(t.d)} → ${t.s}`, w = tw(s, f, MONO) + 0.8 * fs;
+        if (x + w > c.x + c.w) break;
+        const col = t.s === S.n ? C.ok : C.bad;
+        rrect(x, y - ch / 2, w, ch, ch / 2, C.bg, col, 1.3);
+        text(s, x + w / 2, y + 1, f, col, "center", MONO);
+        hits.push({ kind: "try", d: t.d, rect: { x, y: y - ch / 2, w, h: ch } });
+        x += w + 0.35 * fs;
+      }
+    }
   }
-  ["htable", "axis"].forEach(id => {
-    $(id).addEventListener("mouseover", e => { const t = e.target.closest("[data-key]"); if (t) hot(t.dataset.key, true); });
-    $(id).addEventListener("mouseout", e => { const t = e.target.closest("[data-key]"); if (t) hot(t.dataset.key, false); });
+
+  // 2. gráfico: votos no eixo horizontal, lugares no vertical; a reta lugares = votos ÷ d roda com d.
+  // A lista com v votos tem os pontos (v, 1), (v, 2), …: os que ficam debaixo da reta são os seus lugares
+  // (o ponto (v, k) está na reta quando d = v ÷ k, o quociente de Hondt)
+  function graph(b, fs) {
+    const legW = tw("divisor padrão", fs * 0.68, FONT, 700) + 2.6 * fs;
+    const c = panel(b, fs, "2.  Gráfico: lugares = votos ÷ d", legW);
+    const ml = 1.6 * fs, mb = 1.5 * fs, mt = 1.3 * fs, mr = 2.2 * fs;
+    const gx0 = c.x + ml, gx1 = c.x + c.w - mr, gy0 = c.y + mt, gy1 = c.y + c.h - mb;
+    const X = v => gx0 + v / XMAX * (gx1 - gx0), Y = s => gy1 - s / YMAX * (gy1 - gy0);
+    // grelha: lugares inteiros e marcas dos votos
+    const ys = [1, 2, 5, 10].find(s => s * (gy1 - gy0) / YMAX >= 0.9 * fs) || 10;
+    for (let k = ys; k <= YMAX; k += ys) {
+      line(gx0, Y(k), gx1, Y(k), C.grid, 1);
+      text(String(k), gx0 - 0.4 * fs, Y(k), fs * 0.62, C.muted, "right", MONO);
+    }
+    const xs = niceStep(XMAX / Math.max(2, Math.floor((gx1 - gx0) / (4.5 * fs))));
+    for (let v = xs; v < XMAX; v += xs) {
+      line(X(v), gy1, X(v), gy1 + 0.25 * fs, C.muted, 1);
+      text(fmtInt(v), X(v), gy1 + 0.75 * fs, fs * 0.6, C.muted, "center", MONO);
+    }
+    line(gx0, gy1, gx1 + 0.6 * fs, gy1, C.axis, 1.6); tri(gx1 + 0.8 * fs, gy1, 1, 0, fs * 0.4, C.axis);
+    line(gx0, gy1, gx0, gy0 - 0.6 * fs, C.axis, 1.6); tri(gx0, gy0 - 0.8 * fs, 0, -1, fs * 0.4, C.axis);
+    text("votos", gx1 + 1.2 * fs, gy1 - 0.7 * fs, fs * 0.7, C.ink, "right");
+    // retas que passam na origem (cortadas pela caixa do gráfico)
+    const ray = (d, col, w, dash) => {
+      const xe = Math.min(XMAX, YMAX * d);
+      line(X(0), Y(0), X(xe), Y(xe / d), col, w, dash);
+      return [X(xe), Y(xe / d)];
+    };
+    ray(stdDiv(), C.faint, 1.6, [7, 5]);
+    const lx = b.x + b.w - 0.7 * fs, ly = b.y + 0.85 * fs;
+    const lw = text("divisor padrão", lx, ly, fs * 0.68, C.faint, "right", FONT, 700);
+    line(lx - lw - 2.2 * fs, ly, lx - lw - 0.4 * fs, ly, C.faint, 1.6, [7, 5]);
+    // uma coluna de pontos por lista
+    const step = (gy1 - gy0) / YMAX, r = clamp(step * 0.3, 2.5, 0.42 * fs);
+    S.lists.forEach((l, i) => {
+      const x = X(l.v), col = C.L[i % 8];
+      ctx.globalAlpha = 0.45; line(x, gy1, x, gy0, col, 1.5); ctx.globalAlpha = 1;
+      text(l.name, x, gy0 - 0.75 * fs, fs * 0.8, col, "center", FONT, 700);
+      for (let k = 1; k <= YMAX; k++) {
+        const on = k <= l.v / S.d + 1e-9, key = i + "-" + k, hot = S.hot === key, y = Y(k);
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = on ? col : C.bg; ctx.fill();
+        ctx.lineWidth = hot ? 3.5 : 1.6; ctx.strokeStyle = hot ? C.d : col; ctx.stroke();
+        hits.push({ kind: "cell", key, x, y, r: Math.max(r + 3, 6) });
+      }
+    });
+    // a reta do divisor atual e onde corta cada coluna (votos ÷ d)
+    const [ex, ey] = ray(S.d, C.d, 2.8);
+    S.lists.forEach(l => {
+      const s = l.v / S.d;
+      if (s > YMAX) return;
+      const x = X(l.v), y = Y(s);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = C.d; ctx.fillRect(-0.22 * fs, -0.22 * fs, 0.44 * fs, 0.44 * fs);
+      ctx.restore();
+    });
+    texAt("gd", `${D_()} = ${texNum(S.d)}`, ex, ey - 0.35 * fs, fs * 0.8, C.d, 1, 1, true);   // por cima da ponta da reta
+  }
+
+  // 3. tabela de Hondt: votos ÷ 1, votos ÷ 2, … ; os n maiores quocientes dão os lugares
+  function hondt(b, fs) {
+    const c = panel(b, fs, "3.  Método de Hondt: os maiores quocientes");
+    const rank = new Map();
+    Q.forEach((o, r) => rank.set(o.i + "-" + o.k, r + 1));
+    const qn = Q[S.n - 1], qn1 = Q[S.n];
+    const K = hondtRows(), nL = S.lists.length;
+    const keyH = 3.3 * fs;
+    const rh = clamp((c.h - 1.8 * fs - keyH) / K, 10, 2 * fs), px = clamp(rh * 0.55, 9, fs * 0.95);
+    const kw = 2 * fs, cw = (c.w - kw) / nL;
+    // a mesma letra em todas as células (a que faz caber o quociente mais comprido, com a ordem)
+    let pxc = px;
+    S.lists.forEach(l => { for (let k = 1; k <= K; k++) pxc = Math.min(pxc, px * (cw - 4 - 0.5 * fs) / (tw(fmt(l.v / k), px, MONO, 600) + tw("10.º", px * 0.7, FONT, 700) + 0.3 * fs)); });
+    const hy = c.y + 0.7 * fs;
+    texAt("hdiv", "\\div", c.x + kw / 2, hy, fs * 0.85, C.muted);
+    S.lists.forEach((l, i) => {
+      const x = c.x + kw + cw * (i + 1) - 0.35 * fs;
+      text(l.name, x, hy - 0.4 * fs, fs * 0.85, C.L[i % 8], "right", FONT, 700);
+      text(fmtInt(l.v), x, hy + 0.45 * fs, fs * 0.64, C.L[i % 8], "right", MONO);
+    });
+    const y = c.y + 1.6 * fs;
+    line(c.x, y, c.x + c.w, y, C.line, 1);
+    for (let k = 1; k <= K; k++) {
+      const yy = y + rh * (k - 0.5);
+      text(String(k), c.x + kw / 2, yy, px, C.muted, "center", FONT);
+      S.lists.forEach((l, i) => {
+        if (!(l.v > 0)) return;
+        const val = l.v / k, key = i + "-" + k, on = val >= S.d - 1e-9, col = C.L[i % 8];
+        const x0 = c.x + kw + cw * i + 2, w = cw - 4, y0 = y + rh * (k - 1) + 2, h = rh - 4;
+        if (on) { ctx.globalAlpha = dark ? 0.28 : 0.16; rrect(x0, y0, w, h, 5, col); ctx.globalAlpha = 1; }
+        if (qn1 && qn1.i === i && qn1.k === k) rrect(x0, y0, w, h, 5, null, C.d, 2, [5, 4]);
+        if (S.hot === key) rrect(x0, y0, w, h, 5, null, C.d, 3.5);
+        const xr = c.x + kw + cw * (i + 1) - 0.35 * fs;
+        const f = pxc;
+        const vw = text(fmt(val), xr, yy, f, on ? C.ink : C.faint, "right", MONO, on ? 600 : 400);
+        const rk = rank.get(key);
+        if (on && rk) text(rk + ".º", xr - vw - 0.25 * fs, yy, f * 0.7, col, "right", FONT, 700);
+        hits.push({ kind: "cell", key, rect: { x: x0, y: y0, w, h } });
+      });
+      line(c.x, y + rh * k, c.x + c.w, y + rh * k, C.grid2, 1);
+    }
+    // a ligação a Jefferson: o n.º maior quociente é o maior divisor que serve
+    if (!qn) return;
+    const ky = y + rh * K + 0.85 * fs, D = D_();
+    const tie = qn1 && Math.abs(qn.q - qn1.q) < 1e-9;
+    if (tie) { fit(texAt("hkey", `\\text{O ${S.n}.º e o ${S.n + 1}.º quocientes são iguais: há empate.}`, c.x, ky, fs * 0.8, C.ink, 0, 0.5), c.w); return; }
+    fit(texAt("hkey", `\\text{Os ${S.n} maiores quocientes dão os lugares.}`, c.x, ky, fs * 0.8, C.ink, 0, 0.5), c.w);
+    const bwid = 5.2 * fs, k2 = ky + 1.55 * fs;
+    fit(texAt("hkey2", `\\text{Serve } ${qn1 ? texNum(qn1.q) + " <" : ""} ${D} \\leq ${texNum(qn.q)}`, c.x, k2, fs * 0.85, C.ink, 0, 0.5), c.w - bwid - 0.5 * fs);
+    button(c.x + c.w - bwid, k2 - 0.7 * fs, bwid, 1.4 * fs, "", false, "useqn", {}, C.d, fs * 0.85, `${D} = ${texNum(qn.q)}`);
+    hits.useqn = qn.q;
+  }
+
+  // cursor do divisor: d = [caixa]  −  ——●——  +
+  function dRow(b, fs) {
+    const ih = 1.75 * fs, cy = b.y + ih / 2;
+    texAt("dlab", `${D_()} =`, b.x, cy, fs * 1.2, C.ink, 0, 0.5);
+    const iw = 5.4 * fs, ix = b.x + 2.2 * fs;
+    if (document.activeElement !== $dval) { $dval.value = fmt(S.d); $dval.classList.remove("bad"); }
+    place($dval, { x: ix, y: b.y, w: iw, h: ih }, fs * 0.95);
+    const bs = ih, x0 = ix + iw + 0.6 * fs;
+    button(x0, b.y, bs, bs, "−", false, "step", { d: -1 }, C.muted, fs * 1.2);
+    button(b.x + b.w - bs, b.y, bs, bs, "+", false, "step", { d: 1 }, C.muted, fs * 1.2);
+    const tx0 = x0 + bs + 1 * fs, tx1 = b.x + b.w - bs - 1 * fs;
+    const [lo, hi] = DR, TX = v => tx0 + (v - lo) / (hi - lo) * (tx1 - tx0);
+    ctx.lineCap = "round";
+    line(tx0, cy, tx1, cy, C.grid2, 0.3 * fs);
+    line(tx0, cy, TX(clamp(S.d, lo, hi)), cy, C.d, 0.3 * fs);
+    ctx.lineCap = "butt";
+    const step = niceStep((hi - lo) / Math.max(3, Math.floor((tx1 - tx0) / (4.5 * fs))));
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) {
+      line(TX(v), cy + 0.25 * fs, TX(v), cy + 0.45 * fs, C.muted, 1.2);
+      text(fmt(v), TX(v), cy + 0.85 * fs, fs * 0.62, C.muted, "center", MONO);
+    }
+    // o divisor padrão, por baixo do cursor
+    const dp = stdDiv();
+    line(TX(dp), cy - 0.55 * fs, TX(dp), cy + 0.45 * fs, C.ink, 1.5);
+    text("divisor padrão", TX(dp), cy + 1.55 * fs, fs * 0.62, C.ink, "center", FONT, 700);
+    const dv = clamp(S.d, lo, hi);
+    ctx.beginPath(); ctx.arc(TX(dv), cy, 0.55 * fs, 0, Math.PI * 2); ctx.fillStyle = C.d; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
+    hits.push({ kind: "slide", rect: { x: tx0 - fs, y: b.y - 0.3 * fs, w: tx1 - tx0 + 2 * fs, h: ih + 0.6 * fs }, val: px => lo + (px - tx0) / (tx1 - tx0) * (hi - lo) });
+  }
+
+  // em baixo: d = divisor padrão, limpar as tentativas e as duas caixas
+  function options(b, fs) {
+    const h = b.h, bh = 1.35 * fs, by = b.y + (h - bh) / 2, f = fs * 0.8;
+    let x = b.x;
+    const w1 = tw("d = divisor padrão", f, FONT, 700) + 1.2 * fs;
+    button(x, by, w1, bh, "", false, "std", {}, C.muted, f, `${D_()} = \\text{divisor padrão}`);
+    x += w1 + 0.5 * fs;
+    const w2 = tw("Limpar tentativas", f, FONT, 700) + 1.2 * fs;
+    button(x, by, w2, bh, "Limpar tentativas", false, "clear", {}, C.muted, f);
+    x += w2 + 1.2 * fs;
+    let y = b.y;
+    if (b.two) { x = b.x; y = b.y + h + 0.3 * fs; }
+    const bs = 0.72 * fs;
+    x = cbox(x, y, h, bs, fs, S.showGraph, "Gráfico", { kind: "box", k: "showGraph" }) + 1.1 * fs;
+    cbox(x, y, h, bs, fs, S.showHondt, "Método de Hondt", { kind: "box", k: "showHondt" });
+  }
+
+  // ---------- caixas de texto ----------
+  function update() {
+    try {
+      const lists = readVotes($votes.value);
+      const n = parseInt($seats.value, 10);
+      if (!(n >= 1 && n <= 99 && String(n) === $seats.value.trim())) { $seats.classList.add("bad"); err = "O número de lugares tem de ser um inteiro de 1 a 99."; draw(); return; }
+      if (lists.reduce((p, l) => p + l.v, 0) <= 0) throw new Error("Os votos não podem ser todos 0.");
+      $seats.classList.remove("bad"); $votes.classList.remove("bad"); err = "";
+      S.src = $votes.value; S.n = n; S.lists = lists;
+      dataChanged();
+    } catch (e) {
+      $votes.classList.add("bad"); err = e.message;
+    }
+    draw();
+  }
+  $votes.addEventListener("input", update);
+  $seats.addEventListener("input", update);
+  $dval.addEventListener("change", () => {
+    const x = parseNum($dval.value);
+    if (x > 0) { $dval.classList.remove("bad"); setD(x, true); $dval.value = fmt(S.d); }
+    else $dval.classList.add("bad");
   });
+  $dval.addEventListener("keydown", e => { if (e.key === "Enter") { $dval.dispatchEvent(new Event("change")); $dval.blur(); } });
 
-  ["axis", "hondt"].forEach(k => $("show-" + k).addEventListener("change", e => { $(k + "-box").hidden = !e.target.checked; render(); }));
-  window.addEventListener("resize", () => { if (!$("axis-box").hidden) render(); });
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  function hitAt(x, y) {
+    let best = null, bd = Infinity;
+    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d <= bd) { best = h; bd = d; } }
+    return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  }
+  let drag = null, rep = null;
+  const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h || h.kind === "cell") return;
+    e.preventDefault();
+    if (h.kind === "theme") { setDark(!dark, true); draw(); return; }
+    if (h.kind === "box") { S[h.k] = !S[h.k]; draw(); return; }
+    if (h.kind === "std") { setD(stdDiv(), true, true); return; }
+    if (h.kind === "clear") { S.tries = []; draw(); return; }
+    if (h.kind === "try") { setD(h.d, false); return; }
+    if (h.kind === "useqn") { setD(hits.useqn, true, true); return; }
+    if (h.kind === "step") {
+      const f = () => setD(S.d + h.d * STEP(), false);   // (arredonda ao passo)
+      f(); stopRep();
+      rep = setTimeout(() => { rep = setInterval(f, 60); }, 400);
+      drag = { kind: "step" };
+      return;
+    }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    drag = h;
+    setD(h.val(e.clientX), false);
+    cv.style.cursor = "grabbing";
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) { if (drag.kind === "slide") setD(drag.val(e.clientX), false); return; }
+    const h = hitAt(e.clientX, e.clientY);
+    const hot = h && h.kind === "cell" ? h.key : null;
+    if (hot !== S.hot) { S.hot = hot; draw(); }
+    cv.style.cursor = !h || h.kind === "cell" ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+  });
+  const end = () => { if (drag) logTry(); drag = null; stopRep(); cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+  cv.addEventListener("pointerleave", () => { if (S.hot) { S.hot = null; draw(); } });
 
-  // ---------- endereço: #n=11&l=A:606,B:341,… ----------
+  // teclado (fora das caixas): ←/→ mudam o divisor (Shift: ×10), p = divisor padrão, g e h mostram/ocultam o gráfico e a tabela de Hondt
+  window.addEventListener("keydown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") setD(S.d + (e.key === "ArrowLeft" ? -1 : 1) * STEP() * (e.shiftKey ? 10 : 1), false);
+    else if (e.key === "p") setD(stdDiv(), true, true);
+    else if (e.key === "g") { S.showGraph = !S.showGraph; draw(); }
+    else if (e.key === "h") { S.showHondt = !S.showHondt; draw(); }
+    else return;
+    e.preventDefault();
+  });
+  window.addEventListener("keyup", e => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") logTry(); });
+
+  // ---------- endereço: #n=11&v=A 606; B 341; … ----------
   function writeHash() {
-    const h = `n=${S.n}&l=` + S.lists.map(l => encodeURIComponent(l.name) + ":" + l.v).join(",");
-    history.replaceState(null, "", "#" + h);
+    history.replaceState(null, "", "#n=" + S.n + "&v=" + encodeURIComponent(S.src));
   }
-  function readHash() {
-    const p = new URLSearchParams(location.hash.slice(1));
-    const n = parseInt(p.get("n"), 10), l = p.get("l");
-    if (!(n >= 1) || !l) return false;
-    const lists = l.split(",").map(x => { const [a, b] = x.split(":"); return { name: decodeURIComponent(a || "?"), v: parseInt(b, 10) || 0 }; }).slice(0, MAXL);
-    if (lists.length < 2) return false;
-    S.n = Math.min(60, n); $("n").value = S.n; S.lists = lists;
-    return true;
-  }
+  const hp = new URLSearchParams(location.hash.slice(1));
+  if (hp.get("v")) S.src = hp.get("v");
+  if (+hp.get("n") >= 1) S.n = Math.min(99, +hp.get("n"));
+  $votes.value = S.src; $seats.value = S.n;
+  update();
 
-  // ---------- modo projeção e modo escuro ----------
-  const PROJ_KEY = "apps-mat-projecao", THEME_KEY = "quarto-color-scheme";
-  const root = document.documentElement;
-  const sysDark = matchMedia("(prefers-color-scheme: dark)");
-  function userTheme() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
-  function applyTheme() {
-    if (root.dataset.proj !== undefined) { root.dataset.theme = "light"; $("theme").hidden = true; return; }
-    $("theme").hidden = false;
-    const t = userTheme();
-    const dark = t ? t === "alternate" : sysDark.matches;
-    if (t) root.dataset.theme = dark ? "dark" : "light"; else delete root.dataset.theme;
-    $("theme").textContent = dark ? "☀" : "☾";
-  }
-  $("theme").addEventListener("click", () => {
-    const dark = root.dataset.theme ? root.dataset.theme === "dark" : sysDark.matches;
-    try { localStorage.setItem(THEME_KEY, dark ? "default" : "alternate"); } catch (e) {}
-    applyTheme();
-  });
-  sysDark.addEventListener("change", applyTheme);
-  function setProj(on) {
-    if (on) root.dataset.proj = ""; else { delete root.dataset.proj; delete root.dataset.hidectl; }
-    $("proj").setAttribute("aria-pressed", on);
-    $("hidectl").hidden = !on;
-    $("hidectl").textContent = root.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
-    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
-    applyTheme(); render();
-  }
-  $("proj").addEventListener("click", () => setProj(root.dataset.proj === undefined));
-  $("hidectl").addEventListener("click", () => {
-    if (root.dataset.hidectl !== undefined) delete root.dataset.hidectl; else root.dataset.hidectl = "";
-    setProj(true);
-  });
-
-  // ---------- início ----------
-  if (readHash()) { buildLists(); S.tries = []; S.d = Math.round(stdDiv() * 100) / 100; }
-  else { S.lists = EXAMPLE.lists.map(([name, v]) => ({ name, v })); buildLists(); S.d = Math.round(stdDiv() * 100) / 100; }
-  let proj = false;
-  try { proj = localStorage.getItem(PROJ_KEY) === "1"; } catch (e) {}
-  setProj(proj);
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
 })();
 </script>
 </body>
