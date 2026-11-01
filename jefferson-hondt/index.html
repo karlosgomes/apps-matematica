@@ -430,9 +430,13 @@
       text(l.name, x, gy0 - 0.75 * fs, fs * 0.8, col, "center", FONT, 700);
       for (let k = 1; k <= YMAX; k++) {
         const on = k <= l.v / S.d + 1e-9, key = i + "-" + k, hot = S.hot === key, y = Y(k);
+        // pontos em cor ténue (a reta e os lugares sobressaem); o realçado fica forte
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fillStyle = on ? col : C.bg; ctx.fill();
-        ctx.lineWidth = hot ? 3.5 : 1.6; ctx.strokeStyle = hot ? C.d : col; ctx.stroke();
+        ctx.fillStyle = C.band; ctx.fill();
+        ctx.globalAlpha = hot ? 1 : on ? 0.5 : 0.35;
+        if (on) { ctx.fillStyle = col; ctx.fill(); }
+        ctx.lineWidth = hot ? 3.5 : 1.4; ctx.strokeStyle = hot ? C.d : col; ctx.stroke();
+        ctx.globalAlpha = 1;
         hits.push({ kind: "cell", key, x, y, r: Math.max(r + 3, 6) });
       }
     });
