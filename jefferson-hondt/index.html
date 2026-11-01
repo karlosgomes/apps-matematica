@@ -63,7 +63,12 @@
   const MONO = '"IBM Plex Mono", ui-monospace, monospace';
   const MAXL = 8;
 
-  // exemplo da ficha de MACS: Assembleia de Alunos, 11 lugares, 4 listas
+  // exemplos (botões em baixo): o da ficha de MACS e um empate no último lugar
+  const EXAMPLES = [
+    { label: "Assembleia de Alunos", n: 11, src: "A 606; B 341; C 191; D 68" },
+    { label: "Empate", n: 7, src: "A 7080; B 6573; C 1770" },
+  ];
+  // exemplo inicial: Assembleia de Alunos da ficha de MACS, 11 lugares, 4 listas
   const S = { n: 11, src: "A 606; B 341; C 191; D 68", lists: [], d: 0, tries: [], showGraph: false, showHondt: false, hot: null };
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -110,14 +115,34 @@
   function quotients() {
     const q = [];
     S.lists.forEach((l, i) => { if (l.v > 0) for (let k = 1; k <= S.n + 3; k++) q.push({ i, k, q: l.v / k }); });
-    q.sort((a, b) => b.q - a.q || a.i - b.i);
+    // quocientes iguais: primeiro a lista com menos votos (é a ela que a lei eleitoral dá o lugar em caso de empate)
+    const eq = (x, y) => Math.abs(x - y) <= 1e-9 * Math.max(x, y);
+    q.sort((a, b) => eq(a.q, b.q) ? (S.lists[a.i].v - S.lists[b.i].v || a.i - b.i) : b.q - a.q);
     return q;
   }
   let Q = [];
+  // empate no último lugar: há quocientes iguais ao n.º maior também depois dele, e nenhum divisor dá n lugares.
+  // TIE = { q, above (quocientes maiores), group (os iguais, por ordem de votos), r (lugares que lhes cabem), lot (sorteio) }
+  let TIE = null, ALLOC = [];
+  function analyse() {
+    TIE = null;
+    const qn = Q[S.n - 1];
+    ALLOC = S.lists.map(() => 0);
+    Q.slice(0, S.n).forEach(o => ALLOC[o.i]++);
+    if (!qn) return;
+    const same = o => Math.abs(o.q - qn.q) <= 1e-9 * qn.q;
+    const a = Q.findIndex(same);
+    let b = a; while (b + 1 < Q.length && same(Q[b + 1])) b++;
+    if (b < S.n) return;
+    const group = Q.slice(a, b + 1), r = S.n - a;
+    const lot = S.lists[group[r - 1].i].v === S.lists[group[r].i].v;
+    TIE = { q: qn.q, above: a, group, r, lot };
+  }
   // intervalo do cursor do divisor e escala do gráfico (fixos enquanto os dados não mudam)
   let DR = [1, 2], YMAX = 5, XMAX = 100;
   function dataChanged() {
     Q = quotients();
+    analyse();
     const dp = stdDiv();
     const lo = Math.min(dp, (Q[S.n + 2] || Q[Q.length - 1]).q) * 0.8;
     const hi = Math.max(dp, (Q[S.n - 1] || Q[0]).q) * 1.25;
@@ -182,11 +207,15 @@
     y += ih + gap + (err ? 0.6 * fs : 0);
     // em baixo: cursor do divisor e opções
     const rowD = 3.3 * fs, rowO = 1.5 * fs;
-    const oneRowOpt = w > 46 * fs;
-    const bottom = rowD + gap + rowO * (oneRowOpt ? 1 : 2) + (oneRowOpt ? 0 : 0.3 * fs);
+    // opções em grupos (botões | caixas | exemplos), arrumados no menor número de linhas
+    const gw = optGroups(fs).map(g => g.w), rows = [[]];
+    let used = 0;
+    gw.forEach((g, i) => { if (rows[rows.length - 1].length && used + 1.5 * fs + g > w) { rows.push([]); used = 0; } rows[rows.length - 1].push(i); used += (used ? 1.5 * fs : 0) + g; });
+    const nr = rows.length;
+    const bottom = rowD + gap + rowO * nr + 0.3 * fs * (nr - 1);
     const yb = H - pad - bottom;
     L.dRow = { x: pad, y: yb, w, h: rowD };
-    L.opt = { x: pad, y: yb + rowD + gap, w, h: rowO, two: !oneRowOpt };
+    L.opt = { x: pad, y: yb + rowD + gap, w, h: rowO, rows };
     // quadros: Jefferson com a altura do que tem; o gráfico e a tabela de Hondt ocupam o resto
     const main = { x: pad, y, w, h: yb - gap - y };
     const G = S.showGraph, Hd = S.showHondt;
@@ -219,7 +248,21 @@
     return L;
   }
   // altura do quadro de Jefferson: título, cabeçalho, linhas, veredicto e tentativas
-  const jNeed = (fs, rr = 1.75) => (1.7 + 1.6 + (S.lists.length + 1) * rr + 1.5 + (S.tries.length ? 1.4 : 0) + 0.5) * fs;
+  const jNeed = (fs, rr = 1.75) => (1.7 + 1.6 + (S.lists.length + 1) * rr + 1.5 + (tieNote() ? 4.4 : 0) + (S.tries.length ? 1.4 : 0) + 0.5) * fs;
+  // a nota do empate aparece quando o total salta por cima de n mesmo ao lado do quociente empatado
+  function tieNote() {
+    if (!TIE) return false;
+    const s = sumAt(S.d);
+    return s === TIE.above || s === TIE.above + TIE.group.length;
+  }
+  const names = ix => ix.map(i => S.lists[i].name);
+  const andList = a => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " e " + a[a.length - 1];
+  const allocText = () => S.lists.map((l, i) => `${l.name} ${ALLOC[i]}`).join(", ");
+  function tieLaw() {
+    const w = names(TIE.group.slice(0, TIE.r).map(o => o.i));
+    return (TIE.r === 1 ? "Pela lei, o lugar fica para a lista com menos votos: " : `Pela lei, os ${TIE.r} lugares ficam para as listas com menos votos: `)
+      + andList(w) + (TIE.lot ? " (com votos iguais: sorteio)" : "") + ".";
+  }
   function hondtRows() {
     if (!Q.length) return 3;
     const qn = Q[S.n - 1], qn1 = Q[S.n];
@@ -247,6 +290,18 @@
     ctx.font = `${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
     ctx.fillText(s, x, y);
     return ctx.measureText(s).width;
+  }
+  // texto partido em linhas que caibam em w; devolve o número de linhas
+  function wrap(s, x, y, w, px, color, weight = 400, lh = 1.3) {
+    const words = s.split(" "), lines = [];
+    let cur = "";
+    for (const wd of words) {
+      const t = cur ? cur + " " + wd : wd;
+      if (cur && tw(t, px, FONT, weight) > w) { lines.push(cur); cur = wd; } else cur = t;
+    }
+    if (cur) lines.push(cur);
+    lines.forEach((l, i) => text(l, x, y + i * px * lh, px, color, "left", FONT, weight));
+    return lines.length;
   }
   const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
   function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16, texSrc = null) {
@@ -342,10 +397,11 @@
   function jefferson(b, fs) {
     const c = panel(b, fs, "1.  Método de Jefferson: divisor por tentativas");
     const nL = S.lists.length, rows = nL + 1;
-    const extra = 1.6 + 1.4 + (S.tries.length ? 1.4 : 0);   // cabeçalho, veredicto, tentativas (em fs)
+    const note = tieNote();
+    const extra = 1.6 + 1.4 + (note ? 4.4 : 0) + (S.tries.length ? 1.4 : 0);   // cabeçalho, veredicto, empate, tentativas (em fs)
     const rh = clamp((c.h - extra * fs) / rows, 1.1 * fs, 2.1 * fs), px = clamp(rh * 0.5, 11, fs * 1.05);
     // colunas: lista | votos | votos ÷ d | lugares
-    const xs = [c.x, c.x + c.w * 0.32, c.x + c.w * 0.68, c.x + c.w];
+    const xs = [c.x, c.x + c.w * 0.4, c.x + c.w * 0.72, c.x + c.w];
     const hy = c.y + 0.7 * fs, D = D_();
     texAt("jh1", "\\text{votos}", xs[1], hy, fs * 0.85, C.muted, 1, 0.5);
     texAt("jh2", `\\dfrac{\\text{votos}}{${D}}`, xs[2], hy, fs * 0.85, C.muted, 1, 0.5);
@@ -367,11 +423,22 @@
     text(String(sum), xs[3], yt, px * 1.15, C.ink, "right", MONO, 600);
     // veredicto
     y += rh * rows + 0.75 * fs;
-    const msg = sum === S.n ? [`✓  ${sum} lugares: este divisor serve`, C.ok]
+    const msg = note ? [`${sum} lugares: ${sum < S.n ? "falta" + (S.n - sum > 1 ? "m " : " ") + (S.n - sum) : "sobra" + (sum - S.n > 1 ? "m " : " ") + (sum - S.n)}`, C.bad]
+      : sum === S.n ? [`✓  ${sum} lugares: este divisor serve`, C.ok]
       : sum < S.n ? [`${sum} lugares: faltam ${S.n - sum}, é preciso diminuir o divisor`, C.bad]
       : [`${sum} lugares: sobram ${sum - S.n}, é preciso aumentar o divisor`, C.bad];
     const mw = tw(msg[0], fs * 0.95, FONT, 700);
     text(msg[0], c.x, y, Math.min(fs * 0.95, fs * 0.95 * c.w / mw), msg[1], "left", FONT, 700);
+    // empate: o total salta de n − 1 para n + 1 (ou mais) sem passar por n
+    if (note) {
+      const g = TIE.group, who = andList([...new Set(names(g.map(o => o.i)))]);
+      const l1 = `Nenhum divisor dá ${S.n}: com d = ${fmt(TIE.q)}, ${who} ganham um lugar ao mesmo tempo (${TIE.above} → ${TIE.above + g.length}).`;
+      const l2 = tieLaw() + ` Fica ${allocText()}.`;
+      const f = fs * 0.72;
+      y += 1.1 * fs;
+      y += wrap(l1, c.x, y, c.w, f, C.d, 700) * f * 1.3 + 0.15 * fs;
+      y += (wrap(l2, c.x, y, c.w, f, C.ink) - 1) * f * 1.3 + 0.2 * fs;
+    }
     // tentativas, das mais recentes para as mais antigas (tocar numa volta a esse divisor)
     if (S.tries.length) {
       y += 1.4 * fs;
@@ -440,6 +507,15 @@
         hits.push({ kind: "cell", key, x, y, r: Math.max(r + 3, 6) });
       }
     });
+    // empate: os pontos empatados estão na mesma reta que passa na origem (d = quociente empatado)
+    if (TIE && tieNote()) {
+      ray(TIE.q, C.d, 1.5, [2, 4]);
+      TIE.group.forEach(o => {
+        if (o.k > YMAX) return;
+        ctx.beginPath(); ctx.arc(X(S.lists[o.i].v), Y(o.k), r + 4, 0, Math.PI * 2);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = C.d; ctx.stroke();
+      });
+    }
     // a reta do divisor atual e onde corta cada coluna (votos ÷ d)
     const [ex, ey] = ray(S.d, C.d, 2.8);
     S.lists.forEach(l => {
@@ -460,7 +536,7 @@
     Q.forEach((o, r) => rank.set(o.i + "-" + o.k, r + 1));
     const qn = Q[S.n - 1], qn1 = Q[S.n];
     const K = hondtRows(), nL = S.lists.length;
-    const keyH = 3.3 * fs;
+    const keyH = TIE ? 4.2 * fs : 3.3 * fs;
     const rh = clamp((c.h - 1.8 * fs - keyH) / K, 10, 2 * fs), px = clamp(rh * 0.55, 9, fs * 0.95);
     const kw = 2 * fs, cw = (c.w - kw) / nL;
     // a mesma letra em todas as células (a que faz caber o quociente mais comprido, com a ordem)
@@ -498,7 +574,14 @@
     if (!qn) return;
     const ky = y + rh * K + 0.85 * fs, D = D_();
     const tie = qn1 && Math.abs(qn.q - qn1.q) < 1e-9;
-    if (tie) { fit(texAt("hkey", `\\text{O ${S.n}.º e o ${S.n + 1}.º quocientes são iguais: há empate.}`, c.x, ky, fs * 0.8, C.ink, 0, 0.5), c.w); return; }
+    if (tie && TIE) {
+      const g = TIE.group, from = TIE.above + 1, to = TIE.above + g.length;
+      const eqs = g.map(o => `${S.lists[o.i].name} ÷ ${o.k}`).join(" = ");
+      const f = fs * 0.72;
+      const n1 = wrap(`Empate: o ${from}.º ${to - from > 1 ? "ao" : "e o"} ${to}.º quocientes são iguais (${eqs} = ${fmt(TIE.q)}).`, c.x, ky - 0.3 * fs, c.w, f, C.d, 700);
+      wrap(`${tieLaw()} Fica ${allocText()}.`, c.x, ky - 0.3 * fs + n1 * f * 1.3, c.w, f, C.ink);
+      return;
+    }
     fit(texAt("hkey", `\\text{Os ${S.n} maiores quocientes dão os lugares.}`, c.x, ky, fs * 0.8, C.ink, 0, 0.5), c.w);
     const bwid = 5.2 * fs, k2 = ky + 1.55 * fs;
     fit(texAt("hkey2", `\\text{Serve } ${qn1 ? texNum(qn1.q) + " <" : ""} ${D} \\leq ${texNum(qn.q)}`, c.x, k2, fs * 0.85, C.ink, 0, 0.5), c.w - bwid - 0.5 * fs);
@@ -538,20 +621,47 @@
   }
 
   // em baixo: d = divisor padrão, limpar as tentativas e as duas caixas
+  // os grupos da linha de opções: largura e desenho (em x, y)
+  function optGroups(fs) {
+    const f = fs * 0.8, bh = 1.35 * fs, gap = 0.5 * fs, bs = 0.72 * fs;
+    const bw = t => tw(t, f, FONT, 700) + 1.2 * fs;
+    const cw = t => bs + 0.4 * fs + tw(t, fs * 0.85);
+    const btns = [["std", "d = divisor padrão"], ["clear", "Limpar tentativas"]];
+    const ex = EXAMPLES.map(e => e.label), exLab = "Exemplos:";
+    return [
+      { w: bw(btns[0][1]) + gap + bw(btns[1][1]), draw: (x, y, h) => {
+        const by = y + (h - bh) / 2, w1 = bw(btns[0][1]);
+        button(x, by, w1, bh, "", false, "std", {}, C.muted, f, `${D_()} = \\text{divisor padrão}`);
+        button(x + w1 + gap, by, bw(btns[1][1]), bh, btns[1][1], false, "clear", {}, C.muted, f);
+      } },
+      { w: cw("Gráfico") + 1.1 * fs + cw("Método de Hondt"), draw: (x, y, h) => {
+        x = cbox(x, y, h, bs, fs, S.showGraph, "Gráfico", { kind: "box", k: "showGraph" }) + 1.1 * fs;
+        cbox(x, y, h, bs, fs, S.showHondt, "Método de Hondt", { kind: "box", k: "showHondt" });
+      } },
+      { w: tw(exLab, fs * 0.8) + 0.5 * fs + ex.reduce((p, t) => p + bw(t) + gap, -gap), draw: (x, y, h) => {
+        const by = y + (h - bh) / 2;
+        x += text(exLab, x, y + h / 2 + 1, fs * 0.8, C.muted) + 0.5 * fs;
+        EXAMPLES.forEach((e, i) => {
+          const on = S.n === e.n && S.src.replace(/\s+/g, " ").trim() === e.src;
+          button(x, by, bw(e.label), bh, e.label, on, "example", { i }, C.muted, f);
+          x += bw(e.label) + gap;
+        });
+      } },
+    ];
+  }
+  // em baixo: d = divisor padrão, limpar as tentativas, as duas caixas e os exemplos
   function options(b, fs) {
-    const h = b.h, bh = 1.35 * fs, by = b.y + (h - bh) / 2, f = fs * 0.8;
-    let x = b.x;
-    const w1 = tw("d = divisor padrão", f, FONT, 700) + 1.2 * fs;
-    button(x, by, w1, bh, "", false, "std", {}, C.muted, f, `${D_()} = \\text{divisor padrão}`);
-    x += w1 + 0.5 * fs;
-    const w2 = tw("Limpar tentativas", f, FONT, 700) + 1.2 * fs;
-    button(x, by, w2, bh, "Limpar tentativas", false, "clear", {}, C.muted, f);
-    x += w2 + 1.2 * fs;
-    let y = b.y;
-    if (b.two) { x = b.x; y = b.y + h + 0.3 * fs; }
-    const bs = 0.72 * fs;
-    x = cbox(x, y, h, bs, fs, S.showGraph, "Gráfico", { kind: "box", k: "showGraph" }) + 1.1 * fs;
-    cbox(x, y, h, bs, fs, S.showHondt, "Método de Hondt", { kind: "box", k: "showHondt" });
+    const G = optGroups(fs);
+    b.rows.forEach((row, r) => {
+      const y = b.y + r * (b.h + 0.3 * fs);
+      let x = b.x;
+      row.forEach((gi, j) => {
+        // numa linha só, os exemplos ficam encostados à direita
+        if (gi === 2 && b.rows.length === 1) x = b.x + b.w - G[gi].w;
+        G[gi].draw(x, y, b.h);
+        x += G[gi].w + 1.5 * fs;
+      });
+    });
   }
 
   // ---------- caixas de texto ----------
@@ -596,6 +706,7 @@
     if (h.kind === "box") { S[h.k] = !S[h.k]; draw(); return; }
     if (h.kind === "std") { setD(stdDiv(), true, true); return; }
     if (h.kind === "clear") { S.tries = []; draw(); return; }
+    if (h.kind === "example") { const ex = EXAMPLES[h.i]; $votes.value = ex.src; $seats.value = ex.n; update(); return; }
     if (h.kind === "try") { setD(h.d, false); return; }
     if (h.kind === "useqn") { setD(hits.useqn, true, true); return; }
     if (h.kind === "step") {
