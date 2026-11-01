@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folha de cálculo</title>
+<link rel="icon" href="https://karlosgomes.github.io/weblog/Homem_Guitarra_CG.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<!-- motor das fórmulas: HyperFormula (GPLv3), funções em inglês (US) -->
+<script src="https://cdn.jsdelivr.net/npm/hyperformula@3.5.0/dist/hyperformula.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hyperformula@3.5.0/dist/languages/enUS.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  try {
+    const t = localStorage.getItem("quarto-color-scheme");
+    if (t) document.documentElement.dataset.theme = t === "alternate" ? "dark" : "light";
+  } catch (e) {}
+</script>
+<style>
+  :root { --banner: #170C3A; --bg: #ffffff; --ink: #17202b; --muted: #5b6475; --panel: #f6f7fa; --line: #d5dae2; --grid: #e3e7ee;
+          --accent: #EE6A24; --hover: #FB9E07; --err: #c62828; --sel: rgba(238,106,36,.13); --ref: #1565c0;
+          --fs: 15px; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48; --grid: #30333c;
+          --err: #ef7070; --sel: rgba(238,106,36,.22); --ref: #82b6f5; }
+  }
+  :root[data-theme="dark"] { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48; --grid: #30333c;
+          --err: #ef7070; --sel: rgba(238,106,36,.22); --ref: #82b6f5; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif;
+         display: flex; flex-direction: column; }
+  header { background: var(--banner); color: #fff; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; }
+  header h1 { font-size: 1.15rem; margin: 0 10px 0 0; font-weight: 700; white-space: nowrap; }
+  header h1 a { color: inherit; text-decoration: none; }
+  .grupo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .espaco { flex: 1; }
+  header select, header button { font: inherit; font-size: .92rem; border-radius: 6px; border: 1px solid rgba(255,255,255,.35);
+                   background: rgba(255,255,255,.1); color: #fff; padding: 5px 10px; cursor: pointer; }
+  header select { max-width: 14em; }
+  header select option { color: #17202b; background: #fff; }
+  header button:hover, header select:hover { background: rgba(255,255,255,.2); }
+  header button:disabled { opacity: .5; cursor: default; }
+  #tema { font-size: 1.05rem; line-height: 1; padding: 5px 9px; }
+
+  /* barra da fórmula */
+  #barra { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  #ref { min-width: 5.5em; padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg);
+         font: 600 var(--fs) "IBM Plex Mono", ui-monospace, monospace; text-align: center; }
+  #fxlab { font: italic 600 1rem "Atkinson Hyperlegible", sans-serif; color: var(--muted); }
+  #fx { flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink);
+        font: var(--fs) "IBM Plex Mono", ui-monospace, monospace; outline: none; }
+  #fx:focus { border-color: var(--accent); }
+  #estado { padding: 0 12px; min-height: 0; font-size: .88rem; color: var(--err); background: var(--panel); }
+  #estado:not(:empty) { padding: 3px 12px 5px; border-bottom: 1px solid var(--line); }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr minmax(300px, 30%); }
+  #caixa { overflow: auto; min-width: 0; min-height: 0; position: relative; outline: none; }
+  #folha { position: relative; width: max-content; }
+  table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font: var(--fs) "IBM Plex Mono", ui-monospace, monospace; }
+  th, td { height: calc(var(--fs) * 1.75); padding: 0 6px; white-space: nowrap; overflow: hidden; border-right: 1px solid var(--grid); border-bottom: 1px solid var(--grid); }
+  th { background: var(--panel); color: var(--muted); font: 600 calc(var(--fs) * .85) "Atkinson Hyperlegible", sans-serif;
+       position: sticky; user-select: none; cursor: default; }
+  thead th { top: 0; z-index: 3; text-align: center; border-bottom-color: var(--line); }
+  tbody th { left: 0; z-index: 2; text-align: right; border-right-color: var(--line); }
+  thead th:first-child { left: 0; z-index: 4; }
+  th.marca { background: rgba(238,106,36,.18); color: var(--ink); }
+  thead th { position: sticky; }
+  .redim { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 5; }
+  td { background: var(--bg); cursor: cell; user-select: none; }
+  td.num { text-align: right; }
+  td.bool { text-align: center; }
+  td.err { color: var(--err); text-align: center; font-weight: 600; }
+  td.form { }
+  td.solta { overflow: visible; position: relative; z-index: 1; background: transparent; }   /* texto que transborda para a célula vazia ao lado */
+  td.sel { background: var(--sel); }
+  td.solta.sel { background: var(--sel); }
+  #moldura { position: absolute; border: 2px solid var(--accent); pointer-events: none; z-index: 2; display: none; }
+  #alca { position: absolute; width: 9px; height: 9px; background: var(--accent); border: 1.5px solid var(--bg); cursor: crosshair; z-index: 3; display: none; }
+  #preenche { position: absolute; border: 2px dashed var(--accent); pointer-events: none; z-index: 2; display: none; }
+  #refmarca { position: absolute; border: 2px dashed var(--ref); background: rgba(21,101,192,.08); pointer-events: none; z-index: 2; display: none; }
+  #ed { position: absolute; z-index: 6; display: none; margin: 0; padding: 0 5px; border: 2px solid var(--accent); outline: none;
+        background: var(--bg); color: var(--ink); font: var(--fs) "IBM Plex Mono", ui-monospace, monospace; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+
+  /* gráfico */
+  #painel { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  #painel .topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  #painel .topo b { margin-right: 4px; }
+  #painel button { font: inherit; font-size: .88rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 3px 10px; cursor: pointer; }
+  #painel button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  #painel label { font-size: .9rem; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  #graf { flex: 1; min-height: 220px; position: relative; padding: 8px 10px 4px; }
+  #graf canvas { width: 100% !important; height: 100% !important; }
+  #info { white-space: pre; padding: 4px 12px 8px; font: .95rem "IBM Plex Mono", ui-monospace, monospace; min-height: 1.6em; }
+  #ajuda { padding: 8px 12px; font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); }
+  #ajuda code { font: .92em "IBM Plex Mono", ui-monospace, monospace; background: var(--bg); padding: 0 4px; border-radius: 3px; color: var(--ink); }
+  #vazio { position: absolute; inset: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: .92rem; }
+  #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--banner); color: #fff;
+         padding: 8px 16px; border-radius: 8px; font-size: .92rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; z-index: 20; }
+  #msg.ver { opacity: 1; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 300px; }
+    #painel { border-left: 0; border-top: 1px solid var(--line); }
+    #ajuda { display: none; }
+    header { padding: 8px 12px; }
+    header select { max-width: 10em; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../">Folha de cálculo</a></h1>
+  <div class="grupo">
+    <select id="lista" aria-label="Folha"></select>
+    <button id="nova" title="Nova folha em branco">Nova</button>
+    <button id="duplicar" title="Fazer uma cópia desta folha (também do exemplo)">Duplicar</button>
+    <button id="renomear" title="Mudar o nome da folha">Renomear</button>
+    <button id="apagar" title="Apagar esta folha">Apagar</button>
+  </div>
+  <div class="grupo">
+    <button id="abrir" title="Abrir um ficheiro .xlsx, .ods ou .csv do computador">Abrir</button>
+    <button id="descarregar" title="Guardar a folha num ficheiro .xlsx (Excel, LibreOffice)">Descarregar</button>
+    <button id="partilhar" title="Copiar um link com esta folha">Copiar link</button>
+  </div>
+  <span class="espaco"></span>
+  <button id="menor" title="Letra mais pequena">A−</button>
+  <button id="maior" title="Letra maior (para projetar)">A+</button>
+  <button id="tema" aria-label="Alternar modo claro/escuro"></button>
+  <input type="file" id="ficheiro" accept=".xlsx,.xls,.ods,.csv,.txt" hidden>
+</header>
+<div id="barra">
+  <span id="ref">A1</span>
+  <span id="fxlab">fx</span>
+  <input id="fx" type="text" spellcheck="false" autocomplete="off" aria-label="Conteúdo ou fórmula da célula">
+</div>
+<div id="estado" role="status"></div>
+<main>
+  <div id="caixa" tabindex="0" aria-label="Folha de cálculo">
+    <div id="folha">
+      <table id="grelha"><colgroup id="cols"></colgroup><thead id="cab"></thead><tbody id="corpo"></tbody></table>
+      <div id="moldura"></div><div id="alca" title="Arrastar para preencher"></div><div id="preenche"></div><div id="refmarca"></div>
+      <input id="ed" type="text" spellcheck="false" autocomplete="off" aria-label="Editar célula">
+    </div>
+  </div>
+  <aside id="painel">
+    <div class="topo">
+      <b>Gráfico</b>
+      <button data-tipo="dispersao">Dispersão</button>
+      <button data-tipo="linhas">Linhas</button>
+      <button data-tipo="barras">Barras</button>
+      <button id="semgraf" title="Tirar o gráfico">✕</button>
+      <label><input type="checkbox" id="reta"> Reta de regressão</label>
+    </div>
+    <div id="graf"><canvas id="cv"></canvas><div id="vazio">Selecione os dados (os valores de x numa coluna e os de y na seguinte) e escolha o tipo de gráfico.</div></div>
+    <div id="info"></div>
+    <div id="ajuda">Fórmulas em inglês, com ponto decimal e vírgula entre os argumentos:
+      <code>=AVERAGE(B2:B13)</code> <code>=STDEV.S(B2:B13)</code> <code>=SLOPE(B2:B13,A2:A13)</code> <code>=INTERCEPT(…)</code> <code>=CORREL(…)</code>.
+      Arraste o quadrado no canto da seleção para preencher. As folhas ficam guardadas <b>neste navegador</b>.</div>
+  </aside>
+</main>
+<div id="msg" role="status"></div>
+<script>
+(() => {
+  const CHAVE = "apps-mat-folha";
+  const NC = 26, NR = 200, CW = 100;                       // colunas A–Z, 200 linhas, largura por omissão (px, com letra de 15 px)
+  const $ = id => document.getElementById(id);
+  const LETRA = c => String.fromCharCode(65 + c);
+  const end = (r, c) => LETRA(c) + (r + 1);
+  const parseEnd = s => { const m = /^([A-Z])(\d+)$/.exec(s); return m ? { r: +m[2] - 1, c: m[1].charCodeAt(0) - 65 } : null; };
+
+  // ---------- folha de exemplo (fixa, só de leitura): reta de regressão ----------
+  const EXEMPLO = {
+    celulas: {
+      A1: "Horas de estudo", B1: "Classificação",
+      D1: "Média de x", E1: "=AVERAGE(A2:A13)",
+      D2: "Média de y", E2: "=AVERAGE(B2:B13)",
+      D3: "Desvio-padrão de y", E3: "=STDEV.S(B2:B13)",
+      D4: "Declive (a)", E4: "=SLOPE(B2:B13,A2:A13)",
+      D5: "Ordenada na origem (b)", E5: "=INTERCEPT(B2:B13,A2:A13)",
+      D6: "Correlação (r)", E6: "=CORREL(A2:A13,B2:B13)",
+      D7: "Previsão para 9.5 h", E7: "=E4*9.5+E5",
+    },
+    larguras: { A: 130, B: 120, D: 190 },
+    grafico: { tipo: "dispersao", intervalo: "A1:B13", reta: true },
+  };
+  [[2, 9.5], [3, 10.2], [4, 11.8], [5, 11], [6, 13.4], [7, 13.1], [8, 15], [9, 14.6], [10, 16.3], [11, 17.1], [12, 16.8], [13, 18.2]]
+    .forEach(([x, y], i) => { EXEMPLO.celulas["A" + (i + 2)] = x; EXEMPLO.celulas["B" + (i + 2)] = y; });
+
+  // ---------- motor das fórmulas (HyperFormula) ----------
+  const HF = window.HyperFormula;
+  if (!HF) { document.body.innerHTML = "<p style='padding:2em'>Não foi possível carregar a folha de cálculo. Verifique a ligação à Internet e recarregue a página.</p>"; return; }
+  HF.registerLanguage("enUS", HF.languages.enUS);
+  // funções que faltam ao HyperFormula: INTERCEPT, FORECAST(.LINEAR), MODE(.SNGL), PERMUT
+  const { FunctionPlugin, FunctionArgumentType: T, CellError, ErrorType } = HF;
+  const pares = (ys, xs) => {
+    const Y = ys.valuesFromTopLeftCorner(), X = xs.valuesFromTopLeftCorner(), p = [];
+    if (Y.length !== X.length) return null;
+    for (let i = 0; i < Y.length; i++) if (typeof Y[i] === "number" && typeof X[i] === "number") p.push([X[i], Y[i]]);
+    return p;
+  };
+  // reta dos mínimos quadrados y = a x + b (e o coeficiente de correlação r)
+  function regressao(p) {
+    const n = p.length; if (n < 2) return null;
+    let mx = 0, my = 0; for (const [x, y] of p) { mx += x / n; my += y / n; }
+    let sxx = 0, syy = 0, sxy = 0; for (const [x, y] of p) { sxx += (x - mx) ** 2; syy += (y - my) ** 2; sxy += (x - mx) * (y - my); }
+    if (!sxx) return null;
+    const a = sxy / sxx; return { a, b: my - a * mx, r: syy ? sxy / Math.sqrt(sxx * syy) : NaN };
+  }
+  class Extra extends FunctionPlugin {
+    intercept(ast, st) { return this.runFunction(ast.args, st, this.metadata("INTERCEPT"), (ys, xs) => { const p = pares(ys, xs); if (!p) return new CellError(ErrorType.NA); const r = regressao(p); return r ? r.b : new CellError(ErrorType.DIV_BY_ZERO); }); }
+    forecast(ast, st) { return this.runFunction(ast.args, st, this.metadata("FORECAST"), (x0, ys, xs) => { const p = pares(ys, xs); if (!p) return new CellError(ErrorType.NA); const r = regressao(p); return r ? r.a * x0 + r.b : new CellError(ErrorType.DIV_BY_ZERO); }); }
+    moda(ast, st) {
+      return this.runFunction(ast.args, st, this.metadata("MODE"), (...rs) => {
+        const conta = new Map(); let best = null, bn = 1;
+        for (const r of rs) for (const v of (r.valuesFromTopLeftCorner ? r.valuesFromTopLeftCorner() : [r])) if (typeof v === "number") {
+          const n = (conta.get(v) || 0) + 1; conta.set(v, n); if (n > bn) { bn = n; best = v; }
+        }
+        return best === null ? new CellError(ErrorType.NA) : best;
+      });
+    }
+    permut(ast, st) { return this.runFunction(ast.args, st, this.metadata("PERMUT"), (n, k) => { n = Math.trunc(n); k = Math.trunc(k); if (n < 0 || k < 0 || k > n) return new CellError(ErrorType.NUM); let p = 1; for (let i = 0; i < k; i++) p *= n - i; return p; }); }
+  }
+  Extra.implementedFunctions = {
+    INTERCEPT: { method: "intercept", parameters: [{ argumentType: T.RANGE }, { argumentType: T.RANGE }] },
+    FORECAST: { method: "forecast", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.RANGE }, { argumentType: T.RANGE }] },
+    "FORECAST.LINEAR": { method: "forecast", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.RANGE }, { argumentType: T.RANGE }] },
+    MODE: { method: "moda", parameters: [{ argumentType: T.ANY }], repeatLastArgs: 1 },
+    "MODE.SNGL": { method: "moda", parameters: [{ argumentType: T.ANY }], repeatLastArgs: 1 },
+    PERMUT: { method: "permut", parameters: [{ argumentType: T.NUMBER }, { argumentType: T.NUMBER }] },
+  };
+  const nomes = Object.fromEntries(Object.keys(Extra.implementedFunctions).map(k => [k, k]));
+  HF.registerFunctionPlugin(Extra, { enGB: nomes, enUS: nomes });
+  const hf = HF.buildEmpty({ licenseKey: "gpl-v3", language: "enUS" });
+  const SH = hf.getSheetId(hf.addSheet("Folha1"));
+  const A = (r, c) => ({ sheet: SH, row: r, col: c });
+
+  // ---------- folhas guardadas no localStorage ----------
+  // o exemplo é fixo (atual = −1): está sempre no topo da lista e não se pode alterar nem apagar
+  let dados = { atual: -1, folhas: [] };
+  try { const d = JSON.parse(localStorage.getItem(CHAVE)); if (d && Array.isArray(d.folhas)) dados = d; } catch (e) {}
+  const exemplo = () => dados.atual < 0;
+  const folha = () => exemplo() ? EXEMPLO : dados.folhas[dados.atual];
+  const guardar = () => { try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (e) {} };
+  const nomeLivre = base => { const n = new Set(dados.folhas.map(f => f.nome)); if (!n.has(base)) return base; for (let i = 2; ; i++) if (!n.has(`${base} ${i}`)) return `${base} ${i}`; };
+  const limpaNome = s => s.trim().replace(/[\\/:*?"<>|]/g, "_").replace(/\.(xlsx|xls|ods|csv|txt)$/i, "");
+  const copia = f => JSON.parse(JSON.stringify({ celulas: f.celulas || {}, larguras: f.larguras || {}, grafico: f.grafico || null }));
+
+  // folha enviada num link (#folha=...): abre como folha nova
+  const m = location.hash.match(/^#folha=([^&]*)(?:&nome=(.*))?$/);
+  if (m) {
+    try {
+      const f = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1])), c => c.charCodeAt(0))));
+      const nome = m[2] ? limpaNome(decodeURIComponent(m[2])) : "";
+      dados.folhas.push({ nome: nomeLivre(nome || "recebida"), ...copia(f) }); dados.atual = dados.folhas.length - 1; guardar();
+    } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+  }
+  dados.atual = Math.min(Math.max(-1, dados.atual | 0), dados.folhas.length - 1);
+
+  // ---------- modo claro/escuro e tamanho da letra ----------
+  const raiz = document.documentElement, btnTema = $("tema");
+  const escuro = () => raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const mostrarTema = () => { btnTema.textContent = escuro() ? "☀" : "☾"; btnTema.title = escuro() ? "Modo claro" : "Modo escuro"; };
+  btnTema.onclick = () => {
+    raiz.dataset.theme = escuro() ? "light" : "dark";
+    try { localStorage.setItem("quarto-color-scheme", escuro() ? "alternate" : "default"); } catch (e) {}
+    mostrarTema(); desenharGrafico(true);
+  };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { mostrarTema(); desenharGrafico(true); });
+  mostrarTema();
+  let letra = 15;
+  try { letra = +localStorage.getItem(CHAVE + "-letra") || 15; } catch (e) {}
+  function mudarLetra(d) {
+    letra = Math.min(28, Math.max(12, letra + d));
+    raiz.style.setProperty("--fs", letra + "px");
+    try { localStorage.setItem(CHAVE + "-letra", letra); } catch (e) {}
+    larguras(); moldura();
+  }
+  $("menor").onclick = () => mudarLetra(-2);
+  $("maior").onclick = () => mudarLetra(2);
+
+  // ---------- a grelha ----------
+  const cab = $("cab"), corpo = $("corpo"), cols = $("cols"), caixa = $("caixa"), ed = $("ed"), fx = $("fx");
+  const TD = [];                                           // TD[r][c]
+  (() => {
+    let h = "<tr><th></th>";
+    for (let c = 0; c < NC; c++) h += `<th data-c="${c}">${LETRA(c)}<span class="redim" data-c="${c}"></span></th>`;
+    cab.innerHTML = h + "</tr>";
+    let b = "";
+    for (let r = 0; r < NR; r++) { b += `<tr><th data-r="${r}">${r + 1}</th>`; for (let c = 0; c < NC; c++) b += `<td data-r="${r}" data-c="${c}"></td>`; b += "</tr>"; }
+    corpo.innerHTML = b;
+    let cg = "<col>"; for (let c = 0; c < NC; c++) cg += "<col>"; cols.innerHTML = cg;
+    corpo.querySelectorAll("tr").forEach((tr, r) => { TD[r] = [...tr.querySelectorAll("td")]; });
+  })();
+  // larguras das colunas (guardadas na folha, em px para letra de 15 px; escalam com a letra)
+  function larguras() {
+    const k = letra / 15, L = folha().larguras || {};
+    cols.children[0].style.width = Math.round(48 * k) + "px";
+    for (let c = 0; c < NC; c++) cols.children[c + 1].style.width = Math.round((L[LETRA(c)] || CW) * k) + "px";
+  }
+
+  // valor de uma célula para mostrar
+  function fmtNum(v) {
+    if (Number.isInteger(v) && Math.abs(v) < 1e15) return String(v);
+    const s = Number(v.toPrecision(10)).toString();
+    return s;
+  }
+  function pintar() {
+    for (let r = 0; r < NR; r++) for (let c = 0; c < NC; c++) {
+      const td = TD[r][c], v = hf.getCellValue(A(r, c));
+      let txt = "", cls = "";
+      if (v === null || v === undefined || v === "") txt = "";
+      else if (typeof v === "number") { txt = fmtNum(v); cls = "num"; }
+      else if (typeof v === "boolean") { txt = v ? "TRUE" : "FALSE"; cls = "bool"; }
+      else if (typeof v === "object") { txt = v.value; cls = "err"; }
+      else txt = String(v);
+      if (td.textContent !== txt) td.textContent = txt;
+      td.dataset.k = cls; td.title = cls === "err" ? (v.message || "") : "";
+    }
+    // texto que não cabe transborda para a direita, enquanto as células seguintes estiverem vazias
+    for (let r = 0; r < NR; r++) for (let c = 0; c < NC; c++) {
+      const td = TD[r][c], k = td.dataset.k;
+      td.className = k + (k === "" && td.textContent && c < NC - 1 && !TD[r][c + 1].textContent ? " solta" : "");
+    }
+    selecionar(false);
+  }
+
+  // ---------- seleção ----------
+  let ancora = { r: 0, c: 0 }, foco = { r: 0, c: 0 };
+  const rng = () => ({ r0: Math.min(ancora.r, foco.r), r1: Math.max(ancora.r, foco.r), c0: Math.min(ancora.c, foco.c), c1: Math.max(ancora.c, foco.c) });
+  const txtRng = R => R.r0 === R.r1 && R.c0 === R.c1 ? end(R.r0, R.c0) : `${end(R.r0, R.c0)}:${end(R.r1, R.c1)}`;
+  let marcadas = [];
+  function retangulo(R) {
+    const a = TD[R.r0][R.c0], b = TD[R.r1][R.c1];
+    return { x: a.offsetLeft, y: a.offsetTop, w: b.offsetLeft + b.offsetWidth - a.offsetLeft, h: b.offsetTop + b.offsetHeight - a.offsetTop };
+  }
+  function pos(el, q) { el.style.left = q.x + "px"; el.style.top = q.y + "px"; el.style.width = q.w + "px"; el.style.height = q.h + "px"; el.style.display = "block"; }
+  function moldura() {
+    const R = rng(), q = retangulo(R);
+    pos($("moldura"), { x: q.x - 1, y: q.y - 1, w: q.w + 1, h: q.h + 1 });
+    const al = $("alca"); al.style.left = q.x + q.w - 5 + "px"; al.style.top = q.y + q.h - 5 + "px"; al.style.display = editando ? "none" : "block";
+  }
+  function selecionar(rolar = true) {
+    for (const td of marcadas) td.classList.remove("sel");
+    for (const th of cab.querySelectorAll(".marca")) th.classList.remove("marca");
+    for (const th of corpo.querySelectorAll("th.marca")) th.classList.remove("marca");
+    marcadas = [];
+    const R = rng();
+    if (R.r0 !== R.r1 || R.c0 !== R.c1)
+      for (let r = R.r0; r <= R.r1; r++) for (let c = R.c0; c <= R.c1; c++) { const td = TD[r][c]; if (r !== foco.r || c !== foco.c || true) { td.classList.add("sel"); marcadas.push(td); } }
+    for (let c = R.c0; c <= R.c1; c++) cab.rows[0].cells[c + 1].classList.add("marca");
+    for (let r = R.r0; r <= R.r1; r++) corpo.rows[r].cells[0].classList.add("marca");
+    moldura();
+    $("ref").textContent = txtRng(R);
+    if (!editando) { const s = hf.getCellSerialized(A(foco.r, foco.c)); fx.value = s === null || s === undefined ? "" : String(s); }
+    explicar();
+    if (rolar) TD[foco.r][foco.c].scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function irPara(r, c, estender) {
+    foco = { r: Math.max(0, Math.min(NR - 1, r)), c: Math.max(0, Math.min(NC - 1, c)) };
+    if (!estender) ancora = { ...foco };
+    selecionar();
+  }
+
+  // explicação curta dos erros, na linha por baixo da barra da fórmula
+  const ERROS = {
+    "#DIV/0!": "Divisão por zero.",
+    "#NAME?": "Nome desconhecido: as funções escrevem-se em inglês (SUM, AVERAGE, STDEV.S, SLOPE…) e o texto entre aspas.",
+    "#VALUE!": "Valor do tipo errado: há texto numa conta? Os decimais escrevem-se com ponto (2.5).",
+    "#REF!": "Referência a uma célula que não existe.",
+    "#NUM!": "Número inválido (por exemplo, a raiz de um número negativo).",
+    "#N/A": "Valor não disponível (por exemplo, intervalos com tamanhos diferentes).",
+    "#CYCLE!": "Referência circular: a fórmula depende do seu próprio resultado.",
+    "#ERROR!": "Erro na fórmula: verifique os parênteses, as vírgulas entre os argumentos e o ponto decimal.",
+  };
+  function explicar() {
+    const v = hf.getCellValue(A(foco.r, foco.c));
+    $("estado").textContent = v && typeof v === "object" ? `${end(foco.r, foco.c)}: ${ERROS[v.value] || v.value} ${v.message && !/^(Division by zero|Function name .* not recognized)/.test(v.message) ? "(" + v.message + ")" : ""}` : "";
+  }
+
+  // ---------- alterar células ----------
+  function soLeitura() {
+    if (!exemplo()) return false;
+    aviso("O exemplo não se pode alterar. Carregue em «Duplicar» para ter uma cópia sua, ou em «Nova».");
+    return true;
+  }
+  function depois() { pintar(); guardarFolha(); desenharGrafico(); }
+  function porCelula(r, c, txt) {
+    txt = String(txt);
+    if (/^-?\d+,\d+$/.test(txt.trim())) aviso("Os decimais escrevem-se com ponto: " + txt.trim().replace(",", "."));
+    hf.setCellContents(A(r, c), txt.trim() === "" ? null : txt);
+  }
+  let tGuardar = null;
+  function guardarFolha() {
+    if (exemplo()) return;
+    clearTimeout(tGuardar);
+    tGuardar = setTimeout(() => {
+      const f = dados.folhas[dados.atual], cel = {}, d = hf.getSheetDimensions(SH);
+      for (let r = 0; r < Math.min(d.height, NR); r++) for (let c = 0; c < Math.min(d.width, NC); c++) {
+        const s = hf.getCellSerialized(A(r, c));
+        if (s !== null && s !== undefined && s !== "") cel[end(r, c)] = s;
+      }
+      f.celulas = cel; guardar();
+    }, 300);
+  }
+  function carregar() {
+    const f = folha(), M = [];
+    for (const [k, v] of Object.entries(f.celulas || {})) {
+      const p = parseEnd(k); if (!p || p.r >= NR || p.c >= NC) continue;
+      (M[p.r] = M[p.r] || [])[p.c] = v;
+    }
+    for (let r = 0; r < M.length; r++) { M[r] = M[r] || []; for (let c = 0; c < NC; c++) if (M[r][c] === undefined) M[r][c] = null; }
+    hf.setSheetContent(SH, M);
+    hf.clearUndoStack(); hf.clearRedoStack();
+    larguras(); pintar(); desenharGrafico(true);
+  }
+  function limpar(R) {
+    if (soLeitura()) return;
+    hf.batch(() => { for (let r = R.r0; r <= R.r1; r++) for (let c = R.c0; c <= R.c1; c++) hf.setCellContents(A(r, c), null); });
+    depois();
+  }
+
+  // ---------- edição ----------
+  let editando = false, viaTecla = false, insercao = null;  // insercao: referência a ser escrita na fórmula com o rato
+  function abrirEditor(txt, tecla) {
+    if (soLeitura()) return;
+    editando = true; viaTecla = tecla; insercao = null;
+    const q = retangulo({ r0: foco.r, r1: foco.r, c0: foco.c, c1: foco.c });
+    ed.style.left = q.x - 1 + "px"; ed.style.top = q.y - 1 + "px"; ed.style.height = q.h + 2 + "px";
+    ed.style.minWidth = q.w + 2 + "px"; ed.style.width = Math.max(q.w + 2, Math.min(600, (txt.length + 2) * letra * 0.62)) + "px";
+    ed.style.display = "block"; ed.value = txt; fx.value = txt;
+    $("alca").style.display = "none";
+    ed.focus(); ed.setSelectionRange(txt.length, txt.length);
+  }
+  function fecharEditor() { editando = false; insercao = null; ed.style.display = "none"; $("refmarca").style.display = "none"; caixa.focus({ preventScroll: true }); }
+  function confirmar(dr, dc) {
+    if (!editando) return;
+    const txt = ed.value;
+    fecharEditor();
+    porCelula(foco.r, foco.c, txt);
+    depois();
+    if (dr || dc) irPara(foco.r + dr, foco.c + dc); else selecionar();
+  }
+  function cancelar() { fecharEditor(); selecionar(); }
+  ed.addEventListener("input", () => {
+    fx.value = ed.value; insercao = null;
+    const q = parseFloat(ed.style.minWidth); ed.style.width = Math.max(q, Math.min(600, (ed.value.length + 2) * letra * 0.62)) + "px";
+  });
+  fx.addEventListener("input", () => {
+    if (!editando) { abrirEditor(fx.value, false); fx.focus(); } else ed.value = fx.value;
+    insercao = null;
+  });
+  fx.addEventListener("focus", () => { if (soLeitura()) fx.blur(); });
+  function teclasEdicao(e, campo) {
+    if (e.key === "Enter") { e.preventDefault(); confirmar(e.shiftKey ? -1 : 1, 0); }
+    else if (e.key === "Tab") { e.preventDefault(); confirmar(0, e.shiftKey ? -1 : 1); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelar(); }
+    else if (viaTecla && campo === ed && !ed.value.startsWith("=") && e.key.startsWith("Arrow")) {   // como no Excel: escreve-se e passa-se à célula ao lado
+      e.preventDefault(); const d = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key]; confirmar(...d);
+    }
+  }
+  ed.addEventListener("keydown", e => { e.stopPropagation(); teclasEdicao(e, ed); });   // o editor está dentro da grelha: a tecla não pode chegar a ela
+  fx.addEventListener("keydown", e => { if (editando) teclasEdicao(e, fx); });
+  // a fórmula aceita uma referência se o cursor estiver a seguir a "=", "(", ",", ":" ou a um operador
+  function aceitaRef() {
+    const el = document.activeElement === fx ? fx : ed, v = el.value;
+    if (!editando || !v.startsWith("=")) return false;
+    if (insercao) return true;
+    const i = el.selectionStart; return /[=(,:+\-*/^&<>;]\s*$/.test(v.slice(0, i));
+  }
+  function escreverRef(R) {
+    const el = document.activeElement === fx ? fx : ed;
+    if (!insercao) insercao = { el, i: el.selectionStart, n: 0 };
+    const t = txtRng(R), v = insercao.el.value;
+    insercao.el.value = v.slice(0, insercao.i) + t + v.slice(insercao.i + insercao.n);
+    insercao.n = t.length;
+    const p = insercao.i + t.length; insercao.el.setSelectionRange(p, p);
+    (insercao.el === ed ? fx : ed).value = insercao.el.value;
+    pos($("refmarca"), retangulo(R));
+  }
+
+  // ---------- rato ----------
+  let arrasto = null;            // "sel" | "ref" | "fill" | {redim}
+  let refAncora = null, fillAlvo = null;
+  const celula = el => { const td = el.closest && el.closest("td"); return td ? { r: +td.dataset.r, c: +td.dataset.c } : null; };
+  caixa.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    if (e.target.classList.contains("redim")) {                       // mudar a largura de uma coluna
+      if (soLeitura()) return;
+      const c = +e.target.dataset.c; arrasto = { redim: c, x0: e.clientX, w0: cols.children[c + 1].offsetWidth || CW };
+      e.preventDefault(); return;
+    }
+    if (e.target.id === "alca") { arrasto = "fill"; fillAlvo = null; e.preventDefault(); return; }
+    const th = e.target.closest("th");
+    if (th) {                                                         // cabeçalhos: coluna, linha ou tudo
+      if (editando) confirmar(0, 0);
+      if (th.dataset.c !== undefined) { ancora = { r: 0, c: +th.dataset.c }; foco = { r: NR - 1, c: +th.dataset.c }; }
+      else if (th.dataset.r !== undefined) { ancora = { r: +th.dataset.r, c: 0 }; foco = { r: +th.dataset.r, c: NC - 1 }; }
+      else { ancora = { r: 0, c: 0 }; foco = { r: NR - 1, c: NC - 1 }; }
+      selecionar(false); e.preventDefault(); return;
+    }
+    const p = celula(e.target); if (!p) return;
+    if (editando && aceitaRef()) {                                    // a escrever uma fórmula: o clique escreve a referência
+      e.preventDefault(); refAncora = p; arrasto = "ref";
+      escreverRef({ r0: p.r, r1: p.r, c0: p.c, c1: p.c }); return;
+    }
+    if (editando) confirmar(0, 0);
+    e.preventDefault();
+    if (e.shiftKey) foco = p; else { ancora = p; foco = p; }
+    arrasto = "sel"; selecionar(false); caixa.focus({ preventScroll: true });
+  });
+  caixa.addEventListener("mouseover", e => {
+    if (!arrasto || typeof arrasto === "object") return;
+    const p = celula(e.target); if (!p) return;
+    if (arrasto === "sel") { foco = p; selecionar(false); }
+    else if (arrasto === "ref") escreverRef({ r0: Math.min(refAncora.r, p.r), r1: Math.max(refAncora.r, p.r), c0: Math.min(refAncora.c, p.c), c1: Math.max(refAncora.c, p.c) });
+    else if (arrasto === "fill") {
+      const R = rng(); let T = null;
+      if (p.r > R.r1) T = { ...R, r1: p.r }; else if (p.r < R.r0) T = { ...R, r0: p.r };
+      else if (p.c > R.c1) T = { ...R, c1: p.c }; else if (p.c < R.c0) T = { ...R, c0: p.c };
+      fillAlvo = T;
+      if (T) pos($("preenche"), retangulo(T)); else $("preenche").style.display = "none";
+    }
+  });
+  document.addEventListener("mousemove", e => {
+    if (arrasto && typeof arrasto === "object") {
+      const L = folha().larguras = folha().larguras || {};
+      L[LETRA(arrasto.redim)] = Math.max(30, Math.round((arrasto.w0 + e.clientX - arrasto.x0) * 15 / letra));
+      larguras(); moldura();
+    }
+  });
+  document.addEventListener("mouseup", () => {
+    if (arrasto === "fill") { $("preenche").style.display = "none"; if (fillAlvo) preencher(rng(), fillAlvo); }
+    else if (arrasto && typeof arrasto === "object") guardar();
+    else if (arrasto === "ref") $("refmarca").style.display = "none";
+    arrasto = null;
+  });
+  caixa.addEventListener("dblclick", e => {
+    const p = celula(e.target); if (!p || editando) return;
+    const s = hf.getCellSerialized(A(p.r, p.c)); abrirEditor(s === null || s === undefined ? "" : String(s), false);
+  });
+
+  // preencher (arrastar o quadrado do canto): números seguidos continuam em progressão aritmética;
+  // o resto (fórmulas incluídas) é copiado, com as referências relativas ajustadas
+  function preencher(R, T) {
+    if (soLeitura()) return;
+    const vertical = T.r0 !== R.r0 || T.r1 !== R.r1, escritas = [];
+    // primeiro lê-se tudo (durante um batch o HyperFormula não deixa ler valores), depois escreve-se de uma vez
+    if (vertical) for (let c = R.c0; c <= R.c1; c++) linhaSerie(c, R.r0, R.r1, T.r0, T.r1, true, escritas);
+    else for (let r = R.r0; r <= R.r1; r++) linhaSerie(r, R.c0, R.c1, T.c0, T.c1, false, escritas);
+    hf.batch(() => escritas.forEach(([a, v]) => hf.setCellContents(a, v)));
+    ancora = { r: T.r0, c: T.c0 }; foco = { r: T.r1, c: T.c1 };
+    depois();
+  }
+  function linhaSerie(k, i0, i1, j0, j1, vertical, escritas) {
+    const ad = i => vertical ? A(i, k) : A(k, i);
+    const src = [], val = [];
+    for (let i = i0; i <= i1; i++) { src.push(hf.getCellSerialized(ad(i))); val.push(hf.getCellValue(ad(i))); }
+    const formula = v => typeof v === "string" && v.startsWith("=");
+    const nums = src.length >= 2 && src.every((v, i) => !formula(v) && typeof val[i] === "number");
+    let passo = null;
+    if (nums) { passo = (val[val.length - 1] - val[0]) / (val.length - 1); if (!val.every((v, i) => Math.abs(v - (val[0] + i * passo)) < 1e-9 * (1 + Math.abs(v)))) passo = null; }
+    for (let j = j0; j <= j1; j++) {
+      if (j >= i0 && j <= i1) continue;
+      if (passo !== null) { escritas.push([ad(j), +(val[0] + (j - i0) * passo).toPrecision(12)]); continue; }
+      const n = i1 - i0 + 1, o = ((j - i0) % n + n) % n, d = j - (i0 + o);   // origem (o bloco repete-se) e deslocamento
+      const v = src[o];
+      escritas.push([ad(j), formula(v) ? deslocar(v, vertical ? d : 0, vertical ? 0 : d) : v]);
+    }
+  }
+  // fórmula copiada para dr linhas abaixo e dc colunas à direita: as referências relativas mudam, as absolutas ($) não
+  // (as colunas são uma só letra, A–Z; o texto entre aspas não se mexe)
+  function deslocar(f, dr, dc) {
+    return f.split(/("[^"]*")/).map((parte, i) => i % 2 ? parte : parte.replace(/(?<![A-Za-z_.$\d])(\$?)([A-Z])(\$?)(\d+)(?![\d(A-Za-z_])/g, (t, d1, col, d2, lin) => {
+      const c = d1 ? col.charCodeAt(0) - 65 : col.charCodeAt(0) - 65 + dc, r = d2 ? +lin : +lin + dr;
+      return c < 0 || c >= NC || r < 1 ? "#REF!" : `${d1}${LETRA(c)}${d2}${r}`;
+    })).join("");
+  }
+
+  // ---------- teclado ----------
+  caixa.addEventListener("keydown", e => {
+    if (editando) return;
+    const ctrl = e.ctrlKey || e.metaKey, k = e.key;
+    const mov = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
+    if (mov) { e.preventDefault(); irPara(foco.r + mov[0], foco.c + mov[1], e.shiftKey); }
+    else if (k === "Enter") { e.preventDefault(); irPara(foco.r + (e.shiftKey ? -1 : 1), foco.c); }
+    else if (k === "Tab") { e.preventDefault(); irPara(foco.r, foco.c + (e.shiftKey ? -1 : 1)); }
+    else if (k === "F2") { e.preventDefault(); const s = hf.getCellSerialized(A(foco.r, foco.c)); abrirEditor(s === null || s === undefined ? "" : String(s), false); }
+    else if (k === "Delete" || k === "Backspace") { e.preventDefault(); limpar(rng()); }
+    else if (ctrl && k.toLowerCase() === "z") { e.preventDefault(); desfazer(e.shiftKey); }
+    else if (ctrl && k.toLowerCase() === "y") { e.preventDefault(); desfazer(true); }
+    else if (ctrl && k.toLowerCase() === "a") { e.preventDefault(); ancora = { r: 0, c: 0 }; foco = { r: NR - 1, c: NC - 1 }; selecionar(false); }
+    else if (k.length === 1 && !ctrl && !e.altKey) { e.preventDefault(); ancora = { ...foco }; selecionar(false); abrirEditor(k, true); }
+  });
+  function desfazer(refazer) {
+    if (exemplo()) return;
+    if (refazer ? hf.isThereSomethingToRedo() : hf.isThereSomethingToUndo()) { refazer ? hf.redo() : hf.undo(); depois(); }
+  }
+
+  // ---------- copiar e colar (compatível com o Excel e o Google Sheets) ----------
+  let clip = null;                                         // última cópia feita aqui: colar mantém as fórmulas
+  const naGrelha = () => !editando && (document.activeElement === caixa || caixa.contains(document.activeElement));
+  function tsv(R) {
+    const linhas = [];
+    for (let r = R.r0; r <= R.r1; r++) { const l = []; for (let c = R.c0; c <= R.c1; c++) l.push(TD[r][c].dataset.k === "err" ? TD[r][c].textContent : TD[r][c].textContent); linhas.push(l.join("\t")); }
+    return linhas.join("\n");
+  }
+  function copiar(e, cortar) {
+    if (!naGrelha()) return;
+    e.preventDefault();
+    const R = rng(), t = tsv(R);
+    e.clipboardData.setData("text/plain", t);
+    clip = { t, R, cortar };
+    if (cortar && soLeitura()) clip.cortar = false;
+  }
+  document.addEventListener("copy", e => copiar(e, false));
+  document.addEventListener("cut", e => copiar(e, true));
+  document.addEventListener("paste", e => {
+    if (!naGrelha()) return;
+    e.preventDefault();
+    if (soLeitura()) return;
+    const t = e.clipboardData.getData("text/plain");
+    const R0 = { sheet: SH, row: foco.r, col: foco.c };
+    if (clip && t === clip.t) {
+      const s = { start: A(clip.R.r0, clip.R.c0), end: A(clip.R.r1, clip.R.c1) };
+      if (clip.cortar) { hf.cut(s); clip = null; } else hf.copy(s);
+      hf.paste(R0);
+      ancora = { ...foco }; foco = { r: Math.min(NR - 1, foco.r + (s.end.row - s.start.row)), c: Math.min(NC - 1, foco.c + (s.end.col - s.start.col)) };
+    } else {
+      const linhas = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(l => l.split("\t"));
+      hf.batch(() => linhas.forEach((l, i) => l.forEach((v, j) => { if (foco.r + i < NR && foco.c + j < NC) porCelula(foco.r + i, foco.c + j, v); })));
+      ancora = { ...foco }; foco = { r: Math.min(NR - 1, foco.r + linhas.length - 1), c: Math.min(NC - 1, foco.c + Math.max(...linhas.map(l => l.length)) - 1) };
+    }
+    depois();
+  });
+
+  // ---------- gráfico (Chart.js) ----------
+  let grafico = null;
+  const CORES = ["#1565c0", "#d32f2f", "#2e7d32", "#ef6c00", "#7b1fa2", "#00838f"];
+  const g = () => folha().grafico;
+  const fmtCoef = v => { const s = Number(v.toPrecision(4)).toString(); return s; };
+  function dadosGrafico(G) {
+    const [a, b] = G.intervalo.split(":"), p = parseEnd(a), q = parseEnd(b || a);
+    if (!p || !q) return null;
+    const R = { r0: Math.min(p.r, q.r), r1: Math.max(p.r, q.r), c0: Math.min(p.c, q.c), c1: Math.max(p.c, q.c) };
+    const V = (r, c) => hf.getCellValue(A(r, c));
+    let r0 = R.r0, nomes = [];
+    const titulos = R.r1 > R.r0 && [...Array(R.c1 - R.c0 + 1)].some((_, i) => typeof V(R.r0, R.c0 + i) === "string");
+    if (titulos) { for (let c = R.c0; c <= R.c1; c++) nomes.push(String(V(R.r0, c) ?? "")); r0++; }
+    const doisOuMais = R.c1 > R.c0, xs = [], series = [];
+    for (let r = r0; r <= R.r1; r++) xs.push(doisOuMais ? V(r, R.c0) : r - r0 + 1);
+    for (let c = doisOuMais ? R.c0 + 1 : R.c0; c <= R.c1; c++) {
+      const ys = []; for (let r = r0; r <= R.r1; r++) ys.push(V(r, c));
+      series.push({ nome: titulos ? nomes[c - R.c0] : (doisOuMais ? LETRA(c) : "y"), ys });
+    }
+    const xnum = xs.every(x => x === null || x === undefined || typeof x === "number");
+    return { xs, series, xnum, nomeX: titulos && doisOuMais ? nomes[0] : (doisOuMais ? LETRA(R.c0) : "n.º"), R };
+  }
+  function desenharGrafico(recriar) {
+    const G = g(), css = getComputedStyle(raiz), cor = n => css.getPropertyValue(n).trim();
+    document.querySelectorAll("#painel [data-tipo]").forEach(b => b.classList.toggle("on", !!G && b.dataset.tipo === G.tipo));
+    $("reta").checked = !!(G && G.reta); $("reta").disabled = !G || G.tipo !== "dispersao";
+    if (recriar && grafico) { grafico.destroy(); grafico = null; }
+    const D = G && dadosGrafico(G);
+    $("vazio").style.display = D ? "none" : "flex";
+    $("info").textContent = "";
+    if (!D) { if (grafico) { grafico.destroy(); grafico = null; } return; }
+    const tipo = G.tipo, ds = [];
+    let labels;
+    if (tipo === "barras" || !D.xnum) labels = D.xs.map(x => x === null || x === undefined ? "" : typeof x === "number" ? fmtNum(x) : String(x));
+    D.series.forEach((s, i) => {
+      const c = CORES[i % CORES.length];
+      const pontos = D.xs.map((x, j) => ({ x: D.xnum ? x : j, y: s.ys[j] })).filter(q => typeof q.y === "number" && typeof q.x === "number");
+      if (tipo === "barras" || !D.xnum) ds.push({ label: s.nome, data: s.ys.map(y => typeof y === "number" ? y : null), backgroundColor: c + (tipo === "barras" ? "cc" : ""), borderColor: c, borderWidth: tipo === "barras" ? 0 : 2.5, pointRadius: 3.5, spanGaps: true });
+      else ds.push({ label: s.nome, data: pontos, borderColor: c, backgroundColor: c, showLine: tipo === "linhas", borderWidth: 2.5, pointRadius: tipo === "linhas" ? 3 : 5, pointHoverRadius: 7 });
+    });
+    if (tipo === "dispersao" && G.reta && D.xnum && D.series.length) {
+      const p = D.xs.map((x, j) => [x, D.series[0].ys[j]]).filter(([x, y]) => typeof x === "number" && typeof y === "number");
+      const r = regressao(p);
+      if (r) {
+        const xmin = Math.min(...p.map(q => q[0])), xmax = Math.max(...p.map(q => q[0]));
+        ds.push({ label: "reta de regressão", data: [{ x: xmin, y: r.a * xmin + r.b }, { x: xmax, y: r.a * xmax + r.b }], showLine: true, pointRadius: 0, borderColor: cor("--accent"), borderWidth: 2.5, borderDash: [] });
+        $("info").textContent = `y = ${fmtCoef(r.a)}x ${r.b < 0 ? "−" : "+"} ${fmtCoef(Math.abs(r.b))}   r = ${isNaN(r.r) ? "—" : fmtCoef(r.r)}`;
+      }
+    }
+    const tinta = cor("--ink"), linha = cor("--grid"), mudo = cor("--muted");
+    const escalaX = tipo === "barras" || !D.xnum ? { type: "category" } : { type: "linear" };
+    const opts = {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: D.series.length > 1 || (tipo === "dispersao" && G.reta), labels: { color: tinta, font: { family: "Atkinson Hyperlegible", size: 13 } } },
+                 tooltip: { callbacks: { label: c => `${c.dataset.label}: (${typeof c.parsed.x === "number" && D.xnum ? fmtNum(c.parsed.x) : c.label}; ${fmtNum(c.parsed.y)})` } } },
+      scales: {
+        x: { ...escalaX, title: { display: true, text: D.nomeX, color: mudo, font: { family: "Atkinson Hyperlegible", size: 13 } }, ticks: { color: tinta }, grid: { color: linha } },
+        y: { title: { display: D.series.length === 1, text: D.series[0] ? D.series[0].nome : "", color: mudo, font: { family: "Atkinson Hyperlegible", size: 13 } }, ticks: { color: tinta }, grid: { color: linha } },
+      },
+    };
+    const tipoChart = tipo === "barras" ? "bar" : (tipo === "linhas" && !D.xnum ? "line" : (D.xnum ? "scatter" : "line"));
+    if (grafico && grafico.config.type === tipoChart) { grafico.data.labels = labels; grafico.data.datasets = ds; grafico.options = opts; grafico.update("none"); }
+    else { if (grafico) grafico.destroy(); grafico = new Chart($("cv"), { type: tipoChart, data: { labels, datasets: ds }, options: opts }); }
+  }
+  document.querySelectorAll("#painel [data-tipo]").forEach(b => b.onclick = () => {
+    const R = rng(), f = folha();
+    const novo = R.r0 !== R.r1 || R.c0 !== R.c1 ? txtRng(R) : (f.grafico && f.grafico.intervalo);
+    if (!novo) { aviso("Selecione primeiro os dados, por exemplo A1:B13 (clicar e arrastar)."); return; }
+    f.grafico = { tipo: b.dataset.tipo, intervalo: novo, reta: f.grafico ? !!f.grafico.reta : b.dataset.tipo === "dispersao" };
+    if (!exemplo()) guardar();
+    desenharGrafico(true); caixa.focus({ preventScroll: true });
+  });
+  $("semgraf").onclick = () => { folha().grafico = null; if (!exemplo()) guardar(); desenharGrafico(true); };
+  $("reta").onchange = () => { const G = g(); if (G) { G.reta = $("reta").checked; if (!exemplo()) guardar(); desenharGrafico(); } };
+
+  // ---------- lista de folhas ----------
+  const lista = $("lista");
+  function mostrarLista() {
+    lista.innerHTML = "";
+    lista.add(new Option("exemplo (só leitura)", -1, false, exemplo()));
+    dados.folhas.forEach((f, i) => lista.add(new Option(f.nome, i, false, i === dados.atual)));
+  }
+  function abrirFolha(i) {
+    if (editando) fecharEditor();
+    // o exemplo volta sempre ao estado original
+    if (i < 0) { EXEMPLO.grafico = { tipo: "dispersao", intervalo: "A1:B13", reta: true }; EXEMPLO.larguras = { A: 130, B: 120, D: 190 }; }
+    dados.atual = i; guardar(); mostrarLista(); carregar();
+    ancora = { r: 0, c: 0 }; foco = { r: 0, c: 0 }; selecionar();
+    $("renomear").disabled = $("apagar").disabled = exemplo();
+    caixa.focus({ preventScroll: true });
+  }
+  lista.onchange = () => abrirFolha(+lista.value);
+  $("nova").onclick = () => {
+    const nome = prompt("Nome da nova folha:", nomeLivre("folha")); if (nome === null || !limpaNome(nome)) return;
+    dados.folhas.push({ nome: nomeLivre(limpaNome(nome)), celulas: {}, larguras: {}, grafico: null }); abrirFolha(dados.folhas.length - 1);
+  };
+  $("duplicar").onclick = () => {
+    const base = exemplo() ? "exemplo" : dados.folhas[dados.atual].nome;
+    if (!exemplo()) { clearTimeout(tGuardar); guardarAgora(); }
+    dados.folhas.push({ nome: nomeLivre(base + " (cópia)"), ...copia(folha()) }); abrirFolha(dados.folhas.length - 1);
+    aviso("Cópia criada: pode alterá-la à vontade.");
+  };
+  function guardarAgora() {
+    const f = dados.folhas[dados.atual], cel = {}, d = hf.getSheetDimensions(SH);
+    for (let r = 0; r < Math.min(d.height, NR); r++) for (let c = 0; c < Math.min(d.width, NC); c++) { const s = hf.getCellSerialized(A(r, c)); if (s !== null && s !== undefined && s !== "") cel[end(r, c)] = s; }
+    f.celulas = cel; guardar();
+  }
+  $("renomear").onclick = () => {
+    const f = dados.folhas[dados.atual], nome = prompt("Novo nome:", f.nome);
+    if (nome === null || !limpaNome(nome)) return; f.nome = limpaNome(nome); guardar(); mostrarLista();
+  };
+  $("apagar").onclick = () => {
+    const f = dados.folhas[dados.atual];
+    if (!confirm(`Apagar «${f.nome}»? Não é possível desfazer.`)) return;
+    dados.folhas.splice(dados.atual, 1); abrirFolha(Math.min(dados.atual, dados.folhas.length - 1));
+  };
+
+  // ---------- ficheiros (.xlsx, .ods, .csv) com SheetJS, carregado só quando é preciso ----------
+  let xlsx = null;
+  const sheetjs = () => xlsx || (xlsx = new Promise((ok, falha) => { const s = document.createElement("script"); s.src = "xlsx.full.min.js"; s.onload = () => ok(window.XLSX); s.onerror = falha; document.head.appendChild(s); }));
+  $("abrir").onclick = () => $("ficheiro").click();
+  $("ficheiro").onchange = async e => {
+    const fich = e.target.files[0]; e.target.value = ""; if (!fich) return;
+    try {
+      const X = await sheetjs();
+      const wb = /\.(csv|txt)$/i.test(fich.name) ? X.read(await fich.text(), { type: "string", raw: false }) : X.read(await fich.arrayBuffer(), { cellFormula: true });
+      const ws = wb.Sheets[wb.SheetNames[0]], cel = {}; let cortado = false;
+      for (const k of Object.keys(ws)) {
+        if (k[0] === "!") continue;
+        const p = X.utils.decode_cell(k);
+        if (p.r >= NR || p.c >= NC) { cortado = true; continue; }
+        const cc = ws[k];
+        const v = cc.f ? "=" + cc.f : cc.t === "b" ? (cc.v ? "TRUE" : "FALSE") : cc.v;
+        if (v !== undefined && v !== null && v !== "") cel[end(p.r, p.c)] = v;
+      }
+      dados.folhas.push({ nome: nomeLivre(limpaNome(fich.name) || "importada"), celulas: cel, larguras: {}, grafico: null });
+      abrirFolha(dados.folhas.length - 1);
+      aviso(cortado ? "Só foram lidas as colunas A–Z e as primeiras 200 linhas." : wb.SheetNames.length > 1 ? "Foi lida só a primeira folha do ficheiro." : "Ficheiro aberto.");
+    } catch (err) { console.error(err); aviso("Não foi possível abrir este ficheiro."); }
+  };
+  $("descarregar").onclick = async () => {
+    try {
+      const X = await sheetjs(), ws = {}, d = hf.getSheetDimensions(SH);
+      let maxR = 0, maxC = 0;
+      for (let r = 0; r < Math.min(d.height, NR); r++) for (let c = 0; c < Math.min(d.width, NC); c++) {
+        const s = hf.getCellSerialized(A(r, c)); if (s === null || s === undefined || s === "") continue;
+        const v = hf.getCellValue(A(r, c)), cc = {};
+        if (typeof v === "number") { cc.t = "n"; cc.v = v; } else if (typeof v === "boolean") { cc.t = "b"; cc.v = v; }
+        else if (v && typeof v === "object") { cc.t = "e"; cc.v = 0x07; cc.w = v.value; } else { cc.t = "s"; cc.v = String(v ?? ""); }
+        if (typeof s === "string" && s.startsWith("=")) cc.f = s.slice(1);
+        ws[end(r, c)] = cc; maxR = Math.max(maxR, r); maxC = Math.max(maxC, c);
+      }
+      ws["!ref"] = `A1:${end(maxR, maxC)}`;
+      const L = folha().larguras || {};
+      ws["!cols"] = [...Array(maxC + 1)].map((_, c) => ({ wpx: L[LETRA(c)] || CW }));
+      const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, "Folha1");
+      X.writeFile(wb, (exemplo() ? "exemplo" : dados.folhas[dados.atual].nome) + ".xlsx");
+    } catch (err) { console.error(err); aviso("Não foi possível criar o ficheiro."); }
+  };
+  $("partilhar").onclick = async () => {
+    if (!exemplo()) { clearTimeout(tGuardar); guardarAgora(); }
+    const json = JSON.stringify(copia(folha()));
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+    const nome = exemplo() ? "exemplo" : dados.folhas[dados.atual].nome;
+    const url = `${location.origin}${location.pathname}#folha=${encodeURIComponent(b64)}&nome=${encodeURIComponent(nome)}`;
+    try { await navigator.clipboard.writeText(url); aviso("Link copiado: quem o abrir recebe uma cópia desta folha."); }
+    catch (e) { prompt("Copie este link:", url); }
+  };
+
+  function aviso(texto) {
+    const el = $("msg"); el.textContent = texto; el.classList.add("ver");
+    clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove("ver"), 3500);
+  }
+
+  raiz.style.setProperty("--fs", letra + "px");
+  if (document.fonts) document.fonts.ready.then(() => moldura());
+  window.addEventListener("resize", () => moldura());
+  abrirFolha(dados.atual);
+})();
+</script>
+</body>
+</html>
