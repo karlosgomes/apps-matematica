@@ -54,6 +54,9 @@
   #fx { flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink);
         font: var(--fs) "IBM Plex Mono", ui-monospace, monospace; outline: none; }
   #fx:focus { border-color: var(--accent); }
+  #fixar { font: 600 .85rem "IBM Plex Mono", ui-monospace, monospace; padding: 3px 9px; border-radius: 5px; border: 1px solid var(--line);
+           background: var(--bg); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  #fixar:hover { border-color: var(--accent); }
   #estado { padding: 0 12px; min-height: 0; font-size: .88rem; color: var(--err); background: var(--panel); }
   #estado:not(:empty) { padding: 3px 12px 5px; border-bottom: 1px solid var(--line); }
 
@@ -145,6 +148,7 @@
   <span id="ref">A1</span>
   <span id="fxlab">fx</span>
   <input id="fx" type="text" spellcheck="false" autocomplete="off" aria-label="Conteúdo ou fórmula da célula">
+  <button id="fixar" title="Fixar a referência onde está o cursor (F4): A1 → $A$1 (célula) → A$1 (linha) → $A1 (coluna) → A1">$ F4</button>
 </div>
 <div id="estado" role="status"></div>
 <main>
@@ -168,6 +172,7 @@
     <div id="info"></div>
     <div id="ajuda">Fórmulas em inglês, com ponto decimal e vírgula entre os argumentos:
       <code>=AVERAGE(B2:B13)</code> <code>=STDEV.S(B2:B13)</code> <code>=SLOPE(B2:B13,A2:A13)</code> <code>=INTERCEPT(…)</code> <code>=CORREL(…)</code>.
+      F4 (ou o botão «$ F4») fixa a referência onde está o cursor: <code>$A$1</code> → <code>A$1</code> → <code>$A1</code>.
       Ao escrever o nome de uma função aparece a lista (setas e Enter para escolher) e, por baixo da barra da fórmula, os seus argumentos.
       Arraste o quadrado no canto da seleção para preencher. As folhas ficam guardadas <b>neste navegador</b>.</div>
   </aside>
@@ -489,6 +494,7 @@
       if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); aceitarSug(campo, sugs[sugAtual]); return; }
       if (e.key === "Escape") { e.preventDefault(); esconderSug(); return; }
     }
+    if (e.key === "F4") { e.preventDefault(); fixarRef(campo); return; }
     if (e.key === "Enter") { e.preventDefault(); confirmar(e.shiftKey ? -1 : 1, 0); }
     else if (e.key === "Tab") { e.preventDefault(); confirmar(0, e.shiftKey ? -1 : 1); }
     else if (e.key === "Escape") { e.preventDefault(); cancelar(); }
@@ -498,6 +504,41 @@
   }
   ed.addEventListener("keydown", e => { e.stopPropagation(); teclasEdicao(e, ed); });   // o editor está dentro da grelha: a tecla não pode chegar a ela
   fx.addEventListener("keydown", e => { if (editando) teclasEdicao(e, fx); });
+  // ---------- F4: fixar a referência onde está o cursor ----------
+  // como no Excel: A1 → $A$1 (fixa a célula) → A$1 (fixa a linha) → $A1 (fixa a coluna) → A1; num intervalo (A1:B3) muda as duas pontas
+  const REF = /(?<![A-Za-z_.$\d])(\$?)([A-Z])(\$?)(\d+)(?![\d(A-Za-z_])/g;
+  function fixarRef(campo) {
+    const v = campo.value, i = campo.selectionStart;
+    if (!v.startsWith("=")) return;
+    const refs = []; let m; REF.lastIndex = 0;
+    while ((m = REF.exec(v))) if (v.slice(0, m.index).split('"').length % 2) refs.push({ a: m.index, b: m.index + m[0].length, d1: m[1], col: m[2], d2: m[3], lin: m[4] });
+    let k = refs.findIndex(r => i >= r.a && i <= r.b);
+    if (k < 0) k = refs.map(r => r.b <= i).lastIndexOf(true);          // senão, a última referência antes do cursor
+    if (k < 0) { aviso("Ponha o cursor numa referência (por exemplo A1) e carregue em F4."); return; }
+    // intervalo: as duas pontas mudam juntas
+    let grupo = [k];
+    if (k > 0 && v[refs[k].a - 1] === ":" && refs[k - 1].b === refs[k].a - 1) grupo = [k - 1, k];
+    else if (k < refs.length - 1 && v[refs[k].b] === ":" && refs[k + 1].a === refs[k].b + 1) grupo = [k, k + 1];
+    const r0 = refs[grupo[0]], estado = (r0.d1 ? 2 : 0) + (r0.d2 ? 1 : 0);   // 0: A1, 3: $A$1, 1: A$1, 2: $A1
+    const seguinte = { 0: ["$", "$"], 3: ["", "$"], 1: ["$", ""], 2: ["", ""] }[estado];
+    let novo = v, fim = 0;
+    for (const j of [...grupo].reverse()) {
+      const r = refs[j], t = `${seguinte[0]}${r.col}${seguinte[1]}${r.lin}`;
+      novo = novo.slice(0, r.a) + t + novo.slice(r.b);
+      if (j === grupo[grupo.length - 1]) fim = r.a + t.length;
+    }
+    if (grupo.length === 2) fim = refs[grupo[0]].a + (novo.length - v.length) + (refs[grupo[1]].b - refs[grupo[0]].a);
+    campo.value = novo; campo.setSelectionRange(fim, fim);
+    (campo === ed ? fx : ed).value = novo;
+    insercao = null; esconderSug(); ajudaArgs(campo);
+    const q = parseFloat(ed.style.minWidth); ed.style.width = Math.max(q, Math.min(600, (ed.value.length + 2) * letra * 0.62)) + "px";
+  }
+  $("fixar").addEventListener("mousedown", e => {
+    e.preventDefault();                                     // o campo de edição não perde o foco
+    if (!editando) { aviso("Escreva ou edite uma fórmula e ponha o cursor numa referência (por exemplo A1)."); return; }
+    fixarRef(document.activeElement === fx ? fx : ed);
+  });
+
   // ---------- autocompletar das funções e ajuda dos argumentos ----------
   // sintaxe (como no Excel em inglês) e o que faz, para as funções mais usadas na aula; estas aparecem primeiro na lista
   const AJUDA = {
