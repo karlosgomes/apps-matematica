@@ -98,6 +98,16 @@
   #ajuda { padding: 8px 12px; font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); }
   #ajuda code { font: .92em "IBM Plex Mono", ui-monospace, monospace; background: var(--bg); padding: 0 4px; border-radius: 3px; color: var(--ink); }
   #vazio { position: absolute; inset: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: .92rem; }
+  /* autocompletar das funções */
+  #sug { position: fixed; z-index: 30; display: none; min-width: 16em; max-height: 18em; overflow: auto; margin: 0; padding: 3px 0; list-style: none;
+         background: var(--bg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.2);
+         font: calc(var(--fs) * .95) "IBM Plex Mono", ui-monospace, monospace; }
+  #sug li { padding: 2px 10px; cursor: pointer; white-space: nowrap; }
+  #sug li small { font-family: "Atkinson Hyperlegible", sans-serif; color: var(--muted); margin-left: 10px; }
+  #sug li.on { background: var(--accent); color: #fff; }
+  #sug li.on small { color: #fff; }
+  #estado.dica { color: var(--muted); }
+  #estado.dica b { color: var(--ink); font: 600 .95em "IBM Plex Mono", ui-monospace, monospace; }
   #msg { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--banner); color: #fff;
          padding: 8px 16px; border-radius: 8px; font-size: .92rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; z-index: 20; }
   #msg.ver { opacity: 1; }
@@ -158,9 +168,11 @@
     <div id="info"></div>
     <div id="ajuda">Fórmulas em inglês, com ponto decimal e vírgula entre os argumentos:
       <code>=AVERAGE(B2:B13)</code> <code>=STDEV.S(B2:B13)</code> <code>=SLOPE(B2:B13,A2:A13)</code> <code>=INTERCEPT(…)</code> <code>=CORREL(…)</code>.
+      Ao escrever o nome de uma função aparece a lista (setas e Enter para escolher) e, por baixo da barra da fórmula, os seus argumentos.
       Arraste o quadrado no canto da seleção para preencher. As folhas ficam guardadas <b>neste navegador</b>.</div>
   </aside>
 </main>
+<ul id="sug" role="listbox" aria-label="Funções"></ul>
 <div id="msg" role="status"></div>
 <script>
 (() => {
@@ -377,6 +389,7 @@
     "#ERROR!": "Erro na fórmula: verifique os parênteses, as vírgulas entre os argumentos e o ponto decimal.",
   };
   function explicar() {
+    $("estado").className = "";
     const v = hf.getCellValue(A(foco.r, foco.c));
     $("estado").textContent = v && typeof v === "object" ? `${end(foco.r, foco.c)}: ${ERROS[v.value] || v.value} ${v.message && !/^(Division by zero|Function name .* not recognized)/.test(v.message) ? "(" + v.message + ")" : ""}` : "";
   }
@@ -435,10 +448,12 @@
     $("alca").style.display = "none";
     ed.focus(); ed.setSelectionRange(txt.length, txt.length);
   }
-  function fecharEditor() { editando = false; insercao = null; ed.style.display = "none"; $("refmarca").style.display = "none"; caixa.focus({ preventScroll: true }); }
+  function fecharEditor() { editando = false; insercao = null; esconderSug(); ed.style.display = "none"; $("refmarca").style.display = "none"; caixa.focus({ preventScroll: true }); }
   function confirmar(dr, dc) {
     if (!editando) return;
-    const txt = ed.value;
+    let txt = ed.value;
+    // como no Excel: os parênteses que ficaram abertos fecham-se sozinhos
+    if (txt.startsWith("=")) { const fora = txt.split('"').filter((_, i) => i % 2 === 0).join(""), n = (fora.match(/\(/g) || []).length - (fora.match(/\)/g) || []).length; if (n > 0) txt += ")".repeat(n); }
     fecharEditor();
     porCelula(foco.r, foco.c, txt);
     depois();
@@ -448,13 +463,20 @@
   ed.addEventListener("input", () => {
     fx.value = ed.value; insercao = null;
     const q = parseFloat(ed.style.minWidth); ed.style.width = Math.max(q, Math.min(600, (ed.value.length + 2) * letra * 0.62)) + "px";
+    sugerir(ed);
   });
   fx.addEventListener("input", () => {
     if (!editando) { abrirEditor(fx.value, false); fx.focus(); } else ed.value = fx.value;
-    insercao = null;
+    insercao = null; sugerir(fx);
   });
+  ["click", "keyup"].forEach(ev => { ed.addEventListener(ev, () => editando && ajudaArgs(ed)); fx.addEventListener(ev, () => editando && ajudaArgs(fx)); });
   fx.addEventListener("focus", () => { if (soLeitura()) fx.blur(); });
   function teclasEdicao(e, campo) {
+    if (sugs.length) {                                     // lista de funções aberta: setas escolhem, Enter/Tab aceitam, Esc fecha
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sugAtual = (sugAtual + (e.key === "ArrowDown" ? 1 : -1) + sugs.length) % sugs.length; mostrarSug(campo); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); aceitarSug(campo, sugs[sugAtual]); return; }
+      if (e.key === "Escape") { e.preventDefault(); esconderSug(); return; }
+    }
     if (e.key === "Enter") { e.preventDefault(); confirmar(e.shiftKey ? -1 : 1, 0); }
     else if (e.key === "Tab") { e.preventDefault(); confirmar(0, e.shiftKey ? -1 : 1); }
     else if (e.key === "Escape") { e.preventDefault(); cancelar(); }
@@ -464,6 +486,84 @@
   }
   ed.addEventListener("keydown", e => { e.stopPropagation(); teclasEdicao(e, ed); });   // o editor está dentro da grelha: a tecla não pode chegar a ela
   fx.addEventListener("keydown", e => { if (editando) teclasEdicao(e, fx); });
+  // ---------- autocompletar das funções e ajuda dos argumentos ----------
+  // sintaxe (como no Excel em inglês) e o que faz, para as funções mais usadas na aula; estas aparecem primeiro na lista
+  const AJUDA = {
+    SUM: ["number1, [number2], …", "soma"], AVERAGE: ["number1, [number2], …", "média"], MEDIAN: ["number1, [number2], …", "mediana"],
+    MODE: ["number1, [number2], …", "moda"], MIN: ["number1, [number2], …", "mínimo"], MAX: ["number1, [number2], …", "máximo"],
+    COUNT: ["value1, [value2], …", "conta as células com números"], COUNTA: ["value1, [value2], …", "conta as células não vazias"],
+    COUNTIF: ["range, criteria", "conta as células que cumprem um critério, p. ex. \">10\""], SUMIF: ["range, criteria, [sum_range]", "soma as que cumprem um critério"],
+    "STDEV.S": ["number1, [number2], …", "desvio-padrão (amostra, n − 1)"], "STDEV.P": ["number1, [number2], …", "desvio-padrão (população, n)"],
+    "VAR.S": ["number1, [number2], …", "variância (amostra, n − 1)"], "VAR.P": ["number1, [number2], …", "variância (população, n)"],
+    "QUARTILE.INC": ["array, quart", "quartil (quart = 1, 2 ou 3)"], PERCENTILE: ["array, k", "percentil (k entre 0 e 1)"],
+    SLOPE: ["known_y's, known_x's", "declive da reta de regressão"], INTERCEPT: ["known_y's, known_x's", "ordenada na origem da reta de regressão"],
+    CORREL: ["array1, array2", "coeficiente de correlação r"], RSQ: ["known_y's, known_x's", "coeficiente de determinação r²"],
+    FORECAST: ["x, known_y's, known_x's", "valor previsto pela reta de regressão"],
+    ROUND: ["number, num_digits", "arredonda"], ABS: ["number", "valor absoluto"], SQRT: ["number", "raiz quadrada"], POWER: ["number, power", "potência"],
+    EXP: ["number", "e elevado a…"], LN: ["number", "logaritmo natural"], LOG: ["number, [base]", "logaritmo (base 10 por omissão)"], LOG10: ["number", "logaritmo de base 10"],
+    PI: ["", "π"], SIN: ["number", "seno (radianos)"], COS: ["number", "cosseno (radianos)"], TAN: ["number", "tangente (radianos)"],
+    ASIN: ["number", "arco-seno"], ACOS: ["number", "arco-cosseno"], ATAN: ["number", "arco-tangente"], RADIANS: ["angle", "graus → radianos"], DEGREES: ["angle", "radianos → graus"],
+    INT: ["number", "parte inteira (arredonda para baixo)"], MOD: ["number, divisor", "resto da divisão"], FACT: ["number", "fatorial"],
+    COMBIN: ["n, k", "combinações"], PERMUT: ["n, k", "arranjos sem repetição"], RAND: ["", "número aleatório entre 0 e 1"],
+    RANDBETWEEN: ["bottom, top", "inteiro aleatório entre bottom e top"], IF: ["logical_test, value_if_true, value_if_false", "se… então… senão…"],
+    SEQUENCE: ["rows, [columns], [start], [step]", "sucessão de números (preenche várias células)"],
+  };
+  const FUNCOES = [...new Set([...Object.keys(AJUDA), ...HF.getRegisteredFunctionNames("enUS").sort()])];
+  const sugEl = $("sug");
+  let sugs = [], sugAtual = 0, sugTok = null;
+  // nome de função a meio de ser escrito, logo antes do cursor (numa fórmula, depois de "=", "(", "," ou de um operador)
+  function tokenAntes(campo) {
+    const v = campo.value, i = campo.selectionStart;
+    if (!v.startsWith("=") || (v.slice(0, i).split('"').length % 2 === 0)) return null;   // não é fórmula, ou está dentro de aspas
+    const m = /(^=|[=(,+\-*/^&<>; ])([A-Za-z][A-Za-z0-9.]*)$/.exec(v.slice(0, i));
+    return m ? { i: i - m[2].length, t: m[2] } : null;
+  }
+  function sugerir(campo) {
+    const tk = tokenAntes(campo);
+    if (!tk || (/^[A-Za-z]\d+$/.test(tk.t) && !FUNCOES.some(f => f.startsWith(tk.t.toUpperCase()) && f !== tk.t.toUpperCase()))) { esconderSug(); ajudaArgs(campo); return; }
+    const T = tk.t.toUpperCase();
+    sugs = FUNCOES.filter(f => f.startsWith(T) && f !== T).slice(0, 12);
+    if (!sugs.length) { esconderSug(); ajudaArgs(campo); return; }
+    sugTok = tk; sugAtual = 0; mostrarSug(campo); ajudaArgs(campo);
+  }
+  function mostrarSug(campo) {
+    sugEl.innerHTML = sugs.map((f, i) => `<li data-i="${i}" class="${i === sugAtual ? "on" : ""}">${f}${AJUDA[f] ? `<small>${AJUDA[f][1]}</small>` : ""}</li>`).join("");
+    const q = campo.getBoundingClientRect();
+    sugEl.style.display = "block";
+    sugEl.style.left = Math.min(q.left, innerWidth - sugEl.offsetWidth - 8) + "px";
+    sugEl.style.top = (q.bottom + 2 + sugEl.offsetHeight > innerHeight ? q.top - sugEl.offsetHeight - 2 : q.bottom + 2) + "px";
+    const on = sugEl.querySelector(".on"); if (on) on.scrollIntoView({ block: "nearest" });
+  }
+  function esconderSug() { sugs = []; sugEl.style.display = "none"; }
+  function aceitarSug(campo, f) {
+    const v = campo.value, fim = campo.selectionStart, ins = f + "(";
+    campo.value = v.slice(0, sugTok.i) + ins + v.slice(fim);
+    const p = sugTok.i + ins.length; campo.setSelectionRange(p, p);
+    (campo === ed ? fx : ed).value = campo.value;
+    esconderSug(); ajudaArgs(campo); insercao = null;
+  }
+  sugEl.addEventListener("mousedown", e => {
+    const li = e.target.closest("li"); if (!li) return;
+    e.preventDefault();                                     // o campo não perde o foco
+    aceitarSug(document.activeElement === fx ? fx : ed, sugs[+li.dataset.i]);
+  });
+  // ajuda dos argumentos: a função em cujos parênteses está o cursor, por baixo da barra da fórmula
+  function ajudaArgs(campo) {
+    const est = $("estado"), v = campo.value.slice(0, campo.selectionStart);
+    let nivel = 0, nome = null, arg = 0;
+    if (v.startsWith("=")) for (let i = v.length - 1; i >= 0; i--) {
+      const ch = v[i];
+      if (ch === ")") nivel++;
+      else if (ch === "(") { if (nivel === 0) { const m = /([A-Za-z][A-Za-z0-9.]*)$/.exec(v.slice(0, i)); nome = m && m[1].toUpperCase(); break; } nivel--; }
+      else if (ch === "," && nivel === 0) arg++;
+    }
+    const a = nome && AJUDA[nome];
+    if (!a) { if (est.classList.contains("dica")) { est.textContent = ""; est.className = ""; } return; }
+    const partes = a[0] ? a[0].split(", ") : [];
+    const args = partes.map((p, i) => i === Math.min(arg, partes.length - 1) ? `<u>${p}</u>` : p).join(", ");
+    est.className = "dica"; est.innerHTML = `<b>${nome}(${args})</b> — ${a[1]}`;
+  }
+
   // a fórmula aceita uma referência se o cursor estiver a seguir a "=", "(", ",", ":" ou a um operador
   function aceitaRef() {
     const el = document.activeElement === fx ? fx : ed, v = el.value;
