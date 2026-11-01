@@ -249,11 +249,10 @@
   }
   // altura do quadro de Jefferson: título, cabeçalho, linhas, veredicto e tentativas
   const jNeed = (fs, rr = 1.75) => (1.7 + 1.6 + (S.lists.length + 1) * rr + 1.5 + (tieNote() ? 4.4 : 0) + (S.tries.length ? 1.4 : 0) + 0.5) * fs;
-  // a nota do empate aparece quando o total salta por cima de n mesmo ao lado do quociente empatado
+  // a explicação do empate só aparece quando o total já saltou por cima de n
+  // (no gráfico, a reta passa pelos pontos empatados ou já está acima deles)
   function tieNote() {
-    if (!TIE) return false;
-    const s = sumAt(S.d);
-    return s === TIE.above || s === TIE.above + TIE.group.length;
+    return !!TIE && sumAt(S.d) === TIE.above + TIE.group.length;
   }
   const names = ix => ix.map(i => S.lists[i].name);
   const andList = a => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " e " + a[a.length - 1];
@@ -574,6 +573,10 @@
     if (!qn) return;
     const ky = y + rh * K + 0.85 * fs, D = D_();
     const tie = qn1 && Math.abs(qn.q - qn1.q) < 1e-9;
+    if (tie && TIE && !tieNote()) {   // antes do salto: ainda sem a explicação do empate
+      fit(texAt("hkey", `\\text{Os ${S.n} maiores quocientes dão os lugares.}`, c.x, ky, fs * 0.8, C.ink, 0, 0.5), c.w);
+      return;
+    }
     if (tie && TIE) {
       const g = TIE.group, from = TIE.above + 1, to = TIE.above + g.length;
       const eqs = g.map(o => `${S.lists[o.i].name} ÷ ${o.k}`).join(" = ");
