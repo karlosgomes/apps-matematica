@@ -782,7 +782,7 @@
     ctx.lineJoin = ctx.lineCap = "round";
     const series = [[S.showX, CV.X, P.fx, C.x], [S.showY, CV.Y, P.fy, C.y], [S.showR, CV.R, t => P.fy(t) / P.fx(t), C.r]];
     const qser = [[sq && S.showXQ, QV.X, Q.fx, "x_Q"], [sq && S.showYQ, QV.Y, Q.fy, "y_Q"], [sq && S.showR, QV.R, t => Q.fy(t) / Q.fx(t), "y_Q/x_Q"]];
-    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, sq, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
+    if (S.full || gh.length) cached("graph", [CV.id, W, H, cv.width, dark, g.x, g.y, g.w, g.h, v0, v1, S.showX, S.showY, S.showR, sq, sq && S.showXQ, sq && S.showYQ, S.full, gh.map(G => G.id).join(",")].join("|"), c => {
       c.lineJoin = c.lineCap = "round";
       if (gh.length) {   // traços mantidos: tracejados, nas cores de x(t) e y(t)
         c.save(); c.globalAlpha = 0.55; c.lineWidth = 2; c.setLineDash([6, 5]);
