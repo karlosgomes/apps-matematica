@@ -1124,26 +1124,28 @@
     const end = close < 0 ? v.length : close;
     return { x0: open + 1, cut, end, x: v.slice(open + 1, cut), y: v.slice(cut + 1, end), sep };
   }
-  $expr.addEventListener("input", e => {
-    const v = $expr.value, pos = $expr.selectionStart, sp = splitP(v), old = splitP(S.src);
+  // (o mesmo nas caixas de P e de Q; k = "src" ou "qSrc")
+  const autoMirror = (el, k) => el.addEventListener("input", e => {
+    const v = el.value, pos = el.selectionStart, sp = splitP(v), old = splitP(S[k] || "");
     if (sp) {
       const typedSep = e.data === sp.sep && pos === sp.cut + 1 && !sp.y.trim();
       if (typedSep && sp.x.trim()) {
         // y(t) vazio: preenche com o espelho de x(t) e seleciona-o
         const fill = (sp.sep === "," ? " " : "") + mirror(sp.x.trim());
         const nv = v.slice(0, sp.cut + 1) + fill + (sp.end < v.length ? v.slice(sp.end) : ")");
-        $expr.value = nv;
-        $expr.setSelectionRange(sp.cut + 1 + (sp.sep === "," ? 1 : 0), sp.cut + 1 + fill.length);
+        el.value = nv;
+        el.setSelectionRange(sp.cut + 1 + (sp.sep === "," ? 1 : 0), sp.cut + 1 + fill.length);
       } else if (old && pos <= sp.cut && old.y.trim() === mirror(old.x).trim() && sp.x !== old.x) {
         // a editar x(t) com y(t) ainda «automático»: y(t) acompanha
         const lead = sp.y.match(/^\s*/)[0];
-        $expr.value = v.slice(0, sp.cut + 1) + lead + mirror(sp.x.trim()) + v.slice(sp.end);
-        $expr.setSelectionRange(pos, pos);
+        el.value = v.slice(0, sp.cut + 1) + lead + mirror(sp.x.trim()) + v.slice(sp.end);
+        el.setSelectionRange(pos, pos);
       }
     }
-    S.src = $expr.value; update();
+    S[k] = el.value; update();
   });
-  $qexpr.addEventListener("input", () => { S.qSrc = $qexpr.value; update(); });
+  autoMirror($expr, "src");
+  autoMirror($qexpr, "qSrc");
   $ta.addEventListener("input", () => { S.aSrc = $ta.value; update(); });
   $tb.addEventListener("input", () => { S.bSrc = $tb.value; update(); });
   [$expr, $qexpr, $ta, $tb].forEach(el => el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); }));
