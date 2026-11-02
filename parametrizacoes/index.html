@@ -283,6 +283,8 @@
   // traços mantidos (só nos gráficos de x(t) e y(t)): ao começar a editar uma caixa de texto, guarda-se a parametrização
   // que estava desenhada; com «Manter traços» ligado, cada edição acrescenta essa fotografia à lista GHS (até se desligar a caixa)
   let GHS = [], pending = null, ghId = 0, lastKey = null;
+  // desfasamentos dos gráficos completos (arrastados ao longo do eixo t): chave da série → h, desenhada como f(t − h)
+  let SH = {}, GG = null;   // GG: geometria do último desenho dos gráficos (para apanhar uma curva com o ponteiro)
   function snapshot() {
     if (err || errA || errB) return null;
     return { src: S.src, a: S.a, b: S.b, CV, id: ++ghId };
@@ -352,6 +354,7 @@
     // parametrização nova (expressão ou intervalo): o tempo volta ao início
     const key = [P.X && tex(P.X), P.Y && tex(P.Y), S.a, S.b].join("|");
     if (ok && key !== lastKey) { if (lastKey !== null) S.t = S.a; lastKey = key; }
+    SH = {};   // expressões ou intervalo novos: os desfasamentos recomeçam
     S.t = clamp(S.t, S.a, S.b);
     $expr.classList.toggle("bad", !ok);
     $ta.classList.toggle("bad", errA); $tb.classList.toggle("bad", errB);
@@ -746,6 +749,53 @@
     hits.push({ kind: "curveArea", rect: g, map: { X, Y } });
   }
 
+  // ---------- desfasamento dos gráficos completos ----------
+  // h em LaTeX: múltiplo de π/12 quando o eixo está em π; senão decimal
+  function shiftTex(h) {
+    const k = Math.round(h / (PI / 12));
+    return piAxis && Math.abs(h - k * PI / 12) < 1e-9 ? piTex(k, 12, "\\tfrac") : fmt(h, 3);
+  }
+  // a cópia f(t − h) coincide com algum gráfico completo visível (os originais, incluindo o próprio)?
+  function coincide(F, h) {
+    if (!GG) return null;
+    const sc = GG.v1 - GG.v0, M = 240;
+    for (const G of GG.fulls) {
+      let bad = 0, ok = 0, worst = 0;
+      for (let k = 0; k <= M; k++) {
+        const t = S.a + (S.b - S.a) * k / M, u = F.f(t - h), v = G.f(t);
+        if (!isFinite(u) || !isFinite(v)) { bad++; continue; }
+        if (Math.abs(u) > 4 * sc || Math.abs(v) > 4 * sc) continue;   // perto das assíntotas
+        ok++; worst = Math.max(worst, Math.abs(u - v));
+      }
+      if (ok > M * 0.6 && worst < 0.004 * sc) return G;
+    }
+    return null;
+  }
+  // o gráfico completo (ou a sua cópia desfasada) que está debaixo do ponteiro
+  function curveAt(x, y) {
+    if (!GG || !GG.fulls.length || x < GG.gx0 - 4 || x > GG.gx1 + 4 || y < GG.gy0 - GG.fs || y > GG.gy1 + GG.fs) return null;
+    let best = null, bd = 0.6 * GG.fs;
+    for (const F of GG.fulls) {
+      const h = SH[F.key] || 0;
+      for (let px = x - 10; px <= x + 10; px += 2) {
+        const py = GG.VY(F.f(GG.VAL(px) - h)), d = Math.hypot(px - x, py - y);
+        if (d < bd) { bd = d; best = F; }
+      }
+    }
+    return best;
+  }
+  // arrastar: h acompanha o ponteiro, de passo em passo (π/12 com o eixo em π); salta para onde coincidir com outro gráfico
+  function dragShift(dr, x) {
+    const raw = dr.h0 + GG.VAL(x) - dr.t0, span = S.b - S.a;
+    const step = piAxis ? PI / 12 : 10 ** Math.floor(Math.log10(span / 40)) * (span / 40 / 10 ** Math.floor(Math.log10(span / 40)) < 2.5 ? 1 : 5);
+    let h = Math.round(raw / step) * step;
+    if (!coincide(dr.F, h)) {   // íman: procura perto um desfasamento que faça coincidir
+      for (let k = -30; k <= 30; k++) { const hh = raw + k * step / 20; if (coincide(dr.F, hh)) { h = hh; break; } }
+    }
+    if (Math.abs(h) < 1e-12) delete SH[dr.F.key]; else SH[dr.F.key] = h;
+    draw();
+  }
+
   // x(t) e y(t) no intervalo [a, b], desenhados até ao instante t (com um ponto à frente)
   function graph(g, fs) {
     const sq = S.showQ;   // com «Ponto Q», também os gráficos de Q (a roxo), para os botões ligados
@@ -800,6 +850,21 @@
         for (const [on, A] of qser) if (on) polyCols(j => TX(QV.T[j]), j => VY(A[j]), 0, QV.n, null, jump, c);
       }
     });
+    // gráficos completos que se podem arrastar ao longo do eixo t (cópia desfasada f(t − h), em traço cheio)
+    const VAL = px => S.a + (px - gx0) / (gx1 - gx0) * (S.b - S.a);
+    const fulls = !S.full ? [] : [
+      ["x", S.showX, P.fx, C.x, "x_P"], ["y", S.showY, P.fy, C.y, "y_P"], ["r", S.showR, t => P.fy(t) / P.fx(t), C.r, "\\tfrac{y_P}{x_P}"],
+      ["xq", sq && S.showXQ, Q.fx, C.q, "x_Q"], ["yq", sq && S.showYQ, Q.fy, C.q, "y_Q"], ["rq", sq && S.showR, t => Q.fy(t) / Q.fx(t), C.q, "\\tfrac{y_Q}{x_Q}"],
+    ].filter(f => f[1]).map(([key, , f, col, name]) => ({ key, f, col, name }));
+    GG = { TX, VY, VAL, gx0, gx1, gy0, gy1, v0, v1, fulls, fs };
+    for (const F of fulls) {
+      const h = SH[F.key];
+      if (!h) continue;
+      const M = 900, ts = k => S.a + (S.b - S.a) * k / M;
+      ctx.strokeStyle = F.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85;
+      polyCols(k => TX(ts(k)), k => VY(F.f(ts(k) - h)), 0, M, null, jump);
+      ctx.globalAlpha = 1;
+    }
     // Q primeiro (mais fino), para P ficar por cima
     const iq = idx(S.t, QV);
     for (const [on, A, f] of qser) {
@@ -814,6 +879,15 @@
     }
     ctx.lineJoin = ctx.lineCap = "butt";
     ctx.restore();
+    // nome de cada cópia desfasada, perto do fim: f(t − h), e «= g(t)» se coincidir com outro gráfico (ou com o próprio: período)
+    for (const F of fulls) {
+      const h = SH[F.key];
+      if (!h) continue;
+      const c = coincide(F, h);
+      const src = `${F.name}\\left(t ${h > 0 ? "-" : "+"} ${shiftTex(Math.abs(h))}\\right)` + (c ? ` = ${c.name}(t)` : "");
+      const ye = clamp(VY(F.f(S.b - h)), gy0 + 0.8 * fs, gy1 - 0.2 * fs);
+      texAt("sh" + F.key, src, gx1, ye - 0.45 * fs, fs * 0.85, F.col, 1, 1);
+    }
     // pontos à frente das curvas, cada um com o nome da sua função ao lado (x_P, y_P, …; x_Q, y_Q, … a roxo)
     const tags = [], pn = ["x_P", "y_P", "y_P/x_P"];
     series.forEach(([on, , f, col], k) => {
@@ -1005,10 +1079,19 @@
     for (let i = 0; i <= n; i++) if (d2[i] <= bd + 6) { const e = Math.abs(CV.T[i] - S.t); if (e < dt) { dt = e; best = i; } }
     if (best >= 0) setT(CV.T[best]);
   }
-  const dragTo = (h, x, y) => h.kind === "P" ? dragP(h, x, y) : setT(h.val(x));
+  const dragTo = (h, x, y) => h.kind === "shift" ? dragShift(h, x) : h.kind === "P" ? dragP(h, x, y) : setT(h.val(x));
   let drag = null;
   cv.addEventListener("pointerdown", e => {
     if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    // um gráfico completo: arrastá-lo ao longo do eixo t (antes de mexer no tempo)
+    const F = curveAt(e.clientX, e.clientY);
+    if (F) {
+      e.preventDefault();
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = { kind: "shift", F, h0: SH[F.key] || 0, t0: GG.VAL(e.clientX) };
+      cv.style.cursor = "grabbing";
+      return;
+    }
     const h = hitAt(e.clientX, e.clientY);
     if (!h) return;
     e.preventDefault();
@@ -1021,7 +1104,7 @@
     if (h.kind === "showR") { S.showR = !S.showR; draw(); return; }
     if (h.kind === "showXQ") { S.showXQ = !S.showXQ; draw(); return; }
     if (h.kind === "showYQ") { S.showYQ = !S.showYQ; draw(); return; }
-    if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "ghost" && !S.ghost) GHS = []; draw(); return; }
+    if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "ghost" && !S.ghost) GHS = []; if (h.k === "full" && !S.full) SH = {}; draw(); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
     S.run = false;
@@ -1031,11 +1114,14 @@
   });
   cv.addEventListener("pointermove", e => {
     if (drag) { dragTo(drag, e.clientX, e.clientY); return; }
+    if (curveAt(e.clientX, e.clientY)) { cv.style.cursor = "grab"; return; }
     const h = hitAt(e.clientX, e.clientY);
     cv.style.cursor = !h ? "default" : h.kind === "slide" || h.kind === "graph" ? "ew-resize" : h.kind === "P" ? "grab" : "pointer";
   });
   const end = () => { drag = null; cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
+  // duplo clique num gráfico desfasado: volta ao sítio
+  cv.addEventListener("dblclick", e => { const F = curveAt(e.clientX, e.clientY); if (F && SH[F.key]) { delete SH[F.key]; draw(); } });
 
   // caixas de texto: a curva atualiza-se enquanto se escreve
   $expr.value = S.src; $qexpr.value = S.qSrc; $ta.value = S.aSrc; $tb.value = S.bSrc;
@@ -1061,7 +1147,7 @@
     else if (e.key === "x") { S.showX = !S.showX; draw(); }
     else if (e.key === "y") { S.showY = !S.showY; draw(); }
     else if (e.key === "r") { S.showR = !S.showR; draw(); }
-    else if (e.key === "c") { S.full = !S.full; draw(); }
+    else if (e.key === "c") { S.full = !S.full; if (!S.full) SH = {}; draw(); }
     else return;
     e.preventDefault();
   });
