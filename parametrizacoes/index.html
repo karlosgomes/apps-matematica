@@ -749,11 +749,6 @@
   }
 
   // ---------- desfasamento dos gráficos completos ----------
-  // h em LaTeX: múltiplo de π/12 quando o eixo está em π; senão decimal
-  function shiftTex(h) {
-    const k = Math.round(h / (PI / 12));
-    return piAxis && Math.abs(h - k * PI / 12) < 1e-9 ? piTex(k, 12, "\\tfrac") : fmt(h, 3);
-  }
   // a cópia f(t − h) coincide com algum gráfico completo visível (os originais, incluindo o próprio)?
   function coincide(F, h) {
     if (!GG) return null;
@@ -878,15 +873,6 @@
     }
     ctx.lineJoin = ctx.lineCap = "butt";
     ctx.restore();
-    // nome de cada cópia desfasada, perto do fim: f(t − h), e «= g(t)» se coincidir com outro gráfico (ou com o próprio: período)
-    for (const F of fulls) {
-      const h = SH[F.key];
-      if (!h) continue;
-      const c = coincide(F, h);
-      const src = `${F.name}\\left(t ${h > 0 ? "-" : "+"} ${shiftTex(Math.abs(h))}\\right)` + (c ? ` = ${c.name}(t)` : "");
-      const ye = clamp(VY(F.f(S.b - h)), gy0 + 0.8 * fs, gy1 - 0.2 * fs);
-      texAt("sh" + F.key, src, gx1, ye - 0.45 * fs, fs * 0.85, F.col, 1, 1);
-    }
     // pontos à frente das curvas, cada um com o nome da sua função ao lado (x_P, y_P, …; x_Q, y_Q, … a roxo)
     const tags = [], pn = ["x_P", "y_P", "y_P/x_P"];
     series.forEach(([on, , f, col], k) => {
@@ -1119,7 +1105,44 @@
     el.addEventListener("focus", () => { pending = snapshot(); });
     el.addEventListener("blur", () => { pending = null; });
   });
-  $expr.addEventListener("input", () => { S.src = $expr.value; update(); });
+  // autocompletar a ordenada de P: y(t) com a mesma forma de x(t), trocando cos por sin (parametrizações circulares).
+  // Ao escrever o separador («,» ou «;») com y vazio, y fica preenchido e selecionado (escrever por cima substitui-o);
+  // ao editar x(t), y(t) acompanha enquanto continuar igual ao espelho do x(t) anterior.
+  const mirror = x => x.replace(/(?<![A-Za-z])(cos|sin|sen)(?![A-Za-z])/g, f => f === "cos" ? "sin" : "cos");
+  function splitP(v) {
+    const open = v.indexOf("(");
+    if (open < 0) return null;
+    const semi = v.slice(open).includes(";"), sep = semi ? ";" : ",";
+    let depth = 0, cut = -1, close = -1;
+    for (let i = open; i < v.length; i++) {
+      const c = v[i];
+      if (c === "(") depth++;
+      else if (c === ")") { depth--; if (depth === 0) { close = i; break; } }
+      else if (c === sep && depth === 1 && cut < 0) cut = i;
+    }
+    if (cut < 0) return null;
+    const end = close < 0 ? v.length : close;
+    return { x0: open + 1, cut, end, x: v.slice(open + 1, cut), y: v.slice(cut + 1, end), sep };
+  }
+  $expr.addEventListener("input", e => {
+    const v = $expr.value, pos = $expr.selectionStart, sp = splitP(v), old = splitP(S.src);
+    if (sp) {
+      const typedSep = e.data === sp.sep && pos === sp.cut + 1 && !sp.y.trim();
+      if (typedSep && sp.x.trim()) {
+        // y(t) vazio: preenche com o espelho de x(t) e seleciona-o
+        const fill = (sp.sep === "," ? " " : "") + mirror(sp.x.trim());
+        const nv = v.slice(0, sp.cut + 1) + fill + (sp.end < v.length ? v.slice(sp.end) : ")");
+        $expr.value = nv;
+        $expr.setSelectionRange(sp.cut + 1 + (sp.sep === "," ? 1 : 0), sp.cut + 1 + fill.length);
+      } else if (old && pos <= sp.cut && old.y.trim() === mirror(old.x).trim() && sp.x !== old.x) {
+        // a editar x(t) com y(t) ainda «automático»: y(t) acompanha
+        const lead = sp.y.match(/^\s*/)[0];
+        $expr.value = v.slice(0, sp.cut + 1) + lead + mirror(sp.x.trim()) + v.slice(sp.end);
+        $expr.setSelectionRange(pos, pos);
+      }
+    }
+    S.src = $expr.value; update();
+  });
   $qexpr.addEventListener("input", () => { S.qSrc = $qexpr.value; update(); });
   $ta.addEventListener("input", () => { S.aSrc = $ta.value; update(); });
   $tb.addEventListener("input", () => { S.bSrc = $tb.value; update(); });
