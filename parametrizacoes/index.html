@@ -729,7 +729,6 @@
       const sy = r.top < g.y ? g.y - r.top : r.bottom > g.y + g.h ? g.y + g.h - r.bottom : 0;
       if (sx) el.style.left = parseFloat(el.style.left) + sx + "px";
       if (sy) el.style.top = parseFloat(el.style.top) + sy + "px";
-      hits.push({ kind: "P", x: PX, y: PY, r: 1.6 * fs, map: { X, Y } });
     } else ctx.restore();
     // ponto Q (argumento t), por cima
     if (S.showQ) {
@@ -910,7 +909,7 @@
     if (over > 0) for (let k = tags.length - 1; k >= 0; k--) tags[k].y = Math.min(tags[k].y - over, k < tags.length - 1 ? tags[k + 1].y - sp : Infinity);
     const right = TX(S.t) < gx1 - 3.5 * fs;
     for (const tg of tags) texAt(tg.id, tg.name, TX(S.t) + (right ? 0.65 : -0.65) * fs, tg.y, fs * 0.8, tg.col, right ? 0 : 1, 0.5);
-    hits.push({ kind: "graph", rect: { x: gx0 - fs, y: g.y, w: gx1 - gx0 + 2 * fs, h: g.h }, val: px => S.a + (px - gx0) / (gx1 - gx0) * (S.b - S.a) });
+    // (arrastar no gráfico não mexe no tempo: t só muda com os botões e o cursor de t; aqui só se arrastam os gráficos completos)
   }
 
   function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, texSrc = null, fs = 16) {
@@ -1069,17 +1068,8 @@
     for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d <= bd) { best = h; bd = d; } }
     return best || hits.find(h => h.rect && h.kind !== "curveArea" && inRect(h.rect, x, y)) || null;
   }
-  // arrastar P: a amostra mais próxima do ponteiro (se houver várias, a mais perto do t atual)
-  function dragP(h, x, y) {
-    const { X, Y } = h.map;
-    let best = -1, bd = Infinity;
-    const n = CV.n, d2 = new Float64Array(n + 1);
-    for (let i = 0; i <= n; i++) { const d = Math.hypot(X(CV.X[i]) - x, Y(CV.Y[i]) - y); d2[i] = isFinite(d) ? d : Infinity; if (d2[i] < bd) bd = d2[i]; }
-    let dt = Infinity;
-    for (let i = 0; i <= n; i++) if (d2[i] <= bd + 6) { const e = Math.abs(CV.T[i] - S.t); if (e < dt) { dt = e; best = i; } }
-    if (best >= 0) setT(CV.T[best]);
-  }
-  const dragTo = (h, x, y) => h.kind === "shift" ? dragShift(h, x) : h.kind === "P" ? dragP(h, x, y) : setT(h.val(x));
+  // (t só muda com os botões e o cursor de t: nem arrastar P nem arrastar no gráfico mexem no tempo)
+  const dragTo = (h, x, y) => h.kind === "shift" ? dragShift(h, x) : setT(h.val(x));
   let drag = null;
   cv.addEventListener("pointerdown", e => {
     if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
@@ -1116,7 +1106,7 @@
     if (drag) { dragTo(drag, e.clientX, e.clientY); return; }
     if (curveAt(e.clientX, e.clientY)) { cv.style.cursor = "grab"; return; }
     const h = hitAt(e.clientX, e.clientY);
-    cv.style.cursor = !h ? "default" : h.kind === "slide" || h.kind === "graph" ? "ew-resize" : h.kind === "P" ? "grab" : "pointer";
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
   });
   const end = () => { drag = null; cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
