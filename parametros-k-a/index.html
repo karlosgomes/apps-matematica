@@ -27,6 +27,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
+<input class="inp" id="edit" type="text" spellcheck="false" autocomplete="off" style="display:none" aria-label="Valor do parâmetro">
 <input class="inp" id="t0" type="text" spellcheck="false" autocomplete="off" aria-label="Início do intervalo de t, por exemplo -2pi">
 <input class="inp" id="t1" type="text" spellcheck="false" autocomplete="off" aria-label="Fim do intervalo de t, por exemplo 2pi">
 <canvas id="cv" aria-label="Gráfico de f(t) = k + a sin(ct − d) ou k + a cos(ct − d), com cursores para a, k, c e d"></canvas>
@@ -38,13 +39,13 @@
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", on: "#ffffff",
     sin: "#d32f2f", cos: "#1565c0", k: "#2e7d32", a: "#ef6c00", c: "#7b1fa2", dm: "#00838f",
-    T: "#5e35b1", F: "#ad1457",   // período e frequência (ao tocar nas linhas de T e da frequência)
+    T: "#5e35b1", F: "#ad1457", D: "#795548",   // período, frequência e contradomínio (ao tocar nas linhas respetivas)
   };
   const DARK = {
     bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
     axis: "#cfd6de", btn: "#212b36", line: "#46525f", on: "#151b22",
     sin: "#ff6b6b", cos: "#64a8ff", k: "#5cc26a", a: "#ffa040", c: "#d09cff", dm: "#4dd0e1",
-    T: "#b39ddb", F: "#f48fb1",
+    T: "#b39ddb", F: "#f48fb1", D: "#bcaaa4",
   };
   const C = { ...LIGHT };
   // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
@@ -64,7 +65,7 @@
   const STEP = { a: 0.1, k: 0.1, c: 0.1, dm: 1 };
   const YMAX = 8;   // eixo Oy fixo: [−8, 8] (com |k| + |a| > 8 a curva sai do referencial)
   // [t0, t1]: intervalo de t no gráfico (escrito nas caixas ou arrastando o gráfico na horizontal); −2π a 2π por omissão
-  const S = { fn: "cos", ...DEF, showT: false, showF: false, t0: -TAU, t1: TAU };   // abre em f(t) = cos t
+  const S = { fn: "cos", ...DEF, showT: false, showF: false, showA: false, showD: false, fac: false, showMM: false, showK: false, t0: -TAU, t1: TAU };   // abre em f(t) = cos t
   const D = () => S.dm * PI / 12;
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -89,18 +90,19 @@
   S.dm = clamp(S.dm, ...LIM.dm);
 
   // ---------- números ----------
-  const fmt = (x, dec = 1) => {
+  const fmt = (x, dec = 2) => {
     if (Math.abs(x) < 0.5 * 10 ** -dec) x = 0;
     return x.toLocaleString("pt-PT", { maximumFractionDigits: dec }).replace("-", "−");
   };
   const f = x => S.k + S.a * Math[S.fn](S.c * x - D());
-  // intervalo de t: texto com π quando é múltiplo de π/12 («-2π», «3π/4»), senão decimal
+  // intervalo de t e d: texto com π quando é múltiplo racional de π («-2π», «3π/4», «π/5»), senão decimal
+  // (também π/5, 4π/25…: qualquer múltiplo racional de π com denominador até 600)
   function tStr(v) {
-    const m = v / (PI / 12), mi = Math.round(m);
-    if (Math.abs(m - mi) > 1e-6) return fmt(v, 2);
-    if (!mi) return "0";
-    const g = gcd(Math.abs(mi), 12), p = Math.abs(mi) / g, q = 12 / g;
-    return (mi < 0 ? "−" : "") + (p === 1 ? "" : p) + "π" + (q === 1 ? "" : "/" + q);
+    const r = rat(v / PI);
+    if (!r) return fmt(v, 2);
+    const [n, q] = r;
+    if (!n) return "0";
+    return (n < 0 ? "−" : "") + (Math.abs(n) === 1 ? "" : Math.abs(n)) + "π" + (q === 1 ? "" : "/" + q);
   }
   // lê «-2pi», «−2π», «pi/2», «3pi/4», «1,5», «2*pi»…
   function parseT(str) {
@@ -184,7 +186,7 @@
 
   // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
   // os parâmetros a, k e c em decimal (1,5 e não 3/2); d, T e as marcas de Ox com π
-  const T = (x, dec = 1) => fmt(x, dec).replace("−", "-").replace(",", "{,}");
+  const T = (x, dec = 2) => fmt(x, dec).replace("−", "-").replace(",", "{,}");
   const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
   // p·π/q, simplificado
@@ -195,7 +197,33 @@
     const num = (p === 1 ? "" : p) + "\\pi";
     return sg + (q === 1 ? num : `\\frac{${num}}{${q}}`);
   }
-  const dTex = () => piFrac(S.dm, 12);
+  // valores exatos: x = n/den com den ≤ 600 (os valores dos cursores e os escritos à mão como 1,25 ou pi/5)
+  function rat(x) {
+    for (let den = 1; den <= 600; den++) { const n = Math.round(x * den); if (Math.abs(x * den - n) < 1e-7) return [n, den]; }
+    return null;
+  }
+  // v com π se for um múltiplo racional de π (π/5, 4π/25…), senão em decimal
+  // número racional n/den: decimal se for finito (1,25), senão fração (2/3)
+  function numTex(n, den) {
+    let d = den; while (d % 2 === 0) d /= 2; while (d % 5 === 0) d /= 5;
+    return d === 1 ? T(n / den, 6) : `${n < 0 ? "-" : ""}\\frac{${Math.abs(n)}}{${den}}`;
+  }
+  // valor exato em LaTeX: múltiplo racional de π (π/5), racional (4, 2/3) ou racional ÷ π (1/(4π)); senão null
+  function exactTex(v) {
+    let r = rat(v / PI);
+    if (r && r[0]) return piFrac(r[0], r[1]);
+    if ((r = rat(v))) return numTex(r[0], r[1]);
+    if ((r = rat(v * PI))) return `${r[0] < 0 ? "-" : ""}\\frac{${Math.abs(r[0])}}{${r[1] === 1 ? "" : r[1]}\\pi}`;
+    return null;
+  }
+  const piRat = v => exactTex(v) ?? T(v, 2);   // exato se possível, senão decimal
+  // «= exato ≈ aproximado», sem o «≈» quando o exato já é um decimal com até duas casas (= 4, = 0,25)
+  function valTex(v) {
+    const ex = exactTex(v), r = rat(v);
+    if (ex && r && Math.abs(v * 100 - Math.round(v * 100)) < 1e-9) return `= ${ex}`;
+    return (ex ? `= ${ex} ` : "") + `\\approx ${T(v, 2)}`;
+  }
+  const dTex = () => piRat(D());
   const layer = document.getElementById("tex");
   const pool = new Map();
   let used = new Set();
@@ -205,7 +233,7 @@
     if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
     if (el._src !== src) {
       el._src = src;
-      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false, trust: true });   // (trust: \htmlId no argumento da fórmula)
       else el.textContent = src;
     }
     el.className = halo ? "tx halo" : "tx";
@@ -222,7 +250,7 @@
   // ---------- desenho ----------
   let raf = 0;
   // período e frequência no gráfico: ao ligar, a linha percorre o intervalo (animação de 0 a 1)
-  const AN = { T: 1, F: 1 };
+  const AN = { T: 1, F: 1, A: 1, D: 1 };
   let anRaf = 0, anLast = 0;
   function toggleShow(key) {
     S["show" + key] = !S["show" + key];
@@ -235,7 +263,7 @@
   function anStep(now) {
     const dt = (now - anLast) / 1000; anLast = now;
     let busy = false;
-    for (const k of ["T", "F"]) if (AN[k] < 1) { AN[k] = Math.min(1, AN[k] + dt / 1.6); busy = true; }
+    for (const k in AN) if (AN[k] < 1) { AN[k] = Math.min(1, AN[k] + dt / 1.6); busy = true; }
     paint();
     anRaf = busy ? requestAnimationFrame(anStep) : 0;
   }
@@ -317,13 +345,13 @@
     // o que depende dos parâmetros fica recortado ao referencial
     ctx.save();
     ctx.beginPath(); ctx.rect(g.x, gy0 - 0.15 * fs, g.w, gh + 0.3 * fs); ctx.clip();
-    // máximo e mínimo
-    if (Math.abs(a) > 1e-9 && !cst) {
+    // máximo e mínimo (ao tocar em a na expressão)
+    if (S.showMM && Math.abs(a) > 1e-9 && !cst) {
       line(gx0, Y(M), gx1, Y(M), C.a, 1.5, [3, 5]);
       line(gx0, Y(m), gx1, Y(m), C.a, 1.5, [3, 5]);
     }
-    // linha média y = k
-    line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
+    // linha média y = k (ao tocar em k na expressão)
+    if (S.showK) line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
 
     // curva (com amostras suficientes para |c| grande)
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.2, fs * 0.14); ctx.lineJoin = "round"; ctx.lineCap = "round";
@@ -341,11 +369,11 @@
     const argAt = v => S.fn === "sin" ? v * PI / 2 : (v > 0 ? 0 : PI);   // argumento onde sin/cos vale v = ±1
     const sg = a < 0 ? -1 : 1;
     const xb = cst ? 0 : (argAt(sg) + D()) / S.c, xm = cst ? 0 : (argAt(-sg) + D()) / S.c;
-    // para a seta da amplitude: o mínimo mais perto da origem (ou do meio do intervalo, se a origem não estiver nele)
+    // para a seta da amplitude: o máximo mais perto da origem (ou do meio do intervalo, se a origem não estiver nele)
     let xa = 0;
     if (!cst) {
       const ref = zero ? 0 : (t0 + t1) / 2;
-      xa = xm + Math.round((ref - xm) / per) * per;
+      xa = xb + Math.round((ref - xb) / per) * per;
       if (xa < t0) xa += per; else if (xa > t1) xa -= per;
     }
     // para o período e a frequência: o primeiro máximo a partir da origem (ou do início do intervalo)
@@ -385,29 +413,58 @@
       trace(x0, x1, C.F);
       span(x0, x1, xe, yy, C.F, AN.F >= 1 && x0 + 1 <= t1 + 1e-9);
       if (AN.F >= 1) {
-        const p = Math.round(Math.abs(S.c) * 10), g = gcd(p, 20), fn = p / g, fd = 20 / g;
-        tg("lF", `1 \\text{ unidade: } \\frac{${fn}}{${fd === 1 ? "" : fd}\\pi} \\approx ${T(1 / per, 2)} \\text{ ciclos}`, X(x0), yy + 0.45 * fs, C.F);
+        const vt = valTex(1 / per);
+        tg("lF", `1 \\text{ unidade: } ${vt.startsWith("= ") ? vt.slice(2) : vt} \\text{ ciclos}`, X(x0), yy + 0.45 * fs, C.F);
       }
     }
 
-    // amplitude: seta da linha média até ao gráfico, nesse mínimo (para baixo, de comprimento |a|)
-    if (Math.abs(a) >= 0.05 && !cst && xa >= t0 && xa <= t1) {
+    // amplitude: seta vertical, nesse máximo, da linha média até ao gráfico (sempre para cima, de comprimento |a|)
+    // (só com «amplitude» ligada; ao ligar, a seta cresce da linha média até ao máximo)
+    if (S.showA && Math.abs(a) >= 0.05 && !cst && xa >= t0 && xa <= t1) {
       let ax = X(xa);
       if (Math.abs(ax - ox) < 0.9 * fs) ax = ox + 0.9 * fs;   // não tapar o eixo Oy
       // a seta acaba com a ponta no gráfico
-      const y0 = Y(k), y1 = Y(m), u = 1;
+      const y0 = Y(k), y1 = Y(k + (M - k) * AN.A), u = -1;   // da linha média até ao máximo, sempre para cima
       const hs = Math.min(fs * 0.55, Math.abs(y1 - y0) * 0.5);
       line(ax, y0, ax, y1 - u * hs * 0.8, C.a, 3);
       tri(ax, y1 - u * hs, 0, u, hs, C.a);
       let yl = clamp((y0 + y1) / 2, gy0 + 0.7 * fs, gy1 - 0.7 * fs);
-      if (clash(yl - 0.7 * fs, yl + 0.7 * fs)) yl = band[1] + 0.7 * fs;
-      tex("la", `|a| = ${T(Math.abs(a))}`, ax + 0.5 * fs, yl, fs * 1.1, C.a, 0, 0.5);
+      if (clash(yl - 0.7 * fs, yl + 0.7 * fs)) yl = band[0] - 0.7 * fs;
+      if (AN.A >= 1) tex("la", `|a| = ${T(Math.abs(a))}`, ax + 0.5 * fs, yl, fs * 1.1, C.a, 0, 0.5);
+    }
+
+    // c em evidência: seta na linha média, de t = 0 até t = d/c (o deslocamento horizontal)
+    if (S.fac && !cst && S.dm) {
+      const q = D() / S.c, x0 = X(0), xq = X(q), yk = Y(k), u = Math.sign(xq - x0), hs = Math.min(0.5 * fs, Math.abs(xq - x0) * 0.5);
+      dot(x0, yk, 0.18 * fs, C.dm);
+      line(x0, yk, xq - u * hs * 0.8, yk, C.dm, 3);
+      tri(xq - u * hs, yk, u, 0, hs, C.dm);
+      const qt = qTex();
+      // (seta curta: o nome fica à frente da ponta, para não tapar o eixo vertical, e acima da linha média,
+      // para o tracejado não parecer um sinal de menos)
+      const short = Math.abs(xq - x0) < 4 * fs, qsrc = `\\frac{d}{c} = ${qt.neg ? "-" : ""}${qt.tex}`;
+      if (short) tLab.push(["lQs", qsrc, u < 0 ? Math.min(x0, xq) - 0.4 * fs : Math.max(x0, xq) + 0.2 * fs, yk - 0.3 * fs, C.dm, u < 0 ? 1 : 0]);
+      else tLab.push(["lQ", qsrc, (x0 + xq) / 2, yk - 0.4 * fs, C.dm]);
+    }
+
+    // contradomínio: segmento no eixo vertical, a crescer da linha média para cima e para baixo até ao máximo e ao mínimo
+    // (função constante: só um ponto)
+    if (S.showD) {
+      const yc = cst ? S.k + S.a * Math[S.fn](-D()) : k, hi_ = cst ? yc : M, lo_ = cst ? yc : m, p = AN.D;
+      const ya = Y(yc + (hi_ - yc) * p), yb = Y(yc - (yc - lo_) * p);
+      ctx.globalAlpha = 0.85; ctx.lineCap = "round";
+      line(ox, ya, ox, yb, C.D, 0.32 * fs);
+      ctx.lineCap = "butt"; ctx.globalAlpha = 1;
+      if (p >= 1) {
+        dot(ox, Y(hi_), 0.22 * fs, C.D, 2); dot(ox, Y(lo_), 0.22 * fs, C.D, 2);
+        tLab.push(["lD", "D'_f", ox + 0.5 * fs, (Y(hi_) + Y(lo_)) / 2, C.D]);
+      }
     }
 
     ctx.restore();
-    // nomes do período e da frequência (fora do recorte, para não ficarem cortados)
-    tLab.forEach(([id, src, x, y, color], i) => {
-      const el = tex(id, src, x, y, fs * 1.05, color, id === "lF" ? 0 : 0.5, id === "lF" ? 0 : 1);
+    // nomes do período, da frequência e do contradomínio (fora do recorte, para não ficarem cortados)
+    tLab.forEach(([id, src, x, y, color, axq], i) => {
+      const el = tex(id, src, x, y, fs * 1.05, color, id === "lQs" ? axq : id === "lT" || id === "lQ" ? 0.5 : 0, id === "lF" ? 0 : id === "lD" ? 0.5 : 1);
       const r = el.getBoundingClientRect();
       if (r.right > gx1) el.style.left = parseFloat(el.style.left) - (r.right - gx1) + "px";
       if (r.left < gx0) el.style.left = parseFloat(el.style.left) + (gx0 - r.left) + "px";
@@ -416,8 +473,8 @@
     // etiquetas: linha média, máximo e mínimo (do lado direito), afastadas umas das outras
     // e das marcas de Ox quando estão demasiado perto
     const lx = gx1 - 0.2 * fs, hl = 1.3 * fsm, dd = 0.2 * fs + hl / 2;
-    const labs = [{ id: "lk", src: `y = ${T(k)}`, c: C.k, y: Y(k) - dd }];
-    if (Math.abs(a) > 1e-9 && !cst) labs.push(
+    const labs = S.showK ? [{ id: "lk", src: `y = ${T(k)}`, c: C.k, y: Y(k) - dd }] : [];
+    if (S.showMM && Math.abs(a) > 1e-9 && !cst) labs.push(
       { id: "lM", src: `\\text{máx.}\\ {${T(M)}}`, c: C.a, y: Y(M) - dd },
       { id: "lm", src: `\\text{mín.}\\ {${T(m)}}`, c: C.a, y: Y(m) + dd });
     const sep = hl + 0.15 * fs, lo = gy0 + hl / 2, hi = gy1 - hl / 2;
@@ -439,27 +496,53 @@
   }
 
   // argumento ct − d, com c a roxo e d a verde-azulado (c = ±1 e d = 0 não se escrevem)
+  // d/c, com π se possível
+  function qTex() {
+    const q = D() / S.c;
+    return { neg: q < 0, tex: piRat(Math.abs(q)) };
+  }
   function argTex() {
     const c = S.c, one = Math.abs(Math.abs(c) - 1) < 1e-9;
-    let s = clr(C.c, c < 0 && one ? "-" : one ? "" : T(c)) + "t";
-    if (S.dm) s += (S.dm > 0 ? clr(C.dm, "-") : "+") + clr(C.dm, piFrac(Math.abs(S.dm), 12));
+    // c em evidência (ao tocar no argumento): c(t − d/c), para se ver o deslocamento horizontal d/c
+    if (S.fac && S.dm && Math.abs(c) > 1e-9) {
+      const q = qTex();
+      return clr(C.c, c < 0 && one ? "-" : one ? "" : piRat(c)) + `\\left(t ${q.neg ? "+" : "-"} ${clr(C.dm, q.tex)}\\right)`;
+    }
+    let s = clr(C.c, c < 0 && one ? "-" : one ? "" : piRat(c)) + "t";
+    if (S.dm) s += (S.dm > 0 ? clr(C.dm, "-") : "+") + clr(C.dm, piRat(Math.abs(D())));
     return s;
   }
   // expressão atual, com k a verde, a a laranja, c a roxo e d a verde-azulado
   function formula(b, fs) {
     const k = S.k, a = S.a;
     const simple = Math.abs(S.c - 1) < 1e-9 && !S.dm;
-    const fx = simple ? clr(C[S.fn], `\\${S.fn} t`) : `${clr(C[S.fn], `\\${S.fn}`)}(${argTex()})`;
+    // o argumento fica marcado (\htmlId) para se poder tocar nele
+    // a e k ficam marcados (\htmlId apart/kpart) para se poder tocar neles: a liga o máximo e o mínimo, k a linha média
+    // (com a = ±1 o coeficiente não se escreve: toca-se no nome da função)
+    const one = Math.abs(Math.abs(a) - 1) < 1e-9, am = one ? "" : T(Math.abs(a));
+    const fname = clr(C[S.fn], `\\${S.fn}`);
+    const argS = simple ? " t" : `\\htmlId{arg}{${S.fac && S.dm && Math.abs(S.c) > 1e-9 ? `\\left(${argTex()}\\right)` : `(${argTex()})`}}`;
+    const aPart = sg => `\\htmlId{apart}{${clr(C.a, sg + am)}${one ? fname : ""}}` + (one ? "" : fname);
+    const kPart = `\\htmlId{kpart}{${clr(C.k, T(k))}}`;
     let s;
-    if (Math.abs(a) < 1e-9) s = clr(C.k, T(k));
-    else {
-      // o sinal de a fica com a cor de a; o coeficiente ±1 não se escreve
-      const one = Math.abs(Math.abs(a) - 1) < 1e-9, am = one ? "" : T(Math.abs(a));
-      if (Math.abs(k) > 1e-9) s = clr(C.k, T(k)) + (a < 0 ? clr(C.a, "-") : "+") + clr(C.a, am) + fx;
-      else s = clr(C.a, (a < 0 ? "-" : "") + am) + (one && a < 0 ? "\\!" : "") + fx;   // −sin x sem espaço
-    }
+    if (Math.abs(a) < 1e-9) s = kPart;
+    else if (Math.abs(k) > 1e-9) s = kPart + (a < 0 ? clr(C.a, "-") : "+") + aPart("") + argS;
+    else s = aPart(a < 0 ? "-" : "") + argS;
     const el = tex("formula", `f(t) = ${s}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.6, C.ink, L.land ? 0 : 0.5, 0.5, false);
     fit(el, b.w, b.h);
+    // tocar no argumento põe c em evidência (ou volta à forma ct − d); sem caixa à volta
+    // (procurar só na parte HTML do KaTeX: a MathML escondida também pode ter o id)
+    for (const [id, kind] of [["apart", "mm"], ["kpart", "mid"]]) {
+      const e = el.querySelector(`.katex-html #${id}`);
+      if (!e) continue;
+      const r = e.getBoundingClientRect();
+      hits.push({ kind, rect: { x: r.left - 3, y: r.top - 4, w: r.width + 6, h: r.height + 8 } });
+    }
+    const ag = el.querySelector(".katex-html #arg");
+    if (ag && S.dm && Math.abs(S.c) > 1e-9) {
+      const r = ag.getBoundingClientRect();
+      hits.push({ kind: "fac", rect: { x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 } });
+    }
   }
 
   // contradomínio e amplitude; período T = 2π/|c| e frequência 1/T = |c|/(2π), exatos (com π) e aproximados
@@ -468,31 +551,41 @@
     // c = 0: f(x) = k + a·sin(−d) (ou cos(−d)) é constante
     const cst = Math.abs(S.c) < 1e-9, v0 = S.k + S.a * Math[S.fn](-D());
     const Df = cst ? `\\{${T(v0, 2)}\\}` : Math.abs(S.a) < 1e-9 ? `\\{${T(S.k)}\\}` : `[${T(m)}\\,;\\,${T(M)}]`;
-    const l1 = cst ? `D'_f ${Math.abs(v0 * 100 - Math.round(v0 * 100)) > 1e-6 ? "\\approx" : "="} ${Df}` : `D'_f = ${Df} \\qquad \\text{amplitude: } |a| = ${T(Math.abs(S.a))}`;
-    const p = Math.round(Math.abs(S.c) * 10);   // |c| = p/10
+    const lD = `D'_f ${cst && Math.abs(v0 * 100 - Math.round(v0 * 100)) > 1e-6 ? "\\approx" : "="} ${Df}`;
+    const lA = cst ? "" : `\\text{amplitude: } |a| = ${T(Math.abs(S.a))}`;
     let lT, lF = "";
-    if (!p) lT = `c = 0\\text{: função constante, sem período}`;
+    if (cst) lT = `c = 0\\text{: função constante, sem período}`;
     else {
-      const Tv = TAU / Math.abs(S.c), g = gcd(p, 20), fn = p / g, fd = 20 / g;
-      const Tx = piFrac(20, p), fx = `\\frac{${fn}}{${fd === 1 ? "" : fd}\\pi}`;
-      lT = `T = \\frac{2\\pi}{|c|} = ${Tx} \\approx ${T(Tv, 2)}`;
-      lF = `\\text{frequência: } \\frac{1}{T} = ${fx} \\approx ${T(1 / Tv, 2)}`;
+      // exatos (com π) quando |c| é racional (n/den), senão só aproximados
+      const Tv = TAU / Math.abs(S.c);
+      lT = `T = \\frac{2\\pi}{|c|} ${valTex(Tv)}`;
+      lF = `\\text{frequência: } \\frac{1}{T} ${valTex(1 / Tv)}`;
     }
-    // uma linha para cada, com folga; T e a frequência são botões (ligam a linha no gráfico)
-    const rh = b.h / 3, pd = 0.45 * fs;
-    [[l1, null], [lT, p ? "T" : null], [lF, p ? "F" : null]].forEach(([src, key], i) => {
-      if (!src) return;
-      const cy = b.y + rh * (i + 0.5);
-      const x = L.land ? b.x + (key ? pd : 0) : b.x + b.w / 2;
-      const el = tex("range" + i, src, x, cy, fs * 1.0, C.muted, L.land ? 0 : 0.5, 0.5, false);
-      fit(el, b.w - 2 * pd, rh * 0.7);
-      if (!key) return;
-      const ew = el.offsetWidth, on = S["show" + key], col = C[key];
-      const bx = L.land ? b.x : b.x + (b.w - ew) / 2 - pd, bh = rh * 0.8;
-      ctx.globalAlpha = on ? 0.14 : 1; rrect(bx, cy - bh / 2, ew + 2 * pd, bh, 8, on ? col : C.btn); ctx.globalAlpha = 1;
-      rrect(bx, cy - bh / 2, ew + 2 * pd, bh, 8, null, on ? col : C.line, on ? 2.5 : 1.5);
-      el.style.color = on ? col : C.muted;
-      hits.push({ kind: "show", key, rect: { x: bx, y: cy - bh / 2, w: ew + 2 * pd, h: bh } });
+    // três linhas, com folga; contradomínio, amplitude, T e frequência são botões (ligam o desenho no gráfico)
+    const rh = b.h / 3, pd = 0.45 * fs, gap = 0.6 * fs;
+    const rows = [[[lD, "D"], [lA, lA && Math.abs(S.a) >= 0.05 ? "A" : null]], [[lT, cst ? null : "T"]], [[lF, cst ? null : "F"]]];
+    rows.forEach((row, i) => {
+      const items = row.filter(([src]) => src), cy = b.y + rh * (i + 0.5);
+      if (!items.length) return;
+      // a mesma letra na linha; mais pequena se a linha não couber
+      const els = items.map(([src, key], j) => tex(`range${i}_${j}`, src, 0, cy, fs * 1.0, C.muted, 0, 0.5, false));
+      const pads = items.map(([, key]) => key ? pd : 0);
+      const tot = () => els.reduce((t, el, j) => t + el.offsetWidth + 2 * pads[j], 0) + gap * (els.length - 1);
+      const kf = Math.min(1, b.w / tot(), rh * 0.7 / Math.max(...els.map(el => el.offsetHeight)));
+      if (kf < 1) els.forEach(el => { el.style.fontSize = fs * kf + "px"; });
+      let x = L.land ? b.x : b.x + (b.w - tot()) / 2;
+      items.forEach(([, key], j) => {
+        const el = els[j], ew = el.offsetWidth, w = ew + 2 * pads[j];
+        el.style.left = x + pads[j] + "px";
+        if (key) {
+          const on = S["show" + key], col = key === "A" ? C.a : C[key], bh = rh * 0.8;
+          ctx.globalAlpha = on ? 0.14 : 1; rrect(x, cy - bh / 2, w, bh, 8, on ? col : C.btn); ctx.globalAlpha = 1;
+          rrect(x, cy - bh / 2, w, bh, 8, null, on ? col : C.line, on ? 2.5 : 1.5);
+          el.style.color = on ? col : C.muted;
+          hits.push({ kind: "show", key, rect: { x, y: cy - bh / 2, w, h: bh } });
+        }
+        x += w + gap;
+      });
     });
   }
 
@@ -550,12 +643,54 @@
     hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h: b.h } });
   }
 
+  // ---------- valores escritos à mão (a, k, c, d) ----------
+  const $edit = document.getElementById("edit");
+  let editing = null;
+  const placeEl = (el, r, px) => {
+    el.style.display = ""; el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px"; el.style.fontSize = px + "px";
+  };
+  const parseNum = str => {
+    const z = String(str).replace(/\s/g, "").replace(/−/g, "-").replace(",", ".");
+    return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(z) ? parseFloat(z) : NaN;
+  };
+  function startEdit(key) {
+    editing = key;
+    $edit.value = key === "dm" ? tStr(D()) : key === "c" ? tStr(S.c) : fmt(S[key], 2);
+    $edit.classList.remove("bad");
+    draw();
+    requestAnimationFrame(() => { $edit.focus(); $edit.select(); });
+  }
+  function endEdit(save) {
+    if (!editing) return;
+    const key = editing;
+    if (save) {
+      // d e c também com π (pi/2, 2π/3…); c com π fica exato, os decimais ficam com duas casas
+      const v = key === "dm" ? parseT($edit.value) / (PI / 12) : key === "c" ? parseT($edit.value) : parseNum($edit.value);
+      if (!isFinite(v)) { $edit.classList.add("bad"); return false; }
+      const keep = key === "dm" || (key === "c" && /pi|π/i.test($edit.value));
+      S[key] = clamp(keep ? v : Math.round(v * 100) / 100, ...LIM[key]);   // (dentro dos limites do cursor)
+      if (key === "dm" && Math.abs(S.dm - Math.round(S.dm)) < 1e-6) S.dm = Math.round(S.dm);
+    }
+    editing = null; $edit.style.display = "none"; $edit.blur(); draw();
+    return true;
+  }
+  $edit.addEventListener("keydown", e => {
+    if (e.key === "Enter") endEdit(true);
+    else if (e.key === "Escape") endEdit(false);
+  });
+  $edit.addEventListener("blur", () => { if (editing && !endEdit(true)) endEdit(false); });
+
   // cursor compacto numa linha: «a = 1,5»  [−] ——●——  [+]
   function slider(b, fs, key) {
     const [lo, hi] = LIM[key], col = C[key];
-    const name = key === "dm" ? "d" : key, val = key === "dm" ? dTex() : T(S[key]);
+    const name = key === "dm" ? "d" : key, val = key === "dm" ? dTex() : key === "c" ? piRat(S.c) : T(S[key]);
     const lw = 5 * fs, cy = b.y + b.h / 2;
-    fit(tex("sl" + key, `${clr(col, name)} = ${val}`, b.x, cy, fs * 1.0, C.ink, 0, 0.5, false), lw - 0.3 * fs, b.h);
+    // tocar no nome/valor abre uma caixa para escrever um valor (d também com π: pi/3, 2pi/5, …)
+    if (editing === key) {
+      const nw = tex("sln" + key, `${clr(col, name)} =`, b.x, cy, fs * 1.0, C.ink, 0, 0.5, false).offsetWidth;
+      placeEl($edit, { x: b.x + nw + 0.25 * fs, y: cy - 0.68 * fs, w: lw - nw - 0.5 * fs, h: 1.36 * fs }, fs * 0.9);
+    } else fit(tex("sl" + key, `${clr(col, name)} = ${val}`, b.x, cy, fs * 1.0, C.ink, 0, 0.5, false), lw - 0.3 * fs, b.h);
+    hits.push({ kind: "edit", key, rect: { x: b.x, y: b.y, w: lw - 0.3 * fs, h: b.h } });
     const bs = 1.3 * fs, by = cy - bs / 2;
     const btn = (x, txt, d) => {
       rrect(x, by, bs, bs, 7, C.btn, C.line, 1.5);
@@ -618,6 +753,10 @@
     if (!h) return;
     e.preventDefault();
     if (h.kind === "fn") { S.fn = h.fn; draw(); return; }
+    if (h.kind === "fac") { S.fac = !S.fac; draw(); return; }
+    if (h.kind === "mm") { S.showMM = !S.showMM; draw(); return; }
+    if (h.kind === "mid") { S.showK = !S.showK; draw(); return; }
+    if (h.kind === "edit") { startEdit(h.key); return; }
     if (h.kind === "show") { toggleShow(h.key); return; }
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     if (h.kind === "reset") { Object.assign(S, DEF); S.t0 = -TAU; S.t1 = TAU; draw(); return; }
@@ -654,6 +793,8 @@
     else if (e.key === "c") { S.fn = "cos"; draw(); }
     else if (e.key === "t") toggleShow("T");
     else if (e.key === "f") toggleShow("F");
+    else if (e.key === "a") toggleShow("A");
+    else if (e.key === "d") toggleShow("D");
     else if (e.key === "0") { Object.assign(S, DEF); S.t0 = -TAU; S.t1 = TAU; draw(); }
   });
 
