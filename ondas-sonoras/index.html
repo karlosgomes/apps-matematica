@@ -18,7 +18,7 @@
   .tx .katex { font-size: 1em; }
   .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
-  /* caixas dos valores (amplitudes, frequências, duração do som, n.º de períodos), postas por cima do canvas pelo layout */
+  /* caixas dos valores (amplitudes, frequências, n.º de períodos), postas por cima do canvas pelo layout */
   .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.3em; border: 2px solid var(--line); border-radius: 7px;
          background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
   .inp:focus { border-color: var(--focus); }
@@ -66,7 +66,7 @@
     ],
     sumOn: false,
     inSum: [true, true, true, true],   // ondas que entram na soma (escolhidas no cartão da soma)
-    d: 5,           // duração do som (s)
+    d: 5,           // duração do som (s), de 1 a 10
     mode: "fixo",   // "fixo" | "auto"
     n: 3,           // n.º de períodos no referencial automático
   };
@@ -100,7 +100,7 @@
   function changed() { updateVoices(); draw(); }
   const setA = (i, v) => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v !== S.waves[i].A) { S.waves[i].A = v; changed(); } };
   const setF = (i, v) => { v = clamp(Math.round(v), 20, 2000); if (v !== S.waves[i].f) { S.waves[i].f = v; changed(); } };
-  const setDur = v => { v = clamp(Math.round(v * 2) / 2, 0.5, 5); if (v !== S.d) { S.d = v; draw(); } };
+  const setDur = v => { v = clamp(Math.round(v), 1, 10); if (v !== S.d) { S.d = v; draw(); } };
   const setN = v => { v = clamp(Math.round(v), 1, 20); if (v !== S.n) { S.n = v; draw(); } };
   const toggleWave = i => { S.waves[i].on = !S.waves[i].on; draw(); };
 
@@ -223,7 +223,6 @@
     makeInput("A" + i, `Amplitude A${i + 1}`, () => S.waves[i].A, v => setA(i, v), 0.01, 2);
     makeInput("f" + i, `Frequência f${i + 1} em hertz`, () => S.waves[i].f, v => setF(i, v), 1, 0, "numeric");
   });
-  makeInput("dur", "Duração do som em segundos", () => S.d, setDur, 0.5, 1);
   makeInput("nper", "Número de períodos no referencial automático", () => S.n, setN, 1, 0, "numeric");
 
   // ---------- canvas ----------
@@ -481,7 +480,7 @@
     });
   }
 
-  // definições: referencial (fixo/automático, n.º de períodos); duração do som e «Parar tudo»
+  // definições: referencial (fixo/automático, n.º de períodos) e duração do som
   function settings(b, fs) {
     const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.3 * fs, f = fs * 0.8;
     let y = c.y, x = c.x;
@@ -499,11 +498,12 @@
       place("nper", { x, y: y + (rh - bh) / 2, w: 2.4 * fs, h: bh }, fs * 0.82);
     }
     y += rh + 0.2 * fs; x = c.x;
-    x += text("Duração do som", x, y + rh / 2 + 1, f, C.muted) + 0.5 * fs;
-    place("dur", { x, y: y + (rh - bh) / 2, w: 2.6 * fs, h: bh }, fs * 0.82);
-    text("s", x + 2.9 * fs, y + rh / 2 + 1, f, C.muted);
-    const pw = tw("■ Parar tudo", f, FONT, 700) + 1.2 * fs;
-    button(c.x + c.w - pw, y + (rh - bh) / 2, pw, bh, "■ Parar tudo", false, "stopall", {}, C.muted, f);
+    // duração do som: cursor de 1 a 10 s, de segundo em segundo (com as marcas), e o valor à direita
+    x += text("Duração do som", x, y + rh / 2 + 1, f, C.muted) + 1 * fs;
+    const vw = tw("10 s", f, MONO, 600), x1 = c.x + c.w - vw - 0.9 * fs;
+    for (let k = 1; k <= 10; k++) { const tx = x + (k - 1) / 9 * (x1 - x); line(tx, y + rh / 2 + 0.3 * fs, tx, y + rh / 2 + 0.5 * fs, C.faint, 1.2); }
+    slider(x, y, x1 - x, rh, 1, 10, S.d, C.muted, fs, setDur);
+    text(`${S.d} s`, c.x + c.w, y + rh / 2 + 1, f, C.ink, "right", MONO, 600);
   }
 
   // ---------- gráfico ----------
@@ -565,7 +565,6 @@
     if (h.kind === "sum") { S.sumOn = !S.sumOn; draw(); return; }
     if (h.kind === "insum") { S.inSum[h.i] = !S.inSum[h.i]; changed(); return; }
     if (h.kind === "play") { toggle(h.key); return; }
-    if (h.kind === "stopall") { stopAll(); return; }
     if (h.kind === "mode") { S.mode = h.m; draw(); return; }
     if (h.kind === "slide") {
       try { cv.setPointerCapture(e.pointerId); } catch (_) {}
