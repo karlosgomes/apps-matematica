@@ -129,9 +129,10 @@
   // ecrã deitado → tudo numa coluna à esquerda
   const KEYS = ["a", "k", "c", "dm"];
   function layout() {
-    const fs = clamp(Math.min(W, H) / 24, 14, 26);
-    const pad = Math.round(fs * 0.7);
     const land = W > H * 1.2 && W >= 560;
+    // (na coluna do ecrã deitado cabem ≈ 24,6·fs de altura, com o botão do modo escuro no canto)
+    const fs = clamp(Math.min(W, land ? H * 24 / 24.8 : H) / 24, 13, 26);
+    const pad = Math.round(fs * 0.7);
     const L = { fs, pad, land, sl: {} };
     const slH = 1.75 * fs, slG = 0.25 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = 6.3 * fs;   // características: 3 linhas (D'_f e amplitude, T, frequência), com folga
     const slTot = 5 * slH + 4 * slG;   // o intervalo de t e os quatro cursores
@@ -139,7 +140,7 @@
       const pw = clamp(W * 0.32, 16 * fs, 22 * fs);
       const x = pad, w = pw - pad;
       const total = tgH + 0.6 * fs + fH + rH + 0.7 * fs + slTot;
-      let y = Math.max(pad, (H - total) / 2);
+      let y = Math.max(pad + 2 * fs, (H - total) / 2);   // (por baixo do botão do modo escuro, no canto)
       L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
       L.range = { x, y, w, h: rH }; y += rH + 0.7 * fs;
@@ -619,9 +620,10 @@
     el.addEventListener("blur", () => draw());
   });
 
-  // modo claro/escuro (☾/☀): botão pequeno no canto superior direito do referencial
+  // modo claro/escuro (☾/☀): botão pequeno num canto
+  // ecrã deitado: canto superior esquerdo da coluna da esquerda; ao alto (sem coluna): canto superior direito do referencial
   function themeBtn(g, fs) {
-    const s = 1.45 * fs, x = g.x + g.w - s, y = g.y;
+    const s = 1.45 * fs, x = L.land ? L.pad : g.x + g.w - s, y = L.land ? L.pad : g.y;
     rrect(x, y, s, s, 7, C.btn, C.line, 1.5);
     font(fs * 0.85, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(dark ? "☀" : "☾", x + s / 2, y + s / 2 + 0.05 * fs);
