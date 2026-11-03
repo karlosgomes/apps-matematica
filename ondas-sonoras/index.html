@@ -24,6 +24,8 @@
   .inp:focus { border-color: var(--focus); }
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
   .inp.off { opacity: 0.5; }
+  /* listas do acorde (fundamental e tipo) */
+  select.inp { font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; text-align: left; padding: 0 0.2em; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -99,7 +101,7 @@
   // ---------- alterações dos valores ----------
   function changed() { updateVoices(); draw(); }
   const setA = (i, v) => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v !== S.waves[i].A) { S.waves[i].A = v; changed(); } };
-  const setF = (i, v) => { v = clamp(Math.round(v), 20, 2000); if (v !== S.waves[i].f) { S.waves[i].f = v; changed(); } };
+  const setF = (i, v) => { v = clamp(Math.round(v), 20, 2000); if (v !== S.waves[i].f) { S.waves[i].f = v; chordCheck(); changed(); } };
   const setDur = v => { v = clamp(Math.round(v), 1, 10); if (v !== S.d) { S.d = v; draw(); } };
   const setN = v => { v = clamp(Math.round(v), 1, 20); if (v !== S.n) { S.n = v; draw(); } };
   const toggleWave = i => { S.waves[i].on = !S.waves[i].on; draw(); };
@@ -225,6 +227,65 @@
   });
   makeInput("nper", "Número de períodos no referencial automático", () => S.n, setN, 1, 0, "numeric");
 
+  // ---------- acordes de 4 notas (afinação justa) ----------
+  // cada tipo é uma razão de inteiros n₁ : n₂ : n₃ : n₄ (as notas, da mais grave para a mais aguda);
+  // com a fundamental F (temperada, na oitava 3: Dó3 ≈ 130,81 Hz … Si3 ≈ 246,94 Hz), fᵢ = F · nᵢ / n₁, arredondada ao Hz
+  const CHORDS = [
+    { g: "Clássicos", sym: "", name: "maior (com 8.ª)", n: [4, 5, 6, 8] },
+    { g: "Clássicos", sym: "m", name: "menor (com 8.ª)", n: [10, 12, 15, 20] },
+    { g: "Clássicos", sym: "7", name: "7.ª da dominante", n: [4, 5, 6, 7] },
+    { g: "Clássicos", sym: "7M", name: "maior com 7.ª maior", n: [8, 10, 12, 15] },
+    { g: "Clássicos", sym: "m7", name: "menor com 7.ª", n: [10, 12, 15, 18] },
+    { g: "Clássicos", sym: "m7(♭5)", name: "meio-diminuto", n: [5, 6, 7, 9] },
+    { g: "Clássicos", sym: "°7", name: "diminuto", n: [15, 18, 21, 25] },
+    { g: "Jazz e bossa nova", sym: "6", name: "maior com 6.ª", n: [12, 15, 18, 20] },
+    { g: "Jazz e bossa nova", sym: "m6", name: "menor com 6.ª", n: [30, 36, 45, 50] },
+    { g: "Jazz e bossa nova", sym: "7M(9)", name: "sem a 5.ª", n: [8, 10, 15, 18] },
+    { g: "Jazz e bossa nova", sym: "m7(9)", name: "sem a 5.ª", n: [20, 24, 36, 45] },
+    { g: "Jazz e bossa nova", sym: "7(9)", name: "sem a 5.ª", n: [4, 5, 7, 9] },
+    { g: "Jazz e bossa nova", sym: "6(9)", name: "sem a 5.ª", n: [12, 15, 20, 27] },
+    { g: "Jazz e bossa nova", sym: "7(13)", name: "sem a 5.ª", n: [12, 15, 21, 40] },
+    { g: "Jazz e bossa nova", sym: "m7(11)", name: "sem a 5.ª", n: [15, 18, 27, 40] },
+    { g: "Jazz e bossa nova", sym: "7sus4", name: "4.ª em vez da 3.ª", n: [12, 16, 18, 21] },
+  ];
+  S.chord = { root: 9, type: -1 };   // type = −1: nenhum acorde (ou já mudado à mão)
+  const chordFreqs = (root, type) => {
+    const F = 440 * Math.pow(2, (48 + root - 69) / 12), n = CHORDS[type].n;
+    return n.map(k => Math.round(F * k / n[0]));
+  };
+  let injecting = false;
+  function setChord(root, type) {
+    S.chord = { root, type };
+    if (type >= 0) {
+      injecting = true;
+      chordFreqs(root, type).forEach((f, i) => setF(i, f));
+      injecting = false;
+      S.inSum = [true, true, true, true]; S.sumOn = true;
+    }
+    changed();
+  }
+  // se uma frequência mudar à mão, a lista deixa de mostrar o acorde
+  function chordCheck() {
+    if (injecting || S.chord.type < 0) return;
+    const fs = chordFreqs(S.chord.root, S.chord.type);
+    if (fs.some((f, i) => f !== S.waves[i].f)) S.chord.type = -1;
+  }
+  const mkSelect = (id, label, html) => {
+    const el = document.createElement("select");
+    el.className = "inp"; el.id = id; el.setAttribute("aria-label", label); el.innerHTML = html;
+    document.body.appendChild(el);
+    return el;
+  };
+  const $root = mkSelect("ch-root", "Fundamental do acorde", NOMES.map((n, i) => `<option value="${i}">${n}</option>`).join(""));
+  const groups = [...new Set(CHORDS.map(c => c.g))];
+  const $type = mkSelect("ch-type", "Tipo de acorde", `<option value="-1">— tipo —</option>` + groups.map(g =>
+    `<optgroup label="${g}">` + CHORDS.map((c, i) => c.g === g ? `<option value="${i}">${c.sym || "M"} · ${c.name}</option>` : "").join("") + "</optgroup>").join(""));
+  $root.addEventListener("change", () => setChord(+$root.value, S.chord.type));
+  $type.addEventListener("change", () => setChord(+$root.value, +$type.value));
+  const placeSel = (el, r, px) => {
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px"; el.style.fontSize = px + "px";
+  };
+
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
   const ctx = cv.getContext("2d");
@@ -241,7 +302,7 @@
   // alturas (em fs): cartão de uma onda (cabeçalho + A + f), cartão da soma, cartão das definições
   const HDR = 1.55, ROW = 1.5, CP = 0.35, GAP = 0.4, LEG = 1.9;
   const CARD = CP + HDR + 0.2 + ROW + 0.15 + ROW + 0.45 + CP,   // (+0,45: os nomes dos Lá por baixo do cursor da frequência)
-        SUM = CP + HDR + 0.1 + ROW + CP, SET = CP + ROW + 0.2 + ROW + CP;
+        SUM = CP + HDR + 0.1 + ROW + 0.1 + ROW + CP, SET = CP + ROW + 0.2 + ROW + CP;
   // disposição: ecrã deitado → controlos numa coluna à esquerda e o gráfico à direita;
   // ecrã ao alto → fórmula em cima, gráfico, e os controlos por baixo (ondas em duas colunas se couberem)
   function layout() {
@@ -501,6 +562,16 @@
       texAt("ins" + i, `p_${i + 1}`, x0 + bs * 1.45, y + rh / 2, fs * 1.05, C.W[i], 0, 0.5);
       hits.push({ kind: "insum", i, rect: { x: x0, y, w: step - 0.2 * fs, h: rh } });
     });
+    // Acorde [Lá ▾] [7M · maior com 7.ª maior ▾]   8 : 10 : 12 : 15
+    const y3 = y + rh + 0.1 * fs, sh = 1.3 * fs, sy = y3 + (rh - sh) / 2;
+    let x3 = c.x + text("Acorde", c.x, y3 + rh / 2 + 1, fs * 0.8, C.muted) + 0.6 * fs;
+    $root.value = S.chord.root; $type.value = S.chord.type;
+    placeSel($root, { x: x3, y: sy, w: 4 * fs, h: sh }, fs * 0.8);
+    x3 += 4.3 * fs;
+    const ch = CHORDS[S.chord.type], rw = ch ? tw(ch.n.join(" : "), fs * 0.75, MONO) + 0.6 * fs : 0;
+    const showR = ch && c.x + c.w - x3 - rw >= 6 * fs;
+    placeSel($type, { x: x3, y: sy, w: c.x + c.w - x3 - (showR ? rw : 0), h: sh }, fs * 0.8);
+    if (showR) text(ch.n.join(" : "), c.x + c.w, y3 + rh / 2 + 1, fs * 0.75, C.muted, "right", MONO);
   }
 
   // definições: referencial (fixo/automático, n.º de períodos) e duração do som
