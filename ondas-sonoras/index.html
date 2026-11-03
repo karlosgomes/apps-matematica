@@ -404,7 +404,8 @@
     const bw = b.h * 1.3;
     rrect(b.x, b.y, b.w - bw - 0.4 * fs, b.h, 8, C.band, C.line, 1.5);
     const src = "p_i(t) = A_i \\sin(2\\pi f_i\\, t)";
-    fit(texAt("legend", src, b.x + (b.w - bw - 0.4 * fs) / 2, b.y + b.h / 2, fs * 1.25, C.ink), b.w - bw - 1.2 * fs, b.h);
+    const el = fit(texAt("legend", src, b.x + (b.w - bw - 0.4 * fs) / 2, b.y + b.h / 2, fs * 1.25, C.ink), b.w - bw - 1.2 * fs, b.h);
+    L.legPx = parseFloat(el.style.fontSize);   // a expressão da soma, no topo do gráfico, usa a mesma letra
     button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
   }
 
@@ -509,6 +510,25 @@
   // ---------- gráfico ----------
   function graph(b, fs) {
     const { T, Y } = bounds();
+    // no topo, uma faixa (sempre reservada, para o referencial não mudar) com a expressão da soma:
+    // p(t) = 0,5 sin(2π·220 t) + …, cada parcela na cor da sua onda, com a letra da fórmula geral.
+    // Se a soma das quatro ondas não couber numa linha, a faixa tem duas linhas (e a expressão parte-se em duas)
+    const lp = L.legPx || fs * 1.25;
+    const term = i => clr(C.W[i], `${S.waves[i].A === 1 ? "" : texNum(S.waves[i].A, 2)}\\sin(2\\pi \\cdot ${S.waves[i].f}\\, t)`);
+    const P_ = clr(C.sum, "p(t)");
+    const probe = texAt("sumprobe", `${P_} = ${[0, 1, 2, 3].map(term).join(" + ")}`, 0, 0, lp, C.ink, 0, 0);
+    const two = probe.offsetWidth > b.w;
+    probe.style.display = "none"; used.delete("sumprobe");
+    const strip = (two ? 2.75 : 1.6) * lp;
+    if (S.sumOn && S.inSum.some(v => v)) {
+      const ts = [0, 1, 2, 3].filter(i => S.inSum[i]).map(term);
+      const k = Math.ceil(ts.length / 2);
+      const src = two && ts.length > 2
+        ? `\\begin{aligned} ${P_} = {} & ${ts.slice(0, k).join(" + ")} \\\\ & + ${ts.slice(k).join(" + ")} \\end{aligned}`
+        : `${P_} = ${ts.join(" + ")}`;
+      fit(texAt("sumexpr", src, b.x + b.w / 2, b.y + strip / 2, lp, C.ink), b.w, strip);
+    }
+    b = { x: b.x, y: b.y + strip, w: b.w, h: b.h - strip };
     const ml = 3 * fs, mr = 1.5 * fs, mt = 1.7 * fs, mb = 1.6 * fs;
     const gx0 = b.x + ml, gx1 = b.x + b.w - mr, gy0 = b.y + mt, gy1 = b.y + b.h - mb;
     const gw = gx1 - gx0, gh = gy1 - gy0;
