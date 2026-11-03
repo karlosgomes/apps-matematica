@@ -240,7 +240,8 @@
 
   // alturas (em fs): cartão de uma onda (cabeçalho + A + f), cartão da soma, cartão das definições
   const HDR = 1.55, ROW = 1.5, CP = 0.35, GAP = 0.4, LEG = 1.9;
-  const CARD = CP + HDR + 0.2 + ROW + 0.15 + ROW + CP, SUM = CP + HDR + 0.1 + ROW + CP, SET = CP + ROW + 0.2 + ROW + CP;
+  const CARD = CP + HDR + 0.2 + ROW + 0.15 + ROW + 0.45 + CP,   // (+0,45: os nomes dos Lá por baixo do cursor da frequência)
+        SUM = CP + HDR + 0.1 + ROW + CP, SET = CP + ROW + 0.2 + ROW + CP;
   // disposição: ecrã deitado → controlos numa coluna à esquerda e o gráfico à direita;
   // ecrã ao alto → fórmula em cima, gráfico, e os controlos por baixo (ondas em duas colunas se couberem)
   function layout() {
@@ -344,19 +345,37 @@
     usedInp.add(id);
   }
   // cursor: barra com a parte até ao valor na cor col e a pega redonda
-  function slider(x, y, w, h, lo, hi, v, col, fs, set) {
+  // marks: valores marcados por baixo da barra ({ v, lab }), com íman ao arrastar perto deles
+  function slider(x, y, w, h, lo, hi, v, col, fs, set, marks = []) {
     const cy = y + h / 2, X = u => x + (clamp(u, lo, hi) - lo) / (hi - lo) * w;
     ctx.lineCap = "round";
     line(x, cy, x + w, cy, C.grid2, 0.26 * fs);
     line(x, cy, X(v), cy, col, 0.26 * fs);
     ctx.lineCap = "butt";
+    if (marks.length) {
+      // as marcas todas; os nomes só onde não se sobrepõem (pela ordem da lista: os primeiros têm prioridade)
+      const lf = fs * 0.64, taken = [];
+      let gave = false;   // depois de um nome que não cabe abaixo do primeiro, os de baixo também ficam sem nome (Lá2 sem Lá3 confundia)
+      marks.forEach(m => line(X(m.v), cy + 0.2 * fs, X(m.v), cy + 0.48 * fs, C.muted, 1.3));
+      marks.forEach(m => {
+        const mw = tw(m.lab, lf, FONT), a = X(m.v) - mw / 2 - 1, b = X(m.v) + mw / 2 + 1;
+        if (gave && m.v < marks[0].v) return;
+        if (a < x - 0.6 * fs || b > x + w + 0.6 * fs || taken.some(([p, q]) => a < q && b > p)) { if (m.v < marks[0].v) gave = true; return; }
+        taken.push([a, b]);
+        text(m.lab, X(m.v), cy + 0.82 * fs, lf, C.muted, "center");
+      });
+    }
     // (com a onda desligada, tudo esbatido: o fundo opaco por baixo da pega esconde a barra)
     const ga = ctx.globalAlpha; ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs + 1.25, 0, Math.PI * 2); ctx.fillStyle = C.band; ctx.fill();
     ctx.globalAlpha = ga;
     ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
     ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
-    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, val: px => lo + (px - x) / w * (hi - lo), set });
+    const snap = 0.3 * fs;
+    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, set, val: px => {
+      const m = marks.find(m => Math.abs(X(m.v) - px) <= snap);
+      return m ? m.v : lo + (px - x) / w * (hi - lo);
+    } });
   }
 
   // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
@@ -442,11 +461,14 @@
     if (!w.on) ctx.globalAlpha = 0.5;
     paramRow(c, y, rh, fs, "A" + i, `A_${i + 1}`, "", 0, 1, w.A, col, v => setA(i, v), !w.on);
     y += rh + 0.15 * fs;
-    paramRow(c, y, rh, fs, "f" + i, `f_${i + 1}`, "Hz", 20, 2000, w.f, col, v => setF(i, v), !w.on);
+    paramRow(c, y, rh, fs, "f" + i, `f_${i + 1}`, "Hz", 20, 2000, w.f, col, v => setF(i, v), !w.on, LAS);
     ctx.globalAlpha = 1;
   }
   // uma linha de parâmetro: nome (KaTeX), caixa com o valor, unidade e cursor
-  function paramRow(c, y, rh, fs, id, src, unit, lo, hi, v, col, set, off) {
+  // os Lá (de oitava em oitava: cada um tem o dobro da frequência do anterior), marcados no cursor da frequência
+  // (Lá0 = 27,5 Hz; a ordem dá a prioridade dos nomes quando não cabem todos: o primeiro, os de cima, os de baixo)
+  const LAS = [440, 880, 1760, 220, 110, 55].map(v => ({ v, lab: "Lá" + Math.round(Math.log2(v / 27.5)) }));
+  function paramRow(c, y, rh, fs, id, src, unit, lo, hi, v, col, set, off, marks) {
     const ih = 1.3 * fs, iy = y + (rh - ih) / 2;
     const el = texAt("l" + id, src, c.x + 0.1 * fs, y + rh / 2, fs * 1.05, col, 0, 0.5);
     el.style.opacity = off ? 0.5 : 1;
@@ -454,7 +476,7 @@
     place(id, { x: ix, y: iy, w: iw, h: ih }, fs * 0.82, off);
     if (unit) text(unit, ix + iw + 0.3 * fs, y + rh / 2 + 1, fs * 0.75, C.muted);
     const sx = ix + iw + 2.3 * fs;
-    slider(sx, y, c.x + c.w - 0.5 * fs - sx, rh, lo, hi, v, col, fs, set);
+    slider(sx, y, c.x + c.w - 0.5 * fs - sx, rh, lo, hi, v, col, fs, set, marks);
   }
 
   // a soma: [✓ Soma]  p₁ + p₃  [▶ Tocar a soma]; por baixo, as caixas das ondas que entram na soma
