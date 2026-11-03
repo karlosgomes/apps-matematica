@@ -36,7 +36,7 @@
   const LIM = { a: [-4, 4], k: [-5, 5], c: [-4, 4], dm: [-24, 24] };
   const STEP = { a: 0.1, k: 0.1, c: 0.1, dm: 1 };
   const YMAX = 8;   // eixo Oy fixo: [−8, 8] (com |k| + |a| > 8 a curva sai do referencial)
-  const S = { fn: "sin", ...DEF };
+  const S = { fn: "cos", ...DEF };   // abre em f(x) = cos x
   const D = () => S.dm * PI / 12;
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
