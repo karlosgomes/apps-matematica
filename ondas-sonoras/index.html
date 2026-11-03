@@ -6,254 +6,56 @@
 <title>Laboratório das Ondas Sonoras</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root {
-    --bg: #eef2f6;
-    --panel: #ffffff;
-    --ink: #17202b;
-    --muted: #5b6776;
-    --line: #d6dde6;
-    --grid: #e6ebf1;
-    --grid-strong: #d2d9e2;
-    --axis: #36414d;
-    --btn: #eef2f6;
-    --btn-hover: #e1e7ee;
-    --w1: #1565c0;
-    --w2: #d32f2f;
-    --w3: #2e7d32;
-    --w4: #ef6c00;
-    --sum: #111827;
-    --focus: #1565c0;
-    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #0f1419;
-      --panel: #171e26;
-      --ink: #e6ebf1;
-      --muted: #9aa6b4;
-      --line: #2a3440;
-      --grid: #1d252e;
-      --grid-strong: #2a3440;
-      --axis: #aab4c0;
-      --btn: #202a35;
-      --btn-hover: #2a3642;
-      --w1: #64a8ff;
-      --w2: #ff6b6b;
-      --w3: #5cc26a;
-      --w4: #ffa040;
-      --sum: #f2f4f7;
-      --focus: #64a8ff;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0f1419;
-    --panel: #171e26;
-    --ink: #e6ebf1;
-    --muted: #9aa6b4;
-    --line: #2a3440;
-    --grid: #1d252e;
-    --grid-strong: #2a3440;
-    --axis: #aab4c0;
-    --btn: #202a35;
-    --btn-hover: #2a3642;
-    --w1: #64a8ff;
-    --w2: #ff6b6b;
-    --w3: #5cc26a;
-    --w4: #ffa040;
-    --sum: #f2f4f7;
-    --focus: #64a8ff;
-  }
-
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--font);
-    font-size: 15px;
-    line-height: 1.4;
-    padding-inline: 16px;
-    padding-block: 16px 24px;
-  }
-  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
-
-  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
-  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
-  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
-  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
-
-  main { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 14px; align-items: start; }
-  @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; }
-    /* em ecrãs estreitos o gráfico fica no topo e visível enquanto se mexe nos sliders */
-    .plot-card { order: -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; box-shadow: 0 6px 14px -10px rgba(0,0,0,.35); }
-  }
-
-  .controls { display: grid; gap: 10px; }
-  .wave {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-left: 4px solid var(--c);
-    border-radius: 8px;
-    padding: 10px 12px 12px;
-    display: grid;
-    gap: 8px;
-  }
-  .wave-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--c); cursor: pointer; }
-  .toggle input { width: 18px; height: 18px; accent-color: var(--c); margin: 0; cursor: pointer; }
-  .note {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    color: var(--c);
-    white-space: nowrap;
-  }
-  .note .cents { color: var(--muted); }
-  .play {
-    margin-left: auto;
-    font: inherit;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: var(--ink);
-    background: var(--btn);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 5px 12px;
-    cursor: pointer;
-    min-width: 90px;
-    white-space: nowrap;
-  }
-  .play:hover { background: var(--btn-hover); }
-  .play[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: var(--panel); }
-
-  .param { display: grid; grid-template-columns: 5.2rem 1fr 4.6rem; align-items: center; gap: 10px; }
-  .param label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
-  .param label b { color: var(--ink); font-style: italic; font-weight: 400; font-size: 1rem; }
-  .param input[type="range"] { width: 100%; accent-color: var(--c); margin: 0; }
-  .param input[type="number"] {
-    width: 100%;
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    padding: 3px 6px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  .period { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
-
-  .wave.off .param, .wave.off .period { opacity: 0.55; }
-
-  .settings { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 10px; --c: var(--muted); }
-  .settings .param input[type="range"] { accent-color: var(--axis); }
-  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button {
-    font: inherit; font-size: 0.9rem; padding: 5px 12px; border: 0; cursor: pointer;
-    background: var(--btn); color: var(--ink);
-  }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
-  .stop {
-    margin-left: auto;
-    font: inherit; font-weight: 700; font-size: 0.9rem;
-    padding: 6px 14px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
-  }
-  .stop:hover { background: var(--btn-hover); }
-
-  /* em ecrã largo o gráfico fica preso no ecrã enquanto se desce nas ondas */
-  @media (min-width: 901px) {
-    .plot-card { position: sticky; top: 16px; }
-  }
-  .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
-  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
-  .projbar { display: flex; gap: 8px; align-items: center; }
-  .projbar button {
-    font: inherit; font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line); white-space: nowrap;
-  }
-  .projbar button:hover { background: var(--btn-hover); }
-  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); font-weight: 700; }
-  :root[data-proj] { --muted: #333d4a; --grid-strong: #c4cdd8; --line: #b3bfcc; --axis: #1f2833; }
-  :root[data-proj] body { font-size: 17px; }
-  :root[data-proj] .caption { font-size: 1rem; }
-  :root[data-hidectl] main { grid-template-columns: minmax(0, 1fr); }
-  :root[data-hidectl] main > .controls { display: none; }
-  #plot { width: 100%; }
-  #plot canvas { display: block; max-width: 100%; }
-  .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
-  .caption .mono { font-family: var(--mono); }
-
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root { --band: #f6f8fb; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --band: #1c242d; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixas dos valores (amplitudes, frequências, duração do som, n.º de períodos), postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.3em; border: 2px solid var(--line); border-radius: 7px;
+         background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  .inp.off { opacity: 0.5; }
 </style>
-
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Laboratório das Ondas Sonoras</h1>
-    <div class="formula"><i>p</i><sub>i</sub>(<i>t</i>) = <i>A</i><sub>i</sub> · sin(2π <i>f</i><sub>i</sub> <i>t</i>)</div>
-    <div class="projbar">
-      <button id="hidectl" hidden>Esconder controlos</button>
-      <button id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
-    </div>
-  </header>
-
-  <main>
-    <section class="controls" aria-label="Controlos">
-      <div id="waves" class="controls"></div>
-
-      <div class="wave" id="card-sum" style="--c: var(--sum)">
-        <div class="wave-head">
-          <label class="toggle"><input type="checkbox" id="on-sum"> Soma das 4 ondas</label>
-          <button class="play" id="play-sum" aria-pressed="false">▶ Tocar a soma</button>
-        </div>
-      </div>
-
-      <div class="settings">
-        <div class="param">
-          <label for="dur">Duração (s)</label>
-          <input type="range" id="dur" min="0.5" max="5" step="0.5" value="2">
-          <input type="number" id="dur-n" min="0.5" max="5" step="0.5" value="2" aria-label="Duração em segundos">
-        </div>
-        <div class="row">
-          <span style="color: var(--muted); font-size: 0.9rem">Referencial</span>
-          <div class="seg" role="group" aria-label="Referencial">
-            <button id="mode-fixo" aria-pressed="true">Fixo</button>
-            <button id="mode-auto" aria-pressed="false">Automático</button>
-          </div>
-          <button class="stop" id="stop-all">■ Parar tudo</button>
-        </div>
-        <div class="param" id="n-row" hidden>
-          <label for="nper">Nº de períodos</label>
-          <input type="range" id="nper" min="1" max="20" step="1" value="3">
-          <input type="number" id="nper-n" min="1" max="20" step="1" value="3" aria-label="Número de períodos">
-        </div>
-      </div>
-    </section>
-
-    <section class="plot-card" aria-label="Gráfico das ondas">
-      <div id="plot"></div>
-      <div class="caption">
-        <span id="cap-window" class="mono"></span>
-        <span>Eixo horizontal em milissegundos; o som usa segundos.</span>
-      </div>
-    </section>
-  </main>
-</div>
-
-<script src="p5.min.js"></script>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Gráfico de quatro ondas sonoras p(t) = A sin(2π f t) e da sua soma, com os controlos da amplitude e da frequência de cada onda"></canvas>
 <script>
 (() => {
+  // Pensada para projeção: contraste forte, controlos desenhados na própria folha; tema claro ou escuro
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    W: ["#1565c0", "#d32f2f", "#2e7d32", "#ef6c00"], sum: "#111827",
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    W: ["#64a8ff", "#ff6b6b", "#5cc26a", "#ffa040"], sum: "#f2f4f7",
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+
   // ---------- estado ----------
   const S = {
     waves: [
@@ -263,14 +65,27 @@
       { A: 0.5, f: 440, on: false },
     ],
     sumOn: false,
-    d: 2,
+    inSum: [true, true, true, true],   // ondas que entram na soma (escolhidas no cartão da soma)
+    d: 5,           // duração do som (s)
     mode: "fixo",   // "fixo" | "auto"
-    n: 3,
+    n: 3,           // n.º de períodos no referencial automático
   };
   const FIXO = { T: 20, Y: 2.5 };  // 0 ≤ t ≤ 20 ms, −2,5 ≤ p ≤ 2,5
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-  const fmt = (x, dec = 2) => x.toLocaleString("pt-PT", { maximumFractionDigits: dec, minimumFractionDigits: 0 });
-  const sub = ["₁", "₂", "₃", "₄"];
+  // ---------- números ----------
+  const fmt = (x, dec = 2) => {
+    if (!isFinite(x)) return "—";
+    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec);
+    if (s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    if (s === "-0") s = "0";
+    return s.replace(".", ",").replace(/^-/, "−");
+  };
+  const texNum = (x, dec = 3) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
+  const parseNum = s => {
+    s = String(s).trim().replace(/\s/g, "").replace("−", "-").replace(",", ".");
+    return /^-?\d*\.?\d+$/.test(s) ? parseFloat(s) : NaN;
+  };
 
   // ---------- nota musical mais próxima ----------
   const NOMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
@@ -281,86 +96,37 @@
     return { nome: NOMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1), cents: c };
   }
 
-  // ---------- construir os cartões ----------
-  const wavesEl = document.getElementById("waves");
-  S.waves.forEach((w, i) => {
-    const k = i + 1;
-    const card = document.createElement("div");
-    card.className = "wave";
-    card.id = `card-${i}`;
-    card.style.setProperty("--c", `var(--w${k})`);
-    card.innerHTML = `
-      <div class="wave-head">
-        <label class="toggle"><input type="checkbox" id="on-${i}"${w.on ? " checked" : ""}> Onda ${k}</label>
-        <span class="note" id="note-${i}"></span>
-        <button class="play" id="play-${i}" aria-pressed="false">▶ Tocar</button>
-      </div>
-      <div class="param">
-        <label for="A-${i}">Amplitude <b>A${sub[i]}</b></label>
-        <input type="range" id="A-${i}" min="0" max="1" step="0.01" value="${w.A}">
-        <input type="number" id="A-${i}-n" min="0" max="1" step="0.01" value="${w.A}" aria-label="Amplitude A${k}">
-      </div>
-      <div class="param">
-        <label for="f-${i}">Frequência <b>f${sub[i]}</b></label>
-        <input type="range" id="f-${i}" min="20" max="2000" step="1" value="${w.f}">
-        <input type="number" id="f-${i}-n" min="20" max="2000" step="1" value="${w.f}" aria-label="Frequência f${k} em hertz">
-      </div>
-      <div class="period" id="per-${i}"></div>`;
-    wavesEl.appendChild(card);
-  });
-
-  // liga um slider ao seu campo numérico
-  function bindPair(id, min, max, set) {
-    const r = document.getElementById(id), n = document.getElementById(id + "-n");
-    r.addEventListener("input", () => { n.value = r.value; set(+r.value); });
-    n.addEventListener("change", () => {
-      let v = parseFloat(String(n.value).replace(",", "."));
-      if (!isFinite(v)) v = +r.value;
-      v = Math.min(max, Math.max(min, v));
-      n.value = v; r.value = v; set(v);
-    });
-  }
-
-  S.waves.forEach((w, i) => {
-    bindPair(`A-${i}`, 0, 1, v => { w.A = v; changed(); });
-    bindPair(`f-${i}`, 20, 2000, v => { w.f = Math.round(v); changed(); });
-    document.getElementById(`on-${i}`).addEventListener("change", e => { w.on = e.target.checked; changed(); });
-    document.getElementById(`play-${i}`).addEventListener("click", () => toggle(String(i)));
-  });
-  document.getElementById("on-sum").addEventListener("change", e => { S.sumOn = e.target.checked; changed(); });
-  document.getElementById("play-sum").addEventListener("click", () => toggle("sum"));
-  bindPair("dur", 0.5, 5, v => { S.d = v; });
-  bindPair("nper", 1, 20, v => { S.n = Math.round(v); changed(); });
-  document.getElementById("stop-all").addEventListener("click", () => Object.keys(voices).forEach(stop));
-
-  const modeBtns = { fixo: document.getElementById("mode-fixo"), auto: document.getElementById("mode-auto") };
-  Object.entries(modeBtns).forEach(([m, b]) => b.addEventListener("click", () => { S.mode = m; changed(); }));
+  // ---------- alterações dos valores ----------
+  function changed() { updateVoices(); draw(); }
+  const setA = (i, v) => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v !== S.waves[i].A) { S.waves[i].A = v; changed(); } };
+  const setF = (i, v) => { v = clamp(Math.round(v), 20, 2000); if (v !== S.waves[i].f) { S.waves[i].f = v; changed(); } };
+  const setDur = v => { v = clamp(Math.round(v * 2) / 2, 0.5, 5); if (v !== S.d) { S.d = v; draw(); } };
+  const setN = v => { v = clamp(Math.round(v), 1, 20); if (v !== S.n) { S.n = v; draw(); } };
+  const toggleWave = i => { S.waves[i].on = !S.waves[i].on; draw(); };
 
   // ---------- som (Web Audio) ----------
-  let ctx = null, master = null;
+  let actx = null, master = null;
   const voices = {};
-
   function audio() {
-    if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
-      master = ctx.createGain();
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain();
       master.gain.value = 0.35;  // volume geral moderado; as amplitudes relativas mantêm-se
-      master.connect(ctx.destination);
+      master.connect(actx.destination);
     }
-    if (ctx.state === "suspended") ctx.resume();
-    return ctx;
+    if (actx.state === "suspended") actx.resume();
+    return actx;
   }
-
-  // nível de cada oscilador; a soma é normalizada por max(1, ΣA) para não saturar
+  // nível de cada oscilador; a soma é só das ondas escolhidas no cartão da soma, normalizada por max(1, ΣA) para não saturar
+  // (a soma tem sempre os quatro osciladores: ao selecionar ou tirar uma onda durante o som, só muda o nível)
   function level(key, i) {
     const A = S.waves[i].A;
     if (key !== "sum") return A;
-    const tot = S.waves.reduce((s, w) => s + w.A, 0);
+    if (!S.inSum[i]) return 0;
+    const tot = S.waves.reduce((s, w, j) => s + (S.inSum[j] ? w.A : 0), 0);
     return A / Math.max(1, tot);
   }
-
-  function toggle(key) { voices[key] ? stop(key) : play(key); }
-
+  const toggle = key => voices[key] ? stop(key) : play(key);
   function play(key) {
     const c = audio();
     const out = c.createGain();
@@ -383,60 +149,44 @@
     out.gain.linearRampToValueAtTime(1, t0 + 0.02);
     out.gain.setValueAtTime(1, t1 - 0.03);
     out.gain.linearRampToValueAtTime(0, t1);
-    const timer = setTimeout(() => { delete voices[key]; renderButtons(); }, (S.d + 0.1) * 1000);
+    const timer = setTimeout(() => { delete voices[key]; draw(); }, (S.d + 0.1) * 1000);
     voices[key] = { out, oscs, timer };
-    renderButtons();
+    draw();
   }
-
   function stop(key) {
     const v = voices[key];
     if (!v) return;
     clearTimeout(v.timer);
-    const now = ctx.currentTime;
+    const now = actx.currentTime;
     v.out.gain.cancelScheduledValues(now);
     v.out.gain.setValueAtTime(v.out.gain.value, now);
     v.out.gain.linearRampToValueAtTime(0, now + 0.03);
     v.oscs.forEach(x => { try { x.o.stop(now + 0.05); } catch (e) {} });
     delete voices[key];
-    renderButtons();
+    draw();
   }
-
-  // ao mexer nos sliders durante a reprodução, o som acompanha
+  const stopAll = () => Object.keys(voices).forEach(stop);
+  // ao mexer nos cursores durante a reprodução, o som acompanha
   function updateVoices() {
-    if (!ctx) return;
-    const now = ctx.currentTime;
+    if (!actx) return;
+    const now = actx.currentTime;
     Object.entries(voices).forEach(([key, v]) => v.oscs.forEach(x => {
       x.o.frequency.setTargetAtTime(S.waves[x.i].f, now, 0.01);
       x.g.gain.setTargetAtTime(level(key, x.i), now, 0.01);
     }));
   }
 
-  function renderButtons() {
-    S.waves.forEach((w, i) => {
-      const b = document.getElementById(`play-${i}`);
-      const on = !!voices[String(i)];
-      b.setAttribute("aria-pressed", on);
-      b.textContent = on ? "■ Parar" : "▶ Tocar";
-    });
-    const bs = document.getElementById("play-sum");
-    const on = !!voices.sum;
-    bs.setAttribute("aria-pressed", on);
-    bs.textContent = on ? "■ Parar" : "▶ Tocar a soma";
-  }
-
   // ---------- limites do referencial ----------
   function bounds() {
     if (S.mode === "fixo") return { T: FIXO.T, Y: FIXO.Y };
-    const act = S.waves.filter(w => w.A > 0);
     const cand = S.waves.filter(w => w.on && w.A > 0).map(w => w.f);
-    if (S.sumOn) act.forEach(w => cand.push(w.f));
+    if (S.sumOn) S.waves.forEach((w, i) => { if (S.inSum[i] && w.A > 0) cand.push(w.f); });
     const fmin = cand.length ? Math.min(...cand) : 2000;
     const amps = [0.05];
     S.waves.forEach(w => { if (w.on) amps.push(w.A); });
-    if (S.sumOn) amps.push(S.waves.reduce((s, w) => s + w.A, 0));
+    if (S.sumOn) amps.push(S.waves.reduce((s, w, i) => s + (S.inSum[i] ? w.A : 0), 0));
     return { T: S.n * 1000 / fmin, Y: 1.15 * Math.max(...amps) };
   }
-
   function niceStep(range, target) {
     const raw = range / target;
     const p = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -444,151 +194,410 @@
     return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
   }
 
-  // ---------- gráfico (p5.js) ----------
-  const plotEl = document.getElementById("plot");
-  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-
-  let ready = false;
-
-  // ---------- modo projeção ----------
-  // texto e traços do desenho ficam K vezes maiores; o estado fica guardado no browser
-  // (a mesma chave nas várias apps do site)
-  let K = 1;
-  const PROJ_KEY = "apps-mat-projecao";
-  const projBtn = document.getElementById("proj"), hideBtn = document.getElementById("hidectl");
-  function setProj(on) {
-    K = on ? 1.5 : 1;
-    const r = document.documentElement;
-    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
-    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
-    projBtn.setAttribute("aria-pressed", on);
-    hideBtn.hidden = !on;
-    hideBtn.textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
-    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
-    if (ready) { P.windowResized(); P.redraw(); }
-  }
-  projBtn.addEventListener("click", () => setProj(K === 1));
-  hideBtn.addEventListener("click", () => {
-    const r = document.documentElement;
-    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
-    setProj(true);
-  });
-  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
-  const sketch = p => {
-    const M0 = { l: 52, r: 18, t: 18, b: 38 };
-    const M = { ...M0 };
-    const scaleM = () => Object.keys(M0).forEach(k => { M[k] = Math.round(M0[k] * K); });
-
-    function size() {
-      scaleM();
-      const w = Math.max(280, plotEl.clientWidth);
-      // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
-      const h = Math.round(Math.max(260, Math.min(640, window.innerHeight - 100 - (K > 1 ? 40 : 0), Math.max(300, w * 0.62))));
-      return [w, h];
-    }
-
-    p.setup = () => {
-      const [w, h] = size();
-      p.createCanvas(w, h).parent(plotEl);
-      // no modo projeção, tamanhos de letra e espessuras multiplicados por K
-      const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p);
-      p.textSize = s => s === undefined ? ts() : ts(s * K);
-      p.strokeWeight = w => sw(w * K);
-      p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
-      p.noLoop();
-      ready = true;
+  // ---------- caixas de texto ----------
+  // cada caixa: valor atual, como o mudar, passo das setas e casas decimais
+  const INP = {};
+  function makeInput(id, label, get, set, step, dec, mode = "decimal") {
+    const el = document.createElement("input");
+    el.className = "inp"; el.id = id; el.type = "text"; el.inputMode = mode; el.autocomplete = "off"; el.spellcheck = false;
+    el.setAttribute("aria-label", label);
+    document.body.appendChild(el);
+    const commit = () => {
+      const x = parseNum(el.value);
+      if (isFinite(x)) { el.classList.remove("bad"); set(x); el.value = fmt(get(), dec); draw(); }
+      else el.classList.add("bad");
     };
-
-    p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
-
-    p.draw = () => {
-      scaleM();
-      const { T, Y } = bounds();
-      const W = p.width - M.l - M.r, H = p.height - M.t - M.b;
-      const X = t => M.l + (t / T) * W;
-      const Yp = v => M.t + H / 2 - (v / Y) * (H / 2);
-
-      // sem internet a letra IBM Plex Mono não carrega: usa a monoespaçada do sistema
-      const plex = document.fonts && [...document.fonts].some(f => f.family.replace(/"/g, "") === "IBM Plex Mono" && f.status === "loaded");
-      p.textFont(plex ? "IBM Plex Mono" : "monospace");
-      p.background(css("--panel"));
-
-      // grelha e marcas
-      const sx = niceStep(T, 10), sy = niceStep(2 * Y, 8);
-      p.textSize(11);
-      p.strokeWeight(1);
-      for (let t = 0; t <= T + 1e-9; t += sx) {
-        p.stroke(css("--grid-strong")); p.line(X(t), M.t, X(t), M.t + H);
-        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
-        p.text(fmt(+t.toFixed(6), 3), X(t), M.t + H + 6);
+    el.addEventListener("change", commit);
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter") { commit(); el.blur(); }
+      else if (e.key === "Escape") { el.classList.remove("bad"); el.value = fmt(get(), dec); el.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        set(get() + (e.key === "ArrowUp" ? 1 : -1) * step * (e.shiftKey ? 10 : 1));
+        el.classList.remove("bad"); el.value = fmt(get(), dec); draw();
       }
-      for (let v = Math.ceil(-Y / sy) * sy; v <= Y + 1e-9; v += sy) {
-        const vv = Math.abs(v) < 1e-9 ? 0 : v;
-        p.stroke(css("--grid-strong")); p.line(M.l, Yp(vv), M.l + W, Yp(vv));
-        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
-        p.text(fmt(+vv.toFixed(6), 3).replace("-", "−"), M.l - 8, Yp(vv));
-      }
-
-      // eixos
-      p.stroke(css("--axis")); p.strokeWeight(1.5);
-      p.line(M.l, Yp(0), M.l + W, Yp(0));
-      p.line(M.l, M.t, M.l, M.t + H);
-
-      // curvas (recortadas à área do gráfico)
-      const dc = p.drawingContext;
-      dc.save();
-      dc.beginPath(); dc.rect(M.l, M.t, W, H); dc.clip();
-      p.noFill();
-      const N = Math.max(400, Math.round(W * 2));
-      const val = (i, t) => S.waves[i].A * Math.sin(2 * Math.PI * S.waves[i].f * t / 1000);
-      const curve = (fn, color, weight) => {
-        p.stroke(color); p.strokeWeight(weight); p.strokeJoin(p.ROUND);
-        p.beginShape();
-        for (let k = 0; k <= N; k++) { const t = T * k / N; p.vertex(X(t), Yp(fn(t))); }
-        p.endShape();
-      };
-      S.waves.forEach((w, i) => { if (w.on) curve(t => val(i, t), css(`--w${i + 1}`), 2.2); });
-      if (S.sumOn) curve(t => val(0, t) + val(1, t) + val(2, t) + val(3, t), css("--sum"), 3.4);
-      dc.restore();
-
-      // nomes dos eixos, por cima das curvas, com fundo para se lerem
-      p.textSize(13);
-      const label = (txt, x, y, alignX) => {
-        const w = p.textWidth(txt) + 8;
-        const x0 = alignX === p.RIGHT ? x - w : x;
-        p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
-        p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
-      };
-      label("t (ms)", M.l + W - 2, Yp(0) - 12, p.RIGHT);
-      label("p", M.l + 6, M.t + 10, p.LEFT);
-    };
-  };
-  const P = new p5(sketch);
-
-  const redraw = () => { if (ready) P.redraw(); };
-  new ResizeObserver(() => { if (ready) { P.windowResized(); P.redraw(); } }).observe(plotEl);
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
-  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  if (document.fonts) document.fonts.ready.then(redraw);
-
-  // ---------- atualizar texto e gráfico ----------
-  function changed() {
-    S.waves.forEach((w, i) => {
-      const n = nota(w.f);
-      document.getElementById(`note-${i}`).innerHTML =
-        `${n.nome} <span class="cents">(${n.cents >= 0 ? "+" : "−"}${Math.abs(n.cents)} cents)</span>`;
-      document.getElementById(`per-${i}`).textContent = `Período T = 1/f = ${fmt(1000 / w.f, 2)} ms`;
-      document.getElementById(`card-${i}`).classList.toggle("off", !w.on);
     });
-    Object.entries(modeBtns).forEach(([m, b]) => b.setAttribute("aria-pressed", S.mode === m));
-    document.getElementById("n-row").hidden = S.mode !== "auto";
-    const { T, Y } = bounds();
-    document.getElementById("cap-window").textContent =
-      `0 ≤ t ≤ ${fmt(T, 2)} ms   ·   −${fmt(Y, 2)} ≤ p ≤ ${fmt(Y, 2)}`;
-    updateVoices();
-    redraw();
+    INP[id] = { el, get, dec };
   }
-  changed();
+  S.waves.forEach((w, i) => {
+    makeInput("A" + i, `Amplitude A${i + 1}`, () => S.waves[i].A, v => setA(i, v), 0.01, 2);
+    makeInput("f" + i, `Frequência f${i + 1} em hertz`, () => S.waves[i].f, v => setF(i, v), 1, 0, "numeric");
+  });
+  makeInput("dur", "Duração do som em segundos", () => S.d, setDur, 0.5, 1);
+  makeInput("nper", "Número de períodos no referencial automático", () => S.n, setN, 1, 0, "numeric");
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // alturas (em fs): cartão de uma onda (cabeçalho + A + f), cartão da soma, cartão das definições
+  const HDR = 1.55, ROW = 1.5, CP = 0.35, GAP = 0.4, LEG = 1.9;
+  const CARD = CP + HDR + 0.2 + ROW + 0.15 + ROW + CP, SUM = CP + HDR + 0.1 + ROW + CP, SET = CP + ROW + 0.2 + ROW + CP;
+  // disposição: ecrã deitado → controlos numa coluna à esquerda e o gráfico à direita;
+  // ecrã ao alto → fórmula em cima, gráfico, e os controlos por baixo (ondas em duas colunas se couberem)
+  function layout() {
+    let fs = clamp(Math.min(W, H) / 26, 12, 21);
+    for (let k = 0; k < 40; k++) {
+      const L = tryLayout(fs);
+      if (L.ok || fs <= 10) return L;
+      fs *= 0.95;
+    }
+    return tryLayout(fs);
+  }
+  function tryLayout(fs) {
+    const pad = Math.round(fs * 0.7), gap = GAP * fs;
+    const land = W > H * 1.15 && W >= 640;
+    const L = { fs, pad, land, cards: [] };
+    if (land) {
+      const cw = clamp(W * 0.33, 19 * fs, 25 * fs), x = pad;
+      let y = pad;
+      L.legend = { x, y, w: cw, h: LEG * fs }; y += LEG * fs + 0.5 * fs;
+      for (let i = 0; i < 4; i++) { L.cards.push({ x, y, w: cw, h: CARD * fs }); y += CARD * fs + gap; }
+      L.sum = { x, y, w: cw, h: SUM * fs }; y += SUM * fs + gap;
+      L.set = { x, y, w: cw, h: SET * fs }; y += SET * fs;
+      const gx = x + cw + 1.2 * fs;
+      L.graph = { x: gx, y: pad, w: W - pad - gx, h: H - 2 * pad };
+      L.ok = y <= H - pad && L.graph.w >= W * 0.42;
+    } else {
+      const w = W - 2 * pad, nc = w >= 34 * fs ? 2 : 1, cw = (w - (nc - 1) * gap) / nc;
+      const ctrl = (4 / nc) * (CARD * fs + gap) + (nc === 2 ? Math.max(SUM, SET) * fs : (SUM + SET) * fs + gap);
+      let y = pad;
+      L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + 0.4 * fs;
+      const gh = H - pad - ctrl - 0.5 * fs - y;
+      L.graph = { x: pad, y, w, h: gh }; y += gh + 0.5 * fs;
+      for (let i = 0; i < 4; i++) {
+        const c = i % nc, r = Math.floor(i / nc);
+        L.cards.push({ x: pad + c * (cw + gap), y: y + r * (CARD * fs + gap), w: cw, h: CARD * fs });
+      }
+      y += (4 / nc) * (CARD * fs + gap);
+      if (nc === 2) {
+        L.sum = { x: pad, y, w: cw, h: SUM * fs };
+        L.set = { x: pad + cw + gap, y, w: cw, h: SET * fs };
+      } else {
+        L.sum = { x: pad, y, w, h: SUM * fs }; y += SUM * fs + gap;
+        L.set = { x: pad, y, w, h: SET * fs };
+      }
+      L.ok = gh >= Math.max(0.3 * H, 11 * fs) && cw >= 17 * fs;
+    }
+    return L;
+  }
+
+  // ---------- desenho: primitivas ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400) {
+    ctx.font = `${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    text(txt, x + w / 2, y + h / 2 + 1, px, on ? C.on : C.ink, "center", FONT, 700);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  // caixa de opção: quadrado (na cor col) e o texto à direita; devolve onde acaba
+  function cbox(x, y, h, bs, px, on, txt, hit, col = C.muted, tcol = C.ink, weight = 400) {
+    const yy = y + (h - bs) / 2;
+    rrect(x, yy, bs, bs, 5, on ? col : C.bg, col, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const w = bs + 0.45 * bs + text(txt, x + bs * 1.45, y + h / 2 + 1, px, tcol, "left", FONT, weight);
+    hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  // põe uma caixa de texto no sítio (as que não forem postas ficam escondidas)
+  let usedInp = new Set();
+  function place(id, r, px, off = false) {
+    const { el, get, dec } = INP[id];
+    el.style.display = "";
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+    el.style.fontSize = px + "px";
+    el.classList.toggle("off", off);
+    if (document.activeElement !== el) { el.value = fmt(get(), dec); el.classList.remove("bad"); }
+    usedInp.add(id);
+  }
+  // cursor: barra com a parte até ao valor na cor col e a pega redonda
+  function slider(x, y, w, h, lo, hi, v, col, fs, set) {
+    const cy = y + h / 2, X = u => x + (clamp(u, lo, hi) - lo) / (hi - lo) * w;
+    ctx.lineCap = "round";
+    line(x, cy, x + w, cy, C.grid2, 0.26 * fs);
+    line(x, cy, X(v), cy, col, 0.26 * fs);
+    ctx.lineCap = "butt";
+    // (com a onda desligada, tudo esbatido: o fundo opaco por baixo da pega esconde a barra)
+    const ga = ctx.globalAlpha; ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs + 1.25, 0, Math.PI * 2); ctx.fillStyle = C.band; ctx.fill();
+    ctx.globalAlpha = ga;
+    ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
+    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, val: px => lo + (px - x) / w * (hi - lo), set });
+  }
+
+  // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = false) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+    return el;
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+  function paint() {
+    L = layout(); hits = []; used = new Set(); usedInp = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    legend(L.legend, fs);
+    graph(L.graph, fs);
+    L.cards.forEach((b, i) => waveCard(b, i, fs));
+    sumCard(L.sum, fs);
+    settings(L.set, fs);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+    for (const id in INP) if (!usedInp.has(id)) INP[id].el.style.display = "none";
+  }
+
+  // em cima: a fórmula das ondas e o botão do modo escuro
+  function legend(b, fs) {
+    const bw = b.h * 1.3;
+    rrect(b.x, b.y, b.w - bw - 0.4 * fs, b.h, 8, C.band, C.line, 1.5);
+    const src = "p_i(t) = A_i \\sin(2\\pi f_i\\, t)";
+    fit(texAt("legend", src, b.x + (b.w - bw - 0.4 * fs) / 2, b.y + b.h / 2, fs * 1.25, C.ink), b.w - bw - 1.2 * fs, b.h);
+    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+  }
+
+  // um cartão: fundo leve com a barra da cor à esquerda
+  function card(b, col, fs) {
+    rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
+    ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip();
+    ctx.fillStyle = col; ctx.fillRect(b.x, b.y, 0.25 * fs, b.h);
+    ctx.restore();
+    return { x: b.x + 0.7 * fs, y: b.y + CP * fs, w: b.w - 1.2 * fs };
+  }
+
+  // onda i: [✓ Onda i]  nota  período  [▶ Tocar]; por baixo A e f (nome, caixa, cursor)
+  function waveCard(b, i, fs) {
+    const w = S.waves[i], col = C.W[i];
+    const c = card(b, col, fs);
+    const hh = HDR * fs, rh = ROW * fs;
+    let y = c.y;
+    // cabeçalho
+    const bw = 4.6 * fs, bh = 1.3 * fs, on = !!voices[String(i)];
+    button(c.x + c.w - bw, y + (hh - bh) / 2, bw, bh, on ? "■ Parar" : "▶ Tocar", on, "play", { key: String(i) }, col, fs * 0.8);
+    let x = cbox(c.x, y, hh, 0.85 * fs, fs * 0.95, w.on, `Onda ${i + 1}`, { kind: "wave", i }, col, col, 700) + 0.8 * fs;
+    const room = c.x + c.w - bw - 0.5 * fs;
+    const n = nota(w.f), ns = `${n.nome} ${n.cents >= 0 ? "+" : "−"}${Math.abs(n.cents)} c`;
+    const per = `T = ${fmt(1000 / w.f, 2)} ms`;
+    const pn = fs * 0.78;
+    if (x + tw(n.nome, pn, MONO, 600) <= room) {
+      const full = tw(ns, pn, MONO, 600) + 0.7 * fs + tw(per, pn * 0.95, MONO) <= room - x;
+      const nn = x + tw(ns, pn, MONO, 600) <= room ? ns : n.nome;
+      x += text(nn, x, y + hh / 2 + 1, pn, col, "left", MONO, 600) + 0.7 * fs;
+      if (full) text(per, x, y + hh / 2 + 1, pn * 0.95, C.faint, "left", MONO);
+    }
+    y += hh + 0.2 * fs;
+    if (!w.on) ctx.globalAlpha = 0.5;
+    paramRow(c, y, rh, fs, "A" + i, `A_${i + 1}`, "", 0, 1, w.A, col, v => setA(i, v), !w.on);
+    y += rh + 0.15 * fs;
+    paramRow(c, y, rh, fs, "f" + i, `f_${i + 1}`, "Hz", 20, 2000, w.f, col, v => setF(i, v), !w.on);
+    ctx.globalAlpha = 1;
+  }
+  // uma linha de parâmetro: nome (KaTeX), caixa com o valor, unidade e cursor
+  function paramRow(c, y, rh, fs, id, src, unit, lo, hi, v, col, set, off) {
+    const ih = 1.3 * fs, iy = y + (rh - ih) / 2;
+    const el = texAt("l" + id, src, c.x + 0.1 * fs, y + rh / 2, fs * 1.05, col, 0, 0.5);
+    el.style.opacity = off ? 0.5 : 1;
+    const ix = c.x + 1.7 * fs, iw = 3.5 * fs;
+    place(id, { x: ix, y: iy, w: iw, h: ih }, fs * 0.82, off);
+    if (unit) text(unit, ix + iw + 0.3 * fs, y + rh / 2 + 1, fs * 0.75, C.muted);
+    const sx = ix + iw + 2.3 * fs;
+    slider(sx, y, c.x + c.w - 0.5 * fs - sx, rh, lo, hi, v, col, fs, set);
+  }
+
+  // a soma: [✓ Soma]  p₁ + p₃  [▶ Tocar a soma]; por baixo, as caixas das ondas que entram na soma
+  // (independentes das caixas de cada onda, que só a mostram ou escondem no gráfico)
+  function sumCard(b, fs) {
+    const c = card(b, C.sum, fs), hh = HDR * fs, rh = ROW * fs;
+    const lab = "▶ Tocar a soma", on = !!voices.sum;
+    const bw = Math.max(4.6 * fs, tw(lab, fs * 0.8, FONT, 700) + 1.2 * fs), bh = 1.3 * fs;
+    button(c.x + c.w - bw, c.y + (hh - bh) / 2, bw, bh, on ? "■ Parar" : lab, on, "play", { key: "sum" }, C.sum, fs * 0.8);
+    const x = cbox(c.x, c.y, hh, 0.85 * fs, fs * 0.95, S.sumOn, "Soma", { kind: "sum" }, C.sum, C.sum, 700) + 0.6 * fs;
+    const room = c.x + c.w - bw - 0.5 * fs - x;
+    const sel = S.inSum.map((v, i) => v ? i : -1).filter(i => i >= 0);
+    if (!sel.length) text("(nenhuma onda)", x, c.y + hh / 2 + 1, Math.min(fs * 0.75, fs * 0.75 * room / tw("(nenhuma onda)", fs * 0.75)), C.faint);
+    else fit(texAt("sumf", sel.map(i => clr(C.W[i], `p_${i + 1}`)).join(" + "), x, c.y + hh / 2, fs * 1.05, C.ink, 0, 0.5), room, hh);
+    // ☑ p₁  ☑ p₂  ☑ p₃  ☑ p₄, cada uma na cor da sua onda
+    const y = c.y + hh + 0.1 * fs, bs = 0.8 * fs;
+    let xx = c.x + text("Ondas", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.7 * fs;
+    const step = Math.min(3.6 * fs, (c.x + c.w - xx) / 4);
+    S.inSum.forEach((v, i) => {
+      const x0 = xx + i * step;
+      cbox(x0, y, rh, bs, fs * 0.8, v, "", { kind: "insum", i }, C.W[i]);
+      texAt("ins" + i, `p_${i + 1}`, x0 + bs * 1.45, y + rh / 2, fs * 1.05, C.W[i], 0, 0.5);
+      hits.push({ kind: "insum", i, rect: { x: x0, y, w: step - 0.2 * fs, h: rh } });
+    });
+  }
+
+  // definições: referencial (fixo/automático, n.º de períodos); duração do som e «Parar tudo»
+  function settings(b, fs) {
+    const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.3 * fs, f = fs * 0.8;
+    let y = c.y, x = c.x;
+    const lab = "Referencial", segs = [["fixo", "Fixo"], ["auto", "Automático"]];
+    const sw = segs.map(([, t]) => tw(t, f, FONT, 700) + 1 * fs);
+    const perW = tw("Períodos", f) + 0.4 * fs + 2.4 * fs;
+    if (tw(lab, f) + 0.5 * fs + sw[0] + sw[1] + 0.8 * fs + perW <= c.w) x += text(lab, x, y + rh / 2 + 1, f, C.muted) + 0.5 * fs;
+    segs.forEach(([m, t], k) => {
+      button(x, y + (rh - bh) / 2, sw[k], bh, t, S.mode === m, "mode", { m }, C.muted, f);
+      x += sw[k] + 0.25 * fs;
+    });
+    if (S.mode === "auto") {
+      x = c.x + c.w - 2.4 * fs;
+      text("Períodos", x - 0.4 * fs, y + rh / 2 + 1, f, C.muted, "right");
+      place("nper", { x, y: y + (rh - bh) / 2, w: 2.4 * fs, h: bh }, fs * 0.82);
+    }
+    y += rh + 0.2 * fs; x = c.x;
+    x += text("Duração do som", x, y + rh / 2 + 1, f, C.muted) + 0.5 * fs;
+    place("dur", { x, y: y + (rh - bh) / 2, w: 2.6 * fs, h: bh }, fs * 0.82);
+    text("s", x + 2.9 * fs, y + rh / 2 + 1, f, C.muted);
+    const pw = tw("■ Parar tudo", f, FONT, 700) + 1.2 * fs;
+    button(c.x + c.w - pw, y + (rh - bh) / 2, pw, bh, "■ Parar tudo", false, "stopall", {}, C.muted, f);
+  }
+
+  // ---------- gráfico ----------
+  function graph(b, fs) {
+    const { T, Y } = bounds();
+    const ml = 3 * fs, mr = 1.5 * fs, mt = 1.7 * fs, mb = 1.6 * fs;
+    const gx0 = b.x + ml, gx1 = b.x + b.w - mr, gy0 = b.y + mt, gy1 = b.y + b.h - mb;
+    const gw = gx1 - gx0, gh = gy1 - gy0;
+    const X = t => gx0 + t / T * gw, Yp = v => (gy0 + gy1) / 2 - v / Y * gh / 2;
+    const px = fs * 0.8;
+    // grelha e marcas (em LaTeX)
+    const sx = niceStep(T, Math.max(3, Math.min(10, gw / (3.6 * fs)))), sy = niceStep(2 * Y, Math.max(3, Math.min(8, gh / (2.2 * fs))));
+    let k = 0;
+    for (let t = 0; t <= T + 1e-9; t += sx, k++) {
+      line(X(t), gy0, X(t), gy1, C.grid, 1);
+      if (t > 1e-9) texAt("gx" + k, texNum(t), X(t), gy1 + 0.3 * fs, px, C.muted, 0.5, 0);
+    }
+    k = 0;
+    for (let v = Math.ceil(-Y / sy) * sy; v <= Y + 1e-9; v += sy, k++) {
+      if (Math.abs(v) < 1e-9) continue;   // o 0 fica na origem
+      line(gx0, Yp(v), gx1, Yp(v), C.grid, 1);
+      texAt("gy" + k, texNum(v), gx0 - 0.4 * fs, Yp(v), px, C.muted, 1, 0.5);
+    }
+    // eixos
+    line(gx0, Yp(0), gx1 + 0.5 * fs, Yp(0), C.axis, 1.6); tri(gx1 + 0.7 * fs, Yp(0), 1, 0, fs * 0.4, C.axis);
+    line(gx0, gy1, gx0, gy0 - 0.5 * fs, C.axis, 1.6); tri(gx0, gy0 - 0.7 * fs, 0, -1, fs * 0.4, C.axis);
+    // curvas, recortadas à área do gráfico (com amostras suficientes para as frequências altas)
+    ctx.save();
+    ctx.beginPath(); ctx.rect(gx0, gy0, gw, gh); ctx.clip();
+    const fmax = Math.max(...S.waves.filter((w, i) => w.on || (S.sumOn && S.inSum[i])).map(w => w.f), 1);
+    const N = Math.min(80000, Math.max(Math.round(gw * 2), Math.ceil(T * fmax / 1000 * 24)));
+    const val = (i, t) => S.waves[i].A * Math.sin(2 * Math.PI * S.waves[i].f * t / 1000);
+    const curve = (fn, color, weight) => {
+      ctx.strokeStyle = color; ctx.lineWidth = weight; ctx.lineJoin = "round"; ctx.setLineDash([]);
+      ctx.beginPath();
+      for (let j = 0; j <= N; j++) { const t = T * j / N, x = X(t), y = Yp(fn(t)); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    };
+    S.waves.forEach((w, i) => { if (w.on) curve(t => val(i, t), C.W[i], Math.max(1.8, 0.12 * fs)); });
+    if (S.sumOn && S.inSum.some(v => v)) curve(t => S.waves.reduce((s, w, i) => s + (S.inSum[i] ? val(i, t) : 0), 0), C.sum, Math.max(2.6, 0.18 * fs));
+    ctx.restore();
+    // nomes dos eixos, por cima das curvas
+    texAt("ax-t", "t\\ (\\text{ms})", gx1 + 0.4 * fs, Yp(0) - 0.45 * fs, fs * 0.95, C.ink, 1, 1, true);
+    texAt("ax-p", "p", gx0 + 0.6 * fs, gy0 - 0.7 * fs, fs * 0.95, C.ink, 0, 0.5, true);
+    texAt("gx0", "0", gx0 - 0.4 * fs, Yp(0) + 0.3 * fs, px, C.muted, 1, 0);
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  let drag = null;
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
+    if (h.kind === "wave") { toggleWave(h.i); return; }
+    if (h.kind === "sum") { S.sumOn = !S.sumOn; draw(); return; }
+    if (h.kind === "insum") { S.inSum[h.i] = !S.inSum[h.i]; changed(); return; }
+    if (h.kind === "play") { toggle(h.key); return; }
+    if (h.kind === "stopall") { stopAll(); return; }
+    if (h.kind === "mode") { S.mode = h.m; draw(); return; }
+    if (h.kind === "slide") {
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = h;
+      h.set(h.val(e.clientX));
+      cv.style.cursor = "grabbing";
+    }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) { drag.set(drag.val(e.clientX)); return; }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+  });
+  const end = () => { drag = null; cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+
+  // teclado (fora das caixas): 1 a 4 mostram/ocultam as ondas, s a soma, m troca o referencial, Esc para o som
+  window.addEventListener("keydown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key >= "1" && e.key <= "4") toggleWave(+e.key - 1);
+    else if (e.key === "s") { S.sumOn = !S.sumOn; draw(); }
+    else if (e.key === "m") { S.mode = S.mode === "fixo" ? "auto" : "fixo"; draw(); }
+    else if (e.key === "Escape") stopAll();
+    else return;
+    e.preventDefault();
+  });
+
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
 })();
 </script>
 </body>
