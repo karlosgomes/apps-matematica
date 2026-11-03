@@ -260,7 +260,7 @@
       injecting = true;
       chordFreqs(root, type).forEach((f, i) => setF(i, f));
       injecting = false;
-      S.inSum = [true, true, true, true]; S.sumOn = true;
+      S.inSum = [true, true, true, true];   // (a soma não se liga sozinha)
     }
     changed();
   }
