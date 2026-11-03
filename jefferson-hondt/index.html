@@ -161,34 +161,38 @@
     d = clamp(d, 0.01, 1e9);
     if (!exact) d = round(d);
     if (d !== S.d) {
-      // cada lugar ganho ou perdido (de qualquer lista) faz um som baço
+      // cada lugar ganho (de qualquer lista) faz um som baço; cada lugar perdido, um som mais grave
       const before = seatsAt(S.d), after = seatsAt(d);
-      const changed = after.reduce((p, x, i) => p + Math.abs(x - before[i]), 0);
+      const gained = after.reduce((p, x, i) => p + Math.max(0, x - before[i]), 0);
+      const lost = after.reduce((p, x, i) => p + Math.max(0, before[i] - x), 0);
       S.d = d; draw();
-      if (changed) thud(changed);
+      if (gained) thud(gained, false);
+      if (lost) thud(lost, true);
     }
     if (log) logTry();
   }
 
-  // ---------- som: um «toc» baço (seno a descer de 420 para 210 Hz, filtrado, ~0,2 s) ----------
+  // ---------- som: um «toc» baço (seno a descer de 420 para 210 Hz, filtrado, ~0,2 s) por lugar ganho;
+  // por lugar perdido, um «toc» uma oitava abaixo, mais abafado e um pouco mais longo (210 → 95 Hz, ~0,28 s) ----------
   let actx = null;
-  function thud(n) {
+  function thud(n, lose) {
     try {
       if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state === "suspended") actx.resume();
-      // vários lugares de uma vez (empates ou saltos grandes): um toque por lugar ganho ou perdido, seguidos (no máximo 4)
+      // vários lugares de uma vez (empates ou saltos grandes): um toque por lugar, seguidos (no máximo 4)
       for (let i = 0; i < Math.min(n, 4); i++) {
         const t0 = actx.currentTime + 0.01 + i * 0.09;
         const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
         o.type = "sine";
-        o.frequency.setValueAtTime(420, t0);
-        o.frequency.exponentialRampToValueAtTime(210, t0 + 0.12);
-        f.type = "lowpass"; f.frequency.value = 1400;
+        const [f0, f1, lp, dur] = lose ? [210, 95, 800, 0.26] : [420, 210, 1400, 0.18];
+        o.frequency.setValueAtTime(f0, t0);
+        o.frequency.exponentialRampToValueAtTime(f1, t0 + dur * 0.7);
+        f.type = "lowpass"; f.frequency.value = lp;
         g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.006);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+        g.gain.exponentialRampToValueAtTime(lose ? 0.6 : 0.5, t0 + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
         o.connect(f).connect(g).connect(actx.destination);
-        o.start(t0); o.stop(t0 + 0.2);
+        o.start(t0); o.stop(t0 + dur + 0.02);
       }
     } catch (e) {}
   }
