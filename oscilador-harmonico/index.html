@@ -192,6 +192,13 @@
   :root[data-proj] .caption { font-size: 1rem; }
   :root[data-hidectl] main { grid-template-columns: minmax(0, 1fr); }
   :root[data-hidectl] main > .controls { display: none; }
+  /* controlos escondidos: os do tempo passam para baixo do gráfico, numa só linha */
+  .plot-card > #timebox {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px;
+    background: none; border: 0; border-top: 1px solid var(--line); border-radius: 0;
+    margin-top: 6px; padding: 10px 6px 4px;
+  }
+  .plot-card > #timebox .param { flex: 1 1 320px; grid-template-columns: auto 1fr 5.2rem; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -223,7 +230,7 @@
         </div>
       </div>
 
-      <div class="box">
+      <div class="box" id="timebox">
         <div class="row">
           <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
           <button class="btn" id="reset">↺ Recomeçar</button>
@@ -477,6 +484,7 @@
   let K = 1;
   const PROJ_KEY = "apps-mat-projecao";
   const projBtn = document.getElementById("proj"), hideBtn = document.getElementById("hidectl");
+  const timeBox = document.getElementById("timebox"), plotCard = document.querySelector(".plot-card"), ctlSec = document.querySelector("main > .controls");
   function setProj(on) {
     K = on ? 1.5 : 1;
     const r = document.documentElement;
@@ -485,6 +493,9 @@
     projBtn.setAttribute("aria-pressed", on);
     hideBtn.hidden = !on;
     hideBtn.textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
+    // com os controlos escondidos, os do tempo ficam por baixo do gráfico
+    if (r.dataset.hidectl !== undefined) plotCard.append(timeBox);
+    else if (timeBox.parentNode !== ctlSec) ctlSec.children[0].after(timeBox);
     try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
     if (ready) { P.windowResized(); P.redraw(); }
   }
@@ -506,7 +517,8 @@
       scaleM();
       const w = Math.max(300, plotEl.clientWidth);
       // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
-      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110 - (K > 1 ? 40 : 0), Math.max(320, w * 0.6))));
+      const below = timeBox.parentNode === plotCard ? timeBox.offsetHeight + 6 : 0;   // controlos do tempo por baixo
+      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110 - (K > 1 ? 40 : 0) - below, Math.max(320, w * 0.6))));
       // na horizontal a cena ocupa uma faixa por cima do gráfico: em ecrã estreito dá-se mais altura
       return [w, S.pos === "horizontal" && w < 520 ? h + 90 : h];
     }
