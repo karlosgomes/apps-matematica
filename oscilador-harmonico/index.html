@@ -332,7 +332,7 @@
 (() => {
   const g = 9.8;
   const S = {
-    pos: location.hash === "#horizontal" ? "horizontal" : "vertical",
+    pos: /^#horizontal(&|$)/.test(location.hash) ? "horizontal" : "vertical",
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
     keep: false, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
@@ -389,6 +389,18 @@
   bindPair("L", 0.2, 1, param("L"));
   bindPair("x0", -0.3, 0.3, param("x0"));
   bindPair("v0", -1, 1, param("v0"));
+  // endereço com condições iniciais: #horizontal&m=1&k=88.83&L=0.6&x0=0.08&v0=0
+  // (ponto ou vírgula decimal; os valores ficam dentro dos limites dos cursores)
+  const LIM = { m: [0.1, 2], k: [10, 100], L: [0.2, 1], x0: [-0.3, 0.3], v0: [-1, 1] };
+  for (const kv of location.hash.slice(1).split("&")) {
+    const [key, val] = kv.split("=");
+    if (!(key in LIM) || val === undefined) continue;
+    const x = parseFloat(decodeURIComponent(val).replace(",", "."));
+    if (!isFinite(x)) continue;
+    S[key] = Math.min(LIM[key][1], Math.max(LIM[key][0], x));
+    document.getElementById(key).value = S[key];
+    document.getElementById(key + "-n").value = S[key];
+  }
   document.getElementById("keep").addEventListener("change", e => { S.keep = e.target.checked; });
   document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
 
