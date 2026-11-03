@@ -130,8 +130,8 @@
   const KEYS = ["a", "k", "c", "dm"];
   function layout() {
     const land = W > H * 1.2 && W >= 560;
-    // (na coluna do ecrã deitado cabem ≈ 24,6·fs de altura, com o botão do modo escuro no canto)
-    const fs = clamp(Math.min(W, land ? H * 24 / 24.8 : H) / 24, 13, 26);
+    // (a coluna do ecrã deitado precisa de ≈ 25,8·fs de altura, com o botão do modo escuro no canto e a nota de rodapé)
+    const fs = clamp(Math.min(W, land ? H * 24 / 26 : H) / 24, 13, 26);
     const pad = Math.round(fs * 0.7);
     const L = { fs, pad, land, sl: {} };
     const slH = 1.75 * fs, slG = 0.25 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = 6.3 * fs;   // características: 3 linhas (D'_f e amplitude, T, frequência), com folga
@@ -139,7 +139,7 @@
     if (land) {
       const pw = clamp(W * 0.32, 16 * fs, 22 * fs);
       const x = pad, w = pw - pad;
-      const total = tgH + 0.6 * fs + fH + rH + 0.7 * fs + slTot;
+      const total = tgH + 0.6 * fs + fH + rH + 0.7 * fs + slTot + 1.2 * fs;   // (+ a nota de rodapé)
       let y = Math.max(pad + 2 * fs, (H - total) / 2);   // (por baixo do botão do modo escuro, no canto)
       L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
@@ -279,6 +279,16 @@
     range(L.range, fs);
     toggle(L.toggle, fs);
     themeBtn(L.graph, fs);
+    // nota de rodapé (ecrã deitado, em baixo na coluna da esquerda)
+    if (L.land) {
+      const w = L.graph.x - 2 * L.pad, txt = "Dica: onde o ponteiro passa a mão, um toque mostra mais.";
+      let px = fs * 0.62;
+      font(px, "", FONT, "italic");
+      const tw = ctx.measureText(txt).width;
+      if (tw > w) px *= w / tw;
+      font(px, "", FONT, "italic"); ctx.fillStyle = C.muted; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      ctx.fillText(txt, L.pad, H - L.pad * 0.6);
+    }
     interval(L.iv, fs);
     KEYS.forEach(k => slider(L.sl[k], fs, k));
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
