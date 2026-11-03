@@ -161,11 +161,11 @@
     d = clamp(d, 0.01, 1e9);
     if (!exact) d = round(d);
     if (d !== S.d) {
-      // cada lugar novo (de qualquer lista) faz um som baço
+      // cada lugar ganho ou perdido (de qualquer lista) faz um som baço
       const before = seatsAt(S.d), after = seatsAt(d);
-      const gained = after.reduce((p, x, i) => p + Math.max(0, x - before[i]), 0);
+      const changed = after.reduce((p, x, i) => p + Math.abs(x - before[i]), 0);
       S.d = d; draw();
-      if (gained) thud(gained);
+      if (changed) thud(changed);
     }
     if (log) logTry();
   }
@@ -176,7 +176,7 @@
     try {
       if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state === "suspended") actx.resume();
-      // vários lugares de uma vez (empates ou saltos grandes): um toque por lugar, seguidos (no máximo 4)
+      // vários lugares de uma vez (empates ou saltos grandes): um toque por lugar ganho ou perdido, seguidos (no máximo 4)
       for (let i = 0; i < Math.min(n, 4); i++) {
         const t0 = actx.currentTime + 0.01 + i * 0.09;
         const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
