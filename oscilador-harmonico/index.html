@@ -223,6 +223,11 @@
           <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
           <button class="btn" id="reset">↺ Recomeçar</button>
         </div>
+        <div class="param">
+          <label for="tt">Tempo <b>t</b> (s)</label>
+          <input type="range" id="tt" min="0" max="60" step="0.01" value="0">
+          <input type="number" id="tt-n" min="0" step="0.01" value="0" aria-label="Tempo em segundos">
+        </div>
         <div class="row">
           <span>Velocidade</span>
           <div class="seg" role="group" aria-label="Velocidade da simulação" id="speed">
@@ -390,6 +395,27 @@
   const runBtn = document.getElementById("run");
   runBtn.addEventListener("click", () => { S.running = !S.running; changed(); });
   document.getElementById("reset").addEventListener("click", () => { S.running = false; restart(); });
+
+  // slider do tempo: arrastar para o tempo e coloca a simulação em t (o modelo é exato, não há passos)
+  const tR = document.getElementById("tt"), tN = document.getElementById("tt-n");
+  const TMAX0 = 60;
+  function setTime(x) {
+    S.running = false;
+    S.t = Math.max(0, x);
+    changed();
+  }
+  tR.addEventListener("input", () => setTime(+tR.value));
+  tN.addEventListener("change", () => {
+    const x = parseFloat(String(tN.value).replace(",", "."));
+    setTime(isFinite(x) ? x : S.t);
+  });
+  function syncTime() {
+    // o slider alarga-se de 60 em 60 s se o tempo passar do fim
+    const max = Math.max(TMAX0, Math.ceil(S.t / TMAX0) * TMAX0);
+    if (+tR.max !== max) tR.max = max;
+    tR.value = S.t;
+    if (document.activeElement !== tN) tN.value = Math.round(S.t * 100) / 100;
+  }
 
   function seg(id, key, parse) {
     const btns = [...document.querySelectorAll(`#${id} button`)];
@@ -703,6 +729,7 @@
     const mod = model();
     document.getElementById("cap-now").textContent =
       `t = ${fmt(S.t, 2)} s   ·   d(t) = ${fmt(d(mod, S.t), 3)} m   ·   v(t) = ${fmt(v(mod, S.t), 2)} m/s`;
+    syncTime();
   }
 
   function changed() {
