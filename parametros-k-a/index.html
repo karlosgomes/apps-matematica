@@ -3,40 +3,68 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Parâmetros k, a, c e d: f(x) = k + a sin(cx − d)</title>
+<title>Parâmetros k, a, c e d: f(t) = k + a cos(ct − d)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  html, body { margin: 0; height: 100%; background: #ffffff; overflow: hidden; overscroll-behavior: none; }
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
   .tx .katex { font-size: 1em; }
-  .tx.halo { text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff, 0 0 6px #fff; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  /* caixas do intervalo de t, postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.3em; border: 2px solid var(--line); border-radius: 7px;
+         background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; text-align: center; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
-<canvas id="cv" aria-label="Gráfico de f(x) = k + a sin(cx − d) ou k + a cos(cx − d), com cursores para a, k, c e d"></canvas>
+<input class="inp" id="t0" type="text" spellcheck="false" autocomplete="off" aria-label="Início do intervalo de t, por exemplo -2pi">
+<input class="inp" id="t1" type="text" spellcheck="false" autocomplete="off" aria-label="Fim do intervalo de t, por exemplo 2pi">
+<canvas id="cv" aria-label="Gráfico de f(t) = k + a sin(ct − d) ou k + a cos(ct − d), com cursores para a, k, c e d"></canvas>
 <script>
 (() => {
-  // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
+  // Só modo projeção: contraste forte, controlos desenhados na própria folha (à Geogebra); tema claro ou escuro
   const PI = Math.PI, TAU = 2 * PI;
-  const C = {
+  const LIGHT = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
-    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", on: "#ffffff",
     sin: "#d32f2f", cos: "#1565c0", k: "#2e7d32", a: "#ef6c00", c: "#7b1fa2", dm: "#00838f",
+    T: "#5e35b1", F: "#ad1457",   // período e frequência (ao tocar nas linhas de T e da frequência)
   };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", on: "#151b22",
+    sin: "#ff6b6b", cos: "#64a8ff", k: "#5cc26a", a: "#ffa040", c: "#d09cff", dm: "#4dd0e1",
+    T: "#b39ddb", F: "#f48fb1",
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
-  // f(x) = k + a·sin(cx − d) ou k + a·cos(cx − d); d = dm·π/12 (de π/12 em π/12)
+  // f(t) = k + a·sin(ct − d) ou k + a·cos(ct − d); d = dm·π/12 (de π/12 em π/12)
   const DEF = { a: 1, k: 0, c: 1, dm: 0 };
   const LIM = { a: [-4, 4], k: [-5, 5], c: [-4, 4], dm: [-24, 24] };
   const STEP = { a: 0.1, k: 0.1, c: 0.1, dm: 1 };
   const YMAX = 8;   // eixo Oy fixo: [−8, 8] (com |k| + |a| > 8 a curva sai do referencial)
-  const S = { fn: "cos", ...DEF };   // abre em f(x) = cos x
+  // [t0, t1]: intervalo de t no gráfico (escrito nas caixas ou arrastando o gráfico na horizontal); −2π a 2π por omissão
+  const S = { fn: "cos", ...DEF, showT: false, showF: false, t0: -TAU, t1: TAU };   // abre em f(t) = cos t
   const D = () => S.dm * PI / 12;
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -66,6 +94,21 @@
     return x.toLocaleString("pt-PT", { maximumFractionDigits: dec }).replace("-", "−");
   };
   const f = x => S.k + S.a * Math[S.fn](S.c * x - D());
+  // intervalo de t: texto com π quando é múltiplo de π/12 («-2π», «3π/4»), senão decimal
+  function tStr(v) {
+    const m = v / (PI / 12), mi = Math.round(m);
+    if (Math.abs(m - mi) > 1e-6) return fmt(v, 2);
+    if (!mi) return "0";
+    const g = gcd(Math.abs(mi), 12), p = Math.abs(mi) / g, q = 12 / g;
+    return (mi < 0 ? "−" : "") + (p === 1 ? "" : p) + "π" + (q === 1 ? "" : "/" + q);
+  }
+  // lê «-2pi», «−2π», «pi/2», «3pi/4», «1,5», «2*pi»…
+  function parseT(str) {
+    const z = String(str).replace(/\s/g, "").replace(/π/g, "pi").replace(/−/g, "-").replace(",", ".").toLowerCase();
+    const m = z.match(/^([+-]?)(\d+(?:\.\d+)?|\.\d+)?\*?(pi)?(?:\/(\d+(?:\.\d+)?))?$/);
+    if (!m || (!m[2] && !m[3])) return NaN;
+    return (m[1] === "-" ? -1 : 1) * (m[2] ? parseFloat(m[2]) : 1) * (m[3] ? PI : 1) / (m[4] ? parseFloat(m[4]) : 1);
+  }
 
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
@@ -88,8 +131,8 @@
     const pad = Math.round(fs * 0.7);
     const land = W > H * 1.2 && W >= 560;
     const L = { fs, pad, land, sl: {} };
-    const slH = 1.75 * fs, slG = 0.25 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = (land ? 4.4 : 2.9) * fs;   // características: 3 linhas na coluna, 2 ao alto
-    const slTot = 4 * slH + 3 * slG;
+    const slH = 1.75 * fs, slG = 0.25 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = 6.3 * fs;   // características: 3 linhas (D'_f e amplitude, T, frequência), com folga
+    const slTot = 5 * slH + 4 * slG;   // o intervalo de t e os quatro cursores
     if (land) {
       const pw = clamp(W * 0.32, 16 * fs, 22 * fs);
       const x = pad, w = pw - pad;
@@ -98,6 +141,7 @@
       L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
       L.range = { x, y, w, h: rH }; y += rH + 0.7 * fs;
+      L.iv = { x, y, w, h: slH }; y += slH + slG;
       KEYS.forEach(k => { L.sl[k] = { x, y, w, h: slH }; y += slH + slG; });
       L.graph = { x: pw + pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
     } else {
@@ -109,6 +153,7 @@
       const top = y;
       let yb = H - pad - slTot;
       L.graph = { x: pad, y: top, w: W - 2 * pad, h: yb - 0.5 * fs - top };
+      L.iv = { x, y: yb, w, h: slH }; yb += slH + slG;
       KEYS.forEach(k => { L.sl[k] = { x, y: yb, w, h: slH }; yb += slH + slG; });
     }
     return L;
@@ -150,7 +195,6 @@
     const num = (p === 1 ? "" : p) + "\\pi";
     return sg + (q === 1 ? num : `\\frac{${num}}{${q}}`);
   }
-  const piTex = k => piFrac(k, 2);   // k·π/2 (marcas de Ox)
   const dTex = () => piFrac(S.dm, 12);
   const layer = document.getElementById("tex");
   const pool = new Map();
@@ -177,6 +221,24 @@
 
   // ---------- desenho ----------
   let raf = 0;
+  // período e frequência no gráfico: ao ligar, a linha percorre o intervalo (animação de 0 a 1)
+  const AN = { T: 1, F: 1 };
+  let anRaf = 0, anLast = 0;
+  function toggleShow(key) {
+    S["show" + key] = !S["show" + key];
+    if (S["show" + key]) {
+      AN[key] = 0;
+      if (!anRaf) { anLast = performance.now(); anRaf = requestAnimationFrame(anStep); }
+    }
+    draw();
+  }
+  function anStep(now) {
+    const dt = (now - anLast) / 1000; anLast = now;
+    let busy = false;
+    for (const k of ["T", "F"]) if (AN[k] < 1) { AN[k] = Math.min(1, AN[k] + dt / 1.6); busy = true; }
+    paint();
+    anRaf = busy ? requestAnimationFrame(anStep) : 0;
+  }
   function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
 
   function paint() {
@@ -187,6 +249,8 @@
     formula(L.formula, fs);
     range(L.range, fs);
     toggle(L.toggle, fs);
+    themeBtn(L.graph, fs);
+    interval(L.iv, fs);
     KEYS.forEach(k => slider(L.sl[k], fs, k));
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
@@ -195,43 +259,58 @@
     const ml = 0.4 * fs, mr = 1.4 * fs, mt = 1.5 * fs, mb = 0.4 * fs;
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
     const gw = gx1 - gx0, gh = gy1 - gy0;
-    const X = x => gx0 + (x + TAU) / (2 * TAU) * gw;
+    const t0 = S.t0, t1 = S.t1, X = x => gx0 + (x - t0) / (t1 - t0) * gw;
+    L.G = { gx0, gx1, gy0, gy1, ppu: gw / (t1 - t0) };   // para arrastar o gráfico
     const Y = y => gy0 + (YMAX - y) / (2 * YMAX) * gh;
     const unit = gh / (2 * YMAX);
     const fsm = fs * 0.78;
 
+    // marcas do eixo Ot: múltiplos de π/4, π/2, π, 2π, … (o menor passo em que os nomes cabem)
+    const ppu = gw / (t1 - t0);
+    const [sp, sq] = [[1, 4], [1, 2], [1, 1], [2, 1], [4, 1], [8, 1], [16, 1], [32, 1]].find(([p, q]) => p * PI / q * ppu >= 2.6 * fsm) || [32, 1];
+    const st = sp * PI / sq, m0 = Math.ceil(t0 / st - 1e-9), m1 = Math.floor(t1 / st + 1e-9);
     // grelha
     for (let y = -YMAX; y <= YMAX; y++) line(gx0, Y(y), gx1, Y(y), y % 2 ? C.grid : C.grid2, 1);
-    for (let k = -4; k <= 4; k++) line(X(k * PI / 2), gy0, X(k * PI / 2), gy1, k % 2 ? C.grid : C.grid2, 1);
+    for (let i = m0; i <= m1; i++) line(X(i * st), gy0, X(i * st), gy1, i % 2 ? C.grid : C.grid2, 1);
 
-    // eixos
-    const ox = X(0), oy = Y(0);
+    // eixos (o eixo vertical em t = 0, ou na borda esquerda se 0 não estiver no intervalo)
+    const zero = t0 <= 1e-9 && t1 >= -1e-9, cst0 = Math.abs(S.c) < 1e-9;
+    const ox = zero ? X(0) : gx0, oy = Y(0);
     line(gx0 - ml * 0.5, oy, gx1 + mr * 0.55, oy, C.axis, 1.8);
     line(ox, gy1 + mb * 0.5, ox, gy0 - mt * 0.6, C.axis, 1.8);
     tri(gx1 + mr * 0.55, oy, 1, 0, fs * 0.45, C.axis);
     tri(ox, gy0 - mt * 0.6, 0, -1, fs * 0.45, C.axis);
-    tex("ex", "x", gx1 + mr, oy - fs * 0.75, fs * 1.15, C.ink, 1, 0.5);
+    tex("ex", "t", gx1 + mr, oy - fs * 0.75, fs * 1.15, C.ink, 1, 0.5);
     tex("ey", "y", ox + fs * 0.5, gy0 - mt * 0.55, fs * 1.15, C.ink, 0, 0.5);
-
-    // marcas do eixo Ox (múltiplos de π/2, ou só de π se não houver espaço)
-    const wide = 2.4 * fsm < gw / 8;
-    for (let k = -4; k <= 4; k++) {
-      if (!k || (!wide && k % 2)) continue;
-      const x = X(k * PI / 2);
+    for (let i = m0; i <= m1; i++) {
+      if (!i && zero) continue;
+      const x = X(i * st);
       line(x, oy - 4, x, oy + 4, C.axis, 1.5);
-      tex("xt" + k, piTex(k), x, oy + 0.3 * fs, fsm * 1.1, C.muted, 0.5, 0);
+      tex("xt" + i, piFrac(i * sp, sq), x, oy + 0.3 * fs, fsm * 1.1, C.muted, 0.5, 0);
     }
-    // marcas do eixo Oy (fixo de −8 a 8)
-    const every = unit >= 1.25 * fsm ? 1 : 2;
+    // marcas do eixo Oy (fixo de −8 a 8); à direita do eixo se ele estiver encostado à borda esquerda
+    const every = unit >= 1.25 * fsm ? 1 : 2, right = ox - gx0 < 2.2 * fs;
     for (let y = -YMAX; y <= YMAX; y += every) {
       if (!y) continue;
       line(ox - 4, Y(y), ox + 4, Y(y), C.axis, 1.5);
-      tex("yt" + y, T(y), ox - 0.4 * fs, Y(y), fsm * 1.1, C.muted, 1, 0.5);
+      tex("yt" + y, T(y), ox + (right ? 0.4 : -0.4) * fs, Y(y), fsm * 1.1, C.muted, right ? 0 : 1, 0.5);
     }
-    tex("O", "O", ox - 0.35 * fs, oy + 0.3 * fs, fsm * 1.1, C.muted, 1, 0);
+    if (zero) tex("O", "O", ox - 0.35 * fs, oy + 0.3 * fs, fsm * 1.1, C.muted, 1, 0);
+    // com o período ou a frequência ligados: também as unidades inteiras, por cima do eixo
+    // (de 1 em 1, ou de 2, 5, 10… se não couberem; as marcas com π continuam por baixo)
+    const ints = (S.showT || S.showF) && !cst0;
+    if (ints) {
+      const su = [1, 2, 5, 10, 20, 50].find(v => v * ppu >= 1.6 * fsm) || 50;
+      for (let v = Math.ceil(t0 / su) * su; v <= t1 + 1e-9; v += su) {
+        if (!v && zero) continue;
+        const x = X(v);
+        line(x, oy - 0.3 * fs, x, oy, C.ink, 1.5);
+        tex("it" + v, String(v), x, oy - 0.35 * fs, fsm * 1.05, C.ink, 0.5, 1);
+      }
+    }
 
     // faixa das marcas de Ox, que as etiquetas não devem tapar
-    const band = [oy - 0.2 * fs, oy + 2 * fsm];
+    const band = [oy - (ints ? 1.5 : 0.2) * fs, oy + 2 * fsm];
     const clash = (y0, y1) => y1 > band[0] && y0 < band[1];
     const col = C[S.fn];
     const k = S.k, a = S.a, M = k + Math.abs(a), m = k - Math.abs(a), cst = Math.abs(S.c) < 1e-9;   // c = 0: função constante
@@ -247,35 +326,92 @@
     line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
 
     // curva (com amostras suficientes para |c| grande)
-    ctx.strokeStyle = col; ctx.lineWidth = Math.max(3, fs * 0.2); ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.2, fs * 0.14); ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.beginPath();
-    const n = Math.max(400, Math.round(gw * 2));
+    const n = Math.min(60000, Math.max(400, Math.round(gw * 2), Math.round((t1 - t0) * Math.abs(S.c) / TAU * 60)));
     for (let i = 0; i <= n; i++) {
-      const x = -TAU + 2 * TAU * i / n;
+      const x = t0 + (t1 - t0) * i / n;
       i ? ctx.lineTo(X(x), Y(f(x))) : ctx.moveTo(X(x), Y(f(x)));
     }
     ctx.stroke();
 
-    // a: seta da linha média até ao gráfico, num ponto onde sin(cx − d) (ou cos(cx − d)) vale 1
-    // (o mais perto da origem; com c = 0 a função é constante e não há seta)
-    if (Math.abs(a) >= 0.05 && Math.abs(S.c) > 1e-9) {
-      const base = (S.fn === "sin" ? PI / 2 : 0) + D(), per = TAU / Math.abs(S.c);
-      let xa = base / S.c;
-      xa -= Math.round((xa - 0.01) / per) * per;
-      if (xa < -TAU) xa += per; else if (xa > TAU) xa -= per;
+    // máximos e mínimos de f: onde sin(ct − d) (ou cos(ct − d)) vale ±1 (+1 nos máximos se a > 0, −1 se a < 0),
+    // isto é, t = xb + n·T (máximos) e t = xm + n·T (mínimos); com c = 0 não há
+    const per = cst ? 0 : TAU / Math.abs(S.c);
+    const argAt = v => S.fn === "sin" ? v * PI / 2 : (v > 0 ? 0 : PI);   // argumento onde sin/cos vale v = ±1
+    const sg = a < 0 ? -1 : 1;
+    const xb = cst ? 0 : (argAt(sg) + D()) / S.c, xm = cst ? 0 : (argAt(-sg) + D()) / S.c;
+    // para a seta da amplitude: o mínimo mais perto da origem (ou do meio do intervalo, se a origem não estiver nele)
+    let xa = 0;
+    if (!cst) {
+      const ref = zero ? 0 : (t0 + t1) / 2;
+      xa = xm + Math.round((ref - xm) / per) * per;
+      if (xa < t0) xa += per; else if (xa > t1) xa -= per;
+    }
+    // para o período e a frequência: o primeiro máximo a partir da origem (ou do início do intervalo)
+    const xf = cst ? 0 : xb + Math.ceil(((zero ? 0 : t0) - xb) / per - 1e-9) * per;
+    // (se o período não couber a partir daí, recua um período, desde que fique dentro do intervalo)
+    const xfT = !cst && xf + per > t1 + 1e-9 && xf - per >= t0 - 1e-9 ? xf - per : xf;
+    const xfF = !cst && xf + 1 > t1 + 1e-9 && xf - per >= t0 - 1e-9 ? xf - per * Math.ceil((xf + 1 - t1) / per - 1e-9) : xf;
+    // troço do gráfico de x0 até x1, por cima da curva, largo e transparente
+    const trace = (x0, x1, color) => {
+      if (x1 <= x0) return;
+      ctx.globalAlpha = 0.35; ctx.strokeStyle = color; ctx.lineWidth = 0.6 * fs; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath();
+      const nn = Math.max(20, Math.round((X(x1) - X(x0)) * 1.5));
+      for (let i = 0; i <= nn; i++) { const x = x0 + (x1 - x0) * i / nn; i ? ctx.lineTo(X(x), Y(f(x))) : ctx.moveTo(X(x), Y(f(x))); }
+      ctx.stroke(); ctx.globalAlpha = 1; ctx.lineCap = "butt";
+    };
+    // segmento no eixo Ox (à altura yy), com tracinhos nas pontas, e as verticais até ao gráfico
+    const span = (x0, x1, xe, yy, color, done) => {
+      ctx.lineCap = "round"; line(X(x0), yy, X(x1), yy, color, 0.22 * fs); ctx.lineCap = "butt";
+      line(X(x0), yy - 0.35 * fs, X(x0), yy + 0.35 * fs, color, 2);
+      line(X(x0), yy, X(x0), Y(f(x0)), color, 1.5, [5, 4]);
+      if (done) { line(X(xe), yy - 0.35 * fs, X(xe), yy + 0.35 * fs, color, 2); line(X(xe), yy, X(xe), Y(f(xe)), color, 1.5, [5, 4]); }
+      else dot(X(x1), Y(f(x1)), 0.3 * fs, color, 2);
+    };
+    const tLab = [], tg = (id, src, x, y, color) => tLab.push([id, src, x, y, color]);
+    // período: a linha percorre um período, do primeiro máximo a partir da origem ao seguinte
+    if (S.showT && !cst && xfT <= t1) {
+      const x0 = xfT, fits = x0 + per <= t1 + 1e-9, xe = Math.min(x0 + per, t1), x1 = x0 + (xe - x0) * AN.T;
+      trace(x0, x1, C.T);
+      span(x0, x1, xe, oy, C.T, AN.T >= 1 && fits);
+      if (AN.T >= 1) tg("lT", fits ? "T" : "T \\text{ (não cabe no intervalo)}", (X(x0) + X(xe)) / 2, oy - (ints ? 1.6 : 0.55) * fs, C.T);
+    }
+    // frequência: a linha percorre o gráfico ao longo de 1 unidade de t, a partir do mesmo máximo — quantos ciclos cabem nela
+    if (S.showF && !cst && xfF <= t1) {
+      const x0 = Math.max(xfF, t0), xe = Math.min(x0 + 1, t1);
+      const x1 = x0 + (xe - x0) * AN.F, yy = oy + 2.3 * fs;   // por baixo das marcas de Ot (o período fica no próprio eixo)
+      trace(x0, x1, C.F);
+      span(x0, x1, xe, yy, C.F, AN.F >= 1 && x0 + 1 <= t1 + 1e-9);
+      if (AN.F >= 1) {
+        const p = Math.round(Math.abs(S.c) * 10), g = gcd(p, 20), fn = p / g, fd = 20 / g;
+        tg("lF", `1 \\text{ unidade: } \\frac{${fn}}{${fd === 1 ? "" : fd}\\pi} \\approx ${T(1 / per, 2)} \\text{ ciclos}`, X(x0), yy + 0.45 * fs, C.F);
+      }
+    }
+
+    // amplitude: seta da linha média até ao gráfico, nesse mínimo (para baixo, de comprimento |a|)
+    if (Math.abs(a) >= 0.05 && !cst && xa >= t0 && xa <= t1) {
       let ax = X(xa);
       if (Math.abs(ax - ox) < 0.9 * fs) ax = ox + 0.9 * fs;   // não tapar o eixo Oy
       // a seta acaba com a ponta no gráfico
-      const y0 = Y(k), y1 = Y(k + a), u = Math.sign(y1 - y0);
+      const y0 = Y(k), y1 = Y(m), u = 1;
       const hs = Math.min(fs * 0.55, Math.abs(y1 - y0) * 0.5);
       line(ax, y0, ax, y1 - u * hs * 0.8, C.a, 3);
       tri(ax, y1 - u * hs, 0, u, hs, C.a);
       let yl = clamp((y0 + y1) / 2, gy0 + 0.7 * fs, gy1 - 0.7 * fs);
-      if (clash(yl - 0.7 * fs, yl + 0.7 * fs)) yl = a < 0 ? band[1] + 0.7 * fs : band[0] - 0.7 * fs;
-      tex("la", `a = ${T(a)}`, ax + 0.5 * fs, yl, fs * 1.1, C.a, 0, 0.5);
+      if (clash(yl - 0.7 * fs, yl + 0.7 * fs)) yl = band[1] + 0.7 * fs;
+      tex("la", `|a| = ${T(Math.abs(a))}`, ax + 0.5 * fs, yl, fs * 1.1, C.a, 0, 0.5);
     }
 
     ctx.restore();
+    // nomes do período e da frequência (fora do recorte, para não ficarem cortados)
+    tLab.forEach(([id, src, x, y, color], i) => {
+      const el = tex(id, src, x, y, fs * 1.05, color, id === "lF" ? 0 : 0.5, id === "lF" ? 0 : 1);
+      const r = el.getBoundingClientRect();
+      if (r.right > gx1) el.style.left = parseFloat(el.style.left) - (r.right - gx1) + "px";
+      if (r.left < gx0) el.style.left = parseFloat(el.style.left) + (gx0 - r.left) + "px";
+    });
 
     // etiquetas: linha média, máximo e mínimo (do lado direito), afastadas umas das outras
     // e das marcas de Ox quando estão demasiado perto
@@ -302,10 +438,10 @@
     for (const l of labs) tex(l.id, l.src, lx, l.y, fsm * 1.1, l.c, 1, 0.5);
   }
 
-  // argumento cx − d, com c a roxo e d a verde-azulado (c = ±1 e d = 0 não se escrevem)
+  // argumento ct − d, com c a roxo e d a verde-azulado (c = ±1 e d = 0 não se escrevem)
   function argTex() {
     const c = S.c, one = Math.abs(Math.abs(c) - 1) < 1e-9;
-    let s = clr(C.c, c < 0 && one ? "-" : one ? "" : T(c)) + "x";
+    let s = clr(C.c, c < 0 && one ? "-" : one ? "" : T(c)) + "t";
     if (S.dm) s += (S.dm > 0 ? clr(C.dm, "-") : "+") + clr(C.dm, piFrac(Math.abs(S.dm), 12));
     return s;
   }
@@ -313,7 +449,7 @@
   function formula(b, fs) {
     const k = S.k, a = S.a;
     const simple = Math.abs(S.c - 1) < 1e-9 && !S.dm;
-    const fx = simple ? clr(C[S.fn], `\\${S.fn} x`) : `${clr(C[S.fn], `\\${S.fn}`)}(${argTex()})`;
+    const fx = simple ? clr(C[S.fn], `\\${S.fn} t`) : `${clr(C[S.fn], `\\${S.fn}`)}(${argTex()})`;
     let s;
     if (Math.abs(a) < 1e-9) s = clr(C.k, T(k));
     else {
@@ -322,7 +458,7 @@
       if (Math.abs(k) > 1e-9) s = clr(C.k, T(k)) + (a < 0 ? clr(C.a, "-") : "+") + clr(C.a, am) + fx;
       else s = clr(C.a, (a < 0 ? "-" : "") + am) + (one && a < 0 ? "\\!" : "") + fx;   // −sin x sem espaço
     }
-    const el = tex("formula", `f(x) = ${s}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.6, C.ink, L.land ? 0 : 0.5, 0.5, false);
+    const el = tex("formula", `f(t) = ${s}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.6, C.ink, L.land ? 0 : 0.5, 0.5, false);
     fit(el, b.w, b.h);
   }
 
@@ -342,20 +478,68 @@
       lT = `T = \\frac{2\\pi}{|c|} = ${Tx} \\approx ${T(Tv, 2)}`;
       lF = `\\text{frequência: } \\frac{1}{T} = ${fx} \\approx ${T(1 / Tv, 2)}`;
     }
-    const x = L.land ? b.x : b.x + b.w / 2, ax = L.land ? 0 : 0.5;
-    // na coluna (ecrã deitado) uma linha para cada; ao alto, T e a frequência na mesma linha
-    const rows = L.land ? [l1, lT, lF] : [l1, lF ? `${lT} \\qquad ${lF}` : lT];
-    rows.forEach((src, i) => {
-      if (src) fit(tex("range" + i, src, x, b.y + b.h * (i + 0.5) / rows.length, fs * 1.0, C.muted, ax, 0.5, false), b.w, b.h / rows.length);
+    // uma linha para cada, com folga; T e a frequência são botões (ligam a linha no gráfico)
+    const rh = b.h / 3, pd = 0.45 * fs;
+    [[l1, null], [lT, p ? "T" : null], [lF, p ? "F" : null]].forEach(([src, key], i) => {
+      if (!src) return;
+      const cy = b.y + rh * (i + 0.5);
+      const x = L.land ? b.x + (key ? pd : 0) : b.x + b.w / 2;
+      const el = tex("range" + i, src, x, cy, fs * 1.0, C.muted, L.land ? 0 : 0.5, 0.5, false);
+      fit(el, b.w - 2 * pd, rh * 0.7);
+      if (!key) return;
+      const ew = el.offsetWidth, on = S["show" + key], col = C[key];
+      const bx = L.land ? b.x : b.x + (b.w - ew) / 2 - pd, bh = rh * 0.8;
+      ctx.globalAlpha = on ? 0.14 : 1; rrect(bx, cy - bh / 2, ew + 2 * pd, bh, 8, on ? col : C.btn); ctx.globalAlpha = 1;
+      rrect(bx, cy - bh / 2, ew + 2 * pd, bh, 8, null, on ? col : C.line, on ? 2.5 : 1.5);
+      el.style.color = on ? col : C.muted;
+      hits.push({ kind: "show", key, rect: { x: bx, y: cy - bh / 2, w: ew + 2 * pd, h: bh } });
     });
   }
 
+  // intervalo de t: t ∈ [ caixa ; caixa ]  (também se muda arrastando o gráfico na horizontal)
+  const $t0 = document.getElementById("t0"), $t1 = document.getElementById("t1");
+  function place(el, r, px) {
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px"; el.style.fontSize = px + "px";
+  }
+  function interval(b, fs) {
+    const cy = b.y + b.h / 2, ih = 1.35 * fs, iy = cy - ih / 2;
+    const e0 = tex("iv0", "t \\in [", b.x, cy, fs * 1.0, C.ink, 0, 0.5, false);
+    const x0 = b.x + e0.offsetWidth + 0.3 * fs, iw = Math.min(5 * fs, (b.x + b.w - x0 - 2.2 * fs) / 2);
+    place($t0, { x: x0, y: iy, w: iw, h: ih }, fs * 0.9);
+    tex("iv1", ";", x0 + iw + 0.45 * fs, cy, fs * 1.0, C.ink, 0.5, 0.5, false);
+    place($t1, { x: x0 + iw + 0.9 * fs, y: iy, w: iw, h: ih }, fs * 0.9);
+    tex("iv2", "]", x0 + 2 * iw + 1.2 * fs, cy, fs * 1.0, C.ink, 0, 0.5, false);
+    if (document.activeElement !== $t0) { $t0.value = tStr(S.t0); $t0.classList.remove("bad"); }
+    if (document.activeElement !== $t1) { $t1.value = tStr(S.t1); $t1.classList.remove("bad"); }
+  }
+  function readInterval() {
+    const a = parseT($t0.value), b = parseT($t1.value), ok = isFinite(a) && isFinite(b) && b - a >= 0.5 && b - a <= 40 * PI;
+    $t0.classList.toggle("bad", !ok); $t1.classList.toggle("bad", !ok);
+    if (ok) { S.t0 = a; S.t1 = b; draw(); }
+  }
+  [$t0, $t1].forEach(el => {
+    el.addEventListener("change", readInterval);
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter") { readInterval(); el.blur(); }
+      else if (e.key === "Escape") { el.blur(); draw(); }
+    });
+    el.addEventListener("blur", () => draw());
+  });
+
+  // modo claro/escuro (☾/☀): botão pequeno no canto superior direito do referencial
+  function themeBtn(g, fs) {
+    const s = 1.45 * fs, x = g.x + g.w - s, y = g.y;
+    rrect(x, y, s, s, 7, C.btn, C.line, 1.5);
+    font(fs * 0.85, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(dark ? "☀" : "☾", x + s / 2, y + s / 2 + 0.05 * fs);
+    hits.push({ kind: "theme", rect: { x, y, w: s, h: s } });
+  }
   function toggle(b, fs) {
     const rw = b.h * 1.25, gap = 0.5 * fs, bw = (b.w - rw - 2 * gap) / 2;
     ["sin", "cos"].forEach((fn, i) => {
       const x = b.x + i * (bw + gap), on = S.fn === fn;
       rrect(x, b.y, bw, b.h, 8, on ? C[fn] : C.btn, on ? C[fn] : C.line, 2);
-      const el = tex("tg" + fn, `k + a\\${fn}(cx - d)`, x + bw / 2, b.y + b.h / 2, fs * 0.95, on ? "#fff" : C.ink, 0.5, 0.5, false);
+      const el = tex("tg" + fn, `k + a\\${fn}(ct - d)`, x + bw / 2, b.y + b.h / 2, fs * 0.95, on ? C.on : C.ink, 0.5, 0.5, false);
       fit(el, bw - 0.6 * fs);
       hits.push({ kind: "fn", fn, rect: { x, y: b.y, w: bw, h: b.h } });
     });
@@ -399,12 +583,44 @@
   const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
   let drag = null, rep = null;
   const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
+  // escala de t: [t0, t1] encolhe/estica pelo fator k à volta de ta; as pontas ficam em múltiplos de π/12
+  // (largura entre π/6 e 40π)
+  const Q = PI / 12, snapQ = v => Math.round(v / Q) * Q;
+  const tAt = px => S.t0 + (px - L.G.gx0) / L.G.ppu;
+  function zoomAt(ta, t0, t1, k) {
+    k = clamp(k, (PI / 6) / (t1 - t0), 40 * PI / (t1 - t0));
+    let a = snapQ(ta - (ta - t0) * k), b = snapQ(ta + (t1 - ta) * k);
+    if (b - a < PI / 6 - 1e-9) b = a + PI / 6;
+    if (Math.abs(a - S.t0) > 1e-9 || Math.abs(b - S.t1) > 1e-9) { S.t0 = a; S.t1 = b; draw(); return true; }
+    return false;
+  }
+  // Shift + roda do rato: muda a escala de t à volta do ponteiro
+  cv.addEventListener("wheel", e => {
+    if (!e.shiftKey || !inGraph(e.clientX, e.clientY)) return;
+    e.preventDefault();
+    const d = e.deltaY || e.deltaX;
+    // (com intervalos curtos, o arredondamento a π/12 pode anular um passo: tenta-se um fator maior)
+    if (d) for (let i = 1, ta = tAt(e.clientX); i <= 8; i++) if (zoomAt(ta, S.t0, S.t1, Math.pow(d > 0 ? 1.15 : 1 / 1.15, i))) break;
+  }, { passive: false });
+  const inGraph = (x, y) => L && L.G && x >= L.G.gx0 && x <= L.G.gx1 && y >= L.G.gy0 && y <= L.G.gy1;
   cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
     const h = hitAt(e.clientX, e.clientY);
+    // arrastar o gráfico na horizontal desloca o intervalo de t (de π/12 em π/12)
+    if (!h && inGraph(e.clientX, e.clientY)) {
+      e.preventDefault();
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      // com Shift, arrastar muda a escala de t (para a direita amplia), à volta do ponto onde se carregou
+      drag = { kind: e.shiftKey ? "zoom" : "pan", px: e.clientX, t0: S.t0, t1: S.t1, ppu: L.G.ppu, ta: tAt(e.clientX) };
+      cv.style.cursor = e.shiftKey ? "ew-resize" : "grabbing";
+      return;
+    }
     if (!h) return;
     e.preventDefault();
     if (h.kind === "fn") { S.fn = h.fn; draw(); return; }
-    if (h.kind === "reset") { Object.assign(S, DEF); draw(); return; }
+    if (h.kind === "show") { toggleShow(h.key); return; }
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
+    if (h.kind === "reset") { Object.assign(S, DEF); S.t0 = -TAU; S.t1 = TAU; draw(); return; }
     if (h.kind === "step") {
       setv(h.key, S[h.key] + h.d);
       stopRep();
@@ -416,20 +632,29 @@
     cv.style.cursor = "grabbing";
   });
   cv.addEventListener("pointermove", e => {
+    if (drag && drag.kind === "zoom") { zoomAt(drag.ta, drag.t0, drag.t1, Math.exp(-(e.clientX - drag.px) / 250)); return; }
+    if (drag && drag.kind === "pan") {
+      const dt = Math.round(-(e.clientX - drag.px) / drag.ppu / (PI / 12)) * (PI / 12);
+      if (Math.abs(S.t0 - (drag.t0 + dt)) > 1e-9) { S.t0 = drag.t0 + dt; S.t1 = drag.t1 + dt; draw(); }
+      return;
+    }
     if (drag) { setv(drag.key, drag.val(e.clientX)); return; }
     const h = hitAt(e.clientX, e.clientY);
-    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+    cv.style.cursor = !h ? (inGraph(e.clientX, e.clientY) ? "grab" : "default") : h.kind === "slide" ? "ew-resize" : "pointer";
   });
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: ↑/↓ mudam k, ←/→ mudam a, s/c trocam a função, 0 repõe
+  // teclado: ↑/↓ mudam k, ←/→ mudam a, s/c trocam a função, t/f ligam o período/a frequência no gráfico, 0 repõe
   window.addEventListener("keydown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
     const m = { ArrowUp: ["k", 1], ArrowDown: ["k", -1], ArrowRight: ["a", 1], ArrowLeft: ["a", -1] }[e.key];
     if (m) { e.preventDefault(); setv(m[0], S[m[0]] + m[1] * STEP[m[0]]); }
     else if (e.key === "s") { S.fn = "sin"; draw(); }
     else if (e.key === "c") { S.fn = "cos"; draw(); }
-    else if (e.key === "0") { Object.assign(S, DEF); draw(); }
+    else if (e.key === "t") toggleShow("T");
+    else if (e.key === "f") toggleShow("F");
+    else if (e.key === "0") { Object.assign(S, DEF); S.t0 = -TAU; S.t1 = TAU; draw(); }
   });
 
   window.addEventListener("resize", resize);
