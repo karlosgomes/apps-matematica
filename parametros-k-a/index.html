@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Parâmetros k e a: f(x) = k + a sin x</title>
+<title>Parâmetros k, a, c e d: f(x) = k + a sin(cx − d)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -20,7 +20,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
-<canvas id="cv" aria-label="Gráfico de f(x) = k + a sin x ou k + a cos x, com cursores para a e k"></canvas>
+<canvas id="cv" aria-label="Gráfico de f(x) = k + a sin(cx − d) ou k + a cos(cx − d), com cursores para a, k, c e d"></canvas>
 <script>
 (() => {
   // Só modo projeção: tema claro, contraste forte, controlos desenhados na própria folha (à Geogebra)
@@ -28,37 +28,44 @@
   const C = {
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc",
-    sin: "#d32f2f", cos: "#1565c0", k: "#2e7d32", a: "#ef6c00",
+    sin: "#d32f2f", cos: "#1565c0", k: "#2e7d32", a: "#ef6c00", c: "#7b1fa2", dm: "#00838f",
   };
   const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
-  const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
-  const DEF = { a: 0, k: 0 };
-  const LIM = { a: [-4, 4], k: [-5, 5] };
-  const STEP = 0.1;
+  // f(x) = k + a·sin(cx − d) ou k + a·cos(cx − d); d = dm·π/12 (de π/12 em π/12)
+  const DEF = { a: 1, k: 0, c: 1, dm: 0 };
+  const LIM = { a: [-4, 4], k: [-5, 5], c: [-4, 4], dm: [-24, 24] };
+  const STEP = { a: 0.1, k: 0.1, c: 0.1, dm: 1 };
   const YMAX = 8;   // eixo Oy fixo: [−8, 8] (com |k| + |a| > 8 a curva sai do referencial)
   const S = { fn: "sin", ...DEF };
+  const D = () => S.dm * PI / 12;
 
-  // valores iniciais opcionais no endereço, p. ex. index.html#cos&a=2&k=-1
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const r1 = x => Math.round(x * 10) / 10;
+  // valores iniciais opcionais no endereço, p. ex. index.html#cos&a=2&k=-1&c=2&d=pi/2 (d também em decimal, em radianos)
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
     if (tok === "sin" || tok === "cos") S.fn = tok;
-    const m = tok.match(/^([ak])=([-−]?\d+(?:[.,]\d+)?)$/);
+    let m = tok.match(/^([akc])=([-−]?\d+(?:[.,]\d+)?)$/);
     if (m) S[m[1]] = parseFloat(m[2].replace("−", "-").replace(",", "."));
+    m = tok.replace(/π/g, "pi").match(/^d=([-−]?)(\d*(?:[.,]\d+)?)(pi)?(?:\/(\d+))?$/);
+    if (m && (m[2] || m[3])) {
+      const v = (m[1] ? -1 : 1) * (m[2] ? parseFloat(m[2].replace(",", ".")) : 1) * (m[3] ? PI : 1) / (m[4] ? +m[4] : 1);
+      S.dm = Math.round(v / (PI / 12));
+    }
   });
-  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const setv = (key, x) => {
-    x = clamp(Math.round(x / STEP) * STEP, LIM[key][0], LIM[key][1]);
-    x = Math.round(x * 10) / 10;
+    x = clamp(key === "dm" ? Math.round(x) : r1(Math.round(x / STEP[key]) * STEP[key]), ...LIM[key]);
     if (x === S[key]) return;
     S[key] = x; draw();
   };
-  ["a", "k"].forEach(k => { S[k] = Math.round(clamp(S[k], ...LIM[k]) * 10) / 10; });
+  ["a", "k", "c"].forEach(k => { S[k] = r1(clamp(S[k], ...LIM[k])); });
+  S.dm = clamp(S.dm, ...LIM.dm);
 
   // ---------- números ----------
-  const fmt = x => {
-    if (Math.abs(x) < 0.05) x = 0;
-    return x.toLocaleString("pt-PT", { maximumFractionDigits: 1 }).replace("-", "−");
+  const fmt = (x, dec = 1) => {
+    if (Math.abs(x) < 0.5 * 10 ** -dec) x = 0;
+    return x.toLocaleString("pt-PT", { maximumFractionDigits: dec }).replace("-", "−");
   };
-  const f = x => S.k + S.a * Math[S.fn](x);
+  const f = x => S.k + S.a * Math[S.fn](S.c * x - D());
 
   // ---------- canvas ----------
   const cv = document.getElementById("cv");
@@ -73,36 +80,36 @@
     draw();
   }
 
-  // disposição: botões das funções e fórmula em cima; ecrã ao alto → cursores em baixo,
-  // ecrã deitado → tudo numa coluna à direita
+  // disposição: botões das funções, fórmula e características em cima; ecrã ao alto → cursores em baixo,
+  // ecrã deitado → tudo numa coluna à esquerda
+  const KEYS = ["a", "k", "c", "dm"];
   function layout() {
     const fs = clamp(Math.min(W, H) / 24, 14, 26);
     const pad = Math.round(fs * 0.7);
     const land = W > H * 1.2 && W >= 560;
-    const L = { fs, pad, land };
-    const slH = 3.5 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = 1.6 * fs;
+    const L = { fs, pad, land, sl: {} };
+    const slH = 1.75 * fs, slG = 0.25 * fs, tgH = 1.9 * fs, fH = 2 * fs, rH = (land ? 4.4 : 2.9) * fs;   // características: 3 linhas na coluna, 2 ao alto
+    const slTot = 4 * slH + 3 * slG;
     if (land) {
-      const pw = clamp(W * 0.3, 15 * fs, 21 * fs);
-      const x = W - pw, w = pw - pad;
-      const total = tgH + 0.6 * fs + fH + rH + 0.8 * fs + 2 * slH + 0.4 * fs;
+      const pw = clamp(W * 0.32, 16 * fs, 22 * fs);
+      const x = pad, w = pw - pad;
+      const total = tgH + 0.6 * fs + fH + rH + 0.7 * fs + slTot;
       let y = Math.max(pad, (H - total) / 2);
       L.toggle = { x, y, w, h: tgH }; y += tgH + 0.6 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
-      L.range = { x, y, w, h: rH }; y += rH + 0.8 * fs;
-      L.sa = { x, y, w, h: slH }; y += slH + 0.4 * fs;
-      L.sk = { x, y, w, h: slH };
-      L.graph = { x: pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
+      L.range = { x, y, w, h: rH }; y += rH + 0.7 * fs;
+      KEYS.forEach(k => { L.sl[k] = { x, y, w, h: slH }; y += slH + slG; });
+      L.graph = { x: pw + pad, y: pad, w: W - pw - 2 * pad, h: H - 2 * pad };
     } else {
       const x = pad, w = W - 2 * pad;
       let y = pad;
       L.toggle = { x, y, w, h: tgH }; y += tgH + 0.4 * fs;
       L.formula = { x, y, w, h: fH }; y += fH;
-      L.range = { x, y, w, h: rH }; y += rH + 0.3 * fs;
+      L.range = { x, y, w, h: rH }; y += rH + 0.2 * fs;
       const top = y;
-      let yb = H - pad;
-      yb -= slH; L.sk = { x, y: yb, w, h: slH };
-      yb -= slH + 0.3 * fs; L.sa = { x, y: yb, w, h: slH };
-      L.graph = { x: pad, y: top, w: W - 2 * pad, h: yb - 0.6 * fs - top };
+      let yb = H - pad - slTot;
+      L.graph = { x: pad, y: top, w: W - 2 * pad, h: yb - 0.5 * fs - top };
+      KEYS.forEach(k => { L.sl[k] = { x, y: yb, w, h: slH }; yb += slH + slG; });
     }
     return L;
   }
@@ -131,14 +138,20 @@
   }
 
   // ---------- texto em LaTeX (KaTeX), numa camada HTML por cima do canvas ----------
-  // os números ficam em decimal (1,5 e não 3/2); só as marcas de Ox são frações de π
-  const T = x => fmt(x).replace("−", "-").replace(",", "{,}");
+  // os parâmetros a, k e c em decimal (1,5 e não 3/2); d, T e as marcas de Ox com π
+  const T = (x, dec = 1) => fmt(x, dec).replace("−", "-").replace(",", "{,}");
   const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
-  function piTex(k) {   // k·π/2
-    const sg = k < 0 ? "-" : ""; k = Math.abs(k);
-    if (k % 2) return `${sg}\\frac{${k === 1 ? "" : k}\\pi}{2}`;
-    return sg + (k === 2 ? "" : k / 2) + "\\pi";
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  // p·π/q, simplificado
+  function piFrac(p, q) {
+    if (p === 0) return "0";
+    const g = gcd(Math.abs(p), q), sg = p < 0 ? "-" : "";
+    p = Math.abs(p) / g; q /= g;
+    const num = (p === 1 ? "" : p) + "\\pi";
+    return sg + (q === 1 ? num : `\\frac{${num}}{${q}}`);
   }
+  const piTex = k => piFrac(k, 2);   // k·π/2 (marcas de Ox)
+  const dTex = () => piFrac(S.dm, 12);
   const layer = document.getElementById("tex");
   const pool = new Map();
   let used = new Set();
@@ -156,10 +169,10 @@
     used.add(id);
     return el;
   }
-  // reduz o tamanho de letra se o texto não couber na largura w
-  function fit(el, w) {
-    const ew = el.offsetWidth;
-    if (ew > w) el.style.fontSize = parseFloat(el.style.fontSize) * w / ew + "px";
+  // reduz o tamanho de letra se o texto não couber na largura w (e na altura h)
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
   }
 
   // ---------- desenho ----------
@@ -174,8 +187,7 @@
     formula(L.formula, fs);
     range(L.range, fs);
     toggle(L.toggle, fs);
-    slider(L.sa, fs, "a");
-    slider(L.sk, fs, "k");
+    KEYS.forEach(k => slider(L.sl[k], fs, k));
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
 
@@ -222,19 +234,19 @@
     const band = [oy - 0.2 * fs, oy + 2 * fsm];
     const clash = (y0, y1) => y1 > band[0] && y0 < band[1];
     const col = C[S.fn];
-    const k = S.k, a = S.a, M = k + Math.abs(a), m = k - Math.abs(a);
-    // o que depende de a e k fica recortado ao referencial
+    const k = S.k, a = S.a, M = k + Math.abs(a), m = k - Math.abs(a), cst = Math.abs(S.c) < 1e-9;   // c = 0: função constante
+    // o que depende dos parâmetros fica recortado ao referencial
     ctx.save();
     ctx.beginPath(); ctx.rect(g.x, gy0 - 0.15 * fs, g.w, gh + 0.3 * fs); ctx.clip();
     // máximo e mínimo
-    if (Math.abs(a) > 1e-9) {
+    if (Math.abs(a) > 1e-9 && !cst) {
       line(gx0, Y(M), gx1, Y(M), C.a, 1.5, [3, 5]);
       line(gx0, Y(m), gx1, Y(m), C.a, 1.5, [3, 5]);
     }
     // linha média y = k
     line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
 
-    // curva
+    // curva (com amostras suficientes para |c| grande)
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(3, fs * 0.2); ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.beginPath();
     const n = Math.max(400, Math.round(gw * 2));
@@ -244,13 +256,17 @@
     }
     ctx.stroke();
 
-    // a: seta da linha média até ao gráfico, onde sin x (ou cos x) vale 1
-    const xa = S.fn === "sin" ? PI / 2 : 0;
-    const ax = X(xa) + (S.fn === "cos" ? 0.9 * fs : 0);
-    if (Math.abs(a) >= 0.05) {
-      // a seta acaba na borda da pega, para a ponta se ver
-      const y0 = Y(k), u = Math.sign(Y(k + a) - y0);
-      const y1 = Math.abs(Y(k + a) - y0) > 1.6 * fs ? Y(k + a) - u * 0.55 * fs : Y(k + a);
+    // a: seta da linha média até ao gráfico, num ponto onde sin(cx − d) (ou cos(cx − d)) vale 1
+    // (o mais perto da origem; com c = 0 a função é constante e não há seta)
+    if (Math.abs(a) >= 0.05 && Math.abs(S.c) > 1e-9) {
+      const base = (S.fn === "sin" ? PI / 2 : 0) + D(), per = TAU / Math.abs(S.c);
+      let xa = base / S.c;
+      xa -= Math.round((xa - 0.01) / per) * per;
+      if (xa < -TAU) xa += per; else if (xa > TAU) xa -= per;
+      let ax = X(xa);
+      if (Math.abs(ax - ox) < 0.9 * fs) ax = ox + 0.9 * fs;   // não tapar o eixo Oy
+      // a seta acaba com a ponta no gráfico
+      const y0 = Y(k), y1 = Y(k + a), u = Math.sign(y1 - y0);
       const hs = Math.min(fs * 0.55, Math.abs(y1 - y0) * 0.5);
       line(ax, y0, ax, y1 - u * hs * 0.8, C.a, 3);
       tri(ax, y1 - u * hs, 0, u, hs, C.a);
@@ -263,11 +279,11 @@
 
     // etiquetas: linha média, máximo e mínimo (do lado direito), afastadas umas das outras
     // e das marcas de Ox quando estão demasiado perto
-    const lx = gx1 - 0.2 * fs, hl = 1.3 * fsm, d = 0.2 * fs + hl / 2;
-    const labs = [{ id: "lk", src: `y = ${T(k)}`, c: C.k, y: Y(k) - d }];
-    if (Math.abs(a) > 1e-9) labs.push(
-      { id: "lM", src: `\\text{máx.}\\ {${T(M)}}`, c: C.a, y: Y(M) - d },
-      { id: "lm", src: `\\text{mín.}\\ {${T(m)}}`, c: C.a, y: Y(m) + d });
+    const lx = gx1 - 0.2 * fs, hl = 1.3 * fsm, dd = 0.2 * fs + hl / 2;
+    const labs = [{ id: "lk", src: `y = ${T(k)}`, c: C.k, y: Y(k) - dd }];
+    if (Math.abs(a) > 1e-9 && !cst) labs.push(
+      { id: "lM", src: `\\text{máx.}\\ {${T(M)}}`, c: C.a, y: Y(M) - dd },
+      { id: "lm", src: `\\text{mín.}\\ {${T(m)}}`, c: C.a, y: Y(m) + dd });
     const sep = hl + 0.15 * fs, lo = gy0 + hl / 2, hi = gy1 - hl / 2;
     for (let it = 0; it < 30; it++) {
       labs.sort((p, q) => p.y - q.y);
@@ -284,20 +300,20 @@
       }
     }
     for (const l of labs) tex(l.id, l.src, lx, l.y, fsm * 1.1, l.c, 1, 0.5);
-
-    // pegas no desenho: ponto (xa, k + a) → a; ponto da linha média → k
-    const kx = X(-TAU) + 0.6 * fs;
-    dot(kx, Y(k), 0.48 * fs, C.k, 3);
-    const inA = Math.abs(k + a) <= YMAX;   // a pega de a só existe dentro do referencial
-    if (inA) dot(X(xa), Y(k + a), 0.48 * fs, col, 3);
-    if (inA) hits.push({ kind: "drag-a", x: X(xa), y: Y(k + a), r: 1.5 * fs, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
-    hits.push({ kind: "drag-k", x: kx, y: Y(k), r: 1.5 * fs, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
-    hits.push({ kind: "line-k", rect: { x: gx0, y: Y(k) - 0.8 * fs, w: gw, h: 1.6 * fs }, yv: py => (gy0 - py) / gh * 2 * YMAX + YMAX });
   }
 
-  // expressão atual, com k a verde e a a laranja
+  // argumento cx − d, com c a roxo e d a verde-azulado (c = ±1 e d = 0 não se escrevem)
+  function argTex() {
+    const c = S.c, one = Math.abs(Math.abs(c) - 1) < 1e-9;
+    let s = clr(C.c, c < 0 && one ? "-" : one ? "" : T(c)) + "x";
+    if (S.dm) s += (S.dm > 0 ? clr(C.dm, "-") : "+") + clr(C.dm, piFrac(Math.abs(S.dm), 12));
+    return s;
+  }
+  // expressão atual, com k a verde, a a laranja, c a roxo e d a verde-azulado
   function formula(b, fs) {
-    const k = S.k, a = S.a, fx = clr(C[S.fn], `\\${S.fn} x`);
+    const k = S.k, a = S.a;
+    const simple = Math.abs(S.c - 1) < 1e-9 && !S.dm;
+    const fx = simple ? clr(C[S.fn], `\\${S.fn} x`) : `${clr(C[S.fn], `\\${S.fn}`)}(${argTex()})`;
     let s;
     if (Math.abs(a) < 1e-9) s = clr(C.k, T(k));
     else {
@@ -307,15 +323,31 @@
       else s = clr(C.a, (a < 0 ? "-" : "") + am) + (one && a < 0 ? "\\!" : "") + fx;   // −sin x sem espaço
     }
     const el = tex("formula", `f(x) = ${s}`, L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.6, C.ink, L.land ? 0 : 0.5, 0.5, false);
-    fit(el, b.w);
+    fit(el, b.w, b.h);
   }
 
+  // contradomínio e amplitude; período T = 2π/|c| e frequência 1/T = |c|/(2π), exatos (com π) e aproximados
   function range(b, fs) {
     const M = S.k + Math.abs(S.a), m = S.k - Math.abs(S.a);
-    const D = Math.abs(S.a) < 1e-9 ? `\\{${T(S.k)}\\}` : `[${T(m)}\\,;\\,${T(M)}]`;
-    const el = tex("range", `D'_f = ${D} \\qquad \\text{amplitude: } |a| = ${T(Math.abs(S.a))}`,
-                   L.land ? b.x : b.x + b.w / 2, b.y + b.h / 2, fs * 1.05, C.muted, L.land ? 0 : 0.5, 0.5, false);
-    fit(el, b.w);
+    // c = 0: f(x) = k + a·sin(−d) (ou cos(−d)) é constante
+    const cst = Math.abs(S.c) < 1e-9, v0 = S.k + S.a * Math[S.fn](-D());
+    const Df = cst ? `\\{${T(v0, 2)}\\}` : Math.abs(S.a) < 1e-9 ? `\\{${T(S.k)}\\}` : `[${T(m)}\\,;\\,${T(M)}]`;
+    const l1 = cst ? `D'_f ${Math.abs(v0 * 100 - Math.round(v0 * 100)) > 1e-6 ? "\\approx" : "="} ${Df}` : `D'_f = ${Df} \\qquad \\text{amplitude: } |a| = ${T(Math.abs(S.a))}`;
+    const p = Math.round(Math.abs(S.c) * 10);   // |c| = p/10
+    let lT, lF = "";
+    if (!p) lT = `c = 0\\text{: função constante, sem período}`;
+    else {
+      const Tv = TAU / Math.abs(S.c), g = gcd(p, 20), fn = p / g, fd = 20 / g;
+      const Tx = piFrac(20, p), fx = `\\frac{${fn}}{${fd === 1 ? "" : fd}\\pi}`;
+      lT = `T = \\frac{2\\pi}{|c|} = ${Tx} \\approx ${T(Tv, 2)}`;
+      lF = `\\text{frequência: } \\frac{1}{T} = ${fx} \\approx ${T(1 / Tv, 2)}`;
+    }
+    const x = L.land ? b.x : b.x + b.w / 2, ax = L.land ? 0 : 0.5;
+    // na coluna (ecrã deitado) uma linha para cada; ao alto, T e a frequência na mesma linha
+    const rows = L.land ? [l1, lT, lF] : [l1, lF ? `${lT} \\qquad ${lF}` : lT];
+    rows.forEach((src, i) => {
+      if (src) fit(tex("range" + i, src, x, b.y + b.h * (i + 0.5) / rows.length, fs * 1.0, C.muted, ax, 0.5, false), b.w, b.h / rows.length);
+    });
   }
 
   function toggle(b, fs) {
@@ -323,7 +355,7 @@
     ["sin", "cos"].forEach((fn, i) => {
       const x = b.x + i * (bw + gap), on = S.fn === fn;
       rrect(x, b.y, bw, b.h, 8, on ? C[fn] : C.btn, on ? C[fn] : C.line, 2);
-      const el = tex("tg" + fn, `k + a\\${fn} x`, x + bw / 2, b.y + b.h / 2, fs * 0.95, on ? "#fff" : C.ink, 0.5, 0.5, false);
+      const el = tex("tg" + fn, `k + a\\${fn}(cx - d)`, x + bw / 2, b.y + b.h / 2, fs * 0.95, on ? "#fff" : C.ink, 0.5, 0.5, false);
       fit(el, bw - 0.6 * fs);
       hits.push({ kind: "fn", fn, rect: { x, y: b.y, w: bw, h: b.h } });
     });
@@ -334,44 +366,37 @@
     hits.push({ kind: "reset", rect: { x, y: b.y, w: rw, h: b.h } });
   }
 
+  // cursor compacto numa linha: «a = 1,5»  [−] ——●——  [+]
   function slider(b, fs, key) {
     const [lo, hi] = LIM[key], col = C[key];
-    // rótulo
-    tex("sl" + key, `${clr(col, key)} = ${T(S[key])}`, b.x, b.y + 0.6 * fs, fs * 1.05, C.ink, 0, 0.5, false);
-    // botões − e + e calha
-    const bs = 1.75 * fs, ry = b.y + 1.25 * fs, cy = ry + bs / 2;
+    const name = key === "dm" ? "d" : key, val = key === "dm" ? dTex() : T(S[key]);
+    const lw = 5 * fs, cy = b.y + b.h / 2;
+    fit(tex("sl" + key, `${clr(col, name)} = ${val}`, b.x, cy, fs * 1.0, C.ink, 0, 0.5, false), lw - 0.3 * fs, b.h);
+    const bs = 1.3 * fs, by = cy - bs / 2;
     const btn = (x, txt, d) => {
-      rrect(x, ry, bs, bs, 8, C.btn, C.line, 2);
-      font(fs * 1.1, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      rrect(x, by, bs, bs, 7, C.btn, C.line, 1.5);
+      font(fs * 0.95, "700", FONT); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(txt, x + bs / 2, cy + 1);
-      hits.push({ kind: "step", key, d, rect: { x, y: ry, w: bs, h: bs } });
+      hits.push({ kind: "step", key, d, rect: { x, y: by, w: bs, h: bs } });
     };
-    btn(b.x, "−", -STEP); btn(b.x + b.w - bs, "+", STEP);
-    const tx0 = b.x + bs + 0.9 * fs, tx1 = b.x + b.w - bs - 0.9 * fs;
+    btn(b.x + lw, "−", -STEP[key]); btn(b.x + b.w - bs, "+", STEP[key]);
+    const tx0 = b.x + lw + bs + 0.7 * fs, tx1 = b.x + b.w - bs - 0.7 * fs;
     const TX = v => tx0 + (v - lo) / (hi - lo) * (tx1 - tx0);
     ctx.lineCap = "round";
-    line(tx0, cy, tx1, cy, C.grid2, 0.32 * fs);
-    line(TX(0), cy, TX(S[key]), cy, col, 0.32 * fs);
-    // marcas inteiras, com os extremos e o zero numerados
-    // marcas inteiras, com os extremos e o zero numerados
-    for (let v = lo; v <= hi; v++) {
-      line(TX(v), cy + 0.25 * fs, TX(v), cy + 0.45 * fs, C.muted, 1.2);
-      if (v === lo || v === hi || v === 0) tex(`s${key}${v}`, T(v), TX(v), cy + 0.5 * fs, fs * 0.72, C.muted, 0.5, 0, false);
-    }
+    line(tx0, cy, tx1, cy, C.grid2, 0.22 * fs);
+    line(TX(0), cy, TX(S[key]), cy, col, 0.22 * fs);
     ctx.lineCap = "butt";
-    dot(TX(S[key]), cy, 0.55 * fs, col, 2.5);
-    hits.push({ kind: "slide", key, rect: { x: tx0 - fs, y: ry - 0.3 * fs, w: tx1 - tx0 + 2 * fs, h: bs + 0.6 * fs },
+    // marcas: inteiros (em d, múltiplos de π/2); o zero mais comprido
+    const mk = key === "dm" ? 6 : 1;
+    for (let v = lo; v <= hi; v += mk) line(TX(v), cy + 0.2 * fs, TX(v), cy + (v ? 0.38 : 0.55) * fs, C.muted, v ? 1 : 1.6);
+    dot(TX(S[key]), cy, 0.42 * fs, col, 2);
+    hits.push({ kind: "slide", key, rect: { x: tx0 - 0.7 * fs, y: b.y, w: tx1 - tx0 + 1.4 * fs, h: b.h },
                 val: px => lo + (px - tx0) / (tx1 - tx0) * (hi - lo) });
   }
 
   // ---------- toque e rato ----------
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-  function hitAt(x, y) {
-    // pegas redondas primeiro (a mais próxima), depois retângulos
-    let best = null, bd = Infinity;
-    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d < bd) { best = h; bd = d; } }
-    return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
-  }
+  const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
   let drag = null, rep = null;
   const stopRep = () => { clearTimeout(rep); clearInterval(rep); rep = null; };
   cv.addEventListener("pointerdown", e => {
@@ -387,20 +412,13 @@
       return;
     }
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-    if (h.kind === "slide") { drag = h; setv(h.key, h.val(e.clientX)); }
-    else if (h.kind === "drag-a") drag = h;
-    else drag = { ...h, y0: h.yv(e.clientY), k0: S.k };   // linha média: arrasta-se relativamente
+    drag = h; setv(h.key, h.val(e.clientX));
     cv.style.cursor = "grabbing";
   });
   cv.addEventListener("pointermove", e => {
-    if (drag) {
-      if (drag.kind === "slide") setv(drag.key, drag.val(e.clientX));
-      else if (drag.kind === "drag-a") setv("a", drag.yv(e.clientY) - S.k);
-      else setv("k", drag.k0 + drag.yv(e.clientY) - drag.y0);
-      return;
-    }
+    if (drag) { setv(drag.key, drag.val(e.clientX)); return; }
     const h = hitAt(e.clientX, e.clientY);
-    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : h.kind.startsWith("drag") || h.kind === "line-k" ? "ns-resize" : "pointer";
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
   });
   const end = () => { drag = null; stopRep(); cv.style.cursor = "default"; };
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, end));
@@ -408,7 +426,7 @@
   // teclado: ↑/↓ mudam k, ←/→ mudam a, s/c trocam a função, 0 repõe
   window.addEventListener("keydown", e => {
     const m = { ArrowUp: ["k", 1], ArrowDown: ["k", -1], ArrowRight: ["a", 1], ArrowLeft: ["a", -1] }[e.key];
-    if (m) { e.preventDefault(); setv(m[0], S[m[0]] + m[1] * STEP); }
+    if (m) { e.preventDefault(); setv(m[0], S[m[0]] + m[1] * STEP[m[0]]); }
     else if (e.key === "s") { S.fn = "sin"; draw(); }
     else if (e.key === "c") { S.fn = "cos"; draw(); }
     else if (e.key === "0") { Object.assign(S, DEF); draw(); }
