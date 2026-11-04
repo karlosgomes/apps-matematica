@@ -680,38 +680,54 @@
   }
 
   // ---------- 3. junto do ouvinte: p(t) e espetro ----------
+  const niceStep = (range, target) => {
+    const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  };
+  // junto do ouvinte: p(t) no mesmo relógio do quadro do ar (t desde que se dedilhou, em ms).
+  // A janela mostra o tempo até o som chegar e mais 3 períodos; depois disso, desliza com o tempo (o instante atual fica à direita)
   function panelEar(b, fs) {
-    const f = freq(), T = 1000 / fSnd(), NP = 3, Tw = NP * T;   // janela de 3 períodos do som (ms); com dedo leve, o som tem frequência h·f
+    const f = freq(), T = 1000 / fSnd(), ta = DIST / VSOM * 1000, Wd = ta + 3 * T;   // (ms; com dedo leve, o som tem frequência h·f)
     const sw = Math.min(b.w * 0.36, 22 * fs), gb = { x: b.x, y: b.y, w: b.w - sw - 0.6 * fs, h: b.h }, sb = { x: b.x + b.w - sw, y: b.y, w: sw, h: b.h };
     const tW = frame_(gb, "Pressão do ar junto do ouvinte", fs, "Junto do ouvinte");
     const gx0 = gb.x + 2 * fs, gx1 = gb.x + gb.w - 1.8 * fs, gy0 = gb.y + 2.3 * fs, gy1 = gb.y + gb.h - 1.4 * fs, gc = (gy0 + gy1) / 2, ga = (gy1 - gy0) / 2 * 0.9;
-    const X = u => gx0 + u / Tw * (gx1 - gx0);
+    const tm = S.pl ? tReal() * 1000 : 0, w0 = Math.max(0, tm - Wd), w1 = w0 + Wd;
+    const X = u => gx0 + (u - w0) / Wd * (gx1 - gx0);
     line(gx0, gc, gx1 + 0.4 * fs, gc, C.axis, 1.3); tri(gx1 + 0.6 * fs, gc, 1, 0, fs * 0.35, C.axis);
     line(gx0, gy1, gx0, gy0 - 0.2 * fs, C.axis, 1.3);
     texAt("earp", "p", gx0 - 0.4 * fs, gy0, fs * 0.85, C.ink, 1, 0.5);
     texAt("eart", "t\\ (\\text{ms})", gx1 + 0.4 * fs, gc - 0.35 * fs, fs * 0.75, C.ink, 1, 1, true);
-    for (let k = 1; k <= NP; k++) {
-      line(X(k * T), gc - 0.15 * fs, X(k * T), gc + 0.15 * fs, C.axis, 1);
-      texAt("et" + k, texNum(k * T, 1), X(k * T), gc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true);
+    // marcas do eixo (deslizam com a janela)
+    const st = niceStep(Wd, Math.max(3, Math.min(7, (gx1 - gx0) / (3.2 * fs))));
+    let k = 0;
+    for (let u = Math.ceil((w0 + 1e-9) / st) * st; u <= w1 - 0.02 * Wd; u += st, k++) {
+      line(X(u), gc - 0.15 * fs, X(u), gc + 0.15 * fs, C.axis, 1);
+      texAt("et" + k, texNum(u, 1), X(u), gc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true);
     }
-    const t = tReal(), ta = DIST / VSOM, arrived = S.pl && t >= ta;
-    if (S.phys) physNote("eDel", `\\text{a ${DIST} m, o som chega } \\tfrac{${DIST}}{${VSOM}} \\approx ${texNum(ta * 1000, 1)}\\ \\text{ms depois}`, gb, fs, tW);
-    if (!arrived || M.silent) {
+    // chegada do som
+    if (ta >= w0 && ta <= w1) {
+      line(X(ta), gy0 - 0.2 * fs, X(ta), gy1, C.air, 1.2, [3, 3]);
+      texAt("eArr", "\\textbf{chegada}", X(ta) + 0.25 * fs, gy1 - 0.4 * fs, fs * 0.62, C.air, 0, 0.5, true);
+    }
+    if (S.phys) physNote("eDel", `\\text{a ${DIST} m, o som chega } \\tfrac{${DIST}}{${VSOM}} \\approx ${texNum(ta, 1)}\\ \\text{ms depois}`, gb, fs, tW);
+    if (!S.pl || M.silent || tm < ta)
       text(S.pl && !M.silent ? "O som ainda vai a caminho…" : S.pl ? "Não há som: a corda não vibra." : "Ainda não há som.", (gx0 + gx1) / 2, gc - ga * 0.5, fs * 0.75, C.faint, "center", FONT, 400, "italic");
-    } else {
-      const u = ((t - ta) * 1000) % Tw, n = Math.round(gx1 - gx0);
-      const curve = (u1, col, w, alpha) => {
-        ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.beginPath();
-        for (let j = 0; j <= n; j++) { const uu = j / n * Tw; if (uu > u1) break; const Y = gc - ga * look(M.P, TAU * f * uu / 1000); j ? ctx.lineTo(gx0 + j, Y) : ctx.moveTo(gx0 + j, Y); }
-        ctx.stroke(); ctx.globalAlpha = 1;
-      };
-      if (S.tau / S.slow - ta > Tw / 1000) curve(Tw, C.ear, Math.max(1.6, 0.1 * fs), 0.25);
-      curve(u, C.ear, Math.max(2.2, 0.15 * fs), 1);
-      ctx.beginPath(); ctx.arc(X(u), gc - ga * look(M.P, TAU * f * u / 1000), 0.28 * fs, 0, TAU); ctx.fillStyle = C.hot; ctx.fill();
-      // período
-      const yT = gy0 - 0.5 * fs;
-      line(X(0), yT, X(T), yT, C.M[0], 1.6); line(X(0), yT - 0.2 * fs, X(0), yT + 0.2 * fs, C.M[0], 1.6); line(X(T), yT - 0.2 * fs, X(T), yT + 0.2 * fs, C.M[0], 1.6);
-      texAt("eT", `T = \\dfrac{1}{${S.h > 1 ? S.h : ""}f} = ${texNum(T, 2)}\\ \\text{ms}`, X(T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
+    if (S.pl) {
+      // a curva até ao instante atual (0 antes de o som chegar) e o ponto no instante atual
+      const n = Math.max(1, Math.round(X(tm) - gx0));
+      ctx.strokeStyle = C.ear; ctx.lineWidth = Math.max(2.2, 0.15 * fs); ctx.lineJoin = "round"; ctx.beginPath();
+      for (let j = 0; j <= n; j++) { const u = w0 + j / n * (tm - w0), Y = gc - ga * pAt(DIST, u / 1000); j ? ctx.lineTo(X(u), Y) : ctx.moveTo(X(u), Y); }
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(X(tm), gc - ga * pAt(DIST, tm / 1000), 0.28 * fs, 0, TAU); ctx.fillStyle = C.hot; ctx.fill();
+      texAt("eNow", `t = ${texNum(tm, 1)}\\ \\text{ms}`, X(tm), gy1 + 0.1 * fs, fs * 0.65, C.hot, X(tm) > gx1 - 3 * fs ? 1 : 0.5, 0, true);
+      // período: entre dois instantes equivalentes depois da chegada (o primeiro que caiba na janela)
+      if (tm >= ta + T && !M.silent) {
+        let a0 = ta + Math.ceil(Math.max(0, w0 - ta) / T) * T;
+        if (a0 + T > tm) a0 -= T;
+        const yT = gy0 - 0.5 * fs;
+        line(X(a0), yT, X(a0 + T), yT, C.M[0], 1.6); line(X(a0), yT - 0.2 * fs, X(a0), yT + 0.2 * fs, C.M[0], 1.6); line(X(a0 + T), yT - 0.2 * fs, X(a0 + T), yT + 0.2 * fs, C.M[0], 1.6);
+        texAt("eT", `T = \\dfrac{1}{${S.h > 1 ? S.h : ""}f} = ${texNum(T, 2)}\\ \\text{ms}`, X(a0 + T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
+      }
     }
     // espetro: amplitude de cada harmónico (|bₙ|, em relação ao maior)
     const stw = frame_(sb, "Espetro do som", fs);
