@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Da corda da viola ao som</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  :root { --bg: #ffffff; }
+  :root[data-theme="dark"] { --bg: #151b22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+<body>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Corda de viola a vibrar em câmara lenta, a onda sonora que ela produz no ar e a pressão do ar junto do ouvinte"></canvas>
+<script>
+(() => {
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    str: "#1565c0", air: "#c2410c", ear: "#111827", wood: "#e9dcc6", fret: "#9aa5b1", hot: "#ef6c00",
+    M: ["#1565c0", "#d32f2f", "#2e7d32", "#7b1fa2"], phys: "#00838f",
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    str: "#64a8ff", air: "#ff8a4c", ear: "#f2f4f7", wood: "#3a3127", fret: "#6b7685", hot: "#ffa040",
+    M: ["#64a8ff", "#ff6b6b", "#5cc26a", "#c792ea"], phys: "#4dd0e1",
+  };
+  const C = { ...LIGHT };
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const TAU = 2 * Math.PI;
+
+  // ---------- física (escondida por omissão) ----------
+  const L0 = 0.65;     // comprimento da corda solta de uma viola clássica (m), da pestana ao cavalete
+  const VSOM = 343;    // velocidade do som no ar (m/s)
+  const DIST = 6;      // distância da viola ao ouvinte (m)
+  // as seis cordas soltas (afinação normal), da mais grave para a mais aguda
+  const CORDAS = [
+    { nome: "Mi", oit: 2, f: 82.41 }, { nome: "Lá", oit: 2, f: 110 }, { nome: "Ré", oit: 3, f: 146.83 },
+    { nome: "Sol", oit: 3, f: 196 }, { nome: "Si", oit: 3, f: 246.94 }, { nome: "Mi", oit: 4, f: 329.63 },
+  ];
+  const SLOWS = [50, 100, 200, 500, 1000, 2000];
+
+  // ---------- estado ----------
+  const S = {
+    s: 1,          // corda (0 a 5)
+    fret: 0,       // traste pressionado (0 = corda solta)
+    beta: 0.2,     // ponto onde se dedilha, em fração do comprimento a vibrar, a contar do cavalete
+    N: 20,         // n.º de harmónicos
+    modes: false,  // mostrar os modos de vibração
+    phys: false,   // mostrar as grandezas físicas
+    slow: 200,     // câmara lenta: o tempo do ecrã corre 200 vezes mais devagar
+    run: true,     // tempo a correr
+    sound: true,   // dedilhar também toca
+    pl: false,     // já se dedilhou?
+    tau: 0,        // tempo no ecrã desde que se dedilhou (s); o tempo real é tau / slow
+  };
+  const freq = () => CORDAS[S.s].f * Math.pow(2, S.fret / 12);
+  const Lvib = () => L0 * Math.pow(2, -S.fret / 12);
+
+  // ---------- nota musical ----------
+  const NOMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
+  function nota(f) {
+    const m = Math.round(69 + 12 * Math.log2(f / 440));
+    return NOMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+  }
+  const fmt = (x, dec = 2) => {
+    if (!isFinite(x)) return "—";
+    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec);
+    if (s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    if (s === "-0") s = "0";
+    return s.replace(".", ",").replace(/^-/, "−");
+  };
+  const texNum = (x, dec = 2) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
+
+  // ---------- modelo ----------
+  // corda dedilhada (forma inicial triangular, parada): y(ξ, t) = Σ Aₙ sin(nπξ) cos(2π n f t), ξ de 0 (traste) a 1 (cavalete),
+  //   Aₙ = 2 sin(nπξₚ) / (n²π² ξₚ(1 − ξₚ)), com ξₚ = 1 − β (o pico do triângulo tem altura 1)
+  // som: a pressão é proporcional à força da corda no cavalete, ∂y/∂ξ em ξ = 1 → bₙ = (−1)ⁿ n π Aₙ (∝ sin(nπβ)/n)
+  // no ar, onda progressiva: p(x, t) = Σ bₙ cos(n·2πf(t − x/v)); deslocamento das partículas ξ = Σ (bₙ/n) sin(n·φ)
+  const NT = 1024;
+  let M = null;
+  function model() {
+    const xp = 1 - S.beta, A = [], B = [];
+    for (let n = 1; n <= S.N; n++) {
+      const a = 2 * Math.sin(n * Math.PI * xp) / (n * n * Math.PI * Math.PI * xp * (1 - xp));
+      A.push(a); B.push((n % 2 ? -1 : 1) * n * Math.PI * a);
+    }
+    // tabelas de p(φ) e do deslocamento num período, normalizadas a 1
+    const P = new Float32Array(NT), X = new Float32Array(NT);
+    let mp = 1e-9, mx = 1e-9;
+    for (let j = 0; j < NT; j++) {
+      const ph = TAU * j / NT;
+      let p = 0, x = 0;
+      for (let n = 1; n <= S.N; n++) { p += B[n - 1] * Math.cos(n * ph); x += B[n - 1] / n * Math.sin(n * ph); }
+      P[j] = p; X[j] = x; mp = Math.max(mp, Math.abs(p)); mx = Math.max(mx, Math.abs(x));
+    }
+    for (let j = 0; j < NT; j++) { P[j] /= mp; X[j] /= mx; }
+    const mb = Math.max(...B.map(Math.abs), 1e-9);
+    M = { A, B, P, X, bn: B.map(b => Math.abs(b) / mb), key: S.beta + "|" + S.N };
+  }
+  const look = (T, ph) => { let u = (ph / TAU) % 1; if (u < 0) u += 1; return T[Math.floor(u * NT) % NT]; };
+  const tReal = () => S.tau / S.slow;
+  // forma da corda em ξ (com amplitude máxima 1 no instante inicial)
+  function stringY(xi, t) {
+    if (!S.pl) return 0;
+    const w = TAU * freq() * t;
+    let y = 0;
+    for (let n = 1; n <= S.N; n++) y += M.A[n - 1] * Math.sin(n * Math.PI * xi) * Math.cos(n * w);
+    return y;
+  }
+  // pressão (−1 a 1) e deslocamento das partículas a x metros da viola; 0 antes de a onda lá chegar
+  const front = () => S.pl ? VSOM * tReal() : -1;
+  const pAt = (x, t) => x > VSOM * t || !S.pl ? 0 : look(M.P, TAU * freq() * (t - x / VSOM));
+  const dAt = (x, t) => x > VSOM * t || !S.pl ? 0 : look(M.X, TAU * freq() * (t - x / VSOM));
+
+  // ---------- som (Web Audio) ----------
+  let actx = null, master = null, voice = null;
+  function audio() {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain(); master.gain.value = 0.5; master.connect(actx.destination);
+    }
+    if (actx.state === "suspended") actx.resume();
+    return actx;
+  }
+  function stopSound() {
+    if (!voice) return;
+    const now = actx.currentTime;
+    voice.out.gain.cancelScheduledValues(now);
+    voice.out.gain.setValueAtTime(voice.out.gain.value, now);
+    voice.out.gain.linearRampToValueAtTime(0, now + 0.02);
+    voice.oscs.forEach(o => { try { o.stop(now + 0.03); } catch (e) {} });
+    voice = null;
+  }
+  // a mesma soma de harmónicos do ecrã; os agudos apagam-se mais depressa
+  function pluckSound() {
+    const c = audio();
+    stopSound();
+    const f = freq(), t0 = c.currentTime + 0.01, out = c.createGain();
+    out.connect(master);
+    const tot = M.B.reduce((s, b) => s + Math.abs(b), 0) || 1;
+    const oscs = [];
+    M.B.forEach((b, i) => {
+      const n = i + 1, a = Math.abs(b) / tot;
+      if (a < 1e-4 || n * f > 15000) return;
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = n * f;
+      const dec = 3.2 / (1 + 0.35 * (n - 1));
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(a, t0 + 0.004);
+      g.gain.exponentialRampToValueAtTime(Math.max(a * 1e-4, 1e-6), t0 + 0.004 + dec * 2.5);
+      o.connect(g).connect(out);
+      o.start(t0); o.stop(t0 + 4.2);
+      oscs.push(o);
+    });
+    voice = { out, oscs };
+  }
+
+  // ---------- ações ----------
+  function pluck(withSound = S.sound) {
+    S.pl = true; S.tau = 0; S.run = true;
+    if (withSound) pluckSound();
+    go();
+  }
+  const changed = () => { model(); draw(); };
+  const setString = i => { S.s = i; changed(); };
+  const setFret = v => { v = clamp(Math.round(v), 0, 12); if (v !== S.fret) { S.fret = v; changed(); } };
+  const setBeta = v => { v = clamp(Math.round(v * 100) / 100, 0.05, 0.5); if (v !== S.beta) { S.beta = v; changed(); } };
+  const setN = v => { v = clamp(Math.round(v), 1, 30); if (v !== S.N) { S.N = v; changed(); } };
+  const setSlow = dir => { const i = clamp(SLOWS.indexOf(S.slow) + dir, 0, SLOWS.length - 1); S.tau *= SLOWS[i] / S.slow; S.slow = SLOWS[i]; draw(); };
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // ---------- disposição ----------
+  // ecrã deitado: controlos numa coluna à esquerda, os quadros (corda, modos, ar, ouvinte) à direita;
+  // ao alto: os quadros em cima e os controlos por baixo
+  const ROW = 1.5, CP = 0.35, GAP = 0.4, LEG = 1.9;
+  const CARDS = [["corda", 3], ["ded", 2], ["harm", 2], ["tempo", 1], ["fis", 1]];
+  const cardH = r => CP * 2 + r * ROW + (r - 1) * 0.15;
+  function layout() {
+    let fs = clamp(Math.min(W, H) / 26, 12, 21);
+    for (let k = 0; k < 40; k++) {
+      const L = tryLayout(fs);
+      if (L.ok || fs <= 10) return L;
+      fs *= 0.95;
+    }
+    return tryLayout(fs);
+  }
+  function tryLayout(fs) {
+    const pad = Math.round(fs * 0.7), gap = GAP * fs;
+    const land = W > H * 1.1 && W >= 640;
+    const L = { fs, pad, land, cards: {} };
+    let area;
+    if (land) {
+      const cw = clamp(W * 0.3, 18 * fs, 23 * fs), x = pad;
+      let y = pad;
+      L.legend = { x, y, w: cw, h: LEG * fs }; y += LEG * fs + 0.5 * fs;
+      CARDS.forEach(([k, r]) => { L.cards[k] = { x, y, w: cw, h: cardH(r) * fs }; y += cardH(r) * fs + gap; });
+      const gx = x + cw + 1.2 * fs;
+      area = { x: gx, y: pad, w: W - pad - gx, h: H - 2 * pad };
+      L.ok = y - gap <= H - pad && area.w >= W * 0.45;
+    } else {
+      const w = W - 2 * pad, nc = w >= 36 * fs ? 2 : 1, cw = (w - (nc - 1) * gap) / nc;
+      // em duas colunas: corda | dedilhar+harmónicos ; tempo | física
+      let ctrlH;
+      const col = [[], []];
+      if (nc === 2) { col[0] = ["corda", "tempo", "fis"]; col[1] = ["ded", "harm"]; }
+      else col[0] = CARDS.map(c => c[0]);
+      const hOf = k => cardH(CARDS.find(c => c[0] === k)[1]) * fs;
+      ctrlH = Math.max(...col.map(cs => cs.reduce((s, k) => s + hOf(k) + gap, 0))) - gap;
+      let y = pad;
+      L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + 0.4 * fs;
+      const gh = H - pad - ctrlH - 0.6 * fs - y;
+      area = { x: pad, y, w, h: gh };
+      const y0 = y + gh + 0.6 * fs;
+      col.forEach((cs, ci) => { let yy = y0; cs.forEach(k => { L.cards[k] = { x: pad + ci * (cw + gap), y: yy, w: cw, h: hOf(k) }; yy += hOf(k) + gap; }); });
+      L.ok = gh >= Math.max(0.45 * H, 18 * fs) && cw >= 16 * fs;
+    }
+    // quadros: corda, (modos), ar, ouvinte + espetro
+    const wts = [["str", 3], ...(S.modes ? [["modes", 3.2]] : []), ["air", 4.2], ["ear", 3.4]];
+    const tot = wts.reduce((s, [, v]) => s + v, 0), g2 = 0.5 * fs, free = area.h - g2 * (wts.length - 1);
+    let y = area.y;
+    L.P = {};
+    wts.forEach(([k, v]) => { const h = free * v / tot; L.P[k] = { x: area.x, y, w: area.w, h }; y += h + g2; });
+    return L;
+  }
+
+  // ---------- primitivas ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400, style = "") {
+    ctx.font = `${style} ${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    text(txt, x + w / 2, y + h / 2 + 1, px, on ? C.on : C.ink, "center", FONT, 700);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  function cbox(x, y, h, bs, px, on, txt, hit, col = C.muted, tcol = C.ink, weight = 400) {
+    const yy = y + (h - bs) / 2;
+    rrect(x, yy, bs, bs, 5, on ? col : C.bg, col, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const w = bs + 0.45 * bs + text(txt, x + bs * 1.45, y + h / 2 + 1, px, tcol, "left", FONT, weight);
+    hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  // cursor (barra, parte até ao valor na cor col, pega redonda); ticks: valores com uma marca por baixo
+  function slider(x, y, w, h, lo, hi, v, col, fs, set, ticks = []) {
+    const cy = y + h / 2, X = u => x + (clamp(u, lo, hi) - lo) / (hi - lo) * w;
+    ticks.forEach(t => line(X(t), cy + 0.25 * fs, X(t), cy + 0.45 * fs, C.faint, 1.2));
+    ctx.lineCap = "round";
+    line(x, cy, x + w, cy, C.grid2, 0.26 * fs);
+    line(x, cy, X(v), cy, col, 0.26 * fs);
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs, 0, TAU); ctx.fillStyle = col; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
+    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, set, val: px => lo + (px - x) / w * (hi - lo) });
+  }
+
+  // ---------- KaTeX numa camada por cima ----------
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = false) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+    return el;
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(frame); }
+  let last = 0;
+  function frame(now) {
+    raf = 0;
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    if (S.pl && S.run) S.tau += dt;
+    paint();
+    if (S.pl && S.run) { last = now; raf = requestAnimationFrame(frame); } else last = 0;
+  }
+  const go = () => { last = 0; draw(); };
+  function paint() {
+    L = layout(); hits = []; used = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    legend(L.legend, fs);
+    cardCorda(L.cards.corda, fs);
+    cardDed(L.cards.ded, fs);
+    cardHarm(L.cards.harm, fs);
+    cardTempo(L.cards.tempo, fs);
+    cardFis(L.cards.fis, fs);
+    panelString(L.P.str, fs);
+    if (L.P.modes) panelModes(L.P.modes, fs);
+    panelAir(L.P.air, fs);
+    panelEar(L.P.ear, fs);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+  }
+
+  // em cima: a soma dos harmónicos e o botão do modo escuro
+  function legend(b, fs) {
+    const bw = b.h * 1.3;
+    rrect(b.x, b.y, b.w - bw - 0.4 * fs, b.h, 8, C.band, C.line, 1.5);
+    fit(texAt("legend", "p(t) = \\sum_{n=1}^{N} b_n \\cos(2\\pi\\, n f\\, t)", b.x + (b.w - bw - 0.4 * fs) / 2, b.y + b.h / 2, fs * 1.2, C.ink),
+      b.w - bw - 1.2 * fs, b.h);
+    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+  }
+  function card(b, col, fs) {
+    rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
+    ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip();
+    ctx.fillStyle = col; ctx.fillRect(b.x, b.y, 0.25 * fs, b.h);
+    ctx.restore();
+    return { x: b.x + 0.7 * fs, y: b.y + CP * fs, w: b.w - 1.2 * fs };
+  }
+  const rowY = (c, i, fs) => c.y + i * (ROW + 0.15) * fs;
+
+  // corda: título com a nota e a frequência; as seis cordas; o traste
+  function cardCorda(b, fs) {
+    const c = card(b, C.str, fs), rh = ROW * fs, f = freq();
+    let y = rowY(c, 0, fs);
+    const x = c.x + text("Corda", c.x, y + rh / 2 + 1, fs * 0.95, C.str, "left", FONT, 700) + 0.7 * fs;
+    fit(texAt("fnote", `f = ${texNum(f, 1)}\\ \\text{Hz}\\quad \\text{(${nota(f)})}\\quad T = ${texNum(1000 / f, 2)}\\ \\text{ms}`,
+      x, y + rh / 2, fs * 0.9, C.ink, 0, 0.5), c.x + c.w - x, rh);
+    y = rowY(c, 1, fs);
+    const g = 0.2 * fs, bw = (c.w - 5 * g) / 6, bh = 1.25 * fs;
+    CORDAS.forEach((k, i) => {
+      const bx = c.x + i * (bw + g);
+      button(bx, y + (rh - bh) / 2, bw, bh, "", S.s === i, "corda", { i }, C.str, fs * 0.8);
+      texAt("cd" + i, `\\text{${k.nome}}_{${k.oit}}`, bx + bw / 2, y + rh / 2, fs * 0.85, S.s === i ? C.on : C.ink);
+    });
+    y = rowY(c, 2, fs);
+    const lx = c.x + text("Traste", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.9 * fs;
+    const vw = tw("12", fs * 0.85, MONO, 600) + 0.3 * fs;
+    slider(lx, y, c.x + c.w - vw - 0.8 * fs - lx, rh, 0, 12, S.fret, C.str, fs, setFret, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    text(String(S.fret), c.x + c.w, y + rh / 2 + 1, fs * 0.85, C.ink, "right", MONO, 600);
+  }
+  // dedilhar: botão, som, ponto onde se dedilha
+  function cardDed(b, fs) {
+    const c = card(b, C.hot, fs), rh = ROW * fs, bh = 1.25 * fs;
+    let y = rowY(c, 0, fs);
+    const bw = Math.max(7 * fs, tw("Dedilhar", fs * 0.9, FONT, 700) + 1.6 * fs);
+    button(c.x, y + (rh - bh) / 2, bw, bh, "Dedilhar", true, "pluck", {}, C.hot, fs * 0.9);
+    cbox(c.x + bw + 0.8 * fs, y, rh, 0.8 * fs, fs * 0.8, S.sound, "Com som", { kind: "sound" }, C.muted);
+    y = rowY(c, 1, fs);
+    const lx = c.x + text("Ponto", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.9 * fs;
+    const lab = `${Math.round(S.beta * 100)} %`, vw = tw("50 %", fs * 0.8, MONO, 600) + 0.3 * fs;
+    slider(lx, y, c.x + c.w - vw - 0.8 * fs - lx, rh, 0.05, 0.5, S.beta, C.hot, fs, setBeta, [0.25, 0.5]);
+    text(lab, c.x + c.w, y + rh / 2 + 1, fs * 0.8, C.ink, "right", MONO, 600);
+  }
+  function cardHarm(b, fs) {
+    const c = card(b, C.M[1], fs), rh = ROW * fs;
+    let y = rowY(c, 0, fs);
+    const lx = c.x + text("Harmónicos", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.9 * fs;
+    const vw = tw("30", fs * 0.85, MONO, 600) + 0.3 * fs;
+    texAt("Nlab", "N", c.x + c.w - vw - 0.1 * fs, y + rh / 2, fs * 0.9, C.muted, 1, 0.5);
+    slider(lx, y, c.x + c.w - vw - 1.7 * fs - lx, rh, 1, 30, S.N, C.M[1], fs, setN);
+    text(String(S.N), c.x + c.w, y + rh / 2 + 1, fs * 0.85, C.ink, "right", MONO, 600);
+    y = rowY(c, 1, fs);
+    cbox(c.x, y, rh, 0.8 * fs, fs * 0.8, S.modes, "Modos de vibração (os 4 primeiros)", { kind: "modes" }, C.M[1]);
+  }
+  function cardTempo(b, fs) {
+    const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.15 * fs, y = rowY(c, 0, fs);
+    let x = c.x;
+    const pw = 2.2 * fs;
+    button(x, y + (rh - bh) / 2, pw, bh, S.run ? "❚❚" : "▶", false, "run", {}, C.muted, fs * 0.75); x += pw + 0.5 * fs;
+    x += text("Câmara lenta", x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.6 * fs;
+    const sw = 1.9 * fs;
+    button(x, y + (rh - bh) / 2, sw, bh, "−", false, "slow", { d: -1 }, C.muted, fs * 0.9); x += sw + 0.25 * fs;
+    button(x, y + (rh - bh) / 2, sw, bh, "+", false, "slow", { d: 1 }, C.muted, fs * 0.9); x += sw + 0.5 * fs;
+    let t = `${S.slow}× mais devagar`;
+    if (tw(t, fs * 0.8, MONO, 600) > c.x + c.w - x) t = `${S.slow}×`;
+    const px = Math.min(fs * 0.8, fs * 0.8 * (c.x + c.w - x) / tw(t, fs * 0.8, MONO, 600));
+    text(t, c.x + c.w, y + rh / 2 + 1, px, C.ink, "right", MONO, 600);
+  }
+  function cardFis(b, fs) {
+    const c = card(b, C.phys, fs), rh = ROW * fs, bh = 1.25 * fs;
+    const t = S.phys ? "Esconder as grandezas físicas" : "Mostrar as grandezas físicas";
+    button(c.x, c.y + (rh - bh) / 2, c.w, bh, t, S.phys, "phys", {}, C.phys, Math.min(fs * 0.85, fs * 0.85 * (c.w - fs) / tw(t, fs * 0.85, FONT, 700)));
+  }
+
+  // moldura de um quadro, com o título em cima à esquerda
+  // (short: título mais curto, se o completo não couber)
+  function frame_(b, title, fs, short) {
+    rrect(b.x, b.y, b.w, b.h, 9, null, C.line, 1.2);
+    if (short && tw(title, fs * 0.8, FONT, 700) > b.w - 1.2 * fs) title = short;
+    return 0.6 * fs + text(title, b.x + 0.6 * fs, b.y + 0.75 * fs, fs * 0.8, C.muted, "left", FONT, 700);
+  }
+  // nota das grandezas físicas no canto superior direito de um quadro; se não couber ao lado do título,
+  // vai para o canto inferior esquerdo (alt) ou fica escondida
+  function physNote(id, src, b, fs, titleW, alt) {
+    const el = texAt(id, src, b.x + b.w - 0.6 * fs, b.y + 0.75 * fs, fs * 0.68, C.phys, 1, 0.5, true);
+    if (el.offsetWidth > b.w - titleW - 1.6 * fs) {
+      if (!alt) { el.style.display = "none"; used.delete(id); return; }
+      el.style.left = b.x + 0.6 * fs + "px"; el.style.top = b.y + b.h - 0.55 * fs + "px"; el.style.transform = "translate(0,-50%)";
+      fit(el, b.w - 6 * fs);
+    }
+  }
+
+  // ---------- 1. a corda ----------
+  function panelString(b, fs) {
+    frame_(b, "Corda (onda estacionária)", fs);
+    const x0 = b.x + 1.2 * fs, x1 = b.x + b.w - 1.6 * fs, top = b.y + 1.5 * fs, bot = b.y + b.h - (S.phys ? 2.6 : 1.3) * fs;
+    const amp = clamp((bot - top) / 2 - 0.5 * fs, 0.8 * fs, 3.2 * fs), cy = (top + bot) / 2;
+    const full = x1 - x0, xf = x1 - full * Math.pow(2, -S.fret / 12);   // traste pressionado
+    // braço da viola, trastes (com os pontos do 3, 5, 7, 9 e 12) e cavalete
+    rrect(x0 - 0.3 * fs, cy - amp - 0.5 * fs, full + 0.6 * fs, 2 * amp + 1 * fs, 6, C.wood, null);
+    for (let j = 1; j <= 12; j++) {
+      const xj = x1 - full * Math.pow(2, -j / 12);
+      line(xj, cy - amp - 0.5 * fs, xj, cy + amp + 0.5 * fs, C.fret, j === S.fret ? 2.5 : 1.5);
+      if ([3, 5, 7, 9, 12].includes(j)) {
+        const xm = (xj + x1 - full * Math.pow(2, -(j - 1) / 12)) / 2;
+        text(String(j), xm, cy + amp + 0.95 * fs, fs * 0.6, C.faint, "center", MONO);   // (por baixo do braço)
+      }
+    }
+    line(x0, cy - amp - 0.5 * fs, x0, cy + amp + 0.5 * fs, C.muted, 4);                 // pestana
+    rrect(x1 - 0.15 * fs, cy - 0.6 * fs, 0.5 * fs, 1.2 * fs, 3, C.muted, null);          // cavalete
+    text("pestana", x0 - 0.3 * fs, cy + amp + 0.95 * fs, fs * 0.6, C.faint, "left");
+    text("cavalete", x1 + 0.35 * fs, cy + amp + 0.95 * fs, fs * 0.6, C.faint, "right");
+    // parte presa (da pestana ao traste) e o dedo
+    if (S.fret > 0) {
+      line(x0, cy, xf, cy, C.grid2, 2);
+      const xd = xf - 0.35 * (xf - (x1 - full * Math.pow(2, -(S.fret - 1) / 12)));
+      ctx.beginPath(); ctx.arc(xd, cy, 0.45 * fs, 0, TAU); ctx.fillStyle = C.muted; ctx.globalAlpha = 0.45; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    // a corda a vibrar, do traste ao cavalete
+    const t = tReal(), len = x1 - xf, n = Math.max(80, Math.round(len / 2));
+    ctx.strokeStyle = C.str; ctx.lineWidth = Math.max(2.2, 0.16 * fs); ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (let j = 0; j <= n; j++) { const xi = j / n, X = xf + xi * len, Y = cy - amp * stringY(xi, t); j ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+    ctx.stroke();
+    // onde se dedilha
+    const xp = x1 - S.beta * len;
+    tri(xp, cy - amp - 0.05 * fs, 0, 1, 0.45 * fs, C.hot);
+    hits.push({ kind: "string", x0: xf, x1, rect: { x: xf, y: cy - amp - 0.5 * fs, w: len, h: 2 * amp + fs } });
+    if (!S.pl) text("Toque na corda (ou em «Dedilhar») para a pôr a vibrar", (xf + x1) / 2, cy - amp * 0.55, fs * 0.7, C.muted, "center", FONT, 400, "italic");
+    // física: L, λ = 2L, v = λ f
+    if (S.phys) {
+      const Lv = Lvib(), yb = cy + amp + 1.85 * fs, f = freq();
+      line(xf, yb - 0.25 * fs, xf, yb + 0.25 * fs, C.phys, 1.5); line(x1, yb - 0.25 * fs, x1, yb + 0.25 * fs, C.phys, 1.5);
+      const el = texAt("Lc", `L = ${texNum(Lv * 100, 1)}\\ \\text{cm}\\qquad \\lambda_1 = 2L = ${texNum(2 * Lv * 100, 1)}\\ \\text{cm}\\qquad v = \\lambda_1 f = ${texNum(2 * Lv * f, 0)}\\ \\text{m/s}`,
+        (xf + x1) / 2, yb, fs * 0.75, C.phys, 0.5, 0.5, true);
+      fit(el, len * 0.98);
+      const hw = el.offsetWidth / 2 + 0.4 * fs, xm = (xf + x1) / 2;   // a cota com um intervalo para o texto
+      if (xm - hw > xf) { line(xf, yb, xm - hw, yb, C.phys, 1.5); line(xm + hw, yb, x1, yb, C.phys, 1.5); }
+    }
+  }
+
+  // ---------- os modos de vibração (os 4 primeiros) ----------
+  function panelModes(b, fs) {
+    frame_(b, "Modos de vibração (a corda é a soma de todos; % = amplitude em relação ao 1.º)", fs, "Modos de vibração (% = amplitude em relação ao 1.º)");
+    const k = Math.min(4, S.N), top = b.y + 1.5 * fs, rh = (b.h - 1.8 * fs) / 4, x0 = b.x + (S.phys ? 11.6 : 7.2) * fs, x1 = b.x + b.w - 4.2 * fs;
+    const t = tReal(), f = freq(), a1 = Math.abs(M.A[0]) || 1;
+    for (let n = 1; n <= k; n++) {
+      const cy = top + (n - 0.5) * rh, amp = rh * 0.36, col = C.M[n - 1], an = M.A[n - 1], rel = Math.abs(an) / a1;
+      texAt("mn" + n, `n = ${n}`, b.x + 0.7 * fs, cy, fs * 0.8, col, 0, 0.5);
+      texAt("mf" + n, `${n === 1 ? "" : n}f = ${texNum(n * f, 0)}\\ \\text{Hz}`, b.x + 3.1 * fs, cy, fs * 0.72, C.muted, 0, 0.5);
+      line(x0, cy, x1, cy, C.grid2, 1);
+      const off = rel < 0.005;
+      const cs = S.pl ? Math.cos(n * TAU * f * t) * Math.sign(an) : 0;
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.setLineDash(off ? [5, 5] : []);
+      ctx.beginPath();
+      for (let j = 0; j <= 160; j++) { const xi = j / 160, X = x0 + xi * (x1 - x0), Y = cy - (off ? 0 : amp * Math.sin(n * Math.PI * xi) * cs); j ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+      ctx.stroke(); ctx.setLineDash([]);
+      // nós
+      for (let j = 0; j <= n; j++) { ctx.beginPath(); ctx.arc(x0 + j / n * (x1 - x0), cy, 0.16 * fs, 0, TAU); ctx.fillStyle = C.ink; ctx.fill(); }
+      text(off ? "ausente" : `${Math.round(rel * 100)} %`, b.x + b.w - 0.7 * fs, cy, fs * 0.72, off ? C.faint : col, "right", MONO, 600);
+      if (S.phys) texAt("ml" + n, `\\lambda_{${n}} = ${texNum(2 * Lvib() * 100 / n, 1)}\\ \\text{cm}`, b.x + 7.4 * fs, cy, fs * 0.72, C.phys, 0, 0.5);
+    }
+  }
+
+  // ---------- 2. o ar ----------
+  function panelAir(b, fs) {
+    const tW = frame_(b, "Ar (onda sonora: compressões e rarefações)", fs, "Ar (onda sonora)");
+    const t = tReal(), f = freq();
+    const gx0 = b.x + 3.2 * fs, gx1 = b.x + b.w - 2.4 * fs, X = m => gx0 + m / DIST * (gx1 - gx0);
+    const top = b.y + 1.5 * fs, ph = (b.h - 1.5 * fs) * 0.52, py0 = top + ph + 0.2 * fs, py1 = b.y + b.h - 1.3 * fs;
+    // viola (fonte) e ouvinte
+    const vy = top + ph / 2;
+    ctx.beginPath(); ctx.ellipse(b.x + 1.6 * fs, vy, 1.0 * fs, Math.min(1.4 * fs, ph / 2), 0, 0, TAU); ctx.fillStyle = C.wood; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = C.fret; ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.x + 1.6 * fs, vy, 0.35 * fs, 0, TAU); ctx.fillStyle = C.muted; ctx.fill();
+    line(X(DIST), top, X(DIST), py1, C.ear, 1.5, [4, 4]);
+    text("ouvinte", X(DIST) - 0.3 * fs, b.y + b.h - 0.55 * fs, fs * 0.65, C.ear, "right", FONT, 700);
+    // partículas: posições de repouso numa grelha; o deslocamento é exagerado para se ver
+    const rows = Math.max(4, Math.round(ph / (0.75 * fs))), dy = ph / rows, dx = Math.max(0.55 * fs, 6);
+    const cols = Math.floor((gx1 - gx0) / dx), lamPx = VSOM / f / DIST * (gx1 - gx0), shift = clamp(0.1 * lamPx, 0.45 * dx, 3 * fs);
+    // compressões mais escuras, rarefações mais claras
+    const strip = 3;
+    for (let xs = gx0; xs < gx1; xs += strip) {
+      const v = pAt((xs - gx0) / (gx1 - gx0) * DIST, t);
+      if (v > 0) { ctx.globalAlpha = 0.22 * v; ctx.fillStyle = C.air; ctx.fillRect(xs, top, strip, ph); }
+    }
+    ctx.globalAlpha = 1;
+    ctx.save(); ctx.beginPath(); ctx.rect(gx0 - 0.3 * fs, top - 0.3 * fs, gx1 - gx0 + 0.6 * fs, ph + 0.6 * fs); ctx.clip();
+    ctx.fillStyle = C.air;
+    for (let i = 0; i <= cols; i++) {
+      const xr = gx0 + i * dx, m = (xr - gx0) / (gx1 - gx0) * DIST, d = dAt(m, t) * shift;
+      for (let r = 0; r < rows; r++) {
+        const jit = ((i * 7 + r * 13) % 5 - 2) * 0.08 * dx;   // pequena desordem fixa
+        ctx.beginPath(); ctx.arc(xr + d + jit, top + (r + 0.5) * dy, Math.max(1.6, 0.11 * fs), 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+    // frente da onda
+    const fr = front();
+    if (S.pl && fr < DIST) line(X(fr), top, X(fr), top + ph, C.air, 1.2, [3, 3]);
+    // pressão ao longo da distância
+    const pc = (py0 + py1) / 2, pa = (py1 - py0) / 2 * 0.85;
+    line(gx0, pc, gx1 + 0.4 * fs, pc, C.axis, 1.3); tri(gx1 + 0.6 * fs, pc, 1, 0, fs * 0.35, C.axis);
+    line(gx0, py0, gx0, py1, C.axis, 1.3);
+    texAt("airp", "p", gx0 - 0.4 * fs, py0 + 0.3 * fs, fs * 0.85, C.ink, 1, 0.5);
+    for (let m = 1; m <= DIST; m++) { line(X(m), pc - 0.15 * fs, X(m), pc + 0.15 * fs, C.axis, 1); texAt("am" + m, String(m), X(m), pc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true); }
+    texAt("airx", "x\\ (\\text{m})", gx1 + 0.4 * fs, pc - 0.35 * fs, fs * 0.75, C.ink, 1, 1, true);
+    ctx.strokeStyle = C.air; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.lineJoin = "round";
+    ctx.beginPath();
+    const npx = Math.round(gx1 - gx0);
+    for (let j = 0; j <= npx; j++) { const m = j / npx * DIST, Y = pc - pa * pAt(m, t); j ? ctx.lineTo(gx0 + j, Y) : ctx.moveTo(gx0 + j, Y); }
+    ctx.stroke();
+    // física: v e λ
+    if (S.phys) {
+      const lam = VSOM / f;
+      physNote("airv", `v = ${VSOM}\\ \\text{m/s}\\qquad \\lambda = \\dfrac{v}{f} = ${texNum(lam, 2)}\\ \\text{m}`, b, fs, tW, true);
+      if (S.pl && fr > lam) {
+        // um comprimento de onda, entre dois máximos de pressão perto do meio
+        const xm = Math.min(fr, DIST) / 2;
+        let best = 0, bv = -2;
+        for (let j = 0; j <= 200; j++) { const m = xm - lam / 2 + j / 200 * lam; if (m < 0) continue; const v = pAt(m, t); if (v > bv) { bv = v; best = m; } }
+        let a = best, c2 = best + lam;
+        if (c2 > Math.min(fr, DIST)) { a = best - lam; c2 = best; }
+        if (a >= 0) {
+          const yb = py0 + 0.1 * fs;
+          line(X(a), yb, X(c2), yb, C.phys, 1.6);
+          line(X(a), yb, X(a), pc - pa * pAt(a, t), C.phys, 1, [3, 3]); line(X(c2), yb, X(c2), pc - pa * pAt(c2, t), C.phys, 1, [3, 3]);
+          texAt("airl", "\\lambda", (X(a) + X(c2)) / 2, yb, fs * 0.8, C.phys, 0.5, 1, true);
+        }
+      }
+    }
+  }
+
+  // ---------- 3. junto do ouvinte: p(t) e espetro ----------
+  function panelEar(b, fs) {
+    const f = freq(), T = 1000 / f, NP = 3, Tw = NP * T;   // janela de 3 períodos (ms)
+    const sw = Math.min(b.w * 0.36, 22 * fs), gb = { x: b.x, y: b.y, w: b.w - sw - 0.6 * fs, h: b.h }, sb = { x: b.x + b.w - sw, y: b.y, w: sw, h: b.h };
+    const tW = frame_(gb, "Pressão do ar junto do ouvinte", fs, "Junto do ouvinte");
+    const gx0 = gb.x + 2 * fs, gx1 = gb.x + gb.w - 1.8 * fs, gy0 = gb.y + 2.3 * fs, gy1 = gb.y + gb.h - 1.4 * fs, gc = (gy0 + gy1) / 2, ga = (gy1 - gy0) / 2 * 0.9;
+    const X = u => gx0 + u / Tw * (gx1 - gx0);
+    line(gx0, gc, gx1 + 0.4 * fs, gc, C.axis, 1.3); tri(gx1 + 0.6 * fs, gc, 1, 0, fs * 0.35, C.axis);
+    line(gx0, gy1, gx0, gy0 - 0.2 * fs, C.axis, 1.3);
+    texAt("earp", "p", gx0 - 0.4 * fs, gy0, fs * 0.85, C.ink, 1, 0.5);
+    texAt("eart", "t\\ (\\text{ms})", gx1 + 0.4 * fs, gc - 0.35 * fs, fs * 0.75, C.ink, 1, 1, true);
+    for (let k = 1; k <= NP; k++) {
+      line(X(k * T), gc - 0.15 * fs, X(k * T), gc + 0.15 * fs, C.axis, 1);
+      texAt("et" + k, texNum(k * T, 1), X(k * T), gc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true);
+    }
+    const t = tReal(), ta = DIST / VSOM, arrived = S.pl && t >= ta;
+    if (S.phys) physNote("eDel", `\\text{a ${DIST} m, o som chega } \\tfrac{${DIST}}{${VSOM}} \\approx ${texNum(ta * 1000, 1)}\\ \\text{ms depois}`, gb, fs, tW);
+    if (!arrived) {
+      text(S.pl ? "O som ainda vai a caminho…" : "Ainda não há som.", (gx0 + gx1) / 2, gc - ga * 0.5, fs * 0.75, C.faint, "center", FONT, 400, "italic");
+    } else {
+      const u = ((t - ta) * 1000) % Tw, n = Math.round(gx1 - gx0);
+      const curve = (u1, col, w, alpha) => {
+        ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.beginPath();
+        for (let j = 0; j <= n; j++) { const uu = j / n * Tw; if (uu > u1) break; const Y = gc - ga * look(M.P, TAU * f * uu / 1000); j ? ctx.lineTo(gx0 + j, Y) : ctx.moveTo(gx0 + j, Y); }
+        ctx.stroke(); ctx.globalAlpha = 1;
+      };
+      if (S.tau / S.slow - ta > Tw / 1000) curve(Tw, C.ear, Math.max(1.6, 0.1 * fs), 0.25);
+      curve(u, C.ear, Math.max(2.2, 0.15 * fs), 1);
+      ctx.beginPath(); ctx.arc(X(u), gc - ga * look(M.P, TAU * f * u / 1000), 0.28 * fs, 0, TAU); ctx.fillStyle = C.hot; ctx.fill();
+      // período
+      const yT = gy0 - 0.5 * fs;
+      line(X(0), yT, X(T), yT, C.M[0], 1.6); line(X(0), yT - 0.2 * fs, X(0), yT + 0.2 * fs, C.M[0], 1.6); line(X(T), yT - 0.2 * fs, X(T), yT + 0.2 * fs, C.M[0], 1.6);
+      texAt("eT", `T = \\dfrac{1}{f} = ${texNum(T, 2)}\\ \\text{ms}`, X(T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
+    }
+    // espetro: amplitude de cada harmónico (|bₙ|, em relação ao maior)
+    frame_(sb, "Espetro do som", fs);
+    const sx0 = sb.x + 1.2 * fs, sx1 = sb.x + sb.w - 0.8 * fs, sy0 = sb.y + 1.6 * fs, sy1 = sb.y + sb.h - 1.5 * fs;
+    line(sx0, sy1, sx1, sy1, C.axis, 1.3);
+    const bw = (sx1 - sx0) / 30;
+    M.bn.forEach((v, i) => {
+      const x = sx0 + i * bw, h = v * (sy1 - sy0);
+      ctx.fillStyle = S.modes && i < 4 ? C.M[i] : C.ear; ctx.globalAlpha = S.modes && i < 4 ? 1 : 0.75;
+      ctx.fillRect(x + bw * 0.15, sy1 - h, bw * 0.7, h); ctx.globalAlpha = 1;
+    });
+    [1, 2, 3, 5, 10, 20, 30].forEach(n => {
+      const x = sx0 + (n - 0.5) * bw;
+      line(x, sy1, x, sy1 + 0.15 * fs, C.axis, 1);
+      if (n === 1 || n === 10 || n === 20 || n === 30) texAt("sn" + n, n === 1 ? "f" : `${n}f`, x, sy1 + 0.25 * fs, fs * 0.6, C.muted, 0.5, 0);
+    });
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  let drag = null;
+  cv.addEventListener("pointerdown", e => {
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
+    if (h.kind === "corda") { setString(h.i); return; }
+    if (h.kind === "pluck") { pluck(); return; }
+    if (h.kind === "sound") { S.sound = !S.sound; if (!S.sound) stopSound(); draw(); return; }
+    if (h.kind === "modes") { S.modes = !S.modes; draw(); return; }
+    if (h.kind === "phys") { S.phys = !S.phys; draw(); return; }
+    if (h.kind === "run") { if (S.pl) { S.run = !S.run; go(); } return; }
+    if (h.kind === "slow") { setSlow(h.d); return; }
+    if (h.kind === "string") {   // tocar na corda: dedilha nesse ponto
+      setBeta((h.x1 - e.clientX) / (h.x1 - h.x0));
+      pluck();
+      return;
+    }
+    if (h.kind === "slide") {
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = h; h.set(h.val(e.clientX)); cv.style.cursor = "grabbing";
+    }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) { drag.set(drag.val(e.clientX)); return; }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+  });
+  const end = () => { drag = null; cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+
+  // teclado: espaço dedilha, 1–6 escolhem a corda, ←/→ o traste, m modos, g grandezas físicas, p pausa
+  window.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === " ") pluck();
+    else if (e.key >= "1" && e.key <= "6") setString(+e.key - 1);
+    else if (e.key === "ArrowRight") setFret(S.fret + 1);
+    else if (e.key === "ArrowLeft") setFret(S.fret - 1);
+    else if (e.key === "m") { S.modes = !S.modes; draw(); }
+    else if (e.key === "g") { S.phys = !S.phys; draw(); }
+    else if (e.key === "p") { if (S.pl) { S.run = !S.run; go(); } }
+    else if (e.key === "Escape") stopSound();
+    else return;
+    e.preventDefault();
+  });
+
+  // endereço: #c=2&t=0&p=0.2&n=20 (corda 1 a 6, traste, ponto, harmónicos)
+  (() => {
+    const q = new URLSearchParams(location.hash.slice(1));
+    if (q.has("c")) S.s = clamp(Math.round(+q.get("c")) - 1 || 0, 0, 5);
+    if (q.has("t")) S.fret = clamp(Math.round(+q.get("t")) || 0, 0, 12);
+    if (q.has("p")) S.beta = clamp(+q.get("p") || 0.2, 0.05, 0.5);
+    if (q.has("n")) S.N = clamp(Math.round(+q.get("n")) || 20, 1, 30);
+    if (q.has("modos")) S.modes = true;
+    if (q.has("fisica")) S.phys = true;
+    if (q.has("tau")) { S.pl = true; S.run = false; S.tau = +q.get("tau") || 0; }   // (para testes: um instante parado)
+  })();
+  model();
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
+})();
+</script>
+</body>
+</html>
