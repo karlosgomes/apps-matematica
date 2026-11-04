@@ -650,7 +650,7 @@
     }
   }
 
-  // a viola vista de frente (corpo em 8, boca, cavalete, um pouco do braço) e o nome por baixo;
+  // a viola vista de frente (corpo em 8, boca, cavalete, um pouco do braço);
   // o corpo «respira»: aumenta e diminui com a pressão que sai para o ar (o tampo é que empurra o ar)
   function guitar(cx, cy, h, fs, t, ymax) {
     const rl = Math.min(1.15 * fs, h * 0.27), yl = cy + 0.2 * h, yu = yl - 1.55 * rl;
@@ -674,8 +674,6 @@
     ctx.strokeStyle = C.faint; ctx.lineWidth = 0.6;
     for (let j = -1; j <= 1; j++) { ctx.beginPath(); ctx.moveTo(cx + j * 0.07 * rl, ny); ctx.lineTo(cx + j * 0.07 * rl, yl + 0.3 * rl); ctx.stroke(); }
     ctx.restore();
-    const ly = yl + 0.95 * rl + 0.55 * fs;
-    if (ly < ymax - 0.4 * fs) text("viola", cx, ly, fs * 0.62, C.muted, "center", FONT, 700);
   }
 
   // ---------- 3. junto do ouvinte: p(t) e espetro ----------
