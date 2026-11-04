@@ -29,13 +29,13 @@
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
     str: "#1565c0", air: "#c2410c", ear: "#111827", wood: "#e9dcc6", fret: "#9aa5b1", hot: "#ef6c00",
-    M: ["#1565c0", "#d32f2f", "#2e7d32", "#7b1fa2"], phys: "#00838f",
+    M: ["#1565c0", "#d32f2f", "#2e7d32", "#7b1fa2", "#00897b"], phys: "#00838f",
   };
   const DARK = {
     bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
     axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
     str: "#64a8ff", air: "#ff8a4c", ear: "#f2f4f7", wood: "#3a3127", fret: "#6b7685", hot: "#ffa040",
-    M: ["#64a8ff", "#ff6b6b", "#5cc26a", "#c792ea"], phys: "#4dd0e1",
+    M: ["#64a8ff", "#ff6b6b", "#5cc26a", "#c792ea", "#4db6ac"], phys: "#4dd0e1",
   };
   const C = { ...LIGHT };
   let dark = matchMedia("(prefers-color-scheme: dark)").matches;
@@ -71,6 +71,7 @@
     N: 20,         // n.º de harmónicos
     modes: false,  // mostrar os modos de vibração
     phys: false,   // mostrar as grandezas físicas
+    h: 1,          // dedo leve (harmónico) a 1/h do comprimento a vibrar, a contar do traste; 1 = sem dedo
     slow: 200,     // câmara lenta: o tempo do ecrã corre 200 vezes mais devagar
     run: true,     // tempo a correr
     sound: true,   // dedilhar também toca
@@ -78,6 +79,9 @@
     tau: 0,        // tempo no ecrã desde que se dedilhou (s); o tempo real é tau / slow
   };
   const freq = () => CORDAS[S.s].f * Math.pow(2, S.fret / 12);
+  // com o dedo leve a 1/h, só ficam os modos com um nó nesse ponto (n múltiplo de h): o som tem frequência h·f
+  const fSnd = () => freq() * S.h;
+  const HARMS = [[1, "não"], [2, "½"], [3, "⅓"], [4, "¼"], [5, "⅕"]];
   const Lvib = () => L0 * Math.pow(2, -S.fret / 12);
 
   // ---------- nota musical ----------
@@ -105,7 +109,8 @@
   function model() {
     const xp = 1 - S.beta, A = [], B = [];
     for (let n = 1; n <= S.N; n++) {
-      const a = 2 * Math.sin(n * Math.PI * xp) / (n * n * Math.PI * Math.PI * xp * (1 - xp));
+      let a = 2 * Math.sin(n * Math.PI * xp) / (n * n * Math.PI * Math.PI * xp * (1 - xp));
+      if (n % S.h) a = 0;   // dedo leve: os modos sem nó nesse ponto não vibram
       A.push(a); B.push((n % 2 ? -1 : 1) * n * Math.PI * a);
     }
     // tabelas de p(φ) e do deslocamento num período, normalizadas a 1
@@ -119,7 +124,7 @@
     }
     for (let j = 0; j < NT; j++) { P[j] /= mp; X[j] /= mx; }
     const mb = Math.max(...B.map(Math.abs), 1e-9);
-    M = { A, B, P, X, bn: B.map(b => Math.abs(b) / mb), key: S.beta + "|" + S.N };
+    M = { A, B, P, X, bn: B.map(b => Math.abs(b) / mb), silent: A.every(a => Math.abs(a) < 1e-6) };
   }
   const look = (T, ph) => { let u = (ph / TAU) % 1; if (u < 0) u += 1; return T[Math.floor(u * NT) % NT]; };
   const tReal = () => S.tau / S.slow;
@@ -190,6 +195,7 @@
   const setFret = v => { v = clamp(Math.round(v), 0, 12); if (v !== S.fret) { S.fret = v; changed(); } };
   const setBeta = v => { v = clamp(Math.round(v * 100) / 100, 0.05, 0.5); if (v !== S.beta) { S.beta = v; changed(); } };
   const setN = v => { v = clamp(Math.round(v), 1, 30); if (v !== S.N) { S.N = v; changed(); } };
+  const setHarm = q => { if (q !== S.h) { S.h = q; changed(); } };
   const setSlow = dir => { const i = clamp(SLOWS.indexOf(S.slow) + dir, 0, SLOWS.length - 1); S.tau *= SLOWS[i] / S.slow; S.slow = SLOWS[i]; draw(); };
 
   // ---------- canvas ----------
@@ -209,7 +215,7 @@
   // ecrã deitado: controlos numa coluna à esquerda, os quadros (corda, modos, ar, ouvinte) à direita;
   // ao alto: os quadros em cima e os controlos por baixo
   const ROW = 1.5, CP = 0.35, GAP = 0.4, LEG = 1.9;
-  const CARDS = [["corda", 3], ["ded", 2], ["harm", 2], ["tempo", 1], ["fis", 1]];
+  const CARDS = [["corda", 3], ["ded", 3], ["harm", 2], ["tempo", 1], ["fis", 1]];
   const cardH = r => CP * 2 + r * ROW + (r - 1) * 0.15;
   function layout() {
     let fs = clamp(Math.min(W, H) / 26, 12, 21);
@@ -387,7 +393,10 @@
     const c = card(b, C.str, fs), rh = ROW * fs, f = freq();
     let y = rowY(c, 0, fs);
     const x = c.x + text("Corda", c.x, y + rh / 2 + 1, fs * 0.95, C.str, "left", FONT, 700) + 0.7 * fs;
-    fit(texAt("fnote", `f = ${texNum(f, 1)}\\ \\text{Hz}\\quad \\text{(${nota(f)})}\\quad T = ${texNum(1000 / f, 2)}\\ \\text{ms}`,
+    const fh = fSnd(), nt = f => nota(f).replace("#", "\\#");   // (no KaTeX, # escreve-se \#)
+    fit(texAt("fnote", S.h > 1
+      ? `f = ${texNum(f, 1)}\\ \\text{Hz}\\quad\\to\\quad \\text{som: } ${S.h}f = ${texNum(fh, 1)}\\ \\text{Hz}\\ \\text{(${nt(fh)})}`
+      : `f = ${texNum(f, 1)}\\ \\text{Hz}\\quad \\text{(${nt(f)})}\\quad T = ${texNum(1000 / f, 2)}\\ \\text{ms}`,
       x, y + rh / 2, fs * 0.9, C.ink, 0, 0.5), c.x + c.w - x, rh);
     y = rowY(c, 1, fs);
     const g = 0.2 * fs, bw = (c.w - 5 * g) / 6, bh = 1.25 * fs;
@@ -414,6 +423,11 @@
     const lab = `${Math.round(S.beta * 100)} %`, vw = tw("50 %", fs * 0.8, MONO, 600) + 0.3 * fs;
     slider(lx, y, c.x + c.w - vw - 0.8 * fs - lx, rh, 0.05, 0.5, S.beta, C.hot, fs, setBeta, [0.25, 0.5]);
     text(lab, c.x + c.w, y + rh / 2 + 1, fs * 0.8, C.ink, "right", MONO, 600);
+    // dedo leve (harmónicos): não, ½, ⅓, ¼, ⅕ do comprimento a vibrar
+    y = rowY(c, 2, fs);
+    const hx = c.x + text("Dedo leve", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.7 * fs;
+    const g = 0.2 * fs, hw = (c.x + c.w - hx - 4 * g) / 5, hb = 1.15 * fs;
+    HARMS.forEach(([q, t], i) => button(hx + i * (hw + g), y + (rh - hb) / 2, hw, hb, t, S.h === q, "harm", { q }, C.M[3], fs * (q === 1 ? 0.75 : 0.95)));
   }
   function cardHarm(b, fs) {
     const c = card(b, C.M[1], fs), rh = ROW * fs;
@@ -424,7 +438,7 @@
     slider(lx, y, c.x + c.w - vw - 1.7 * fs - lx, rh, 1, 30, S.N, C.M[1], fs, setN);
     text(String(S.N), c.x + c.w, y + rh / 2 + 1, fs * 0.85, C.ink, "right", MONO, 600);
     y = rowY(c, 1, fs);
-    cbox(c.x, y, rh, 0.8 * fs, fs * 0.8, S.modes, "Modos de vibração (os 4 primeiros)", { kind: "modes" }, C.M[1]);
+    cbox(c.x, y, rh, 0.8 * fs, fs * 0.8, S.modes, "Modos de vibração (os primeiros)", { kind: "modes" }, C.M[1]);
   }
   function cardTempo(b, fs) {
     const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.15 * fs, y = rowY(c, 0, fs);
@@ -500,6 +514,15 @@
     const xp = x1 - S.beta * len;
     tri(xp, cy - amp - 0.05 * fs, 0, 1, 0.45 * fs, C.hot);
     hits.push({ kind: "string", x0: xf, x1, rect: { x: xf, y: cy - amp - 0.5 * fs, w: len, h: 2 * amp + fs } });
+    if (S.h > 1) {
+      const xh = xf + len / S.h;   // o dedo leve impõe um nó aqui
+      ctx.beginPath(); ctx.arc(xh, cy, 0.42 * fs, 0, TAU); ctx.lineWidth = 2.5; ctx.strokeStyle = C.M[3]; ctx.stroke();
+      text(`dedo leve (${HARMS.find(h => h[0] === S.h)[1]})`, xh + 0.6 * fs, cy - 0.75 * fs, fs * 0.62, C.M[3], "left", FONT, 700);
+      if (S.pl && M.silent) {
+        const msg = "O ponto onde se dedilha é um nó de todos os modos que sobram: a corda não vibra";
+        text(msg, (xf + x1) / 2, cy + amp * 0.55, Math.min(fs * 0.68, fs * 0.68 * len / tw(msg, fs * 0.68, FONT)), C.M[3], "center", FONT, 400, "italic");
+      }
+    }
     if (!S.pl) text("Toque na corda (ou em «Dedilhar») para a pôr a vibrar", (xf + x1) / 2, cy - amp * 0.55, fs * 0.7, C.muted, "center", FONT, 400, "italic");
     // física: L, λ = 2L, v = λ f
     if (S.phys) {
@@ -515,9 +538,9 @@
 
   // ---------- os modos de vibração (os 4 primeiros) ----------
   function panelModes(b, fs) {
-    frame_(b, "Modos de vibração (a corda é a soma de todos; % = amplitude em relação ao 1.º)", fs, "Modos de vibração (% = amplitude em relação ao 1.º)");
-    const k = Math.min(4, S.N), top = b.y + 1.5 * fs, rh = (b.h - 1.8 * fs) / 4, x0 = b.x + (S.phys ? 11.6 : 7.2) * fs, x1 = b.x + b.w - 4.2 * fs;
-    const t = tReal(), f = freq(), a1 = Math.abs(M.A[0]) || 1;
+    frame_(b, "Modos de vibração (a corda é a soma de todos; % = amplitude em relação ao maior)", fs, "Modos de vibração (% em relação ao maior)");
+    const k = Math.min(Math.max(4, S.h), S.N), top = b.y + 1.5 * fs, rh = (b.h - 1.8 * fs) / Math.max(4, k), x0 = b.x + (S.phys ? 11.6 : 7.2) * fs, x1 = b.x + b.w - 4.2 * fs;
+    const t = tReal(), f = freq(), a1 = Math.max(...M.A.map(Math.abs)) || 1;
     for (let n = 1; n <= k; n++) {
       const cy = top + (n - 0.5) * rh, amp = rh * 0.36, col = C.M[n - 1], an = M.A[n - 1], rel = Math.abs(an) / a1;
       texAt("mn" + n, `n = ${n}`, b.x + 0.7 * fs, cy, fs * 0.8, col, 0, 0.5);
@@ -586,8 +609,8 @@
     ctx.stroke();
     // física: v e λ
     if (S.phys) {
-      const lam = VSOM / f;
-      physNote("airv", `v = ${VSOM}\\ \\text{m/s}\\qquad \\lambda = \\dfrac{v}{f} = ${texNum(lam, 2)}\\ \\text{m}`, b, fs, tW, true);
+      const lam = VSOM / fSnd();
+      physNote("airv", `v = ${VSOM}\\ \\text{m/s}\\qquad \\lambda = \\dfrac{v}{${S.h > 1 ? S.h : ""}f} = ${texNum(lam, 2)}\\ \\text{m}`, b, fs, tW, true);
       if (S.pl && fr > lam) {
         // um comprimento de onda, entre dois máximos de pressão perto do meio
         const xm = Math.min(fr, DIST) / 2;
@@ -607,7 +630,7 @@
 
   // ---------- 3. junto do ouvinte: p(t) e espetro ----------
   function panelEar(b, fs) {
-    const f = freq(), T = 1000 / f, NP = 3, Tw = NP * T;   // janela de 3 períodos (ms)
+    const f = freq(), T = 1000 / fSnd(), NP = 3, Tw = NP * T;   // janela de 3 períodos do som (ms); com dedo leve, o som tem frequência h·f
     const sw = Math.min(b.w * 0.36, 22 * fs), gb = { x: b.x, y: b.y, w: b.w - sw - 0.6 * fs, h: b.h }, sb = { x: b.x + b.w - sw, y: b.y, w: sw, h: b.h };
     const tW = frame_(gb, "Pressão do ar junto do ouvinte", fs, "Junto do ouvinte");
     const gx0 = gb.x + 2 * fs, gx1 = gb.x + gb.w - 1.8 * fs, gy0 = gb.y + 2.3 * fs, gy1 = gb.y + gb.h - 1.4 * fs, gc = (gy0 + gy1) / 2, ga = (gy1 - gy0) / 2 * 0.9;
@@ -622,8 +645,8 @@
     }
     const t = tReal(), ta = DIST / VSOM, arrived = S.pl && t >= ta;
     if (S.phys) physNote("eDel", `\\text{a ${DIST} m, o som chega } \\tfrac{${DIST}}{${VSOM}} \\approx ${texNum(ta * 1000, 1)}\\ \\text{ms depois}`, gb, fs, tW);
-    if (!arrived) {
-      text(S.pl ? "O som ainda vai a caminho…" : "Ainda não há som.", (gx0 + gx1) / 2, gc - ga * 0.5, fs * 0.75, C.faint, "center", FONT, 400, "italic");
+    if (!arrived || M.silent) {
+      text(S.pl && !M.silent ? "O som ainda vai a caminho…" : S.pl ? "Não há som: a corda não vibra." : "Ainda não há som.", (gx0 + gx1) / 2, gc - ga * 0.5, fs * 0.75, C.faint, "center", FONT, 400, "italic");
     } else {
       const u = ((t - ta) * 1000) % Tw, n = Math.round(gx1 - gx0);
       const curve = (u1, col, w, alpha) => {
@@ -637,7 +660,7 @@
       // período
       const yT = gy0 - 0.5 * fs;
       line(X(0), yT, X(T), yT, C.M[0], 1.6); line(X(0), yT - 0.2 * fs, X(0), yT + 0.2 * fs, C.M[0], 1.6); line(X(T), yT - 0.2 * fs, X(T), yT + 0.2 * fs, C.M[0], 1.6);
-      texAt("eT", `T = \\dfrac{1}{f} = ${texNum(T, 2)}\\ \\text{ms}`, X(T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
+      texAt("eT", `T = \\dfrac{1}{${S.h > 1 ? S.h : ""}f} = ${texNum(T, 2)}\\ \\text{ms}`, X(T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
     }
     // espetro: amplitude de cada harmónico (|bₙ|, em relação ao maior)
     frame_(sb, "Espetro do som", fs);
@@ -670,6 +693,7 @@
     if (h.kind === "sound") { S.sound = !S.sound; if (!S.sound) stopSound(); draw(); return; }
     if (h.kind === "modes") { S.modes = !S.modes; draw(); return; }
     if (h.kind === "phys") { S.phys = !S.phys; draw(); return; }
+    if (h.kind === "harm") { setHarm(h.q); return; }
     if (h.kind === "run") { if (S.pl) { S.run = !S.run; go(); } return; }
     if (h.kind === "slow") { setSlow(h.d); return; }
     if (h.kind === "string") {   // tocar na corda: dedilha nesse ponto
@@ -690,7 +714,7 @@
   const end = () => { drag = null; cv.style.cursor = "default"; };
   ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: espaço dedilha, 1–6 escolhem a corda, ←/→ o traste, m modos, g grandezas físicas, p pausa
+  // teclado: espaço dedilha, 1–6 escolhem a corda, ←/→ o traste, m modos, g grandezas físicas, h dedo leve, p pausa
   window.addEventListener("keydown", e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") pluck();
@@ -699,6 +723,7 @@
     else if (e.key === "ArrowLeft") setFret(S.fret - 1);
     else if (e.key === "m") { S.modes = !S.modes; draw(); }
     else if (e.key === "g") { S.phys = !S.phys; draw(); }
+    else if (e.key === "h") setHarm(S.h % 5 + 1);
     else if (e.key === "p") { if (S.pl) { S.run = !S.run; go(); } }
     else if (e.key === "Escape") stopSound();
     else return;
@@ -714,6 +739,7 @@
     if (q.has("n")) S.N = clamp(Math.round(+q.get("n")) || 20, 1, 30);
     if (q.has("modos")) S.modes = true;
     if (q.has("fisica")) S.phys = true;
+    if (q.has("h")) S.h = clamp(Math.round(+q.get("h")) || 1, 1, 5);
     if (q.has("tau")) { S.pl = true; S.run = false; S.tau = +q.get("tau") || 0; }   // (para testes: um instante parado)
   })();
   model();
