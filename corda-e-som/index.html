@@ -586,8 +586,11 @@
 
   // ---------- 2. o ar ----------
   function panelAir(b, fs) {
-    const tW = frame_(b, "Ar (onda sonora: compressões e rarefações)", fs, "Ar (onda sonora)");
+    const tW0 = frame_(b, "Ar (onda sonora: compressões e rarefações)", fs, "Ar (onda sonora)");
     const t = tReal(), f = freq();
+    // o instante que o quadro mostra (tempo real desde que se dedilhou; com a pausa, fica parado)
+    const tel = texAt("airt", `t = ${texNum(S.pl ? t * 1000 : 0, 1)}\\ \\text{ms}`, b.x + tW0 + 0.5 * fs, b.y + 0.75 * fs, fs * 0.8, C.hot, 0, 0.5);
+    const tW = tW0 + tel.offsetWidth + 0.5 * fs;
     const gx0 = b.x + 3.2 * fs, gx1 = b.x + b.w - 2.4 * fs, X = m => gx0 + m / DIST * (gx1 - gx0);
     const top = b.y + 1.5 * fs, ph = (b.h - 1.5 * fs) * 0.52, py0 = top + ph + 0.2 * fs, py1 = b.y + b.h - 1.3 * fs;
     // viola (fonte) e ouvinte
