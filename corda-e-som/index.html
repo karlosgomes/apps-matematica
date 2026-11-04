@@ -190,7 +190,28 @@
     if (withSound) pluckSound();
     go();
   }
+  // abafar: a mão pára a corda; tudo volta ao repouso (corda, ar, ouvinte) e o som pára
+  function mute() { S.pl = false; S.tau = 0; stopSound(); draw(); }
   const changed = () => { model(); draw(); };
+  // as primeiras 4 parcelas presentes do som (até 2000 Hz, o limite da ondas-sonoras), para abrir na ondas-sonoras
+  function parts() {
+    const f = freq(), out = [];
+    let cut = false;
+    for (let n = 1; n <= S.N && out.length < 4; n++) {
+      if (M.bn[n - 1] < 0.005) continue;
+      if (n * f > 2000) { cut = true; break; }
+      out.push({ f: Math.round(n * f), a: M.bn[n - 1] });
+    }
+    const m = Math.max(...out.map(p => p.a), 1e-9);
+    out.forEach(p => p.a = Math.round(p.a / m * 100) / 100);
+    return { list: out, cut };
+  }
+  function openParts() {
+    const { list } = parts();
+    if (!list.length) return;
+    const url = `../ondas-sonoras/#f=${list.map(p => p.f).join(",")}&A=${list.map(p => p.a).join(",")}&soma&auto`;
+    window.open(url, "_blank");
+  }
   const setString = i => { S.s = i; changed(); };
   const setFret = v => { v = clamp(Math.round(v), 0, 12); if (v !== S.fret) { S.fret = v; changed(); } };
   const setBeta = v => { v = clamp(Math.round(v * 100) / 100, 0.05, 0.5); if (v !== S.beta) { S.beta = v; changed(); } };
@@ -415,9 +436,10 @@
   function cardDed(b, fs) {
     const c = card(b, C.hot, fs), rh = ROW * fs, bh = 1.25 * fs;
     let y = rowY(c, 0, fs);
-    const bw = Math.max(7 * fs, tw("Dedilhar", fs * 0.9, FONT, 700) + 1.6 * fs);
+    const bw = Math.max(5.6 * fs, tw("Dedilhar", fs * 0.9, FONT, 700) + 1.4 * fs), aw = tw("Abafar", fs * 0.85, FONT, 700) + 1.4 * fs;
     button(c.x, y + (rh - bh) / 2, bw, bh, "Dedilhar", true, "pluck", {}, C.hot, fs * 0.9);
-    cbox(c.x + bw + 0.8 * fs, y, rh, 0.8 * fs, fs * 0.8, S.sound, "Com som", { kind: "sound" }, C.muted);
+    button(c.x + bw + 0.4 * fs, y + (rh - bh) / 2, aw, bh, "Abafar", false, "mute", {}, C.muted, fs * 0.85);
+    cbox(c.x + bw + aw + 1.1 * fs, y, rh, 0.8 * fs, fs * 0.8, S.sound, "Com som", { kind: "sound" }, C.muted);
     y = rowY(c, 1, fs);
     const lx = c.x + text("Ponto", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.9 * fs;
     const lab = `${Math.round(S.beta * 100)} %`, vw = tw("50 %", fs * 0.8, MONO, 600) + 0.3 * fs;
@@ -663,8 +685,19 @@
       texAt("eT", `T = \\dfrac{1}{${S.h > 1 ? S.h : ""}f} = ${texNum(T, 2)}\\ \\text{ms}`, X(T) + 0.4 * fs, yT, fs * 0.7, C.M[0], 0, 0.5, true);
     }
     // espetro: amplitude de cada harmónico (|bₙ|, em relação ao maior)
-    frame_(sb, "Espetro do som", fs);
-    const sx0 = sb.x + 1.2 * fs, sx1 = sb.x + sb.w - 0.8 * fs, sy0 = sb.y + 1.6 * fs, sy1 = sb.y + sb.h - 1.5 * fs;
+    const stw = frame_(sb, "Espetro do som", fs);
+    // ↗ ouvir as parcelas na ondas-sonoras (as 4 primeiras presentes, até 2000 Hz)
+    const P4 = parts();
+    let below = 0;
+    if (P4.list.length) {
+      const k = P4.list.length, lab = P4.cut && k < 4 ? (k === 1 ? "↗ Ouvir a parcela até 2000 Hz" : `↗ Ouvir as ${k} parcelas até 2000 Hz`) : "↗ Ouvir as 4 primeiras parcelas";
+      const full = tw(lab, fs * 0.68, FONT, 700) + 0.8 * fs, lh = 1.15 * fs;
+      let lp = Math.min(fs * 0.68, fs * 0.68 * (sb.w - stw - 1.6 * fs) / full), by = sb.y + 0.75 * fs - lh / 2;
+      if (lp < fs * 0.58) { lp = Math.min(fs * 0.68, fs * 0.68 * (sb.w - 1.2 * fs) / full); by = sb.y + 1.45 * fs; below = 1.35 * fs; }   // por baixo do título
+      const lw = tw(lab, lp, FONT, 700) + 0.8 * fs;
+      button(sb.x + sb.w - 0.6 * fs - lw, by, lw, lh, lab, false, "link", {}, C.muted, lp);
+    }
+    const sx0 = sb.x + 1.2 * fs, sx1 = sb.x + sb.w - 0.8 * fs, sy0 = sb.y + 1.6 * fs + below, sy1 = sb.y + sb.h - 1.5 * fs;
     line(sx0, sy1, sx1, sy1, C.axis, 1.3);
     const bw = (sx1 - sx0) / 30;
     M.bn.forEach((v, i) => {
@@ -690,6 +723,8 @@
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
     if (h.kind === "corda") { setString(h.i); return; }
     if (h.kind === "pluck") { pluck(); return; }
+    if (h.kind === "mute") { mute(); return; }
+    if (h.kind === "link") { openParts(); return; }
     if (h.kind === "sound") { S.sound = !S.sound; if (!S.sound) stopSound(); draw(); return; }
     if (h.kind === "modes") { S.modes = !S.modes; draw(); return; }
     if (h.kind === "phys") { S.phys = !S.phys; draw(); return; }
@@ -714,7 +749,7 @@
   const end = () => { drag = null; cv.style.cursor = "default"; };
   ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
 
-  // teclado: espaço dedilha, 1–6 escolhem a corda, ←/→ o traste, m modos, g grandezas físicas, h dedo leve, p pausa
+  // teclado: a ou Esc abafam, espaço dedilha, 1–6 escolhem a corda, ←/→ o traste, m modos, g grandezas físicas, h dedo leve, p pausa
   window.addEventListener("keydown", e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") pluck();
@@ -725,7 +760,7 @@
     else if (e.key === "g") { S.phys = !S.phys; draw(); }
     else if (e.key === "h") setHarm(S.h % 5 + 1);
     else if (e.key === "p") { if (S.pl) { S.run = !S.run; go(); } }
-    else if (e.key === "Escape") stopSound();
+    else if (e.key === "Escape" || e.key === "a") mute();
     else return;
     e.preventDefault();
   });

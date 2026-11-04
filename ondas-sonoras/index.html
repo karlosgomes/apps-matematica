@@ -706,6 +706,17 @@
     e.preventDefault();
   });
 
+  // endereço (p. ex. vindo da app corda-e-som): #f=110,330,550,770&A=1,0.33,0.2,0.14&soma&auto
+  //   f e A: valores das ondas 1 a 4 (as que vierem ficam visíveis); soma: liga a soma; auto: referencial automático
+  (() => {
+    const q = new URLSearchParams(location.hash.slice(1));
+    const list = k => (q.get(k) || "").split(",").map(v => parseFloat(v.replace("−", "-"))).filter((v, i) => i < 4);
+    const fs = list("f"), as = list("A");
+    fs.forEach((v, i) => { if (isFinite(v)) { S.waves[i].f = clamp(Math.round(v), 20, 2000); S.waves[i].on = true; } });
+    as.forEach((v, i) => { if (isFinite(v)) S.waves[i].A = clamp(Math.round(v * 100) / 100, 0, 1); });
+    if (q.has("soma")) { S.sumOn = true; S.inSum = S.waves.map((w, i) => i < Math.max(1, fs.length)); }
+    if (q.has("auto")) S.mode = "auto";
+  })();
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
   if (document.fonts) document.fonts.ready.then(draw);
