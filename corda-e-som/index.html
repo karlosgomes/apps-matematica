@@ -55,7 +55,7 @@
   // ---------- física (escondida por omissão) ----------
   const L0 = 0.65;     // comprimento da corda solta de uma viola clássica (m), da pestana ao cavalete
   const VSOM = 343;    // velocidade do som no ar (m/s)
-  const DIST = 6;      // distância da viola ao ouvinte (m)
+  const AIRMAX = 10;   // o quadro do ar mostra de 0 a 10 m; o ouvinte (S.d) arrasta-se entre 1 e 10 m
   // as seis cordas soltas (afinação normal), da mais grave para a mais aguda
   const CORDAS = [
     { nome: "Mi", oit: 2, f: 82.41 }, { nome: "Lá", oit: 2, f: 110 }, { nome: "Ré", oit: 3, f: 146.83 },
@@ -77,6 +77,7 @@
     sound: true,   // dedilhar também toca
     pl: false,     // já se dedilhou?
     tau: 0,        // tempo no ecrã desde que se dedilhou (s); o tempo real é tau / slow
+    d: 6,          // distância da viola ao ouvinte (m)
   };
   const freq = () => CORDAS[S.s].f * Math.pow(2, S.fret / 12);
   // com o dedo leve a 1/h, só ficam os modos com um nó nesse ponto (n múltiplo de h): o som tem frequência h·f
@@ -216,6 +217,7 @@
   const setFret = v => { v = clamp(Math.round(v), 0, 12); if (v !== S.fret) { S.fret = v; changed(); } };
   const setBeta = v => { v = clamp(Math.round(v * 100) / 100, 0.05, 0.5); if (v !== S.beta) { S.beta = v; changed(); } };
   const setN = v => { v = clamp(Math.round(v), 1, 30); if (v !== S.N) { S.N = v; changed(); } };
+  const setDist = v => { v = clamp(Math.round(v * 10) / 10, 1, AIRMAX); if (v !== S.d) { S.d = v; draw(); } };
   const setHarm = q => { if (q !== S.h) { S.h = q; changed(); } };
   const setSlow = dir => { const i = clamp(SLOWS.indexOf(S.slow) + dir, 0, SLOWS.length - 1); S.tau *= SLOWS[i] / S.slow; S.slow = SLOWS[i]; draw(); };
 
@@ -494,12 +496,12 @@
   }
   // nota das grandezas físicas no canto superior direito de um quadro; se não couber ao lado do título,
   // vai para o canto inferior esquerdo (alt) ou fica escondida
-  function physNote(id, src, b, fs, titleW, alt) {
+  function physNote(id, src, b, fs, titleW, alt, altW = 6 * fs) {
     const el = texAt(id, src, b.x + b.w - 0.6 * fs, b.y + 0.75 * fs, fs * 0.68, C.phys, 1, 0.5, true);
     if (el.offsetWidth > b.w - titleW - 1.6 * fs) {
       if (!alt) { el.style.display = "none"; used.delete(id); return; }
       el.style.left = b.x + 0.6 * fs + "px"; el.style.top = b.y + b.h - 0.55 * fs + "px"; el.style.transform = "translate(0,-50%)";
-      fit(el, b.w - 6 * fs);
+      fit(el, b.w - altW - 0.8 * fs);
     }
   }
 
@@ -588,61 +590,72 @@
   function panelAir(b, fs) {
     const tW0 = frame_(b, "Ar (onda sonora: compressões e rarefações)", fs, "Ar (onda sonora)");
     const t = tReal(), f = freq();
-    // o instante que o quadro mostra (tempo real desde que se dedilhou; com a pausa, fica parado)
-    const tel = texAt("airt", `t = ${texNum(S.pl ? t * 1000 : 0, 1)}\\ \\text{ms}`, b.x + tW0 + 0.5 * fs, b.y + 0.75 * fs, fs * 0.8, C.hot, 0, 0.5);
-    const tW = tW0 + tel.offsetWidth + 0.5 * fs;
-    const gx0 = b.x + 3.2 * fs, gx1 = b.x + b.w - 2.4 * fs, X = m => gx0 + m / DIST * (gx1 - gx0);
+    const tW = tW0;
+    const gx0 = b.x + 3.2 * fs, gx1 = b.x + b.w - 2.4 * fs, X = m => gx0 + m / AIRMAX * (gx1 - gx0);
     const top = b.y + 1.5 * fs, ph = (b.h - 1.5 * fs) * 0.52, py0 = top + ph + 0.2 * fs, py1 = b.y + b.h - 1.3 * fs;
     // viola (fonte) e ouvinte
     guitar(b.x + 1.6 * fs, top + ph / 2, Math.min(ph * 0.92, 6 * fs), fs, t, b.y + b.h);
-    line(X(DIST), top, X(DIST), py1, C.ear, 1.5, [4, 4]);
-    text("ouvinte", X(DIST) - 0.3 * fs, b.y + b.h - 0.55 * fs, fs * 0.65, C.ear, "right", FONT, 700);
+    // ouvinte: linha tracejada com uma pega em cima; arrasta-se na horizontal (1 a 10 m)
+    const xd = X(S.d);
+    line(xd, top, xd, py1, C.ear, 1.5, [4, 4]);
+    hits.push({ kind: "listener", X0: gx0, X1: gx1, rect: { x: xd - 0.7 * fs, y: top, w: 1.4 * fs, h: py1 - top } });
+    // junto da linha do ouvinte: o relógio, o instante que o quadro mostra (tempo real desde que se dedilhou; parado na pausa)
+    const by = b.y + b.h - 0.55 * fs;
+    // (à esquerda da linha; se o ouvinte estiver perto da viola, à direita)
+    const lab = `ouvinte a ${fmt(S.d, 1)} m`, lw = tw(lab, fs * 0.65, FONT, 700), left = S.d > AIRMAX * 0.45;
+    const tel = texAt("airt", `t = ${texNum(S.pl ? t * 1000 : 0, 1)}\\ \\text{ms}`, left ? xd - 0.3 * fs : xd + 0.3 * fs, by, fs * 0.8, C.hot, left ? 1 : 0, 0.5, true);
+    const tw_ = tel.offsetWidth;
+    if (left) text(lab, xd - 0.3 * fs - tw_ - 0.5 * fs, by, fs * 0.65, C.ear, "right", FONT, 700);
+    else { tel.style.left = xd + 0.3 * fs + lw + 0.5 * fs + "px"; text(lab, xd + 0.3 * fs, by, fs * 0.65, C.ear, "left", FONT, 700); }
+    const botW = left ? tw_ + lw + 1.5 * fs + (b.x + b.w - xd) : b.w;
     // partículas: posições de repouso numa grelha; o deslocamento é exagerado para se ver
     const rows = Math.max(4, Math.round(ph / (0.75 * fs))), dy = ph / rows, dx = Math.max(0.55 * fs, 6);
-    const cols = Math.floor((gx1 - gx0) / dx), lamPx = VSOM / f / DIST * (gx1 - gx0), shift = clamp(0.1 * lamPx, 0.45 * dx, 3 * fs);
+    const cols = Math.floor((gx1 - gx0) / dx), lamPx = VSOM / fSnd() / AIRMAX * (gx1 - gx0), shift = clamp(0.1 * lamPx, 0.45 * dx, 3 * fs);
     // compressões mais escuras, rarefações mais claras
     const strip = 3;
     for (let xs = gx0; xs < gx1; xs += strip) {
-      const v = pAt((xs - gx0) / (gx1 - gx0) * DIST, t);
+      const v = pAt((xs - gx0) / (gx1 - gx0) * AIRMAX, t);
       if (v > 0) { ctx.globalAlpha = 0.22 * v; ctx.fillStyle = C.air; ctx.fillRect(xs, top, strip, ph); }
     }
     ctx.globalAlpha = 1;
     ctx.save(); ctx.beginPath(); ctx.rect(gx0 - 0.3 * fs, top - 0.3 * fs, gx1 - gx0 + 0.6 * fs, ph + 0.6 * fs); ctx.clip();
     ctx.fillStyle = C.air;
     for (let i = 0; i <= cols; i++) {
-      const xr = gx0 + i * dx, m = (xr - gx0) / (gx1 - gx0) * DIST, d = dAt(m, t) * shift;
+      const xr = gx0 + i * dx, m = (xr - gx0) / (gx1 - gx0) * AIRMAX, d = dAt(m, t) * shift;
       for (let r = 0; r < rows; r++) {
         const jit = ((i * 7 + r * 13) % 5 - 2) * 0.08 * dx;   // pequena desordem fixa
         ctx.beginPath(); ctx.arc(xr + d + jit, top + (r + 0.5) * dy, Math.max(1.6, 0.11 * fs), 0, TAU); ctx.fill();
       }
     }
     ctx.restore();
+    rrect(xd - 0.6 * fs, top + ph / 2 - 0.4 * fs, 1.2 * fs, 0.8 * fs, 4, C.ear, null);   // pega do ouvinte
+    text("↔", xd, top + ph / 2 + 0.03 * fs, fs * 0.65, C.bg, "center", FONT, 700);
     // frente da onda
     const fr = front();
-    if (S.pl && fr < DIST) line(X(fr), top, X(fr), top + ph, C.air, 1.2, [3, 3]);
+    if (S.pl && fr < AIRMAX) line(X(fr), top, X(fr), top + ph, C.air, 1.2, [3, 3]);
     // pressão ao longo da distância
     const pc = (py0 + py1) / 2, pa = (py1 - py0) / 2 * 0.85;
     line(gx0, pc, gx1 + 0.4 * fs, pc, C.axis, 1.3); tri(gx1 + 0.6 * fs, pc, 1, 0, fs * 0.35, C.axis);
     line(gx0, py0, gx0, py1, C.axis, 1.3);
     texAt("airp", "p", gx0 - 0.4 * fs, py0 + 0.3 * fs, fs * 0.85, C.ink, 1, 0.5);
-    for (let m = 1; m <= DIST; m++) { line(X(m), pc - 0.15 * fs, X(m), pc + 0.15 * fs, C.axis, 1); texAt("am" + m, String(m), X(m), pc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true); }
+    for (let m = 1; m <= AIRMAX; m++) { line(X(m), pc - 0.15 * fs, X(m), pc + 0.15 * fs, C.axis, 1); texAt("am" + m, String(m), X(m), pc + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0, true); }
     texAt("airx", "x\\ (\\text{m})", gx1 + 0.4 * fs, pc - 0.35 * fs, fs * 0.75, C.ink, 1, 1, true);
     ctx.strokeStyle = C.air; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.lineJoin = "round";
     ctx.beginPath();
     const npx = Math.round(gx1 - gx0);
-    for (let j = 0; j <= npx; j++) { const m = j / npx * DIST, Y = pc - pa * pAt(m, t); j ? ctx.lineTo(gx0 + j, Y) : ctx.moveTo(gx0 + j, Y); }
+    for (let j = 0; j <= npx; j++) { const m = j / npx * AIRMAX, Y = pc - pa * pAt(m, t); j ? ctx.lineTo(gx0 + j, Y) : ctx.moveTo(gx0 + j, Y); }
     ctx.stroke();
     // física: v e λ
     if (S.phys) {
       const lam = VSOM / fSnd();
-      physNote("airv", `v = ${VSOM}\\ \\text{m/s}\\qquad \\lambda = \\dfrac{v}{${S.h > 1 ? S.h : ""}f} = ${texNum(lam, 2)}\\ \\text{m}`, b, fs, tW, true);
+      physNote("airv", `v = ${VSOM}\\ \\text{m/s}\\qquad \\lambda = \\dfrac{v}{${S.h > 1 ? S.h : ""}f} = ${texNum(lam, 2)}\\ \\text{m}`, b, fs, tW, true, botW);
       if (S.pl && fr > lam) {
         // um comprimento de onda, entre dois máximos de pressão perto do meio
-        const xm = Math.min(fr, DIST) / 2;
+        const xm = Math.min(fr, AIRMAX) / 2;
         let best = 0, bv = -2;
         for (let j = 0; j <= 200; j++) { const m = xm - lam / 2 + j / 200 * lam; if (m < 0) continue; const v = pAt(m, t); if (v > bv) { bv = v; best = m; } }
         let a = best, c2 = best + lam;
-        if (c2 > Math.min(fr, DIST)) { a = best - lam; c2 = best; }
+        if (c2 > Math.min(fr, AIRMAX)) { a = best - lam; c2 = best; }
         if (a >= 0) {
           const yb = py0 + 0.1 * fs;
           line(X(a), yb, X(c2), yb, C.phys, 1.6);
@@ -687,7 +700,7 @@
   // junto do ouvinte: p(t) no mesmo relógio do quadro do ar (t desde que se dedilhou, em ms).
   // A janela mostra o tempo até o som chegar e mais 3 períodos; depois disso, desliza com o tempo (o instante atual fica à direita)
   function panelEar(b, fs) {
-    const f = freq(), T = 1000 / fSnd(), ta = DIST / VSOM * 1000, Wd = ta + 3 * T;   // (ms; com dedo leve, o som tem frequência h·f)
+    const f = freq(), T = 1000 / fSnd(), ta = S.d / VSOM * 1000, Wd = ta + 3 * T;   // (ms; com dedo leve, o som tem frequência h·f)
     const sw = Math.min(b.w * 0.36, 22 * fs), gb = { x: b.x, y: b.y, w: b.w - sw - 0.6 * fs, h: b.h }, sb = { x: b.x + b.w - sw, y: b.y, w: sw, h: b.h };
     const tW = frame_(gb, "Pressão do ar junto do ouvinte", fs, "Junto do ouvinte");
     const gx0 = gb.x + 2 * fs, gx1 = gb.x + gb.w - 1.8 * fs, gy0 = gb.y + 2.3 * fs, gy1 = gb.y + gb.h - 1.4 * fs, gc = (gy0 + gy1) / 2, ga = (gy1 - gy0) / 2 * 0.9;
@@ -709,16 +722,16 @@
       line(X(ta), gy0 - 0.2 * fs, X(ta), gy1, C.air, 1.2, [3, 3]);
       texAt("eArr", "\\textbf{chegada}", X(ta) + 0.25 * fs, gy1 - 0.4 * fs, fs * 0.62, C.air, 0, 0.5, true);
     }
-    if (S.phys) physNote("eDel", `\\text{a ${DIST} m, o som chega } \\tfrac{${DIST}}{${VSOM}} \\approx ${texNum(ta, 1)}\\ \\text{ms depois}`, gb, fs, tW);
+    if (S.phys) physNote("eDel", `\\text{a ${fmt(S.d, 1)} m, o som chega } \\tfrac{${texNum(S.d, 1)}}{${VSOM}} \\approx ${texNum(ta, 1)}\\ \\text{ms depois}`, gb, fs, tW);
     if (!S.pl || M.silent || tm < ta)
       text(S.pl && !M.silent ? "O som ainda vai a caminho…" : S.pl ? "Não há som: a corda não vibra." : "Ainda não há som.", (gx0 + gx1) / 2, gc - ga * 0.5, fs * 0.75, C.faint, "center", FONT, 400, "italic");
     if (S.pl) {
       // a curva até ao instante atual (0 antes de o som chegar) e o ponto no instante atual
       const n = Math.max(1, Math.round(X(tm) - gx0));
       ctx.strokeStyle = C.ear; ctx.lineWidth = Math.max(2.2, 0.15 * fs); ctx.lineJoin = "round"; ctx.beginPath();
-      for (let j = 0; j <= n; j++) { const u = w0 + j / n * (tm - w0), Y = gc - ga * pAt(DIST, u / 1000); j ? ctx.lineTo(X(u), Y) : ctx.moveTo(X(u), Y); }
+      for (let j = 0; j <= n; j++) { const u = w0 + j / n * (tm - w0), Y = gc - ga * pAt(S.d, u / 1000); j ? ctx.lineTo(X(u), Y) : ctx.moveTo(X(u), Y); }
       ctx.stroke();
-      ctx.beginPath(); ctx.arc(X(tm), gc - ga * pAt(DIST, tm / 1000), 0.28 * fs, 0, TAU); ctx.fillStyle = C.hot; ctx.fill();
+      ctx.beginPath(); ctx.arc(X(tm), gc - ga * pAt(S.d, tm / 1000), 0.28 * fs, 0, TAU); ctx.fillStyle = C.hot; ctx.fill();
       texAt("eNow", `t = ${texNum(tm, 1)}\\ \\text{ms}`, X(tm), gy1 + 0.1 * fs, fs * 0.65, C.hot, X(tm) > gx1 - 3 * fs ? 1 : 0.5, 0, true);
       // período: entre dois instantes equivalentes depois da chegada (o primeiro que caiba na janela)
       if (tm >= ta + T && !M.silent) {
@@ -781,6 +794,11 @@
       pluck();
       return;
     }
+    if (h.kind === "listener") {
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = { set: setDist, val: px => (px - h.X0) / (h.X1 - h.X0) * AIRMAX }; cv.style.cursor = "grabbing";
+      return;
+    }
     if (h.kind === "slide") {
       try { cv.setPointerCapture(e.pointerId); } catch (_) {}
       drag = h; h.set(h.val(e.clientX)); cv.style.cursor = "grabbing";
@@ -789,7 +807,7 @@
   cv.addEventListener("pointermove", e => {
     if (drag) { drag.set(drag.val(e.clientX)); return; }
     const h = hitAt(e.clientX, e.clientY);
-    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+    cv.style.cursor = !h ? "default" : h.kind === "slide" || h.kind === "listener" ? "ew-resize" : "pointer";
   });
   const end = () => { drag = null; cv.style.cursor = "default"; };
   ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
@@ -819,6 +837,7 @@
     if (q.has("n")) S.N = clamp(Math.round(+q.get("n")) || 20, 1, 30);
     if (q.has("modos")) S.modes = true;
     if (q.has("fisica")) S.phys = true;
+    if (q.has("d")) S.d = clamp(Math.round(+q.get("d") * 10) / 10 || 6, 1, AIRMAX);
     if (q.has("h")) S.h = clamp(Math.round(+q.get("h")) || 1, 1, 5);
     if (q.has("tau")) { S.pl = true; S.run = false; S.tau = +q.get("tau") || 0; }   // (para testes: um instante parado)
   })();
