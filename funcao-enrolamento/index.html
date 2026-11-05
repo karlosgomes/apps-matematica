@@ -6,291 +6,77 @@
 <title>Função de Enrolamento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root {
-    --bg: #eef2f6;
-    --panel: #ffffff;
-    --ink: #17202b;
-    --muted: #5b6776;
-    --line: #d6dde6;
-    --grid: #e6ebf1;
-    --grid-strong: #d2d9e2;
-    --axis: #36414d;
-    --btn: #eef2f6;
-    --btn-hover: #e1e7ee;
-    --cos: #1565c0;
-    --sin: #d32f2f;
-    --tan: #2e7d32;
-    --arc: #ef6c00;
-    --pi: #7b3fb0;
-    --focus: #1565c0;
-    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #0f1419;
-      --panel: #171e26;
-      --ink: #e6ebf1;
-      --muted: #9aa6b4;
-      --line: #2a3440;
-      --grid: #1d252e;
-      --grid-strong: #2a3440;
-      --axis: #aab4c0;
-      --btn: #202a35;
-      --btn-hover: #2a3642;
-      --cos: #64a8ff;
-      --sin: #ff6b6b;
-      --tan: #5cc26a;
-      --arc: #ffa040;
-      --pi: #c79bff;
-      --focus: #64a8ff;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0f1419;
-    --panel: #171e26;
-    --ink: #e6ebf1;
-    --muted: #9aa6b4;
-    --line: #2a3440;
-    --grid: #1d252e;
-    --grid-strong: #2a3440;
-    --axis: #aab4c0;
-    --btn: #202a35;
-    --btn-hover: #2a3642;
-    --cos: #64a8ff;
-    --sin: #ff6b6b;
-    --tan: #5cc26a;
-    --arc: #ffa040;
-    --pi: #c79bff;
-    --focus: #64a8ff;
-  }
-
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--font);
-    font-size: 15px;
-    line-height: 1.4;
-    padding-inline: 16px;
-    padding-block: 16px 24px;
-  }
-  .wrap { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
-
-  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
-  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
-  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
-  .formula .nw { white-space: nowrap; }
-  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
-
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
-  .plot-card { padding: 8px; }
-  #plot { width: 100%; min-width: 0; line-height: 0; overflow: hidden; }
-  #plot canvas { display: block; max-width: 100%; touch-action: none; border-radius: 4px; }
-  .hint { color: var(--muted); font-size: 0.85rem; padding: 6px 4px 0; }
-
-  /* os cartões reorganizam-se sozinhos: 3, 2 ou 1 coluna conforme a largura disponível */
-  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: start; }
-  .panels .card { padding: 12px; display: grid; gap: 10px; align-content: start; }
-  h2 { font-size: 0.95rem; letter-spacing: 0.01em; color: var(--muted); margin: 0; font-weight: 700; }
-
-  .param { display: grid; grid-template-columns: 1fr 6.5rem; align-items: center; gap: 10px; }
-  .param input[type="range"] { width: 100%; accent-color: var(--arc); margin: 0; }
-  .num {
-    width: 100%;
-    font-family: var(--mono);
-    font-size: 0.95rem;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    padding: 4px 6px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  .num.bad { border-color: var(--sin); }
-
-  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .lbl { color: var(--muted); font-size: 0.9rem; }
-  button.b {
-    font: inherit; font-size: 0.9rem; font-weight: 700;
-    padding: 5px 11px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  button.b:hover { background: var(--btn-hover); }
-  button.b[aria-pressed="true"] { background: var(--arc); border-color: var(--arc); color: var(--panel); }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button {
-    font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
-    background: var(--btn); color: var(--ink);
-  }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-  .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.95rem; }
-  .chk input { width: 17px; height: 17px; margin: 0; accent-color: var(--c, var(--axis)); cursor: pointer; }
-  .chk span { color: var(--c, var(--ink)); font-weight: 700; }
-  .chk.plain span { font-weight: 400; color: var(--ink); }
-
-  /* ecrã largo: opções numa coluna à esquerda; o desenho à direita fica preso no ecrã enquanto se desce nas opções */
-  .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
-  @media (min-width: 1100px) {
-    .cols { grid-template-columns: minmax(270px, 21%) minmax(0, 1fr); }
-    .cols .panels { order: 1; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-    .cols .plot-card { order: 2; position: sticky; top: 16px; }
-    /* coluna das opções mais compacta, para o desenho ter mais espaço */
-    .cols .panels .card { padding: 10px; gap: 8px; }
-    .cols h2 { font-size: 0.85rem; }
-    .cols .param { grid-template-columns: 1fr 4.8rem; gap: 8px; }
-    .cols .num { font-size: 0.85rem; padding: 3px 5px; }
-    .cols .row { gap: 6px; }
-    .cols .lbl { font-size: 0.8rem; }
-    .cols button.b, .cols .seg button { font-size: 0.8rem; padding: 4px 8px; }
-    .cols .checks { gap: 5px 8px; }
-    .cols .chk { font-size: 0.85rem; gap: 6px; }
-    .cols .chk input { width: 15px; height: 15px; }
-    .cols .seg button { white-space: nowrap; }
-    /* as quatro janelas do gráfico numa grelha 2 × 2, para não partirem o texto */
-    .cols #win { display: grid; grid-template-columns: 1fr 1fr; }
-    .cols #win button { border-left: 0; }
-    .cols #win button:nth-child(even) { border-left: 1px solid var(--line); }
-    .cols #win button:nth-child(n+3) { border-top: 1px solid var(--line); }
-  }
-
-  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
-  .projbar { display: flex; gap: 8px; align-items: center; }
-  :root[data-proj] { --muted: #333d4a; --grid: #d3dae3; --grid-strong: #b9c3cf; --line: #b3bfcc; --axis: #1f2833; }
-  :root[data-proj] body { font-size: 17px; }
-  :root[data-proj] .hint { font-size: 1rem; }
-  :root[data-hidectl] .cols { grid-template-columns: minmax(0, 1fr); }
-  :root[data-hidectl] .panels { display: none; }
-  /* controlos na folha do desenho, por baixo da figura (só no modo projeção) */
-  .ovl { display: none; }
-  :root[data-proj] .ovl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 10px 8px 4px; margin-top: 4px; border-top: 1px solid var(--line); line-height: 1.4; }
-  .ov { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); }
-  .ov label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-  .ov i { font-family: var(--font); font-size: 1.3rem; }
-  .ov input[type="range"] { width: 220px; accent-color: var(--arc); margin: 0; }
-  .ov input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--c, var(--axis)); }
-  .ov button.b { font-family: var(--font); font-size: 1rem; padding: 4px 12px; }
-  .ov output { min-width: 4.5em; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-  .ovchk { font-family: var(--font); font-weight: 700; font-size: 1.1rem; color: var(--c, var(--ink)); }
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixa de texto do valor de t, posta por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.3em; border: 2px solid var(--line); border-radius: 7px;
+         background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Função de Enrolamento</h1>
-    <div class="formula"><span class="nw"><i>E</i> : ℝ → circunferência unitária,</span> <span class="nw"><i>E</i>(<i>t</i>) = (cos <i>t</i>, sin <i>t</i>)</span></div>
-    <div class="projbar">
-      <button class="b" id="hidectl" hidden>Esconder controlos</button>
-      <button class="b" id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
-    </div>
-  </header>
-
-  <main class="cols">
-  <section class="card plot-card" aria-label="Circunferência unitária e gráficos">
-    <div id="plot"></div>
-    <div class="ovl" id="ovl" aria-label="Controlos no desenho"></div>
-    <div class="hint">Arrasta o ponto <i>P</i> = <i>E</i>(<i>t</i>) sobre a circunferência, ou a linha vertical de <i>t</i> no gráfico, para mudar <i>t</i>. No gráfico: arrastar o fundo desloca a vista na horizontal; <b>Shift</b> + arrastar estica (para a direita) ou encolhe (para a esquerda) o eixo horizontal; duplo clique repõe. A laranja: o troço [0, <i>t</i>] da reta, enrolado na circunferência e desenrolado no eixo dos <i>t</i>.</div>
-  </section>
-
-  <section class="panels">
-    <div class="card">
-      <h2>O número real <i>t</i></h2>
-      <div class="param">
-        <input type="range" id="t" min="-18.850" max="18.850" step="0.001" value="0" aria-label="Valor de t">
-        <input type="text" id="t-n" class="num" inputmode="decimal" value="0" aria-label="Valor de t (aceita 3π/4 ou 3pi/4)" title="Aceita, por exemplo: 2,5 · π/3 · −3pi/4">
-      </div>
-      <div class="row">
-        <button class="b" id="back" aria-pressed="false">◀ Desenrolar</button>
-        <button class="b" id="fwd" aria-pressed="false">Enrolar ▶</button>
-        <span class="lbl">Velocidade</span>
-        <div class="seg" role="group" aria-label="Velocidade">
-          <button data-v="0.25" aria-pressed="false">lenta</button>
-          <button data-v="0.6" aria-pressed="true">média</button>
-          <button data-v="1.5" aria-pressed="false">rápida</button>
-        </div>
-      </div>
-      <div class="row">
-        <button class="b" id="mstep" title="Subtrai o passo das marcas de π"></button>
-        <button class="b" id="m1">−1</button>
-        <button class="b" id="zero"><i>t</i> = 0</button>
-        <button class="b" id="p1">+1</button>
-        <button class="b" id="pstep" title="Soma o passo das marcas de π"></button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Mostrar</h2>
-      <div class="checks">
-        <label class="chk plain" style="grid-column: 1 / -1"><input type="checkbox" id="sh-graph"><span>referencial dos gráficos (à direita / em baixo)</span></label>
-        <label class="chk" style="--c: var(--cos)"><input type="checkbox" id="sh-cos"><span>cos t</span></label>
-        <label class="chk" style="--c: var(--sin)"><input type="checkbox" id="sh-sin"><span>sin t</span></label>
-        <label class="chk" style="--c: var(--tan)"><input type="checkbox" id="sh-tan"><span>tan t</span></label>
-        <label class="chk" style="--c: var(--arc)"><input type="checkbox" id="sh-line" checked><span>reta a enrolar</span></label>
-        <label class="chk plain"><input type="checkbox" id="sh-full"><span>curvas completas (esbatidas)</span></label>
-        <label class="chk plain" id="lbl-link"><input type="checkbox" id="sh-link" checked><span>ligação <i>P</i> → gráfico do seno</span></label>
-      </div>
-      <div class="row">
-        <span class="lbl">Marcas de π</span>
-        <div class="seg" role="group" aria-label="Marcas de π" id="marks">
-          <button data-m="2" aria-pressed="false">π/2</button>
-          <button data-m="4" aria-pressed="false">π/4</button>
-          <button data-m="6" aria-pressed="false">π/6</button>
-          <button data-m="0" aria-pressed="false" title="Esconder as marcas de π">nenhuma</button>
-        </div>
-        <label class="chk plain"><input type="checkbox" id="magnet"><span>íman nas marcas</span></label>
-      </div>
-      <div class="row">
-        <span class="lbl">Gráfico</span>
-        <div class="seg" role="group" aria-label="Janela do gráfico" id="win">
-          <button data-w="0" aria-pressed="false">[0, 2π]</button>
-          <button data-w="1" aria-pressed="true">[−2π, 2π]</button>
-          <button data-w="2" aria-pressed="false">[−4π, 4π]</button>
-          <button data-w="3" aria-pressed="false">[−6π, 6π]</button>
-        </div>
-      </div>
-    </div>
-  </section>
-  </main>
-</div>
-
-<script src="p5.min.js"></script>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Função de enrolamento: a reta real enrola-se na circunferência trigonométrica; gráficos de cos t, sin t e tan t"></canvas>
 <script>
 (() => {
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff", tagbg: "rgba(255,255,255,0.88)",
+    cos: "#1565c0", sin: "#d32f2f", tan: "#2e7d32", arc: "#ef6c00", pi: "#7b3fb0",
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22", tagbg: "rgba(21,27,34,0.88)",
+    cos: "#64a8ff", sin: "#ff6b6b", tan: "#5cc26a", arc: "#ffa040", pi: "#c79bff",
+  };
+  const C = { ...LIGHT };
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const PI = Math.PI, TAU = 2 * Math.PI;
   const TMAX = 6 * PI;   // até 3 voltas em cada sentido
-  const WINS = [[0, TAU], [-TAU, TAU], [-2 * TAU, 2 * TAU], [-3 * TAU, 3 * TAU]];
+  const VIEW0 = [0, 6 * PI];   // vista inicial do gráfico (o rato desloca-a e muda a escala)
 
   // ---------- estado ----------
   const S = {
-    t: 0,              // P começa em (1, 0)
-    dir: 0,            // −1 desenrolar, +1 enrolar, 0 parado
-    speed: 0.6,        // rad/s
-    m: 2,              // marcas de π/m
+    t: 0,                 // P começa em (1, 0)
+    dir: 0,               // −1 desenrolar, +1 enrolar, 0 parado
+    speed: 0.6,           // rad/s
+    m: 2,                 // marcas de π/m (o passo ±π/m guarda o último m)
+    hidePi: true,         // sem marcas de π ao início
     magnet: false,
-    hidePi: false,        // esconder as marcas de π (na reta e no gráfico)
-    win: 1,
-    view: { a: -2 * Math.PI, b: 2 * Math.PI, dy: 0 },   // janela do gráfico (t de a a b) e deslocamento vertical (px)
-    show: { graph: false, cos: false, sin: false, tan: false, line: true, full: false, link: true },
+    view: { a: VIEW0[0], b: VIEW0[1] },
+    graph: false, cos: false, sin: false, tan: false, line: true, full: false, link: true,
   };
 
   // ---------- formatação ----------
   const fmt = (x, dec = 3) => {
     if (Math.abs(x) < 0.5 * Math.pow(10, -dec)) x = 0;
-    return x.toLocaleString("pt-PT", { minimumFractionDigits: dec, maximumFractionDigits: dec }).replace("-", "−");
+    return x.toFixed(dec).replace(".", ",").replace(/^-/, "−");
   };
+  const texNum = (x, dec = 3) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
   function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; }
-  // k·π/m em forma reduzida
+  // k·π/m em forma reduzida: texto simples (caixa e botões) e LaTeX (desenho)
   function fracPi(k, m) {
     if (k === 0) return "0";
     const g = gcd(k, m); k /= g; m /= g;
@@ -298,14 +84,21 @@
     const num = (k === 1 ? "" : k) + "π";
     return s + (m === 1 ? num : num + "/" + m);
   }
+  function fracPiTex(k, m) {
+    if (k === 0) return "0";
+    const g = gcd(k, m); k /= g; m /= g;
+    const s = k < 0 ? "-" : ""; k = Math.abs(k);
+    const num = (k === 1 ? "" : k) + "\\pi";
+    return s + (m === 1 ? num : `\\tfrac{${num}}{${m}}`);
+  }
   // se t for múltiplo exato de π/12, devolve o inteiro k tal que t = kπ/12
   function k12(t) {
     const k = Math.round(t / (PI / 12));
     return Math.abs(t - k * PI / 12) < 1e-9 ? k : null;
   }
   // valores exatos de cos(jπ/12) quando j é múltiplo de 2 ou de 3
-  const COS_EX = { 0: "1", 2: "√3/2", 3: "√2/2", 4: "1/2", 6: "0" };
-  const neg = s => s === "0" ? "0" : (s[0] === "−" ? s.slice(1) : "−" + s);
+  const COS_EX = { 0: "1", 2: "\\tfrac{\\sqrt{3}}{2}", 3: "\\tfrac{\\sqrt{2}}{2}", 4: "\\tfrac{1}{2}", 6: "0" };
+  const neg = s => s === "0" ? "0" : (s[0] === "-" ? s.slice(1) : "-" + s);
   function cosEx(j) {
     j = ((j % 24) + 24) % 24;
     if (j > 12) j = 24 - j;
@@ -313,7 +106,7 @@
     return COS_EX[j] ?? null;
   }
   const sinEx = j => cosEx(6 - j);
-  const TAN_EX = { 0: "0", 2: "√3/3", 3: "1", 4: "√3", 8: "−√3", 9: "−1", 10: "−√3/3" };
+  const TAN_EX = { 0: "0", 2: "\\tfrac{\\sqrt{3}}{3}", 3: "1", 4: "\\sqrt{3}", 8: "-\\sqrt{3}", 9: "-1", 10: "-\\tfrac{\\sqrt{3}}{3}" };
 
   // aceita "2,5", "-3π/4", "pi/2", "2pi", "π"
   function parseT(str) {
@@ -326,660 +119,767 @@
     if (m[4]) { const d = parseFloat(m[4].replace(",", ".")); if (!d) return null; v /= d; }
     return m[1] ? -v : v;
   }
+  // t na caixa de texto: com π se for múltiplo de π/12 (e houver marcas de π), senão em decimal
+  const tPlain = () => { const k = S.hidePi ? null : k12(S.t); return k !== null ? fracPi(k, 12) : fmt(S.t); };
 
-  // ---------- DOM ----------
-  const $ = id => document.getElementById(id);
-  const tR = $("t"), tN = $("t-n");
+  // valores escritos no desenho: forma exata quando existe, senão decimal (LaTeX)
+  const VAL = { t: "0", cos: "1", sin: "0", tan: "0" };
+  function readouts() {
+    const t = S.t, k = S.hidePi ? null : k12(t);
+    const ce = k !== null ? cosEx(k) : null, se = k !== null ? sinEx(k) : null;
+    const te = k !== null ? TAN_EX[((k % 12) + 12) % 12] : undefined;
+    VAL.t = k !== null ? fracPiTex(k, 12) : texNum(t);
+    VAL.cos = ce ?? texNum(Math.cos(t));
+    VAL.sin = se ?? texNum(Math.sin(t));
+    VAL.tan = k !== null && ((k % 12) + 12) % 12 === 6 ? null : (te ?? texNum(Math.tan(t)));
+  }
 
-  function setT(v, { snap = S.magnet && !S.hidePi, fromText = false, keepView = false } = {}) {
-    v = Math.max(-TMAX, Math.min(TMAX, v));
+  // ---------- ações ----------
+  function setT(v, { snap = S.magnet && !S.hidePi, keepView = false } = {}) {
+    v = clamp(v, -TMAX, TMAX);
     if (snap) { const st = PI / S.m; v = Math.round(v / st) * st; }
     S.t = v;
     // se t sair da janela do gráfico, a janela desliza para o acompanhar
     const V = S.view, w = V.b - V.a;
     if (!keepView && (v < V.a || v > V.b)) {
       const d = v > V.b ? v - V.b + 0.05 * w : v - V.a - 0.05 * w;
-      V.a += d; V.b += d; setWin(-1);
+      V.a += d; V.b += d;
     }
-    tR.value = v;
-    if (!fromText) {
-      const k = S.hidePi ? null : k12(v);
-      tN.value = k !== null ? fracPi(k, 12) : fmt(v, 3);
-      tN.classList.remove("bad");
-    }
-    readouts();
+    draw();
   }
-
-  const VAL = { t: "0", cos: "1", sin: "0", tan: "0" };
-  function readouts() {
-    // sem marcas de π: só valores decimais (sem formas exatas nem graus)
-    // os valores aparecem no próprio desenho (junto de P e dos pontos dos gráficos):
-    // forma exata quando existe, senão decimal
-    const t = S.t, k = S.hidePi ? null : k12(t);
-    const c = Math.cos(t), s = Math.sin(t);
-    const exact = k !== null ? fracPi(k, 12) : null;
-    const ce = k !== null ? cosEx(k) : null, se = k !== null ? sinEx(k) : null;
-    const te = k !== null ? TAN_EX[((k % 12) + 12) % 12] : undefined;
-    VAL.t = exact ?? fmt(t);
-    VAL.cos = ce ?? fmt(c);
-    VAL.sin = se ?? fmt(s);
-    VAL.tan = k !== null && ((k % 12) + 12) % 12 === 6 ? null : (te ?? fmt(s / c));
+  function setDir(d) { S.dir = S.dir === d ? 0 : d; go(); }
+  function wind(d) {
+    if (d === 1 && S.dir !== 1 && S.t >= TMAX - 1e-9) setT(-TMAX, { snap: false });
+    if (d === -1 && S.dir !== -1 && S.t <= -TMAX + 1e-9) setT(TMAX, { snap: false });
+    setDir(d);
   }
-
-  tR.addEventListener("input", () => setT(parseFloat(tR.value)));
-  tN.addEventListener("input", () => {
-    const v = parseT(tN.value);
-    if (v === null) { tN.classList.add("bad"); return; }
-    tN.classList.remove("bad");
-    setT(v, { snap: false, fromText: true });
-  });
-  tN.addEventListener("change", () => setT(S.t, { snap: false }));
-
-  function setDir(d) {
-    S.dir = S.dir === d ? 0 : d;
-    $("fwd").setAttribute("aria-pressed", S.dir === 1);
-    $("back").setAttribute("aria-pressed", S.dir === -1);
-    $("fwd").textContent = S.dir === 1 ? "❚❚ Parar" : "Enrolar ▶";
-    $("back").textContent = S.dir === -1 ? "❚❚ Parar" : "◀ Desenrolar";
-  }
-  $("fwd").onclick = () => { if (S.t >= TMAX - 1e-9) setT(-TMAX, { snap: false }); setDir(1); };
-  $("back").onclick = () => { if (S.t <= -TMAX + 1e-9) setT(TMAX, { snap: false }); setDir(-1); };
-  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
-    S.speed = +b.dataset.v;
-    document.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b));
-  });
-
-  const stepLabel = () => {
-    $("mstep").textContent = "−" + fracPi(1, S.m);
-    $("pstep").textContent = "+" + fracPi(1, S.m);
-  };
   // os passos em π/m arredondam ao múltiplo de π/m (para se chegar a valores exatos)
   const stepPi = d => { const st = PI / S.m; setT((Math.round(S.t / st + 1e-9 * d) + d) * st, { snap: false }); };
-  $("mstep").onclick = () => stepPi(-1);
-  $("pstep").onclick = () => stepPi(1);
-  $("m1").onclick = () => setT(S.t - 1, { snap: false });
-  $("p1").onclick = () => setT(S.t + 1, { snap: false });
-  $("zero").onclick = () => { setDir(0); setT(0, { snap: false }); };
-
-  // "nenhuma" (m = 0) só esconde as marcas; o passo ±π/m mantém o último valor
+  function step(v) {
+    if (v === "zero") { S.dir = 0; setT(0, { snap: false }); }
+    else if (v === "-pi" || v === "+pi") stepPi(v[0] === "-" ? -1 : 1);
+    else setT(S.t + v, { snap: false });
+  }
+  // m = 0 («nenhuma») só esconde as marcas; o passo ±π/m guarda o último m
   function setMarks(m) {
     S.hidePi = m === 0;
     if (!S.hidePi) S.m = m;
-    document.querySelectorAll("#marks [data-m]").forEach(x => x.setAttribute("aria-pressed", +x.dataset.m === m));
-    $("magnet").disabled = S.hidePi;
-    $("magnet").closest("label").style.opacity = S.hidePi ? 0.45 : 1;
-    stepLabel();
-    $("mstep").hidden = $("pstep").hidden = S.hidePi;
-    setT(S.t, { snap: S.magnet && !S.hidePi, keepView: true });
+    setT(S.t, { keepView: true });
   }
-  document.querySelectorAll("#marks [data-m]").forEach(b => b.onclick = () => setMarks(+b.dataset.m));
-  // i ≥ 0: janela predefinida; i = −1: vista livre (depois de deslocar/esticar)
-  function setWin(i) {
-    S.win = i;
-    if (i >= 0) { S.view.a = WINS[i][0]; S.view.b = WINS[i][1]; S.view.dy = 0; }
-    document.querySelectorAll("#win [data-w]").forEach(x => x.setAttribute("aria-pressed", +x.dataset.w === i));
+  // duplo clique no gráfico: volta à vista inicial (que desliza, se t estiver fora dela)
+  function resetView() { S.view.a = VIEW0[0]; S.view.b = VIEW0[1]; setT(S.t, { snap: false }); }
+  const toggle = key => { S[key] = !S[key]; if (key === "magnet" && S.magnet) setT(S.t); draw(); };
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
   }
-  document.querySelectorAll("#win [data-w]").forEach(b => b.onclick = () => {
-    setWin(+b.dataset.w);
-    const [a, c] = WINS[S.win];
-    if (S.t < a || S.t > c) setT(Math.max(a, Math.min(c, S.t)), { snap: false });
+
+  // ---------- caixa de texto de t ----------
+  const tin = document.createElement("input");
+  tin.className = "inp"; tin.type = "text"; tin.inputMode = "text"; tin.autocomplete = "off"; tin.spellcheck = false;
+  tin.title = "Aceita, por exemplo: 2,5 · π/3 · −3pi/4";
+  tin.setAttribute("aria-label", "Valor de t (aceita 3π/4 ou 3pi/4)");
+  document.body.appendChild(tin);
+  const showT = () => { tin.classList.remove("bad"); tin.value = tPlain(); };
+  tin.addEventListener("input", () => {
+    const v = parseT(tin.value);
+    if (v === null) { tin.classList.add("bad"); return; }
+    tin.classList.remove("bad");
+    S.dir = 0; setT(v, { snap: false });
   });
-  $("magnet").onchange = e => { S.magnet = e.target.checked; if (S.magnet) setT(S.t); };
-  for (const key of ["cos", "sin", "tan", "line", "full", "link"])
-    $("sh-" + key).onchange = e => { S.show[key] = e.target.checked; };
-
-  // ---------- controlos na folha do desenho (só no modo projeção) ----------
-  // cópias compactas dos controlos principais, por baixo da figura
-  const ovl = $("ovl");
-  const ovR = {};
-  function buildOverlay() {
-    const add = html => { const d = document.createElement("div"); d.className = "ov"; d.innerHTML = html; ovl.appendChild(d); return d; };
-    const dt = add(`<label><i>t</i><input type="range" min="${tR.min}" max="${tR.max}" step="${tR.step}" aria-label="t"></label><output></output>`);
-    ovR.t = dt.querySelector("input"); ovR.out = dt.querySelector("output");
-    ovR.t.addEventListener("input", () => { tR.value = ovR.t.value; tR.dispatchEvent(new Event("input")); });
-    const db = add(`<button class="b" id="ov-back"></button><button class="b" id="ov-fwd"></button><button class="b" id="ov-zero">↺ <i>t</i> = 0</button>`);
-    db.querySelector("#ov-back").onclick = () => $("back").click();
-    db.querySelector("#ov-fwd").onclick = () => $("fwd").click();
-    db.querySelector("#ov-zero").onclick = () => $("zero").click();
-    const dk = add(`<label class="ovchk" style="--c: var(--cos)"><input type="checkbox" data-k="sh-cos"> cos</label>` +
-      `<label class="ovchk" style="--c: var(--sin)"><input type="checkbox" data-k="sh-sin"> sin</label>` +
-      `<label class="ovchk" style="--c: var(--tan)"><input type="checkbox" data-k="sh-tan"> tan</label>` +
-      `<label class="ovchk" style="--c: var(--arc)"><input type="checkbox" data-k="sh-line"> reta</label>` +
-      `<label class="ovchk"><input type="checkbox" data-k="sh-graph"> gráficos</label>`);
-    dk.querySelectorAll("input").forEach(i => i.addEventListener("change", () => { const m = $(i.dataset.k); m.checked = i.checked; m.dispatchEvent(new Event("change")); }));
-  }
-  let ovLast = "";
-  function syncOverlay() {
-    const key = [S.t, S.dir, VAL.t, ...["sh-cos", "sh-sin", "sh-tan", "sh-line", "sh-graph"].map(k => $(k).checked)].join("|");
-    if (key === ovLast) return;
-    ovLast = key;
-    ovR.t.value = S.t; ovR.out.textContent = VAL.t.replace("-", "−");
-    $("ov-fwd").textContent = S.dir === 1 ? "❚❚" : "▶";
-    $("ov-back").textContent = S.dir === -1 ? "❚❚" : "◀";
-    ovl.querySelectorAll(".ovchk input").forEach(i => { i.checked = $(i.dataset.k).checked; });
-  }
-  buildOverlay();
-
-  // ---------- cores (lidas do CSS, atualizadas com o tema) ----------
-  let C = {};
-  function readColors() {
-    const cs = getComputedStyle(document.documentElement);
-    for (const k of ["panel", "ink", "muted", "line", "grid", "grid-strong", "axis", "cos", "sin", "tan", "arc", "pi"])
-      C[k] = cs.getPropertyValue("--" + k).trim();
-    C.font = cs.getPropertyValue("--font").trim();
-  }
-  readColors();
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors);
-
-  // ---------- modo projeção ----------
-  // texto, traços e pontos do desenho ficam K vezes maiores; o estado fica guardado no browser
-  // (a mesma chave nas várias apps do site)
-  let K = 1;
-  const PROJ_KEY = "apps-mat-projecao";
-  function setProj(on) {
-    K = on ? 1.5 : 1;
-    const r = document.documentElement;
-    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
-    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
-    $("proj").setAttribute("aria-pressed", on);
-    $("hidectl").hidden = !on;
-    $("hidectl").textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
-    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
-    readColors();
-    requestAnimationFrame(refit);
-  }
-  $("proj").addEventListener("click", () => setProj(K === 1));
-  $("hidectl").addEventListener("click", () => {
-    const r = document.documentElement;
-    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
-    setProj(true);
-  });
-  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
-
-  // ---------- geometria do desenho ----------
-  let L = {};   // layout
-  const holder = $("plot");
-
-  // com as duas colunas, o cartão do desenho não pode ser mais alto do que o ecrã
-  const wide = matchMedia("(min-width: 1100px)");
-  function maxH() {
-    if (!wide.matches) return Infinity;
-    const hint = holder.parentElement.querySelector(".hint");
-    return Math.max(300, innerHeight - 32 - 18 - (hint ? hint.offsetHeight : 0) - ovl.offsetHeight);
-  }
-
-  function layout() {
-    const W = holder.clientWidth;
-    if (!S.show.graph) {
-      // só a circunferência, a toda a largura
-      const H = W >= 640 ? Math.round(Math.max(Math.min(380, maxH()), Math.min(560, W * 0.42, maxH()))) : Math.round(Math.min(W, 440));
-      L = { W, H, side: W >= 640, R: H * (W >= 640 ? 0.28 : 0.27), cx: W / 2, cy: H / 2, circ: [0, 0, W, H], g: null };
-    } else if (W >= 640) {
-      const H = Math.round(Math.max(Math.min(380, maxH()), Math.min(560, W * 0.42, maxH())));
-      const cw = Math.min(H + 40, Math.round(W * 0.46));
-      const R = H * 0.28;
-      L = { W, H, side: true, R, cx: cw / 2, cy: H / 2,
-            circ: [0, 0, cw, H],
-            g: { x0: cw + 44, x1: W - 18, top: 0, bot: H, cy: H / 2, k: R } };
-    } else {
-      const ch = Math.round(Math.min(W, 440));
-      const gh = 250;
-      const R = ch * 0.27;
-      L = { W, H: ch + gh, side: false, R, cx: W / 2, cy: ch / 2,
-            circ: [0, 0, W, ch],
-            g: { x0: 40, x1: W - 14, top: ch, bot: ch + gh, cy: ch + gh / 2, k: Math.min(R, (gh / 2 - 22) / 1.25) } };
+  tin.addEventListener("change", () => { showT(); draw(); });
+  tin.addEventListener("keydown", e => {
+    if (e.key === "Enter") { tin.blur(); showT(); draw(); }
+    else if (e.key === "Escape") { showT(); tin.blur(); draw(); }
+    else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      S.dir = 0;
+      setT(S.t + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 1 : 0.1), { snap: false });
+      showT();
     }
+  });
+  let usedInp = false;
+  function placeT(r, px) {
+    tin.style.display = "";
+    tin.style.left = r.x + "px"; tin.style.top = r.y + "px"; tin.style.width = r.w + "px"; tin.style.height = r.h + "px";
+    tin.style.fontSize = px + "px";
+    if (document.activeElement !== tin) showT();
+    usedInp = true;
   }
 
-  // circunferência: coordenadas matemáticas → ecrã
+  // ---------- disposição ----------
+  // controlos em cima (numa linha, se couberem) e, por baixo, a circunferência e os gráficos
+  // os cartões usam uma letra menor (cfs = 0,8·fs) para ocuparem pouco espaço
+  const ROW = 1.5, LEG = 1.9, CF = 0.8;
+  let CP = 0.45, GAP = 0.75, RG = 0.3;
+  const CARDS = [["t", 3], ["ver", 3], ["marcas", 2]];
+  const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
+  function layout() {
+    let fs = clamp(Math.min(W, H) / 26, 12, 21);
+    for (let k = 0; k < 40; k++) {
+      const L = tryLayout(fs);
+      if (L.ok || fs <= 10) return L;
+      fs *= 0.95;
+    }
+    return tryLayout(fs);
+  }
+  function tryLayout(fs) {
+    const pad = Math.round(fs * 0.7), gap = GAP * fs;
+    const land = W > H * 1.1 && W >= 640;
+    [CP, GAP, RG] = land ? [0.45, 0.75, 0.3] : [0.35, 0.45, 0.2];
+    const cfs = fs * CF, L = { fs, cfs, pad, land, cards: {} };
+    const hOf = k => cardH(CARDS.find(c => c[0] === k)[1]) * cfs;
+    let area;
+    // controlos em cima (os três cartões lado a lado, se couberem), circunferência e gráficos por baixo
+    const w = W - 2 * pad;
+    let y = pad;
+    L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + (land ? 0.6 : 0.4) * fs;
+    const nc = w >= 3 * 21 * cfs + 2 * gap ? 3 : w >= 40 * cfs ? 2 : 1, cw = (w - (nc - 1) * gap) / nc;
+    const col = nc === 3 ? [["t"], ["ver"], ["marcas"]] : nc === 2 ? [["t"], ["ver", "marcas"]] : [CARDS.map(c => c[0])];
+    const rowsOf = k => CARDS.find(c => c[0] === k)[1];
+    if (nc === 3) {
+      // na mesma linha, todos com a altura do mais alto (o conteúdo fica ao centro)
+      const ch = Math.max(...CARDS.map(([k]) => hOf(k)));
+      col.forEach(([k], ci) => { L.cards[k] = { x: pad + ci * (cw + gap), y, w: cw, h: ch, r: rowsOf(k) }; });
+      y += ch;
+    } else {
+      let ymax = y;
+      col.forEach((cs, ci) => { let yy = y; cs.forEach(k => { L.cards[k] = { x: pad + ci * (cw + gap), y: yy, w: cw, h: hOf(k), r: rowsOf(k) }; yy += hOf(k) + gap; }); ymax = Math.max(ymax, yy - gap); });
+      y = ymax;
+    }
+    y += (land ? 0.8 : 0.6) * fs;
+    area = { x: pad, y, w, h: H - pad - y };
+    // no ecrã deitado, os três cartões numa só linha (a letra encolhe até caberem)
+    L.ok = area.h >= Math.max(0.42 * H, 16 * fs) && cw >= 20 * cfs && (!land || nc === 3);
+    // quadros: só a circunferência, ou a circunferência e os gráficos (lado a lado ou um por cima do outro)
+    const g2 = 0.5 * fs;
+    L.side = false; L.gf = null;
+    if (!S.graph) L.circ = area;
+    else if (area.w >= 0.9 * area.h) {
+      const cw = Math.min(area.h, area.w * 0.45);
+      L.side = true;
+      L.circ = { x: area.x, y: area.y, w: cw, h: area.h };
+      L.gf = { x: area.x + cw + g2, y: area.y, w: area.w - cw - g2, h: area.h };
+    } else {
+      const ch = Math.min(area.w, area.h * 0.55);
+      L.circ = { x: area.x, y: area.y, w: area.w, h: ch };
+      L.gf = { x: area.x, y: area.y + ch + g2, w: area.w, h: area.h - ch - g2 };
+    }
+    const c = L.circ;
+    L.cx = c.x + c.w / 2; L.cy = c.y + c.h / 2 + (L.side ? 0 : 0.4 * fs);
+    L.R = 0.3 * Math.min(c.w, c.h - 1.4 * fs);
+    if (L.gf) {
+      const f = L.gf, g = { x0: f.x + 2.4 * fs, x1: f.x + f.w - 1.4 * fs, top: f.y, bot: f.y + f.h };
+      if (L.side) {
+        // a mesma escala vertical e a mesma altura do centro, para a ligação P → (t, sin t) ficar horizontal
+        L.R = Math.min(L.R, (f.h / 2 - 1.8 * fs) / 1.25);
+        g.cy = L.cy; g.k = L.R;
+      } else {
+        g.cy = f.y + f.h / 2 + 0.5 * fs; g.k = Math.min(L.R, (f.h / 2 - 1.6 * fs) / 1.25);
+      }
+      L.g = g;
+      if (f.w < 14 * fs || f.h < 7 * fs) L.ok = false;
+    } else L.g = null;
+    if (L.R < 3.5 * fs) L.ok = false;
+    return L;
+  }
+
+  // ---------- primitivas ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const dashed = (x0, y0, x1, y1, c, w) => line(x0, y0, x1, y1, c, w, [5, 5]);
+  function dot(x, y, r, fill, ring) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fillStyle = fill; ctx.fill();
+    if (ring) { ctx.lineWidth = 2; ctx.strokeStyle = ring; ctx.stroke(); }
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400, style = "") {
+    ctx.font = `${style} ${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  // tex: a etiqueta é LaTeX (KaTeX), encolhida se não couber; dentro de um grupo (group/endGroup)
+  // todas as etiquetas encolhem na mesma proporção, para ficarem do mesmo tamanho
+  let GRP = null;
+  const group = () => { GRP = []; };
+  function endGroup() {
+    const k = Math.min(1, ...GRP.map(([el, w]) => w / el.offsetWidth));
+    if (k < 1) GRP.forEach(([el]) => el.style.fontSize = parseFloat(el.style.fontSize) * k + "px");
+    GRP = null;
+  }
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16, tex = false) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    if (tex) {
+      const el = texAt(`bt-${kind}-${extra.v ?? ""}`, txt, x + w / 2, y + h / 2, px, on ? C.on : C.ink);
+      if (GRP) GRP.push([el, w - 0.6 * px]); else fit(el, w - 0.6 * px);
+    }
+    else text(txt, x + w / 2, y + h / 2 + 1, px, on ? C.on : C.ink, "center", FONT, 700);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  // caixa de opção; o texto pode ser LaTeX (tex = id da camada KaTeX); dis = esbatida e sem toque
+  function cbox(x, y, h, bs, px, on, txt, hit, col = C.muted, { tex = null, dis = false } = {}) {
+    const yy = y + (h - bs) / 2, c = dis ? C.grid2 : col;
+    rrect(x, yy, bs, bs, 5, on && !dis ? c : C.bg, c, 2);
+    if (on && !dis) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const tcol = dis ? C.faint : C.ink;
+    let w;
+    if (tex) w = bs * 1.45 + texAt(tex, txt, x + bs * 1.45, y + h / 2, px * 1.08, dis ? C.faint : col, 0, 0.5).offsetWidth;
+    else w = bs * 1.45 + text(txt, x + bs * 1.45, y + h / 2 + 1, px, tcol, "left", FONT);
+    if (!dis) hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  // cursor (barra, parte até ao valor na cor col, pega redonda); ticks: valores com uma marca por baixo
+  function slider(x, y, w, h, lo, hi, v, col, fs, set, ticks = [], from = lo) {
+    const cy = y + h / 2, X = u => x + (clamp(u, lo, hi) - lo) / (hi - lo) * w;
+    ticks.forEach(t => line(X(t), cy + 0.25 * fs, X(t), cy + 0.45 * fs, C.faint, 1.2));
+    ctx.lineCap = "round";
+    line(x, cy, x + w, cy, C.grid2, 0.26 * fs);
+    line(X(from), cy, X(v), cy, col, 0.26 * fs);
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs, 0, TAU); ctx.fillStyle = col; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
+    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, set, val: px => lo + (px - x) / w * (hi - lo) });
+  }
+
+  // ---------- KaTeX numa camada por cima ----------
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = false) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  // só se o ponto de referência estiver dentro do quadro b
+  const inBox = (b, x, y, m = 0) => x >= b.x - m && x <= b.x + b.w + m && y >= b.y - m && y <= b.y + b.h + m;
+  function texIn(b, id, src, x, y, px, color, ax, ay, halo = true) {
+    if (!inBox(b, x, y, -0.3 * L.fs)) return null;
+    return texAt(id, src, x, y, px, color, ax, ay, halo);
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+    return k;
+  }
+  // rótulo com fundo, mantido dentro da zona z; align: "left" (começa em x) ou "right" (acaba em x)
+  function tag(id, src, x, y, px, color, align, z) {
+    const el = texAt(id, src, x, y, px, color, 0, 0, false);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const x0 = clamp(align === "left" ? x : x - w, z.x + 4, z.x + z.w - w - 4);
+    const y0 = clamp(y - h / 2, z.y + 4, z.y + z.h - h - 4);
+    el.style.left = x0 + "px"; el.style.top = y0 + "px";
+    rrect(x0 - 4, y0 - 1, w + 8, h + 2, 5, C.tagbg, null);
+  }
+
+  // ---------- desenho ----------
+  let raf = 0, last = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(frame); }
+  function frame(now) {
+    raf = 0;
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    if (S.dir !== 0) {
+      let v = S.t + S.dir * S.speed * dt;
+      // só pára ao chegar ao fim no sentido em que anda (no fim, o sentido contrário tem de poder arrancar)
+      if ((S.dir > 0 && v >= TMAX) || (S.dir < 0 && v <= -TMAX)) { v = clamp(v, -TMAX, TMAX); S.dir = 0; }
+      setT(v, { snap: false });
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    }
+    paint();
+    if (S.dir !== 0) { last = now; raf = requestAnimationFrame(frame); } else last = 0;
+  }
+  const go = () => { last = 0; draw(); };
+  function paint() {
+    L = layout(); hits = []; used = new Set(); usedInp = false;
+    readouts();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    legend(L.legend, fs);
+    cardT(L.cards.t, L.cfs);
+    cardVer(L.cards.ver, L.cfs);
+    cardMarcas(L.cards.marcas, L.cfs);
+    drawCircle(fs);
+    if (L.g) drawGraph(fs);
+    if (L.side && S.link && S.sin && L.g) {
+      // ligação horizontal: P → (t, sin t), à mesma altura nos dois quadros
+      const s = Math.sin(S.t), x0 = sx(Math.cos(S.t)), x1 = gx(S.t);
+      ctx.globalAlpha = 0.6;
+      line(x0 + 0.5 * fs, sy(s), Math.max(x0 + 0.5 * fs, Math.min(x1 - 0.5 * fs, L.g.x1)), sy(s), C.sin, 2, [2, 6]);
+      ctx.globalAlpha = 1;
+    }
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+    if (!usedInp) tin.style.display = "none";
+  }
+
+  // em cima: a definição da função e o botão do modo escuro
+  function legend(b, fs) {
+    const bw = b.h * 1.3, w = b.w - bw - 0.4 * fs;
+    rrect(b.x, b.y, w, b.h, 8, C.band, C.line, 1.5);
+    const long = "E : \\mathbb{R} \\to \\text{circunferência trigonométrica},\\quad E(t) = (\\cos t, \\sin t)";
+    let el = texAt("legend", long, b.x + w / 2, b.y + b.h / 2, fs * 1.1, C.ink);
+    if (el.offsetWidth > (w - 0.8 * fs) * 1.25) el = texAt("legend", "E(t) = (\\cos t, \\sin t)", b.x + w / 2, b.y + b.h / 2, fs * 1.1, C.ink);
+    fit(el, w - 0.8 * fs, b.h);
+    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+  }
+  function card(b, col, fs) {
+    rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
+    ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip();
+    ctx.fillStyle = col; ctx.fillRect(b.x, b.y, 0.25 * fs, b.h);
+    ctx.restore();
+    const ch = b.r ? (b.r * ROW + (b.r - 1) * RG) * fs : b.h - 2 * CP * fs;
+    return { x: b.x + 0.7 * fs, y: b.y + (b.h - ch) / 2, w: b.w - 1.2 * fs };
+  }
+  const rowY = (c, i, fs) => c.y + i * (ROW + RG) * fs;
+  // grupo de botões que ocupam a largura w a partir de x; dis = esbatido e sem toque
+  function seg(x, y, w, rh, fs, items, cur, kind, col, px, dis = false) {
+    const n = hits.length, g = 0.2 * fs, bh = 1.25 * fs, bw = (w - (items.length - 1) * g) / items.length;
+    if (dis) ctx.globalAlpha = 0.45;
+    const own = !GRP;
+    if (own) group();
+    items.forEach(([v, t], i) => button(x + i * (bw + g), y + (rh - bh) / 2, bw, bh, t, cur === v, kind, { v }, col, px, true));
+    if (own) endGroup();
+    ctx.globalAlpha = 1;
+    if (dis) hits.length = n;
+    return x + w;
+  }
+
+  function cardT(b, fs) {
+    const c = card(b, C.arc, fs), rh = ROW * fs, bh = 1.25 * fs, px = fs * 0.95;
+    let y = rowY(c, 0, fs);
+    texAt("tl", "t", c.x + 0.2 * fs, y + rh / 2, fs * 1.1, C.muted, 0, 0.5);
+    const iw = 5 * fs, ix = c.x + c.w - iw, lx = c.x + 1.5 * fs;
+    const ticks = []; for (let k = -3; k <= 3; k++) ticks.push(k * TAU);
+    slider(lx, y, ix - 0.9 * fs - lx, rh, -TMAX, TMAX, S.t, C.arc, fs, v => { S.dir = 0; setT(v); }, ticks, 0);
+    placeT({ x: ix, y: y + (rh - 1.3 * fs) / 2, w: iw, h: 1.3 * fs }, fs * 0.85);
+    // enrolar/desenrolar e, à direita, a velocidade
+    y = rowY(c, 1, fs);
+    const g = 0.2 * fs, ww = (c.w * 0.56 - g) / 2, by = y + (rh - bh) / 2;
+    const PAR = "\\text{❚❚ Parar}";
+    group();
+    button(c.x, by, ww, bh, S.dir === -1 ? PAR : "\\blacktriangleleft\\ \\text{Desenrolar}", S.dir === -1, "wind", { v: -1 }, C.arc, px, true);
+    button(c.x + ww + g, by, ww, bh, S.dir === 1 ? PAR : "\\text{Enrolar}\\ \\blacktriangleright", S.dir === 1, "wind", { v: 1 }, C.arc, px, true);
+    const sx0 = c.x + 2 * ww + g + 0.5 * fs;
+    seg(sx0, y, c.x + c.w - sx0, rh, fs, [[0.25, "\\text{lenta}"], [0.6, "\\text{média}"], [1.5, "\\text{rápida}"]], S.speed, "speed", C.muted, px);
+    endGroup();
+    y = rowY(c, 2, fs);
+    const p = `\\pi/${S.m}`;
+    const items = S.hidePi ? [[-1, "-1"], ["zero", "t = 0"], [1, "+1"]]
+      : [["-pi", "-" + p], [-1, "-1"], ["zero", "t = 0"], [1, "+1"], ["+pi", "+" + p]];
+    seg(c.x, y, c.w, rh, fs, items, null, "step", C.muted, px);
+  }
+  function cardVer(b, fs) {
+    const c = card(b, C.ink, fs), rh = ROW * fs, bs = 0.8 * fs, px = fs * 0.9, half = c.w * 0.5, third = c.w / 3;
+    let y = rowY(c, 0, fs);
+    cbox(c.x, y, rh, bs, px, S.graph, "Gráficos", { kind: "tog", key: "graph" }, C.muted);
+    cbox(c.x + half, y, rh, bs, px, S.line, "Reta a enrolar", { kind: "tog", key: "line" }, C.arc);
+    y = rowY(c, 1, fs);
+    cbox(c.x, y, rh, bs, px, S.cos, "\\cos t", { kind: "tog", key: "cos" }, C.cos, { tex: "cb-cos" });
+    cbox(c.x + third, y, rh, bs, px, S.sin, "\\sin t", { kind: "tog", key: "sin" }, C.sin, { tex: "cb-sin" });
+    cbox(c.x + 2 * third, y, rh, bs, px, S.tan, "\\tan t", { kind: "tog", key: "tan" }, C.tan, { tex: "cb-tan" });
+    y = rowY(c, 2, fs);
+    cbox(c.x, y, rh, bs, px, S.full, "Curvas completas", { kind: "tog", key: "full" }, C.muted, { dis: !S.graph });
+    const linkOk = L.side && S.sin && S.graph;
+    cbox(c.x + half, y, rh, bs, px, S.link, "\\text{Ligação } P \\to \\sin", { kind: "tog", key: "link" }, C.sin, { tex: "cb-link", dis: !linkOk });
+  }
+  function cardMarcas(b, fs) {
+    const c = card(b, C.pi, fs), rh = ROW * fs, px = fs * 0.95;
+    let y = rowY(c, 0, fs);
+    const lx = c.x + text("Marcas de π", c.x, y + rh / 2 + 1, fs * 0.9, C.muted) + 0.7 * fs;
+    seg(lx, y, c.x + c.w - lx, rh, fs, [[2, "\\pi/2"], [4, "\\pi/4"], [6, "\\pi/6"], [0, "\\text{nenhuma}"]], S.hidePi ? 0 : S.m, "marks", C.pi, px);
+    y = rowY(c, 1, fs);
+    cbox(c.x, y, rh, 0.8 * fs, fs * 0.9, S.magnet, "Íman nas marcas de π", { kind: "tog", key: "magnet" }, C.pi, { dis: S.hidePi });
+  }
+
+  // moldura de um quadro, com o título em cima à esquerda
+  function frame_(b, title, fs, short) {
+    rrect(b.x, b.y, b.w, b.h, 9, null, C.line, 1.2);
+    if (short && tw(title, fs * 0.8, FONT, 700) > b.w - 1.2 * fs) title = short;
+    text(title, b.x + 0.6 * fs, b.y + 0.75 * fs, fs * 0.8, C.muted, "left", FONT, 700);
+  }
+  function clipTo(b) { ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip(); }
+
+  // ---------- circunferência ----------
   const sx = x => L.cx + L.R * x;
   const sy = y => L.cy - L.R * y;
-  // gráfico
-  const gx = t => { const { a, b } = S.view; return L.g.x0 + (t - a) / (b - a) * (L.g.x1 - L.g.x0); };
-  const gtx = X => { const { a, b } = S.view; return a + (X - L.g.x0) / (L.g.x1 - L.g.x0) * (b - a); };
-  const gcy = () => L.g.cy + S.view.dy;
-  const gy = y => gcy() - L.g.k * y;
-
   // posição (coordenadas matemáticas) do número s da reta, quando o troço [0, t] já está enrolado.
   // Voltas além da primeira ficam numa espiral ligeiramente exterior, para se verem as camadas.
-  const GAP = 0.07;
-  const rad = u => 1 + GAP * Math.max(0, Math.abs(u) - TAU) / TAU;
+  const GAPR = 0.07;
+  const rad = u => 1 + GAPR * Math.max(0, Math.abs(u) - TAU) / TAU;
   function pos(s, t) {
     const u = Math.max(Math.min(0, t), Math.min(Math.max(0, t), s));
     const r = rad(u);
     return [r * Math.cos(u) - (s - u) * Math.sin(u), r * Math.sin(u) + (s - u) * Math.cos(u), u];
   }
 
-  function clip(x, y, w, h) {
-    const ctx = drawingContext;
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-  }
-  const unclip = () => drawingContext.restore();
-
-  function dashed(on) { drawingContext.setLineDash(on ? [5, 5] : []); }
-
-  // ---------- p5 ----------
-  let cnv;
-  window.setup = function () {
-    layout();
-    cnv = createCanvas(L.W, L.H);
-    // no modo projeção, tamanhos de letra, espessuras e pontos pequenos (d < 24) multiplicados por K
-    const ts = window.textSize, sw = window.strokeWeight, ci = window.circle;
-    window.textSize = s => s === undefined ? ts() : ts(s * K);
-    window.strokeWeight = w => sw(w * K);
-    window.circle = (x, y, d) => ci(x, y, d < 24 ? d * K : d);
-    cnv.parent(holder);
-    // só o nome da primeira família: com a lista inteira ("Atkinson Hyperlegible", "Segoe UI", …)
-    // o canvas rejeitava o tipo de letra e ficava sempre em 12px sans-serif, ignorando o textSize
-    textFont((C.font || "sans-serif").split(",")[0].replace(/["']/g, "").trim());
-    setMarks(0);   // arranca sem marcas de π
-    // valor inicial opcional no endereço, p. ex. funcao_enrolamento.html#t=3π/4
-    const h = decodeURIComponent(location.hash).match(/t=([^&]+)/);
-    const h0 = h ? parseT(h[1]) : null;
-    if (h0 !== null) S.t = h0;
-    setT(S.t, { snap: false });
-    bindPointer(cnv.elt);
-    linkUI();
-  };
-  // o desenho acompanha a largura do seu contentor (janela redimensionada, rodar o tablet, etc.)
-  function refit() {
-    if (!cnv || !holder.clientWidth) return;
-    const { W, H } = L;
-    layout();
-    if (Math.abs(W - L.W) < 1 && Math.abs(H - L.H) < 1) return;
-    resizeCanvas(L.W, L.H); linkUI();
-  }
-  new ResizeObserver(() => requestAnimationFrame(refit)).observe(holder);
-  window.windowResized = refit;
-  // a ligação só existe com o gráfico ao lado da circunferência e com sin t visível
-  function linkUI() {
-    const ok = L.side && S.show.sin && S.show.graph;
-    $("sh-link").disabled = !ok;
-    $("lbl-link").style.opacity = ok ? 1 : 0.45;
-    $("lbl-link").title = ok ? "" : (!S.show.graph ? "Liga o referencial dos gráficos." : L.side ? "Liga sin t para ver a ligação." : "Só disponível com o gráfico ao lado (janela mais larga).");
-    // os controlos da janela do gráfico ficam esbatidos sem referencial
-    $("win").closest(".row").style.opacity = S.show.graph ? 1 : 0.45;
-    document.querySelectorAll("#win button").forEach(b => b.disabled = !S.show.graph);
-  }
-  $("sh-sin").addEventListener("change", linkUI);
-  $("sh-graph").addEventListener("change", e => {
-    S.show.graph = e.target.checked;
-    layout(); resizeCanvas(L.W, L.H); linkUI();
-  });
-
-  window.draw = function () {
-    if (S.dir !== 0) {
-      let v = S.t + S.dir * S.speed * Math.min(deltaTime, 100) / 1000;
-      if (v >= TMAX || v <= -TMAX) { v = Math.max(-TMAX, Math.min(TMAX, v)); setDir(0); }
-      setT(v, { snap: false });
-    }
-    if (K > 1) syncOverlay();
-    background(C.panel);
-    drawCircle();
-    if (!L.g) return;
-    drawGraph();
-    if (L.side && S.show.link && S.show.sin) {
-      // ligação horizontal: P → (t, sin t), a mesma altura nos dois painéis
-      const s = Math.sin(S.t), x0 = sx(Math.cos(S.t)), x1 = gx(S.t), y1 = gy(s);
-      const cc = color(C.sin); cc.setAlpha(150);
-      stroke(cc); strokeWeight(2); drawingContext.setLineDash([2, 6]);
-      line(x0 + 8, sy(s), Math.max(x0 + 8, Math.min(x1 - 8, L.g.x1)), y1);
-      dashed(false);
-    }
-  };
-
-  function label(str, x, y, col, size = 13, ax = CENTER, ay = CENTER, bold = false) {
-    noStroke(); fill(col); textSize(size); textAlign(ax, ay);
-    textStyle(bold ? BOLD : NORMAL);
-    text(str, x, y);
-  }
-
-  // rótulo com fundo, mantido dentro da zona [X, Y, W, H]
-  function tag(str, x, y, col, ax, zone, size = 13) {
-    textSize(size); textStyle(BOLD);
-    const w = textWidth(str) + 10, h = size * K + 7;
-    let x0 = ax === LEFT ? x : ax === RIGHT ? x - w : x - w / 2;
-    const [ZX, ZY, ZW, ZH] = zone;
-    x0 = Math.max(ZX + 2, Math.min(ZX + ZW - w - 2, x0));
-    const y0 = Math.max(ZY + 2, Math.min(ZY + ZH - h - 2, y - h / 2));
-    const bg = color(C.panel); bg.setAlpha(230);
-    noStroke(); fill(bg); rect(x0, y0, w, h, 4);
-    label(str, x0 + w / 2, y0 + h / 2, col, size, CENTER, CENTER, true);
-  }
-
-  function drawCircle() {
-    const [X, Y, W, H] = L.circ;
-    const t = S.t, R = L.R;
-    clip(X, Y, W, H);
-
+  function drawCircle(fs) {
+    const b = L.circ, t = S.t, R = L.R, px = fs * 0.7;
+    frame_(b, "Circunferência trigonométrica", fs, "Circunferência");
+    clipTo(b);
     // eixos
-    stroke(C.line); strokeWeight(1);
-    line(X + 8, sy(0), X + W - 8, sy(0));
-    line(sx(0), Y + 8, sx(0), Y + H - 8);
+    line(b.x + 0.5 * fs, sy(0), b.x + b.w - 0.5 * fs, sy(0), C.grid2, 1);
+    line(sx(0), b.y + 1.5 * fs, sx(0), b.y + b.h - 0.5 * fs, C.grid2, 1);
     for (const v of [-1, 1]) {
-      stroke(C.axis); line(sx(v), sy(0) - 4, sx(v), sy(0) + 4); line(sx(0) - 4, sy(v), sx(0) + 4, sy(v));
-      label(v === 1 ? "1" : "−1", sx(v) + (v === 1 ? -8 : 8), sy(0) + 12, C.muted, 11);
-      label(v === 1 ? "1" : "−1", sx(0) - 10, sy(v) + (v === 1 ? 8 : -8), C.muted, 11);
+      line(sx(v), sy(0) - 4, sx(v), sy(0) + 4, C.axis, 1);
+      line(sx(0) - 4, sy(v), sx(0) + 4, sy(v), C.axis, 1);
     }
-    label("O", sx(0) - 9, sy(0) + 11, C.muted, 11);
+    texIn(b, "c1x", "1", sx(1) - 0.45 * fs, sy(0) + 0.3 * fs, px, C.muted, 0.5, 0);
+    texIn(b, "cm1x", "-1", sx(-1) + 0.5 * fs, sy(0) + 0.3 * fs, px, C.muted, 0.5, 0);
+    texIn(b, "c1y", "1", sx(0) - 0.35 * fs, sy(1) + 0.45 * fs, px, C.muted, 1, 0.5);
+    texIn(b, "cm1y", "-1", sx(0) - 0.35 * fs, sy(-1) - 0.45 * fs, px, C.muted, 1, 0.5);
+    texIn(b, "cO", "O", sx(0) - 0.3 * fs, sy(0) + 0.3 * fs, px, C.muted, 1, 0);
 
-    // circunferência unitária
-    noFill(); stroke(C.axis); strokeWeight(1.5);
-    circle(sx(0), sy(0), 2 * R);
+    // circunferência unitária e lado origem dos ângulos [OA], com A(1, 0)
+    ctx.beginPath(); ctx.arc(sx(0), sy(0), R, 0, TAU); ctx.strokeStyle = C.axis; ctx.lineWidth = 1.5; ctx.stroke();
+    line(sx(0), sy(0), sx(1), sy(0), C.axis, 2.5);
 
-    // lado origem dos ângulos: [OA], com A(1, 0)
-    stroke(C.axis); strokeWeight(2.5);
-    line(sx(0), sy(0), sx(1), sy(0));
-
-    const c = Math.cos(t), s = Math.sin(t);
-
+    const c = Math.cos(t), s = Math.sin(t), thick = Math.max(3, 0.2 * fs);
     // tangente: reta OP prolongada até x = 1
-    if (S.show.tan && Math.abs(c) > 1e-6) {
+    let tanTag = null;
+    if (S.tan && Math.abs(c) > 1e-6) {
       const tg = s / c;
-      stroke(C.tan); strokeWeight(1); dashed(true);
-      line(sx(0), sy(0), sx(1), sy(tg));
-      dashed(false);
-      stroke(C.tan); strokeWeight(1);
-      line(sx(1), sy(-3), sx(1), sy(3));
-      strokeWeight(4); strokeCap(SQUARE);
-      line(sx(1), sy(0), sx(1), sy(tg));
-      strokeCap(ROUND);
-      noStroke(); fill(C.tan); circle(sx(1), sy(tg), 7);
-      tag(`tan t = ${VAL.tan}`, sx(1) + 8, sy(tg / 2), C.tan, LEFT, L.circ);
+      dashed(sx(0), sy(0), sx(1), sy(tg), C.tan, 1);
+      line(sx(1), b.y, sx(1), b.y + b.h, C.tan, 1);
+      ctx.lineCap = "butt";
+      line(sx(1), sy(0), sx(1), sy(tg), C.tan, thick);
+      dot(sx(1), sy(tg), 0.22 * fs, C.tan);
+      tanTag = tg;
     }
-
-    // reta a enrolar
-    if (S.show.line) drawWrappedLine(t);
-
+    if (S.line) drawWrappedLine(t, fs);
     // raio OP
-    stroke(C.axis); strokeWeight(1.2);
-    line(sx(0), sy(0), sx(c), sy(s));
-
-    // projeções de P nos eixos (tracejado), só para as funções selecionadas
-    stroke(C.muted); strokeWeight(1); dashed(true);
-    if (S.show.cos) line(sx(c), sy(s), sx(c), sy(0));
-    if (S.show.sin) line(sx(c), sy(s), sx(0), sy(s));
-    dashed(false);
-    noStroke();
-    if (S.show.cos) { fill(C.cos); circle(sx(c), sy(0), 7); }
-    if (S.show.sin) { fill(C.sin); circle(sx(0), sy(s), 7); }
-
-    // cos e sin
-    strokeCap(SQUARE);
-    if (S.show.cos) {
-      stroke(C.cos); strokeWeight(4);
-      line(sx(0), sy(0), sx(c), sy(0));
-      if (Math.abs(c) > 0.08) label("cos t", sx(c / 2), sy(0) + (s >= 0 ? 16 : -16), C.cos, 13, CENTER, CENTER, true);
+    line(sx(0), sy(0), sx(c), sy(s), C.axis, 1.2);
+    // projeções de P nos eixos (tracejado), só para as funções escolhidas
+    if (S.cos) dashed(sx(c), sy(s), sx(c), sy(0), C.faint, 1);
+    if (S.sin) dashed(sx(c), sy(s), sx(0), sy(s), C.faint, 1);
+    if (S.cos) dot(sx(c), sy(0), 0.22 * fs, C.cos);
+    if (S.sin) dot(sx(0), sy(s), 0.22 * fs, C.sin);
+    if (S.cos) {
+      line(sx(0), sy(0), sx(c), sy(0), C.cos, thick);
+      if (Math.abs(c) > 0.12) texIn(b, "ccos", "\\cos t", sx(c / 2), sy(0) + (s >= 0 ? 0.25 : -0.25) * fs, fs * 0.8, C.cos, 0.5, s >= 0 ? 0 : 1);
     }
-    if (S.show.sin) {
-      stroke(C.sin); strokeWeight(4);
-      line(sx(c), sy(0), sx(c), sy(s));
-      if (Math.abs(s) > 0.08) label("sin t", sx(c) + (c >= 0 ? 8 : -8), sy(s / 2), C.sin, 13, c >= 0 ? LEFT : RIGHT, CENTER, true);
+    if (S.sin) {
+      line(sx(c), sy(0), sx(c), sy(s), C.sin, thick);
+      if (Math.abs(s) > 0.12) texIn(b, "csin", "\\sin t", sx(c) + (c >= 0 ? 0.3 : -0.3) * fs, sy(s / 2), fs * 0.8, C.sin, c >= 0 ? 0 : 1, 0.5);
     }
-    strokeCap(ROUND);
-
     // ponto P = E(t)
-    stroke(C.panel); strokeWeight(2); fill(C.ink);
-    circle(sx(c), sy(s), 12);
-    // nome do ponto, afastado na direção radial
-    label("P", sx(c * 1.15), sy(s * 1.15), C.ink, 15, CENTER, CENTER, true);
-
-    unclip();
-    // separador entre painéis
-    stroke(C.line); strokeWeight(1);
-    if (!L.g) return;
-    if (L.side) line(L.circ[2], 10, L.circ[2], L.H - 10);
-    else line(10, L.circ[3], L.W - 10, L.circ[3]);
+    dot(sx(c), sy(s), 0.36 * fs, C.ink, C.bg);
+    ctx.restore();
+    texIn(b, "cP", "P", sx(c * 1.16), sy(s * 1.16), fs * 1.05, C.ink, 0.5, 0.5);
+    if (tanTag !== null) tag("ctan", `\\tan t = ${VAL.tan}`, sx(1) + 0.4 * fs, sy(tanTag / 2), fs * 0.8, C.tan, "left", b);
   }
 
-  function drawWrappedLine(t) {
-    const SM = 60;
-    const a = Math.min(0, t), b = Math.max(0, t);
+  function drawWrappedLine(t, fs) {
+    const b = L.circ, SM = 60;
+    const a = Math.min(0, t), e = Math.max(0, t);
     // troços que ainda estão direitos (tangentes)
-    stroke(C.muted); strokeWeight(1.5);
     let p = pos(-SM, t), q = pos(a, t);
-    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]));
-    p = pos(b, t); q = pos(SM, t);
-    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]));
+    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]), C.faint, 1.5);
+    p = pos(e, t); q = pos(SM, t);
+    line(sx(p[0]), sy(p[1]), sx(q[0]), sy(q[1]), C.faint, 1.5);
     // troço enrolado [0, t]
-    if (b - a > 1e-6) {
-      noFill(); stroke(C.arc); strokeWeight(3.5); strokeCap(ROUND);
-      beginShape();
-      const n = Math.max(2, Math.ceil((b - a) / 0.02));
+    if (e - a > 1e-6) {
+      ctx.strokeStyle = C.arc; ctx.lineWidth = Math.max(3, 0.2 * fs); ctx.lineCap = ctx.lineJoin = "round";
+      ctx.beginPath();
+      const n = Math.max(2, Math.ceil((e - a) / 0.02));
       for (let i = 0; i <= n; i++) {
-        const [x, y] = pos(a + (b - a) * i / n, t);
-        vertex(sx(x), sy(y));
+        const [x, y] = pos(a + (e - a) * i / n, t);
+        i ? ctx.lineTo(sx(x), sy(y)) : ctx.moveTo(sx(x), sy(y));
       }
-      endShape();
+      ctx.stroke(); ctx.lineCap = "butt"; ctx.lineJoin = "miter";
     }
     // marcas: inteiros (lado interior) e múltiplos de π/m (lado exterior)
-    const inView = (x, y) => x > -20 && x < L.circ[2] + 20 && y > -20 && y < L.circ[3] + 20;
+    // (sem rótulos em cima do nome do ponto P)
+    const Pl = [sx(Math.cos(t) * 1.16), sy(Math.sin(t) * 1.16)];
+    const free = (x, y) => Math.hypot(x - Pl[0], y - Pl[1]) > 1.1 * fs;
     const tick = (s, len, col, w) => {
       const [x, y, u] = pos(s, t);
       const nx = Math.cos(u), ny = Math.sin(u);   // normal exterior
       const X = sx(x), Y = sy(y);
-      if (!inView(X, Y)) return null;
-      stroke(col); strokeWeight(w);
-      line(X - nx * len, Y + ny * len, X + nx * len, Y - ny * len);
-      return { X, Y, nx, ny, wrapped: s >= a && s <= b };
+      if (!inBox(b, X, Y, fs)) return null;
+      line(X - nx * len, Y + ny * len, X + nx * len, Y - ny * len, col, w);
+      return { X, Y, nx, ny, wrapped: s >= a && s <= e };
     };
     for (let k = -SM; k <= SM; k++) {
-      const r = tick(k, 5, C.ink, 1.3);
+      const r = tick(k, 0.3 * fs, C.ink, 1.3);
       if (!r) continue;
       if (r.wrapped && Math.abs(k) > TAU + 1e-9) continue;       // camadas exteriores: sem rótulo
-      const off = r.wrapped ? 14 : 13;
-      label(String(k).replace("-", "−"), r.X - r.nx * off, r.Y + r.ny * off, C.ink, 11);
+      const off = 0.8 * fs;
+      if (free(r.X - r.nx * off, r.Y + r.ny * off)) texIn(b, "wi" + k, String(k), r.X - r.nx * off, r.Y + r.ny * off, fs * 0.65, C.ink, 0.5, 0.5);
     }
     const km = S.hidePi ? 0 : Math.floor(SM / (PI / S.m));
     for (let k = -km; k <= km; k++) {
       if (k === 0) continue;
       const s = k * PI / S.m;
-      const r = tick(s, 7, C.pi, 2);
+      const r = tick(s, 0.42 * fs, C.pi, 2);
       if (!r) continue;
-      if (r.wrapped && Math.abs(s) > TAU + 1e-9) continue;
-      const off = 22;
-      label(fracPi(k, S.m), r.X + r.nx * off, r.Y - r.ny * off, C.pi, 12, CENTER, CENTER, true);
+      // marcas de π já enroladas: em cada posição só fica o rótulo da última volta
+      // (ao passar por uma marca, o rótulo da volta anterior sai e fica o novo, p. ex. π/2 → 5π/2)
+      if (r.wrapped && (t > 0 ? s + TAU <= t + 1e-9 : s - TAU >= t - 1e-9)) continue;
+      const off = 1.35 * fs;
+      if (free(r.X + r.nx * off, r.Y - r.ny * off)) texIn(b, "wp" + k, fracPiTex(k, S.m), r.X + r.nx * off, r.Y - r.ny * off, fs * 0.75, C.pi, 0.5, 0.5);
     }
     // o zero da reta fica sempre em (1, 0)
-    noStroke(); fill(C.arc); circle(sx(1), sy(0), 7);
+    dot(sx(1), sy(0), 0.22 * fs, C.arc);
   }
 
-  function drawGraph() {
-    const g = L.g, { a, b } = S.view, t = S.t, cy = gcy();
-    const gl = L.side ? g.x0 - 40 : 0;
-    clip(gl, g.top, L.W - gl, g.bot - g.top);
+  // ---------- gráficos ----------
+  const gx = t => { const { a, b } = S.view; return L.g.x0 + (t - a) / (b - a) * (L.g.x1 - L.g.x0); };
+  const gtx = X => { const { a, b } = S.view; return a + (X - L.g.x0) / (L.g.x1 - L.g.x0) * (b - a); };
+  const gy = y => L.g.cy - L.g.k * y;
 
+  function drawGraph(fs) {
+    const f = L.gf, g = L.g, { a, b } = S.view, t = S.t, cy = g.cy;
+    frame_(f, "Gráficos", fs);
+    // como mexer na vista (só se couber ao lado do título)
+    const hint = "arrastar: deslocar · Shift + arrastar: escala · duplo clique: repor";
+    const hw = tw(hint, fs * 0.65, FONT, 400, "italic");
+    if (hw < f.w - tw("Gráficos", fs * 0.8, FONT, 700) - 2.5 * fs) text(hint, f.x + f.w - 0.6 * fs, f.y + 0.75 * fs, fs * 0.65, C.faint, "right", FONT, 400, "italic");
+    clipTo(f);
+    const top = f.y + 1.6 * fs, bot = f.y + f.h - 0.5 * fs;
     // marcas do eixo dos t coordenadas com as da reta a enrolar:
-    // múltiplos de π/m (roxo, rótulos por baixo) e inteiros (preto, rótulos por cima).
+    // múltiplos de π/m (roxo, rótulos por baixo) e inteiros (rótulos por cima).
     // Com pouco zoom, rotula-se só 1 em cada `skip` marcas para não se sobreporem.
-    const ppu = (g.x1 - g.x0) / (b - a);
-    const st = PI / S.m;
-    const skipPi = [1, 2, 3, 4, 6, 12, 24, 48].find(q => q * st * ppu >= 48 * K) || 96;
+    const ppu = (g.x1 - g.x0) / (b - a), st = PI / S.m;
+    const skipPi = [1, 2, 3, 4, 6, 12, 24, 48].find(q => q * st * ppu >= 2.6 * fs) || 96;
+    const piLab = [];
     if (!S.hidePi) for (let k = Math.ceil(a / st); k <= Math.floor(b / st); k++) {
-      const X = gx(k * st), mult = k % S.m === 0;   // mult: múltiplo de π
-      if (st * ppu >= 8 || k % skipPi === 0) {
-        stroke(mult ? C["grid-strong"] : C.grid); strokeWeight(1); dashed(true);
-        line(X, g.top + 10, X, g.bot - 10);
-        dashed(false);
-      }
-      stroke(C.pi); strokeWeight(k % skipPi === 0 ? 2 : 1.2);
-      if (st * ppu >= 4 || k % skipPi === 0) line(X, cy - 5, X, cy + 5);
-      if (k !== 0 && k % skipPi === 0) label(fracPi(k, S.m), X, cy + 15, C.pi, 11, CENTER, CENTER, true);
+      const X = gx(k * st);
+      if (st * ppu >= 8 || k % skipPi === 0) dashed(X, top, X, bot, k % S.m === 0 ? C.grid2 : C.grid, 1);
+      if (st * ppu >= 4 || k % skipPi === 0) line(X, cy - 5, X, cy + 5, C.pi, k % skipPi === 0 ? 2 : 1.2);
+      if (k !== 0 && k % skipPi === 0) piLab.push([k, X]);
     }
-    const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 26 * K) || 50;
+    const skipInt = [1, 2, 5, 10, 20].find(q => q * ppu >= 1.4 * fs) || 50;
+    const intLab = [];
     for (let k = Math.ceil(a); k <= Math.floor(b); k++) {
       if (k === 0 || k % skipInt !== 0) continue;
       // sem marcas de π, a grelha vertical fica nos inteiros rotulados
-      if (S.hidePi) { stroke(C.grid); strokeWeight(1); dashed(true); line(gx(k), g.top + 10, gx(k), g.bot - 10); dashed(false); }
-      stroke(C.ink); strokeWeight(1.2);
-      line(gx(k), cy - 4, gx(k), cy);
-      label(String(k).replace("-", "−"), gx(k), cy - 12, C.ink, 11);
+      if (S.hidePi) dashed(gx(k), top, gx(k), bot, C.grid, 1);
+      line(gx(k), cy - 4, gx(k), cy, C.ink, 1.2);
+      intLab.push(k);
     }
-    for (const v of [-1, 1]) {
-      stroke(C.grid); strokeWeight(1); dashed(true);
-      line(g.x0, gy(v), g.x1, gy(v));
-      dashed(false);
-      if (gy(v) > g.top + 6 && gy(v) < g.bot - 6)
-        label(v === 1 ? "1" : "−1", g.x0 - 8, gy(v), C.muted, 11, RIGHT, CENTER);
-    }
+    for (const v of [-1, 1]) dashed(g.x0, gy(v), g.x1, gy(v), C.grid2, 1);
     // eixos
-    stroke(C.axis); strokeWeight(1.2);
-    line(g.x0 - 4, cy, g.x1 + 6, cy);
-    if (a <= 0 && b >= 0) line(gx(0), g.top + 8, gx(0), g.bot - 8);
-    label("t", g.x1 + 4, cy - 12, C.muted, 13, CENTER, CENTER, true);
-    label("0", gx(0) - 7, cy + 12, C.muted, 11);
-
-    // troço [0, t] desenrolado no eixo (só com "reta a enrolar")
-    if (S.show.line) {
-      stroke(C.arc); strokeWeight(3.5); strokeCap(ROUND);
-      line(gx(0), cy, gx(t), cy);
-      noStroke(); fill(C.arc); circle(gx(0), cy, 7);
+    line(g.x0 - 0.3 * fs, cy, g.x1 + 0.3 * fs, cy, C.axis, 1.5);
+    if (a <= 0 && b >= 0) line(gx(0), top, gx(0), bot, C.axis, 1.5);
+    // troço [0, t] desenrolado no eixo (com «Reta a enrolar»)
+    if (S.line) {
+      ctx.lineCap = "round";
+      line(gx(0), cy, gx(t), cy, C.arc, Math.max(3, 0.2 * fs));
+      ctx.lineCap = "butt";
+      dot(gx(0), cy, 0.22 * fs, C.arc);
     }
-
     const curves = [];
-    if (S.show.cos) curves.push([Math.cos, C.cos, "y = cos t"]);
-    if (S.show.sin) curves.push([Math.sin, C.sin, "y = sin t"]);
-    if (S.show.tan) curves.push([Math.tan, C.tan, "y = tan t"]);
-
-    const plot = (f, from, to, isTan) => {
+    if (S.cos) curves.push([Math.cos, C.cos, "cos", "y = \\cos t"]);
+    if (S.sin) curves.push([Math.sin, C.sin, "sin", "y = \\sin t"]);
+    if (S.tan) curves.push([Math.tan, C.tan, "tan", "y = \\tan t"]);
+    const plot = (fn, from, to, isTan) => {
       if (to - from < 1e-6) return;
       const n = Math.ceil((to - from) / (b - a) * (g.x1 - g.x0) / 1.5) + 1;
       let open = false, prev = null;
-      noFill();
+      ctx.beginPath();
       for (let i = 0; i <= n; i++) {
-        const x = from + (to - from) * i / n;
-        const y = f(x);
+        const x = from + (to - from) * i / n, y = fn(x);
         const bad = isTan && (Math.abs(y) > 8 || (prev !== null && Math.sign(Math.cos(x)) !== Math.sign(Math.cos(prev))));
-        if (bad) { if (open) { endShape(); open = false; } prev = x; continue; }
-        if (!open) { beginShape(); open = true; }
-        vertex(gx(x), gy(y));
         prev = x;
+        if (bad) { open = false; continue; }
+        open ? ctx.lineTo(gx(x), gy(y)) : ctx.moveTo(gx(x), gy(y));
+        open = true;
       }
-      if (open) endShape();
+      ctx.stroke();
     };
-
-    for (const [f, col, , ] of curves) {
-      const isTan = f === Math.tan;
-      if (S.show.full) {
-        const cc = color(col); cc.setAlpha(K > 1 ? 130 : 70);
-        stroke(cc); strokeWeight(1.5);
-        plot(f, a, b, isTan);
-      }
-      stroke(col); strokeWeight(3);
-      plot(f, Math.min(0, t), Math.max(0, t), isTan);
+    ctx.lineJoin = "round";
+    for (const [fn, col] of curves) {
+      const isTan = fn === Math.tan;
+      ctx.strokeStyle = col;
+      if (S.full) { ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5; plot(fn, a, b, isTan); ctx.globalAlpha = 1; }
+      ctx.lineWidth = Math.max(2.4, 0.16 * fs);
+      plot(fn, Math.min(0, t), Math.max(0, t), isTan);
     }
-
     // ponto que vai à frente em cada curva, com projeção tracejada no eixo dos t
-    for (const [f, col] of curves) {
-      if (f === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
-      stroke(col); strokeWeight(1.5); dashed(true);
-      line(gx(t), cy, gx(t), gy(f(t)));
-      dashed(false);
-    }
     const pts = [];
-    for (const [f, col] of curves) {
-      const y = f(t);
-      if (f === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
-      stroke(C.panel); strokeWeight(2); fill(col);
-      circle(gx(t), gy(y), 10);
-      pts.push({ f, col, y });
+    for (const [fn, col, key] of curves) {
+      if (fn === Math.tan && Math.abs(Math.cos(t)) < 1e-6) continue;
+      const y = fn(t);
+      dashed(gx(t), cy, gx(t), gy(y), col, 1.5);
+      pts.push({ key, col, y });
     }
-    unclip();
+    for (const P of pts) dot(gx(t), gy(P.y), 0.3 * fs, P.col, C.bg);
+    ctx.restore();
+
+    // rótulos dos eixos
+    const zone = { x: f.x, y: f.y + 1.4 * fs, w: f.w, h: f.h - 1.4 * fs };
+    const px = fs * 0.68;
+    piLab.forEach(([k, X]) => texIn(zone, "gp" + k, fracPiTex(k, S.m), X, cy + 0.35 * fs, fs * 0.72, C.pi, 0.5, 0));
+    intLab.forEach(k => texIn(zone, "gi" + k, String(k), gx(k), cy - 0.3 * fs, px, C.ink, 0.5, 1));
+    texIn(zone, "g1", "1", g.x0 - 0.4 * fs, gy(1), px, C.muted, 1, 0.5);
+    texIn(zone, "gm1", "-1", g.x0 - 0.4 * fs, gy(-1), px, C.muted, 1, 0.5);
+    texIn(zone, "gt", "t", g.x1 + 0.3 * fs, cy - 0.3 * fs, fs * 0.9, C.muted, 0.5, 1);
+    if (a <= 0 && b >= 0) texIn(zone, "g0", "0", gx(0) - 0.25 * fs, cy + 0.3 * fs, px, C.muted, 1, 0);
 
     // coordenadas de cada ponto: (t; f(t)), ao lado do ponto; o de cima sobe e o de baixo desce
-    // para não se sobreporem quando os pontos estão perto
-    const zone = [g.x0, g.top, g.x1 - g.x0, g.bot - g.top];
     const right = gx(t) < (g.x0 + g.x1) / 2;
     const sorted = [...pts].sort((p, q) => q.y - p.y);
     sorted.forEach((P, i) => {
-      const v = P.f === Math.cos ? VAL.cos : P.f === Math.sin ? VAL.sin : VAL.tan;
       const Y = gy(P.y);
-      if (Y < g.top || Y > g.bot) return;
-      const dy = sorted.length > 1 ? (i === 0 ? -11 : i === sorted.length - 1 ? 11 : 0) : 0;
-      tag(`(${VAL.t}; ${v})`, gx(t) + (right ? 10 : -10), Y + dy, P.col, right ? LEFT : RIGHT, zone);
+      if (Y < zone.y || Y > zone.y + zone.h) return;
+      const dy = sorted.length > 1 ? (i === 0 ? -0.6 : i === sorted.length - 1 ? 0.6 : 0) * fs : 0;
+      tag("gv-" + P.key, `\\left(${VAL.t};\\ ${VAL[P.key]}\\right)`, gx(t) + (right ? 0.6 : -0.6) * fs, Y + dy, fs * 0.78, P.col, right ? "left" : "right", zone);
     });
 
-    // legenda (com fundo)
-    let ly = g.top + 16;
-    const lx = g.x0 + 8;
-    const nl = curves.length + (S.show.line ? 1 : 0);
-    if (nl) {
-      const bg = color(C.panel); bg.setAlpha(225);
-      noStroke(); fill(bg); rect(lx - 6, ly - 10, 200, nl * 18 + 2, 4);
-    }
-    for (const [, col, name] of curves) {
-      stroke(col); strokeWeight(3); line(lx, ly, lx + 18, ly);
-      label(name, lx + 24, ly, col, 13, LEFT, CENTER, true);
-      ly += 18;
-    }
-    if (S.show.line) {
-      stroke(C.arc); strokeWeight(3.5); line(lx, ly, lx + 18, ly);
-      label("troço [0, t] desenrolado", lx + 24, ly, C.arc, 13, LEFT, CENTER, true);
+    // legenda (com fundo), por baixo do título
+    const items = curves.map(([, col, key, tx]) => [col, tx, "lg-" + key]);
+    if (S.line) items.push([C.arc, "\\text{troço } [0, t] \\text{ desenrolado}", "lg-line"]);
+    if (items.length) {
+      const lx = f.x + 0.6 * fs, lh = 1.2 * fs;
+      let ly = f.y + 2.2 * fs, wmax = 0;
+      const els = items.map(([col, tx, id], i) => texAt(id, tx, lx + 1.6 * fs, ly + i * lh, fs * 0.75, col, 0, 0.5));
+      els.forEach(el => wmax = Math.max(wmax, el.offsetWidth));
+      rrect(lx - 0.3 * fs, ly - 0.6 * fs, wmax + 2.2 * fs, items.length * lh, 5, C.tagbg, null);
+      items.forEach(([col], i) => line(lx, ly + i * lh, lx + 1.2 * fs, ly + i * lh, col, 3));
     }
   }
 
-  // ---------- arrastar ----------
-  // Circunferência: arrastar P.
-  // Gráfico: arrastar a linha vertical de t muda t; arrastar o fundo desloca a vista;
-  // Shift + arrastar estica/encolhe na horizontal; duplo clique repõe a vista.
-  function bindPointer(el) {
-    let mode = null, st0 = null;
-    const local = e => { const r = el.getBoundingClientRect(); return [(e.clientX - r.left) * L.W / r.width, (e.clientY - r.top) * L.H / r.height]; };
-    const inCirc = (x, y) => x >= L.circ[0] && x <= L.circ[0] + L.circ[2] && y >= L.circ[1] && y <= L.circ[1] + L.circ[3];
-    const inGraph = (x, y) => !!L.g && x >= L.g.x0 - 10 && x <= L.g.x1 + 10 && y >= L.g.top && y <= L.g.bot;
-    const nearP = (x, y) => Math.hypot(x - sx(Math.cos(S.t)), y - sy(Math.sin(S.t))) < 24;
-    const nearRing = (x, y) => Math.abs(Math.hypot(x - L.cx, y - L.cy) - L.R) < 18;
-    const nearT = x => Math.abs(x - gx(S.t)) < 12;
-
-    function apply(x, y) {
-      const V = S.view, gw = L.g ? L.g.x1 - L.g.x0 : 1;   // sem referencial, L.g é null
-      if (mode === "circ") {
-        const ang = Math.atan2(-(y - L.cy), x - L.cx);
-        const k = Math.round((S.t - ang) / TAU);
-        setT(ang + k * TAU);
-      } else if (mode === "graph") {
-        setT(gtx(Math.max(L.g.x0, Math.min(L.g.x1, x))), { keepView: true });
-      } else if (mode === "pan") {
-        const dt = (x - st0.x) / gw * (st0.b - st0.a);
-        V.a = st0.a - dt; V.b = st0.b - dt;   // só na horizontal: o eixo dos t não sai do lugar
-      } else if (mode === "stretch") {
-        // para a direita estica, para a esquerda encolhe; o ponto onde se agarrou fica fixo
-        const w = Math.max(0.4, Math.min(24 * PI, (st0.b - st0.a) * Math.exp(-(x - st0.x) / 150)));
-        const fx = (st0.x - L.g.x0) / gw;
-        V.a = st0.tA - fx * w; V.b = V.a + w;
-      }
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  // nos quadros: arrastar P (ou a circunferência) e, no gráfico, a linha de t; arrastar o fundo do gráfico
+  // desloca a vista na horizontal; Shift + arrastar estica (para a direita) ou encolhe; duplo clique repõe
+  function quadroAt(x, y, shift) {
+    const fs = L.fs;
+    if (inRect(L.circ, x, y)) {
+      const dP = Math.hypot(x - sx(Math.cos(S.t)), y - sy(Math.sin(S.t)));
+      if (dP < 1.3 * fs || Math.abs(Math.hypot(x - L.cx, y - L.cy) - L.R) < 0.9 * fs) return "circ";
+      return null;
     }
-    el.addEventListener("pointerdown", e => {
-      const [x, y] = local(e);
-      if (inCirc(x, y) && (nearP(x, y) || nearRing(x, y))) mode = "circ";
-      else if (inGraph(x, y)) {
-        mode = e.shiftKey ? "stretch" : nearT(x) ? "graph" : "pan";
-        st0 = { x, y, a: S.view.a, b: S.view.b, dy: S.view.dy, tA: gtx(x) };
-        if (mode !== "graph") setWin(-1);
-        if (mode === "pan") el.style.cursor = "grabbing";
-      }
-      else return;
-      if (mode === "circ" || mode === "graph") setDir(0);
-      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    if (L.g && inRect(L.gf, x, y)) return shift ? "stretch" : Math.abs(x - gx(S.t)) < 0.7 * fs ? "tline" : "pan";
+    return null;
+  }
+  let drag = null;
+  function dragTo(x, y) {
+    const d = drag, V = S.view;
+    if (d.kind === "slide") { d.set(d.val(x)); return; }
+    if (d.kind === "circ") {
+      const ang = Math.atan2(-(y - L.cy), x - L.cx);
+      setT(ang + Math.round((S.t - ang) / TAU) * TAU);
+    } else if (d.kind === "tline") {
+      setT(gtx(clamp(x, L.g.x0, L.g.x1)), { keepView: true });
+    } else if (d.kind === "pan") {
+      const dt = (x - d.x) / (L.g.x1 - L.g.x0) * (d.b - d.a);
+      V.a = d.a - dt; V.b = d.b - dt; draw();
+    } else if (d.kind === "stretch") {
+      // para a direita estica, para a esquerda encolhe; o ponto onde se agarrou fica fixo
+      const w = clamp((d.b - d.a) * Math.exp(-(x - d.x) / (7 * L.fs)), 0.4, 24 * PI);
+      const fx = (d.x - L.g.x0) / (L.g.x1 - L.g.x0);
+      V.a = d.tA - fx * w; V.b = V.a + w; draw();
+    }
+  }
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement === tin) tin.blur();
+    const x = e.clientX, y = e.clientY;
+    const h = hitAt(x, y);
+    if (h) {
       e.preventDefault();
-      apply(x, y);
-    });
-    el.addEventListener("pointermove", e => {
-      const [x, y] = local(e);
-      if (mode) { apply(x, y); return; }
-      el.style.cursor = inCirc(x, y) && (nearP(x, y) || nearRing(x, y)) ? "grab"
-        : !inGraph(x, y) ? "default"
-        : e.shiftKey ? "col-resize"
-        : nearT(x) ? "ew-resize" : "grab";
-    });
-    const end = e => { mode = null; el.style.cursor = "default"; };
-    el.addEventListener("pointerup", end);
-    el.addEventListener("pointercancel", end);
-    el.addEventListener("dblclick", e => {
-      const [x, y] = local(e);
-      if (inGraph(x, y)) setWin(Math.max(1, WINS.findIndex(([p, q]) => S.t >= p && S.t <= q)));
-    });
+      if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
+      if (h.kind === "wind") { wind(h.v); return; }
+      if (h.kind === "speed") { S.speed = h.v; draw(); return; }
+      if (h.kind === "step") { step(h.v); return; }
+      if (h.kind === "marks") { setMarks(h.v); return; }
+      if (h.kind === "tog") { toggle(h.key); return; }
+      if (h.kind === "slide") {
+        try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+        drag = h; dragTo(x, y); cv.style.cursor = "grabbing";
+      }
+      return;
+    }
+    const q = quadroAt(x, y, e.shiftKey);
+    if (!q) return;
+    e.preventDefault();
+    drag = { kind: q, x, a: S.view.a, b: S.view.b, tA: L.g && q !== "circ" ? gtx(x) : 0 };
+    if (q === "circ" || q === "tline") S.dir = 0;
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    cv.style.cursor = q === "pan" ? "grabbing" : cv.style.cursor;
+    dragTo(x, y);
+  });
+  cv.addEventListener("pointermove", e => {
+    const x = e.clientX, y = e.clientY;
+    if (drag) { dragTo(x, y); return; }
+    const h = hitAt(x, y);
+    if (h) { cv.style.cursor = h.kind === "slide" ? "ew-resize" : "pointer"; return; }
+    const q = quadroAt(x, y, e.shiftKey);
+    cv.style.cursor = !q ? "default" : q === "circ" || q === "pan" ? "grab" : q === "stretch" ? "col-resize" : "ew-resize";
+  });
+  const end = () => { drag = null; cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+  cv.addEventListener("dblclick", e => {
+    if (L.g && inRect(L.gf, e.clientX, e.clientY)) resetView();
+  });
+
+  // teclado (fora da caixa): espaço enrola/para, ←/→ passo π/m (sem marcas: 0,1; Shift: 1), 0 põe t = 0,
+  // c, s, t mostram cos, sin, tan; g gráficos; r reta a enrolar
+  window.addEventListener("keydown", e => {
+    if (document.activeElement === tin) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (k === " ") wind(S.dir === -1 ? -1 : 1);
+    else if (k === "ArrowRight" || k === "ArrowLeft") {
+      const d = k === "ArrowRight" ? 1 : -1;
+      S.dir = 0;
+      if (e.shiftKey) setT(S.t + d, { snap: false });
+      else if (S.hidePi) setT(S.t + 0.1 * d, { snap: false });
+      else stepPi(d);
+    }
+    else if (k === "0") step("zero");
+    else if (k === "c") toggle("cos");
+    else if (k === "s") toggle("sin");
+    else if (k === "t") toggle("tan");
+    else if (k === "g") toggle("graph");
+    else if (k === "r") toggle("line");
+    else return;
+    e.preventDefault();
+  });
+
+  // endereço (tudo opcional): #t=3π/4&marcas=4&graficos&cos&sin&tan
+  const hp = decodeURIComponent(location.hash.slice(1)).split("&");
+  for (const kv of hp) {
+    const [key, val] = kv.split("=");
+    if (key === "marcas" && [0, 2, 4, 6].includes(+val)) setMarks(+val);
+    else if (key === "graficos") S.graph = true;
+    else if (["cos", "sin", "tan", "completas"].includes(key)) S[key === "completas" ? "full" : key] = true;
   }
+  const hm = decodeURIComponent(location.hash).match(/(?:^|[#&])t=([^&]+)/);
+  const h0 = hm ? parseT(hm[1]) : null;
+  if (h0 !== null) setT(h0, { snap: false });
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
 })();
 </script>
 </body>
