@@ -248,6 +248,7 @@
             <button data-v="1" aria-pressed="true">1×</button>
           </div>
         </div>
+        <label class="check"><input type="checkbox" id="graph" checked> Mostrar o gráfico de d(t)</label>
       </div>
 
       <div class="box">
@@ -343,7 +344,7 @@
     pos: /^#horizontal(&|$)/.test(location.hash) ? "horizontal" : "vertical",
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
-    keep: false, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
+    keep: false, graph: true, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
   };
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
@@ -412,6 +413,8 @@
     document.getElementById(key + "-n").value = S[key];
   }
   document.getElementById("keep").addEventListener("change", e => { S.keep = e.target.checked; });
+  // esconder o gráfico: ficam o referencial e a esfera (para prever a curva antes de a mostrar)
+  document.getElementById("graph").addEventListener("change", e => { S.graph = e.target.checked; changed(); });
   document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
 
   const runBtn = document.getElementById("run");
@@ -652,18 +655,20 @@
         p.endShape();
         return [X(t1), Yg(d(md, t1))];
       };
-      S.traces.forEach(tr => {
+      if (S.graph) S.traces.forEach(tr => {
         const c = css(`--h${tr.c}`);
         const end = trace(model(tr), tr.t, c, 2);
         if (end && tr.t <= tB) { p.noStroke(); p.fill(c); p.circle(end[0], end[1], 6); }
       });
-      if (S.t > 0) trace(mod, S.t, css("--curve"), 2.8);
+      if (S.graph && S.t > 0) trace(mod, S.t, css("--curve"), 2.8);
       dc.restore();
 
       // ponto atual e ligação à esfera
       const px = X(S.t), py = Yg(dNow);
+      if (S.graph) {
       if (down) dashed(sceneW / 2 + 6 + R + 2, Ys(dNow), px, py, css("--ball"), 1);
       p.noStroke(); p.fill(css("--curve")); p.circle(px, py, 9);
+      }
 
       // nomes dos eixos
       p.textSize(13);
