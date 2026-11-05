@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
   :root {
     --bg: #eef2f6;
@@ -199,6 +201,9 @@
     margin-top: 6px; padding: 10px 6px 4px;
   }
   .plot-card > #timebox .param { flex: 1 1 320px; grid-template-columns: auto 1fr 5.2rem; }
+  /* expressão de d(t) em LaTeX (KaTeX) no topo do cartão do gráfico */
+  .plot-law { text-align: center; font-size: 1.25rem; padding: 4px 6px 8px; min-height: 1.6em; overflow-x: auto; overflow-y: hidden; color: var(--ink); }
+  :root[data-proj] .plot-law { font-size: 1.6rem; }
   #plot { width: 100%; }
   #plot canvas { display: block; max-width: 100%; }
   .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -249,6 +254,7 @@
           </div>
         </div>
         <label class="check"><input type="checkbox" id="graph" checked> Mostrar o gráfico de d(t)</label>
+        <label class="check"><input type="checkbox" id="mid" checked> Mostrar a linha média (equilíbrio)</label>
       </div>
 
       <div class="box">
@@ -327,6 +333,7 @@
     </section>
 
     <section class="plot-card" aria-label="Esfera e gráfico da distância ao teto">
+      <div class="plot-law" id="plot-law" aria-live="polite"></div>
       <div id="plot"></div>
       <div class="caption">
         <span id="cap-d">d — distância do teto ao centro da esfera (m)</span>
@@ -344,7 +351,7 @@
     pos: /^#horizontal(&|$)/.test(location.hash) ? "horizontal" : "vertical",
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
-    keep: false, graph: true, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
+    keep: false, graph: true, mid: true, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
   };
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
@@ -415,6 +422,8 @@
   document.getElementById("keep").addEventListener("change", e => { S.keep = e.target.checked; });
   // esconder o gráfico: ficam o referencial e a esfera (para prever a curva antes de a mostrar)
   document.getElementById("graph").addEventListener("change", e => { S.graph = e.target.checked; changed(); });
+  // esconder a linha média d = D (no gráfico e na cena)
+  document.getElementById("mid").addEventListener("change", e => { S.mid = e.target.checked; changed(); });
   document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
 
   const runBtn = document.getElementById("run");
@@ -520,7 +529,8 @@
       scaleM();
       const w = Math.max(300, plotEl.clientWidth);
       // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
-      const below = timeBox.parentNode === plotCard ? timeBox.offsetHeight + 6 : 0;   // controlos do tempo por baixo
+      const below = (timeBox.parentNode === plotCard ? timeBox.offsetHeight + 6 : 0)   // controlos do tempo por baixo
+        + document.getElementById("plot-law").offsetHeight;   // e a expressão de d(t) por cima
       const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110 - (K > 1 ? 40 : 0) - below, Math.max(320, w * 0.6))));
       // na horizontal a cena ocupa uma faixa por cima do gráfico: em ecrã estreito dá-se mais altura
       return [w, S.pos === "horizontal" && w < 520 ? h + 90 : h];
@@ -581,7 +591,7 @@
       for (let x = 14; x < sceneW; x += 10) p.line(x, M.t, x + 8, M.t - 9);
 
       // linha de equilíbrio na cena
-      dashed(10, Ys(mod.D), sceneW, Ys(mod.D), css("--eq"), 1.2);
+      if (S.mid) dashed(10, Ys(mod.D), sceneW, Ys(mod.D), css("--eq"), 1.2);
 
       // mola: pontas direitas + zigue-zague com número fixo de espiras
       const y0 = M.t, y1 = Math.max(M.t + 8, yBall - R);
@@ -638,9 +648,11 @@
       if (down) arrow(gx0, GT + H, 0, 1); else arrow(gx0, GT, 0, -1);
 
       // equilíbrio e faixa da amplitude
+      if (S.mid) {
       dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), css("--eq"), 1.2);
       p.noStroke(); p.fill(css("--eq")); p.textSize(11); p.textAlign(p.RIGHT, p.BOTTOM);
       p.text("equilíbrio  d = " + fmt(mod.D, 3), gx1 - 4, Yg(mod.D) - 3);
+      }
 
       // traços: os guardados (até ao instante em que pararam) e o atual
       const dc = p.drawingContext;
@@ -704,7 +716,7 @@
       }
 
       // linha de equilíbrio
-      dashed(Xs(mod.D), cy - R - 18, Xs(mod.D), floorY, css("--eq"), 1.2);
+      if (S.mid) dashed(Xs(mod.D), cy - R - 18, Xs(mod.D), floorY, css("--eq"), 1.2);
 
       // mola na horizontal, presa em O
       const xb = Xs(dNow), xs0 = Xs(0), xs1 = Math.max(xs0 + 8, xb - R);
@@ -786,6 +798,13 @@
     const fase = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "−" : "+"} ${fmt(Math.abs(mod.phi), 2)}`;
     const ph = mod.A < 1e-9 ? "" : ` + ${fmt(mod.A, 3)} cos(${fmt(mod.w, 2)} t${fase})`;
     document.getElementById("law").textContent = `d(t) = ${fmt(mod.D, 3)}${ph}`;
+    // a mesma expressão em LaTeX, no topo do gráfico (vírgula decimal entre chavetas, para não ganhar espaço)
+    const tx = (x, dec) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
+    const faseTx = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "-" : "+"} ${tx(Math.abs(mod.phi), 2)}`;
+    const lawTx = `d(t) = ${tx(mod.D, 3)}` + (mod.A < 1e-9 ? "" : ` + ${tx(mod.A, 3)}\\cos\\left(${tx(mod.w, 2)}\\,t${faseTx}\\right)`);
+    const lawEl = document.getElementById("plot-law");
+    if (window.katex) katex.render(lawTx, lawEl, { throwOnError: false, strict: false });
+    else lawEl.textContent = document.getElementById("law").textContent;
     document.getElementById("warn").hidden = mod.D - mod.A > 0.08;
     const vert = S.pos === "vertical";
     document.getElementById("warn-where").textContent = vert ? "no teto" : "na parede";
