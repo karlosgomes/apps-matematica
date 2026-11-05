@@ -121,6 +121,16 @@
     gap: 8px;
   }
   .box h2 { margin: 0; font-size: 0.95rem; color: var(--muted); font-weight: 700; }
+  /* card que abre/fecha (Grandezas: fechado por omissão) */
+  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::before { content: "▸"; color: var(--muted); font-size: 0.9rem; transition: transform .15s; }
+  .fold[open] > summary::before { transform: rotate(90deg); }
+  .fold > summary h2 { display: inline; }
+  .fold > summary::after { content: "mostrar"; margin-left: auto; font-size: 0.8rem; color: var(--muted); }
+  .fold[open] > summary::after { content: "esconder"; }
+  .fold[open] { display: grid; gap: 8px; }
+  .fold summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   .param { display: grid; grid-template-columns: 8.8rem 1fr 4.6rem; align-items: center; gap: 10px; }
   .param label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
@@ -254,9 +264,9 @@
             <button data-v="1" aria-pressed="true">1×</button>
           </div>
         </div>
-        <label class="check"><input type="checkbox" id="graph" checked> Mostrar o gráfico de d(t)</label>
-        <label class="check"><input type="checkbox" id="mid" checked> Mostrar a linha média (equilíbrio)</label>
-        <label class="check"><input type="checkbox" id="showlaw" checked> Mostrar a expressão de d(t)</label>
+        <label class="check"><input type="checkbox" id="graph"> Mostrar o gráfico de d(t)</label>
+        <label class="check"><input type="checkbox" id="mid"> Mostrar a linha média (equilíbrio)</label>
+        <label class="check"><input type="checkbox" id="showlaw"> Mostrar a expressão de d(t)</label>
       </div>
 
       <div class="box">
@@ -297,9 +307,11 @@
       </div>
 
       <div class="box">
-        <h2>Grandezas</h2>
-        <dl class="readout" id="readout"></dl>
-        <div class="law" id="law"></div>
+        <details class="fold">
+          <summary><h2>Grandezas</h2></summary>
+          <dl class="readout" id="readout"></dl>
+          <div class="law" id="law"></div>
+        </details>
         <div class="warn" id="warn" hidden>⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria <span id="warn-where">no teto</span>. Diminui x₀ ou v₀.</div>
       </div>
 
@@ -335,7 +347,7 @@
     </section>
 
     <section class="plot-card" aria-label="Esfera e gráfico da distância ao teto">
-      <div class="plot-law" id="plot-law" aria-live="polite"></div>
+      <div class="plot-law" id="plot-law" aria-live="polite" hidden></div>
       <div id="plot"></div>
       <div class="caption">
         <span id="cap-d">d — distância do teto ao centro da esfera (m)</span>
@@ -353,7 +365,7 @@
     pos: /^#horizontal(&|$)/.test(location.hash) ? "horizontal" : "vertical",
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
-    keep: false, graph: true, mid: true, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
+    keep: false, graph: false, mid: false, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
   };
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
