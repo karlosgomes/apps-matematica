@@ -202,6 +202,7 @@
   }
   .plot-card > #timebox .param { flex: 1 1 320px; grid-template-columns: auto 1fr 5.2rem; }
   /* expressão de d(t) em LaTeX (KaTeX) no topo do cartão do gráfico */
+  .plot-law[hidden] { display: none; }
   .plot-law { text-align: center; font-size: 1.25rem; padding: 4px 6px 8px; min-height: 1.6em; overflow-x: auto; overflow-y: hidden; color: var(--ink); }
   :root[data-proj] .plot-law { font-size: 1.6rem; }
   #plot { width: 100%; }
@@ -255,6 +256,7 @@
         </div>
         <label class="check"><input type="checkbox" id="graph" checked> Mostrar o gráfico de d(t)</label>
         <label class="check"><input type="checkbox" id="mid" checked> Mostrar a linha média (equilíbrio)</label>
+        <label class="check"><input type="checkbox" id="showlaw" checked> Mostrar a expressão de d(t)</label>
       </div>
 
       <div class="box">
@@ -423,6 +425,11 @@
   // esconder o gráfico: ficam o referencial e a esfera (para prever a curva antes de a mostrar)
   document.getElementById("graph").addEventListener("change", e => { S.graph = e.target.checked; changed(); });
   // esconder a linha média d = D (no gráfico e na cena)
+  // esconder a expressão de d(t) no topo do gráfico (o gráfico cresce para ocupar o espaço)
+  document.getElementById("showlaw").addEventListener("change", e => {
+    document.getElementById("plot-law").hidden = !e.target.checked;
+    if (ready) { P.windowResized(); P.redraw(); }
+  });
   document.getElementById("mid").addEventListener("change", e => { S.mid = e.target.checked; changed(); });
   document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
 
