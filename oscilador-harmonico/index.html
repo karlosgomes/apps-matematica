@@ -6,371 +6,85 @@
 <title>Oscilador Harmónico</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root {
-    --bg: #eef2f6;
-    --panel: #ffffff;
-    --ink: #17202b;
-    --muted: #5b6776;
-    --line: #d6dde6;
-    --grid-strong: #dfe5ec;
-    --axis: #36414d;
-    --btn: #eef2f6;
-    --btn-hover: #e1e7ee;
-    --ceil: #8a96a3;
-    --spring: #5b6776;
-    --ball: #1565c0;
-    --curve: #d32f2f;
-    --eq: #2e7d32;
-    --h1: #1565c0;
-    --h2: #2e7d32;
-    --h3: #ef6c00;
-    --h4: #7b1fa2;
-    --h5: #00838f;
-    --warn: #b45309;
-    --focus: #1565c0;
-    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #0f1419;
-      --panel: #171e26;
-      --ink: #e6ebf1;
-      --muted: #9aa6b4;
-      --line: #2a3440;
-      --grid-strong: #232c37;
-      --axis: #aab4c0;
-      --btn: #202a35;
-      --btn-hover: #2a3642;
-      --ceil: #6b7785;
-      --spring: #aab4c0;
-      --ball: #64a8ff;
-      --curve: #ff6b6b;
-      --eq: #5cc26a;
-      --h1: #64a8ff;
-      --h2: #5cc26a;
-      --h3: #ffa040;
-      --h4: #c792ea;
-      --h5: #4dd0e1;
-      --warn: #fbbf24;
-      --focus: #64a8ff;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0f1419;
-    --panel: #171e26;
-    --ink: #e6ebf1;
-    --muted: #9aa6b4;
-    --line: #2a3440;
-    --grid-strong: #232c37;
-    --axis: #aab4c0;
-    --btn: #202a35;
-    --btn-hover: #2a3642;
-    --ceil: #6b7785;
-    --spring: #aab4c0;
-    --ball: #64a8ff;
-    --curve: #ff6b6b;
-    --eq: #5cc26a;
-    --h1: #64a8ff;
-    --h2: #5cc26a;
-    --h3: #ffa040;
-    --h4: #c792ea;
-    --h5: #4dd0e1;
-    --warn: #fbbf24;
-    --focus: #64a8ff;
-  }
-
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--font);
-    font-size: 15px;
-    line-height: 1.4;
-    padding-inline: 16px;
-    padding-block: 16px 24px;
-  }
-  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
-
-  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
-  h1 { font-size: 1.45rem; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
-  .formula { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; }
-  .formula i { font-family: var(--font); font-style: italic; font-size: 1.05rem; color: var(--ink); }
-
-  main { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 14px; align-items: start; }
-  @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; }
-    .plot-card { order: -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; box-shadow: 0 6px 14px -10px rgba(0,0,0,.35); }
-  }
-
-  .controls { display: grid; gap: 10px; }
-  .box {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 10px 12px 12px;
-    display: grid;
-    gap: 8px;
-  }
-  .box h2 { margin: 0; font-size: 0.95rem; color: var(--muted); font-weight: 700; }
-  /* card que abre/fecha (Grandezas: fechado por omissão) */
-  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; }
-  .fold > summary::-webkit-details-marker { display: none; }
-  .fold > summary::before { content: "▸"; color: var(--muted); font-size: 0.9rem; transition: transform .15s; }
-  .fold[open] > summary::before { transform: rotate(90deg); }
-  .fold > summary h2 { display: inline; }
-  .fold > summary::after { content: "mostrar"; margin-left: auto; font-size: 0.8rem; color: var(--muted); }
-  .fold[open] > summary::after { content: "esconder"; }
-  .fold[open] { display: grid; gap: 8px; }
-  .fold summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-  .param { display: grid; grid-template-columns: 8.8rem 1fr 4.6rem; align-items: center; gap: 10px; }
-  .param label { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
-  .param label b { color: var(--ink); font-style: italic; font-weight: 400; font-size: 1rem; }
-  .param input[type="range"] { width: 100%; accent-color: var(--ball); margin: 0; }
-  .param input[type="number"] {
-    width: 100%;
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    padding: 3px 6px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .win-box { display: inline-flex; align-items: center; gap: 5px; font-size: 0.9rem; color: var(--muted); }
-  .win-box input {
-    width: 4.6rem; font-family: var(--mono); font-size: 0.9rem; color: var(--ink); background: var(--bg);
-    border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; text-align: right; font-variant-numeric: tabular-nums;
-  }
-  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .row > span { color: var(--muted); font-size: 0.9rem; }
-  .btn {
-    font: inherit; font-weight: 700; font-size: 0.95rem;
-    padding: 7px 14px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  .btn:hover { background: var(--btn-hover); }
-  #run { min-width: 150px; }
-  #run[aria-pressed="true"] { background: var(--ball); border-color: var(--ball); color: var(--panel); }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button {
-    font: inherit; font-size: 0.9rem; padding: 5px 11px; border: 0; cursor: pointer;
-    background: var(--btn); color: var(--ink);
-  }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button[aria-pressed="true"] { background: var(--axis); color: var(--panel); font-weight: 700; }
-
-  .readout { font-family: var(--mono); font-size: 0.88rem; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-variant-numeric: tabular-nums; }
-  .readout dt { color: var(--muted); }
-  .readout dd { margin: 0; }
-  .law { font-family: var(--mono); font-size: 0.92rem; padding: 6px 8px; background: var(--bg); border-radius: 5px; overflow-x: auto; white-space: nowrap; }
-  .warn { color: var(--warn); font-size: 0.88rem; }
-  .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
-  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--ball); cursor: pointer; }
-  .traces { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-family: var(--mono); font-size: 0.8rem; }
-  .traces li { display: flex; align-items: center; gap: 8px; }
-  .traces li::before { content: ""; flex: none; width: 16px; height: 3px; border-radius: 2px; background: var(--c); }
-  .traces li.now { font-weight: 500; }
-  .btn.small { font-size: 0.85rem; padding: 4px 10px; font-weight: 400; }
-
-  /* em ecrã largo a mola e o gráfico ficam presos no ecrã enquanto se desce nos parâmetros */
-  @media (min-width: 901px) {
-    .plot-card { position: sticky; top: 16px; }
-  }
-  .plot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
-  /* modo projeção: texto e traços maiores, mais contraste, tema claro */
-  .projbar { display: flex; gap: 8px; align-items: center; }
-  .projbar button {
-    font: inherit; font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
-    background: var(--btn); color: var(--ink); border: 1px solid var(--line); white-space: nowrap;
-  }
-  .projbar button:hover { background: var(--btn-hover); }
-  #proj[aria-pressed="true"] { background: var(--axis); border-color: var(--axis); color: var(--panel); font-weight: 700; }
-  :root[data-proj] { --muted: #333d4a; --grid-strong: #c4cdd8; --line: #b3bfcc; --axis: #1f2833; }
-  :root[data-proj] body { font-size: 17px; }
-  :root[data-proj] .caption { font-size: 1rem; }
-  :root[data-hidectl] main { grid-template-columns: minmax(0, 1fr); }
-  :root[data-hidectl] main > .controls { display: none; }
-  /* controlos escondidos: os do tempo passam para baixo do gráfico, numa só linha */
-  .plot-card > #timebox {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px;
-    background: none; border: 0; border-top: 1px solid var(--line); border-radius: 0;
-    margin-top: 6px; padding: 10px 6px 4px;
-  }
-  .plot-card > #timebox .param { flex: 1 1 320px; grid-template-columns: auto 1fr 5.2rem; }
-  /* expressão de d(t) em LaTeX (KaTeX) no topo do cartão do gráfico */
-  .plot-law[hidden] { display: none; }
-  .plot-law { text-align: center; font-size: 1.25rem; padding: 4px 6px 8px; min-height: 1.6em; overflow-x: auto; overflow-y: hidden; color: var(--ink); }
-  :root[data-proj] .plot-law { font-size: 1.6rem; }
-  #plot { width: 100%; }
-  #plot canvas { display: block; max-width: 100%; }
-  .caption { font-size: 0.85rem; color: var(--muted); padding: 6px 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
-  .caption .mono { font-family: var(--mono); }
-
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixas de texto (tempo e janela de tempo), postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.3em; border: 2px solid var(--line); border-radius: 7px;
+         background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Oscilador Harmónico</h1>
-    <div class="formula"><i>d</i>(<i>t</i>) = <i>D</i> + <i>A</i> · cos(<i>ω</i><i>t</i> + <i>φ</i>)</div>
-    <div class="projbar">
-      <button id="hidectl" hidden>Esconder controlos</button>
-      <button id="proj" aria-pressed="false" title="Texto e traços maiores, para projetar na sala">📽 Modo projeção</button>
-    </div>
-  </header>
-
-  <main>
-    <section class="controls" aria-label="Controlos">
-      <div class="box">
-        <div class="row">
-          <span>Montagem</span>
-          <div class="seg" role="group" aria-label="Montagem do oscilador" id="pos">
-            <button data-v="vertical" aria-pressed="true">↕ Vertical (suspensa)</button>
-            <button data-v="horizontal" aria-pressed="false">↔ Horizontal</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="box" id="timebox">
-        <div class="row">
-          <button class="btn" id="run" aria-pressed="false">▶ Ligar o tempo</button>
-          <button class="btn" id="reset">↺ Recomeçar</button>
-        </div>
-        <div class="param">
-          <label for="tt">Tempo <b>t</b> (s)</label>
-          <input type="range" id="tt" min="0" max="60" step="0.01" value="0">
-          <input type="number" id="tt-n" min="0" step="0.01" value="0" aria-label="Tempo em segundos">
-        </div>
-        <div class="row">
-          <span>Velocidade</span>
-          <div class="seg" role="group" aria-label="Velocidade da simulação" id="speed">
-            <button data-v="0.25" aria-pressed="false">¼×</button>
-            <button data-v="0.5" aria-pressed="false">½×</button>
-            <button data-v="1" aria-pressed="true">1×</button>
-          </div>
-        </div>
-        <label class="check"><input type="checkbox" id="graph"> Mostrar o gráfico de d(t)</label>
-        <label class="check"><input type="checkbox" id="mid"> Mostrar a linha média (equilíbrio)</label>
-        <label class="check"><input type="checkbox" id="showlaw"> Mostrar a expressão de d(t)</label>
-      </div>
-
-      <div class="box">
-        <h2>Mola e esfera</h2>
-        <div class="param">
-          <label for="m">Massa <b>m</b> (kg)</label>
-          <input type="range" id="m" min="0.1" max="2" step="0.05" value="0.5">
-          <input type="number" id="m-n" min="0.1" max="2" step="0.05" value="0.5" aria-label="Massa em quilogramas">
-        </div>
-        <div class="param">
-          <label for="k">Constante <b>k</b> (N/m)</label>
-          <input type="range" id="k" min="10" max="100" step="1" value="20">
-          <input type="number" id="k-n" min="10" max="100" step="1" value="20" aria-label="Constante elástica em newtons por metro">
-        </div>
-        <div class="param">
-          <label for="L">Compr. natural <b>L</b>₀ (m)</label>
-          <input type="range" id="L" min="0.2" max="1" step="0.05" value="0.4">
-          <input type="number" id="L-n" min="0.2" max="1" step="0.05" value="0.4" aria-label="Comprimento natural da mola em metros">
-        </div>
-      </div>
-
-      <div class="box">
-        <h2>Condições iniciais (t = 0)</h2>
-        <div class="param">
-          <label for="x0">Afastamento <b>x</b>₀ (m)</label>
-          <input type="range" id="x0" min="-0.3" max="0.3" step="0.01" value="0.15">
-          <input type="number" id="x0-n" min="-0.3" max="0.3" step="0.01" value="0.15" aria-label="Afastamento inicial em metros">
-        </div>
-        <div class="param">
-          <label for="v0">Velocidade <b>v</b>₀ (m/s)</label>
-          <input type="range" id="v0" min="-1" max="1" step="0.05" value="0">
-          <input type="number" id="v0-n" min="-1" max="1" step="0.05" value="0" aria-label="Velocidade inicial em metros por segundo">
-        </div>
-        <div style="font-size: 0.82rem; color: var(--muted)">
-          v₀ = 0: largar a esfera; v₀ ≠ 0: dar-lhe um empurrão ao largar.<br>
-          <span id="sign-note">x₀ &gt; 0 e v₀ &gt; 0: para baixo (a afastar-se do teto).</span>
-        </div>
-      </div>
-
-      <div class="box">
-        <details class="fold">
-          <summary><h2>Grandezas</h2></summary>
-          <dl class="readout" id="readout"></dl>
-          <div class="law" id="law"></div>
-        </details>
-        <div class="warn" id="warn" hidden>⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria <span id="warn-where">no teto</span>. Diminui x₀ ou v₀.</div>
-      </div>
-
-      <div class="box">
-        <h2>Traços</h2>
-        <label class="check"><input type="checkbox" id="keep"> Manter o traço ao mudar os parâmetros</label>
-        <ul class="traces" id="traces"></ul>
-        <div class="row" id="clear-row" hidden><button class="btn small" id="clear">Apagar traços guardados</button></div>
-      </div>
-
-      <div class="box">
-        <div class="row">
-          <span>Escala de d</span>
-          <div class="seg" role="group" aria-label="Escala do eixo d" id="scale">
-            <button data-v="1" aria-pressed="true">0–1 m</button>
-            <button data-v="2" aria-pressed="false">0–2 m</button>
-            <button data-v="4" aria-pressed="false">0–4 m</button>
-          </div>
-        </div>
-        <div class="warn" id="warn-scale" hidden>⚠ A esfera sai do referencial: escolhe uma escala maior.</div>
-        <div class="row">
-          <span>Janela de tempo</span>
-          <span class="win-box"><input type="text" id="win" inputmode="decimal" value="10" aria-label="Janela de tempo do gráfico, em segundos"> s</span>
-        </div>
-        <div class="row" id="dir-row">
-          <span>Eixo d</span>
-          <div class="seg" role="group" aria-label="Sentido do eixo d" id="dir">
-            <button data-v="down" aria-pressed="true">↓ como a mola</button>
-            <button data-v="up" aria-pressed="false">↑ habitual</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="plot-card" aria-label="Esfera e gráfico da distância ao teto">
-      <div class="plot-law" id="plot-law" aria-live="polite" hidden></div>
-      <div id="plot"></div>
-      <div class="caption">
-        <span id="cap-d">d — distância do teto ao centro da esfera (m)</span>
-        <span id="cap-now" class="mono"></span>
-      </div>
-    </section>
-  </main>
-</div>
-
-<script src="p5.min.js"></script>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Oscilador harmónico: esfera presa a uma mola, na vertical ou na horizontal, e o gráfico da distância d ao longo do tempo"></canvas>
 <script>
 (() => {
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    ceil: "#8a96a3", spring: "#4b5563", ball: "#1565c0", curve: "#d32f2f", eq: "#2e7d32", hot: "#ef6c00", phys: "#00838f",
+    H: ["#1565c0", "#2e7d32", "#ef6c00", "#7b1fa2", "#00838f"],
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    ceil: "#6b7785", spring: "#aab4c0", ball: "#64a8ff", curve: "#ff6b6b", eq: "#5cc26a", hot: "#ffa040", phys: "#4dd0e1",
+    H: ["#64a8ff", "#5cc26a", "#ffa040", "#c792ea", "#4dd0e1"],
+  };
+  const C = { ...LIGHT };
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  const TAU = 2 * Math.PI;
+
+  // ---------- estado ----------
   const g = 9.8;
   const S = {
-    pos: /^#horizontal(&|$)/.test(location.hash) ? "horizontal" : "vertical",
+    pos: "vertical",               // montagem: vertical (suspensa) ou horizontal (sem atrito)
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
-    t: 0, running: false, speed: 1, win: 10, dir: "down", scale: 1,
-    keep: false, graph: false, mid: false, traces: [],   // traços guardados: { pos, m, k, L, x0, v0, t, c }
+    t: 0, running: false, speed: 1,
+    win: 10,                       // janela de tempo do gráfico (s)
+    dir: "down",                   // eixo d do gráfico: para baixo (como a mola) ou para cima (habitual)
+    scale: 1,                      // escala de d: 0–1, 0–2 ou 0–4 m
+    graph: false, mid: false, law: false, phys: false,   // o que se mostra (tudo escondido ao início)
+    keep: false, traces: [],       // traços guardados: { pos, m, k, L, x0, v0, t, c }
   };
+  const LIM = { m: [0.1, 2, 0.05], k: [10, 100, 1], L: [0.2, 1, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
 
-  const fmt = (x, dec = 2) => (Math.abs(x) < 0.5 * 10 ** -dec ? 0 : x).toLocaleString("pt-PT", { maximumFractionDigits: dec, minimumFractionDigits: dec }).replace("-", "−");
+  const fmt = (x, dec = 2, trim = false) => {
+    if (!isFinite(x)) return "—";
+    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec);
+    if (trim && s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    if (/^-0(\.0*)?$/.test(s)) s = s.slice(1);
+    return s.replace(".", ",").replace(/^-/, "−");
+  };
+  const texNum = (x, dec = 2, trim = false) => fmt(x, dec, trim).replace(",", "{,}").replace("−", "-");
+  const parseNum = s => {
+    s = String(s).trim().replace(/\s/g, "").replace("−", "-").replace(",", ".");
+    return /^-?\d*\.?\d+$/.test(s) ? parseFloat(s) : NaN;
+  };
 
   // ---------- física: x(t) = x₀ cos ωt + (v₀/ω) sin ωt = A cos(ωt + φ) ----------
   function model(P = S) {
@@ -380,475 +94,620 @@
     const A = Math.hypot(P.x0, P.v0 / w);
     let phi = Math.atan2(-P.v0 / w, P.x0);
     if (phi < -Math.PI + 1e-9) phi = Math.PI;    // φ ∈ ]−π, π]
-    return { w, D, A, phi, T: 2 * Math.PI / w };
+    return { w, D, A, phi, T: TAU / w };
   }
-  const d = (M, t) => M.D + M.A * Math.cos(M.w * t + M.phi);
-  const v = (M, t) => -M.A * M.w * Math.sin(M.w * t + M.phi);
-
+  const dOf = (M, t) => M.D + M.A * Math.cos(M.w * t + M.phi);
+  const vOf = (M, t) => -M.A * M.w * Math.sin(M.w * t + M.phi);
   function niceStep(range, target) {
-    const raw = range / target;
-    const p = Math.pow(10, Math.floor(Math.log10(raw)));
-    const m = raw / p;
+    const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
     return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
   }
 
-  // ---------- controlos ----------
-  function bindPair(id, min, max, set) {
-    const r = document.getElementById(id), n = document.getElementById(id + "-n");
-    r.addEventListener("input", () => { n.value = r.value; set(+r.value); });
-    n.addEventListener("change", () => {
-      let x = parseFloat(String(n.value).replace(",", "."));
-      if (!isFinite(x)) x = +r.value;
-      x = Math.min(max, Math.max(min, x));
-      n.value = x; r.value = x; set(x);
-    });
-  }
+  // ---------- ações ----------
   // mudar um parâmetro inicial recomeça o movimento em t = 0;
-  // com "manter" ligado, o traço que já foi desenhado fica guardado
-  // (ao arrastar um slider só o primeiro passo guarda, porque depois t = 0)
-  const restart = () => { S.t = 0; changed(); };
+  // com «Manter traços» ligado, o traço já desenhado fica guardado
+  // (ao arrastar um cursor só o primeiro passo guarda, porque depois t = 0)
   function saveTrace() {
     if (!S.keep || S.t <= 0) return;
     const { pos, m, k, L, x0, v0, t } = S;
-    S.traces.push({ pos, m, k, L, x0, v0, t, c: nextColor++ % NCORES + 1 });
+    S.traces.push({ pos, m, k, L, x0, v0, t, c: nextColor++ % NCORES });
     if (S.traces.length > MAXTRACOS) S.traces.shift();
   }
-  const param = key => x => { saveTrace(); S[key] = x; restart(); };
-  bindPair("m", 0.1, 2, param("m"));
-  bindPair("k", 10, 100, param("k"));
-  bindPair("L", 0.2, 1, param("L"));
-  bindPair("x0", -0.3, 0.3, param("x0"));
-  bindPair("v0", -1, 1, param("v0"));
-  // endereço com condições iniciais: #horizontal&m=1&k=88.83&L=0.6&x0=0.08&v0=0&w=2 (w = janela de tempo)
-  // (ponto ou vírgula decimal; os valores ficam dentro dos limites dos cursores)
-  const LIM = { m: [0.1, 2], k: [10, 100], L: [0.2, 1], x0: [-0.3, 0.3], v0: [-1, 1], w: [0.5, 600] };
-  for (const kv of location.hash.slice(1).split("&")) {
-    const [key, val] = kv.split("=");
-    if (!(key in LIM) || val === undefined) continue;
-    const x = parseFloat(decodeURIComponent(val).replace(",", "."));
-    if (!isFinite(x)) continue;
-    const y = Math.min(LIM[key][1], Math.max(LIM[key][0], x));
-    if (key === "w") { S.win = y; continue; }   // janela de tempo
-    S[key] = y;
-    document.getElementById(key).value = S[key];
-    document.getElementById(key + "-n").value = S[key];
+  const setParam = key => v => {
+    const [lo, hi, st] = LIM[key];
+    v = clamp(Math.round(v / st) * st, lo, hi);
+    v = +v.toFixed(4);
+    if (v === S[key]) return;
+    saveTrace(); S[key] = v; S.t = 0; draw();
+  };
+  const setTime = x => { S.running = false; S.t = Math.max(0, x); draw(); };
+  const setWin = x => { S.win = clamp(x, 0.5, 600); };
+  function setPos(p) {
+    if (p === S.pos) return;
+    saveTrace(); S.pos = p; S.t = 0;
+    history.replaceState(null, "", p === "horizontal" ? "#horizontal" : location.pathname + location.search);
+    draw();
   }
-  document.getElementById("keep").addEventListener("change", e => { S.keep = e.target.checked; });
-  // esconder o gráfico: ficam o referencial e a esfera (para prever a curva antes de a mostrar)
-  document.getElementById("graph").addEventListener("change", e => { S.graph = e.target.checked; changed(); });
-  // esconder a linha média d = D (no gráfico e na cena)
-  // esconder a expressão de d(t) no topo do gráfico (o gráfico cresce para ocupar o espaço)
-  document.getElementById("showlaw").addEventListener("change", e => {
-    document.getElementById("plot-law").hidden = !e.target.checked;
-    if (ready) { P.windowResized(); P.redraw(); }
-  });
-  document.getElementById("mid").addEventListener("change", e => { S.mid = e.target.checked; changed(); });
-  document.getElementById("clear").addEventListener("click", () => { S.traces = []; nextColor = 0; changed(); });
+  function toggleRun() { S.running = !S.running; go(); }
+  function restart() { S.running = false; S.t = 0; draw(); }
+  // fim do cursor do tempo: a janela; se o tempo passar do fim, alarga-se de janela em janela
+  const tMax = () => Math.max(1, Math.ceil(S.t / S.win - 1e-9)) * S.win;
 
-  const runBtn = document.getElementById("run");
-  runBtn.addEventListener("click", () => { S.running = !S.running; changed(); });
-  document.getElementById("reset").addEventListener("click", () => { S.running = false; restart(); });
-
-  // slider do tempo: arrastar para o tempo e coloca a simulação em t (o modelo é exato, não há passos)
-  const tR = document.getElementById("tt"), tN = document.getElementById("tt-n");
-  function setTime(x) {
-    S.running = false;
-    S.t = Math.max(0, x);
-    changed();
-  }
-  tR.addEventListener("input", () => setTime(+tR.value));
-  tN.addEventListener("change", () => {
-    const x = parseFloat(String(tN.value).replace(",", "."));
-    setTime(isFinite(x) ? x : S.t);
-  });
-  function syncTime() {
-    // o slider vai de 0 até à janela de tempo; se o tempo passar do fim, alarga-se de janela em janela
-    const max = Math.max(1, Math.ceil(S.t / S.win - 1e-9)) * S.win;
-    if (+tR.max !== max) tR.max = max;
-    tR.value = S.t;
-    if (document.activeElement !== tN) tN.value = Math.round(S.t * 100) / 100;
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
   }
 
-  function seg(id, key, parse) {
-    const btns = [...document.querySelectorAll(`#${id} button`)];
-    btns.forEach(b => b.addEventListener("click", () => {
-      S[key] = parse(b.dataset.v);
-      btns.forEach(x => x.setAttribute("aria-pressed", x === b));
-      changed();
-    }));
-  }
-  seg("speed", "speed", Number);
-  // janela de tempo: escrita pelo utilizador (0,5 a 600 s); dá também o fim do cursor do tempo
-  const winIn = document.getElementById("win");
-  const showWin = () => { winIn.value = String(Math.round(S.win * 100) / 100).replace(".", ","); };
-  winIn.addEventListener("change", () => {
-    const x = parseFloat(String(winIn.value).replace(",", "."));
-    if (isFinite(x) && x > 0) S.win = Math.min(600, Math.max(0.5, x));
-    showWin(); winIn.blur(); changed();
-  });
-  winIn.addEventListener("keydown", e => { if (e.key === "Enter") winIn.dispatchEvent(new Event("change")); });
-  showWin();
-  seg("dir", "dir", String);
-  seg("scale", "scale", Number);
-  // mudar a montagem é como mudar um parâmetro: guarda o traço (se pedido) e recomeça
-  const posBtns = [...document.querySelectorAll("#pos button")];
-  posBtns.forEach(b => {
-    b.setAttribute("aria-pressed", b.dataset.v === S.pos);
-    b.addEventListener("click", () => {
-      if (S.pos === b.dataset.v) return;
-      saveTrace(); S.pos = b.dataset.v;
-      posBtns.forEach(x => x.setAttribute("aria-pressed", x === b));
-      history.replaceState(null, "", S.pos === "horizontal" ? "#horizontal" : location.pathname + location.search);
-      if (ready) P.windowResized();
-      restart();
+  // ---------- caixas de texto ----------
+  const INP = {};
+  function makeInput(id, label, get, set, step, dec) {
+    const el = document.createElement("input");
+    el.className = "inp"; el.id = id; el.type = "text"; el.inputMode = "decimal"; el.autocomplete = "off"; el.spellcheck = false;
+    el.setAttribute("aria-label", label);
+    document.body.appendChild(el);
+    const show = () => { el.classList.remove("bad"); el.value = fmt(get(), dec, true); };
+    const commit = () => {
+      const x = parseNum(el.value);
+      if (isFinite(x)) { set(x); show(); draw(); }
+      else el.classList.add("bad");
+    };
+    el.addEventListener("change", commit);
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter") { commit(); el.blur(); }
+      else if (e.key === "Escape") { show(); el.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        set(get() + (e.key === "ArrowUp" ? 1 : -1) * step * (e.shiftKey ? 10 : 1));
+        show(); draw();
+      }
     });
-  });
-
-  // ---------- desenho (p5.js) ----------
-  const plotEl = document.getElementById("plot");
-  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  let ready = false;
-
-  // ---------- modo projeção ----------
-  // texto e traços do desenho ficam K vezes maiores; o estado fica guardado no browser
-  // (a mesma chave nas várias apps do site)
-  let K = 1;
-  const PROJ_KEY = "apps-mat-projecao";
-  const projBtn = document.getElementById("proj"), hideBtn = document.getElementById("hidectl");
-  const timeBox = document.getElementById("timebox"), plotCard = document.querySelector(".plot-card"), ctlSec = document.querySelector("main > .controls");
-  function setProj(on) {
-    K = on ? 1.5 : 1;
-    const r = document.documentElement;
-    if (on) { r.dataset.proj = ""; r.dataset.theme = "light"; }
-    else { delete r.dataset.proj; delete r.dataset.theme; delete r.dataset.hidectl; }
-    projBtn.setAttribute("aria-pressed", on);
-    hideBtn.hidden = !on;
-    hideBtn.textContent = r.dataset.hidectl !== undefined ? "Mostrar controlos" : "Esconder controlos";
-    // com os controlos escondidos, os do tempo ficam por baixo do gráfico
-    if (r.dataset.hidectl !== undefined) plotCard.append(timeBox);
-    else if (timeBox.parentNode !== ctlSec) ctlSec.children[0].after(timeBox);
-    try { localStorage.setItem(PROJ_KEY, on ? "1" : "0"); } catch (e) {}
-    if (ready) { P.windowResized(); P.redraw(); }
+    INP[id] = { el, get, dec };
   }
-  projBtn.addEventListener("click", () => setProj(K === 1));
-  hideBtn.addEventListener("click", () => {
-    const r = document.documentElement;
-    if (r.dataset.hidectl !== undefined) delete r.dataset.hidectl; else r.dataset.hidectl = "";
-    setProj(true);
-  });
-  try { if (localStorage.getItem(PROJ_KEY) === "1") setProj(true); } catch (e) {}
+  makeInput("tin", "Tempo t em segundos", () => S.t, setTime, 0.01, 2);
+  makeInput("win", "Janela de tempo do gráfico, em segundos (0,5 a 600)", () => S.win, setWin, 1, 2);
+  let usedInp = new Set();
+  function place(id, r, px) {
+    const { el, get, dec } = INP[id];
+    el.style.display = "";
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+    el.style.fontSize = px + "px";
+    if (document.activeElement !== el) { el.value = fmt(get(), dec, true); el.classList.remove("bad"); }
+    usedInp.add(id);
+  }
 
-  const sketch = p => {
-    const M0 = { l: 54, r: 18, t: 22, b: 40 };
-    const M = { ...M0 };
-    const scaleM = () => Object.keys(M0).forEach(k => { M[k] = Math.round(M0[k] * K); });
-    let sceneW = 150;
+  // ---------- disposição ----------
+  // ecrã deitado: controlos numa coluna à esquerda, a mola e o gráfico à direita;
+  // ao alto: a mola e o gráfico em cima e os controlos por baixo
+  const ROW = 1.6, LEG = 1.9;
+  let CP = 0.55, GAP = 0.75, RG = 0.4;
+  const CARDS = [["mont", 1], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 3]];
+  const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
+  function layout() {
+    let fs = clamp(Math.min(W, H) / 26, 12, 21);
+    for (let k = 0; k < 40; k++) {
+      const L = tryLayout(fs);
+      if (L.ok || fs <= 10) return L;
+      fs *= 0.95;
+    }
+    return tryLayout(fs);
+  }
+  function tryLayout(fs) {
+    const pad = Math.round(fs * 0.7), gap = GAP * fs;
+    const land = W > H * 1.1 && W >= 640;
+    [CP, GAP, RG] = land ? [0.55, 0.75, 0.4] : [0.4, 0.45, 0.2];
+    const L = { fs, pad, land, cards: {} };
+    const hOf = k => cardH(CARDS.find(c => c[0] === k)[1]) * fs;
+    let area;
+    if (land) {
+      const cw = clamp(W * 0.3, 19 * fs, 23 * fs), x = pad;
+      let y = pad;
+      L.legend = { x, y, w: cw, h: LEG * fs }; y += LEG * fs + 0.8 * fs;
+      CARDS.forEach(([k]) => { L.cards[k] = { x, y, w: cw, h: hOf(k) }; y += hOf(k) + gap; });
+      const gx = x + cw + 1.2 * fs;
+      area = { x: gx, y: pad, w: W - pad - gx, h: H - 2 * pad };
+      L.ok = y - gap <= H - pad && area.w >= W * 0.45;
+    } else {
+      const w = W - 2 * pad, nc = w >= 38 * fs ? 2 : 1, cw = (w - (nc - 1) * gap) / nc;
+      const col = nc === 2 ? [["mont", "tempo", "ver"], ["mola", "ci", "graf"]] : [CARDS.map(c => c[0]), []];
+      const ctrlH = Math.max(...col.map(cs => cs.reduce((s, k) => s + hOf(k) + gap, 0))) - gap;
+      let y = pad;
+      L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + 0.4 * fs;
+      const gh = H - pad - ctrlH - 0.6 * fs - y;
+      area = { x: pad, y, w, h: gh };
+      const y0 = y + gh + 0.6 * fs;
+      col.forEach((cs, ci) => { let yy = y0; cs.forEach(k => { L.cards[k] = { x: pad + ci * (cw + gap), y: yy, w: cw, h: hOf(k) }; yy += hOf(k) + gap; }); });
+      L.ok = gh >= Math.max(0.42 * H, 17 * fs) && cw >= 18 * fs;
+    }
+    // por cima dos quadros: a expressão de d(t) e as grandezas (se ligadas)
+    let y = area.y;
+    if (S.law) { L.law = { x: area.x, y, w: area.w, h: 2.2 * fs }; y += 2.2 * fs; }
+    if (S.phys) { L.phys = { x: area.x, y, w: area.w, h: 2.8 * fs }; y += 3.0 * fs; }
+    const rest = { x: area.x, y, w: area.w, h: area.y + area.h - y }, g2 = 0.5 * fs;
+    if (S.pos === "vertical") {
+      // cena estreita à esquerda, gráfico à direita, com a mesma escala vertical
+      const sw = clamp(rest.w * 0.17, (L.land ? 7 : 5.5) * fs, 10 * fs);
+      L.scene = { x: rest.x, y: rest.y, w: sw, h: rest.h };
+      L.graph = { x: rest.x + sw + g2, y: rest.y, w: rest.w - sw - g2, h: rest.h };
+    } else {
+      const sh = clamp(rest.h * 0.3, 6.5 * fs, 9 * fs);
+      L.scene = { x: rest.x, y: rest.y, w: rest.w, h: sh };
+      L.graph = { x: rest.x, y: rest.y + sh + g2, w: rest.w, h: rest.h - sh - g2 };
+    }
+    if (L.graph.h < 9 * fs) L.ok = false;
+    return L;
+  }
 
-    function size() {
-      scaleM();
-      const w = Math.max(300, plotEl.clientWidth);
-      // não deixar o cartão ficar mais alto do que o ecrã (senão a parte de baixo ficava escondida)
-      const below = (timeBox.parentNode === plotCard ? timeBox.offsetHeight + 6 : 0)   // controlos do tempo por baixo
-        + document.getElementById("plot-law").offsetHeight;   // e a expressão de d(t) por cima
-      const h = Math.round(Math.max(260, Math.min(620, window.innerHeight - 110 - (K > 1 ? 40 : 0) - below, Math.max(320, w * 0.6))));
-      // na horizontal a cena ocupa uma faixa por cima do gráfico: em ecrã estreito dá-se mais altura
-      return [w, S.pos === "horizontal" && w < 520 ? h + 90 : h];
+  // ---------- primitivas ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function tri(x, y, ux, uy, s, c) {
+    ctx.fillStyle = c; ctx.beginPath();
+    ctx.moveTo(x + ux * s, y + uy * s);
+    ctx.lineTo(x - uy * s * 0.6, y + ux * s * 0.6);
+    ctx.lineTo(x + uy * s * 0.6, y - ux * s * 0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400, style = "") {
+    ctx.font = `${style} ${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    text(txt, x + w / 2, y + h / 2 + 1, px, on ? C.on : C.ink, "center", FONT, 700);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  function cbox(x, y, h, bs, px, on, txt, hit, col = C.muted, tcol = C.ink) {
+    const yy = y + (h - bs) / 2;
+    rrect(x, yy, bs, bs, 5, on ? col : C.bg, col, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const w = bs + 0.45 * bs + text(txt, x + bs * 1.45, y + h / 2 + 1, px, tcol, "left", FONT);
+    hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  // cursor (barra, parte até ao valor na cor col, pega redonda); ticks: valores com uma marca por baixo
+  function slider(x, y, w, h, lo, hi, v, col, fs, set, ticks = []) {
+    const cy = y + h / 2, X = u => x + (clamp(u, lo, hi) - lo) / (hi - lo) * w;
+    ticks.forEach(t => line(X(t), cy + 0.25 * fs, X(t), cy + 0.45 * fs, C.faint, 1.2));
+    ctx.lineCap = "round";
+    line(x, cy, x + w, cy, C.grid2, 0.26 * fs);
+    line(x, cy, X(v), cy, col, 0.26 * fs);
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.arc(X(v), cy, 0.48 * fs, 0, TAU); ctx.fillStyle = col; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke();
+    hits.push({ kind: "slide", rect: { x: x - 0.7 * fs, y, w: w + 1.4 * fs, h }, set, val: px => lo + (px - x) / w * (hi - lo) });
+  }
+  function dashed(x0, y0, x1, y1, c, w) { line(x0, y0, x1, y1, c, w, [5, 5]); }
+
+  // ---------- KaTeX numa camada por cima ----------
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = false) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, { throwOnError: false, strict: false });
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+    return el;
+  }
+
+  // ---------- desenho ----------
+  let raf = 0, last = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(frame); }
+  function frame(now) {
+    raf = 0;
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    if (S.running) S.t += dt * S.speed;
+    paint();
+    if (S.running) { last = now; raf = requestAnimationFrame(frame); } else last = 0;
+  }
+  const go = () => { last = 0; draw(); };
+  function paint() {
+    L = layout(); hits = []; used = new Set(); usedInp = new Set();
+    const { fs } = L, mod = model();
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    legend(L.legend, fs);
+    cardMont(L.cards.mont, fs);
+    cardTempo(L.cards.tempo, fs);
+    cardVer(L.cards.ver, fs);
+    cardMola(L.cards.mola, fs);
+    cardCI(L.cards.ci, fs);
+    cardGraf(L.cards.graf, fs);
+    if (L.law) lawStrip(L.law, fs, mod);
+    if (L.phys) physStrip(L.phys, fs, mod);
+    panels(fs, mod);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+    for (const id in INP) if (!usedInp.has(id)) INP[id].el.style.display = "none";
+  }
+
+  // em cima: a forma geral da função e o botão do modo escuro
+  function legend(b, fs) {
+    const bw = b.h * 1.3, w = b.w - bw - 0.4 * fs;
+    rrect(b.x, b.y, w, b.h, 8, C.band, C.line, 1.5);
+    fit(texAt("legend", "d(t) = D + A\\cos(\\omega t + \\varphi)", b.x + w / 2, b.y + b.h / 2, fs * 1.2, C.ink), w - 0.8 * fs, b.h);
+    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+  }
+  function card(b, col, fs) {
+    rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
+    ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.clip();
+    ctx.fillStyle = col; ctx.fillRect(b.x, b.y, 0.25 * fs, b.h);
+    ctx.restore();
+    return { x: b.x + 0.7 * fs, y: b.y + CP * fs, w: b.w - 1.2 * fs };
+  }
+  const rowY = (c, i, fs) => c.y + i * (ROW + RG) * fs;
+  // grupo de botões que ocupam a largura w a partir de x; devolve o fim
+  function seg(x, y, w, rh, fs, items, cur, kind, col, px) {
+    const g = 0.2 * fs, bh = 1.25 * fs, bw = (w - (items.length - 1) * g) / items.length;
+    items.forEach(([v, t], i) => button(x + i * (bw + g), y + (rh - bh) / 2, bw, bh, t, cur === v, kind, { v }, col,
+      Math.min(px, px * (bw - 0.5 * fs) / tw(t, px, FONT, 700))));
+    return x + w;
+  }
+
+  function cardMont(b, fs) {
+    const c = card(b, C.muted, fs), rh = ROW * fs, y = rowY(c, 0, fs);
+    const lx = c.x + text("Montagem", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.7 * fs;
+    seg(lx, y, c.x + c.w - lx, rh, fs, [["vertical", "↕ Vertical"], ["horizontal", "↔ Horizontal"]], S.pos, "pos", C.muted, fs * 0.85);
+  }
+  function cardTempo(b, fs) {
+    const c = card(b, C.hot, fs), rh = ROW * fs, bh = 1.25 * fs;
+    let y = rowY(c, 0, fs);
+    const lab = S.running ? "❚❚ Parar" : S.t > 0 ? "▶ Continuar" : "▶ Ligar o tempo";
+    const bw = Math.max(tw("▶ Ligar o tempo", fs * 0.85, FONT, 700), tw("▶ Continuar", fs * 0.85, FONT, 700)) + 1.2 * fs;
+    button(c.x, y + (rh - bh) / 2, bw, bh, lab, true, "run", {}, C.hot, fs * 0.85);
+    const rw = 2.2 * fs;
+    button(c.x + bw + 0.3 * fs, y + (rh - bh) / 2, rw, bh, "↺", false, "reset", {}, C.muted, fs);
+    const sx = c.x + bw + rw + 0.9 * fs;
+    seg(sx, y, c.x + c.w - sx, rh, fs, [[0.25, "¼×"], [0.5, "½×"], [1, "1×"]], S.speed, "speed", C.muted, fs * 0.85);
+    y = rowY(c, 1, fs);
+    texAt("tl", "t", c.x + 0.2 * fs, y + rh / 2, fs * 0.95, C.muted, 0, 0.5);
+    const iw = 3.6 * fs, ux = c.x + c.w - tw("s", fs * 0.8) , ix = ux - 0.3 * fs - iw, lx = c.x + 1.4 * fs;
+    slider(lx, y, ix - 0.9 * fs - lx, rh, 0, tMax(), S.t, C.hot, fs, setTime);
+    place("tin", { x: ix, y: y + (rh - 1.3 * fs) / 2, w: iw, h: 1.3 * fs }, fs * 0.8);
+    text("s", c.x + c.w, y + rh / 2 + 1, fs * 0.8, C.muted, "right");
+  }
+  function cardVer(b, fs) {
+    const c = card(b, C.curve, fs), rh = ROW * fs, bs = 0.8 * fs, px = fs * 0.8, half = c.w * 0.52;
+    let y = rowY(c, 0, fs);
+    cbox(c.x, y, rh, bs, px, S.graph, "Gráfico de d(t)", { kind: "graph" }, C.curve);
+    cbox(c.x + half, y, rh, bs, px, S.mid, "Linha média", { kind: "mid" }, C.eq);
+    y = rowY(c, 1, fs);
+    cbox(c.x, y, rh, bs, px, S.law, "Expressão de d(t)", { kind: "law" }, C.ink);
+    cbox(c.x + half, y, rh, bs, px, S.phys, "Grandezas", { kind: "phys" }, C.phys);
+  }
+  // linha de um parâmetro: nome (KaTeX), cursor, valor e unidade
+  function paramRow(c, i, fs, key, tex, unit, col, dec, ticks) {
+    const rh = ROW * fs, y = rowY(c, i, fs), [lo, hi] = LIM[key];
+    texAt("pl-" + key, tex, c.x + 0.1 * fs, y + rh / 2, fs * 0.95, C.muted, 0, 0.5);
+    const vw = tw("−0,30", fs * 0.85, MONO, 600), uw = tw("N/m", fs * 0.75) + 0.3 * fs;
+    const lx = c.x + 2.4 * fs, rx = c.x + c.w - uw - vw - 1 * fs;
+    slider(lx, y, rx - lx, rh, lo, hi, S[key], col, fs, setParam(key), ticks);
+    text(fmt(S[key], dec), c.x + c.w - uw, y + rh / 2 + 1, fs * 0.85, C.ink, "right", MONO, 600);
+    text(unit, c.x + c.w, y + rh / 2 + 1, fs * 0.75, C.muted, "right");
+  }
+  function cardMola(b, fs) {
+    const c = card(b, C.spring, fs);
+    paramRow(c, 0, fs, "m", "m", "kg", C.ball, 2);
+    paramRow(c, 1, fs, "k", "k", "N/m", C.spring, 0);
+    paramRow(c, 2, fs, "L", "L_0", "m", C.spring, 2);
+  }
+  function cardCI(b, fs) {
+    const c = card(b, C.ball, fs);
+    paramRow(c, 0, fs, "x0", "x_0", "m", C.ball, 2, [0]);
+    paramRow(c, 1, fs, "v0", "v_0", "m/s", C.ball, 2, [0]);
+  }
+  function cardGraf(b, fs) {
+    const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.25 * fs, px = fs * 0.8;
+    let y = rowY(c, 0, fs);
+    let lx = c.x + text("Escala de d", c.x, y + rh / 2 + 1, px, C.muted) + 0.7 * fs;
+    seg(lx, y, c.x + c.w - lx, rh, fs, [[1, "0–1 m"], [2, "0–2 m"], [4, "0–4 m"]], S.scale, "scale", C.muted, fs * 0.8);
+    y = rowY(c, 1, fs);
+    lx = c.x + text("Janela", c.x, y + rh / 2 + 1, px, C.muted) + 0.5 * fs;
+    const iw = 3.2 * fs;
+    place("win", { x: lx, y: y + (rh - 1.3 * fs) / 2, w: iw, h: 1.3 * fs }, fs * 0.8);
+    let x = lx + iw + 0.3 * fs;
+    x += text("s", x, y + rh / 2 + 1, px, C.muted) + 0.9 * fs;
+    if (S.pos === "vertical") {
+      x += text("Eixo d", x, y + rh / 2 + 1, px, C.muted) + 0.5 * fs;
+      seg(x, y, c.x + c.w - x, rh, fs, [["down", "↓ mola"], ["up", "↑ habitual"]], S.dir, "dir", C.muted, fs * 0.75);
+    }
+    y = rowY(c, 2, fs);
+    const ex = cbox(c.x, y, rh, 0.8 * fs, px, S.keep, "Manter traços", { kind: "keep" }, C.muted);
+    if (S.traces.length) {
+      const t = `Apagar (${S.traces.length})`, w = tw(t, fs * 0.8, FONT, 700) + 1.2 * fs;
+      button(Math.max(ex + 0.6 * fs, c.x + c.w - w), y + (rh - bh) / 2, w, bh, t, false, "clear", {}, C.muted, fs * 0.8);
+    }
+  }
+
+  // expressão de d(t) com os valores atuais
+  function lawStrip(b, fs, mod) {
+    const fase = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "-" : "+"} ${texNum(Math.abs(mod.phi), 2)}`;
+    const src = `d(t) = ${texNum(mod.D, 3)}` + (mod.A < 1e-9 ? "" : ` + ${texNum(mod.A, 3)}\\cos\\left(${texNum(mod.w, 2)}\\,t${fase}\\right)`);
+    fit(texAt("law", src, b.x + b.w / 2, b.y + b.h / 2 - 0.1 * fs, fs * 1.35, C.ink), b.w - fs, b.h);
+  }
+  // grandezas: ω, T, f, D, A, φ
+  function physStrip(b, fs, mod) {
+    rrect(b.x, b.y, b.w, b.h, 8, null, C.phys, 1.2);
+    const vert = S.pos === "vertical";
+    const l1 = `\\omega = \\sqrt{\\tfrac{k}{m}} = ${texNum(mod.w, 2)}\\ \\text{rad/s}\\qquad T = \\tfrac{2\\pi}{\\omega} = ${texNum(mod.T, 2)}\\ \\text{s}\\qquad f = \\tfrac{1}{T} = ${texNum(1 / mod.T, 2)}\\ \\text{Hz}`;
+    const l2 = `D = ${vert ? "L_0 + \\tfrac{mg}{k}" : "L_0"} = ${texNum(mod.D, 3)}\\ \\text{m}\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}`;
+    const e1 = texAt("ph1", l1, b.x + b.w / 2, b.y + b.h * 0.27, fs * 0.8, C.phys);
+    const e2 = texAt("ph2", l2, b.x + b.w / 2, b.y + b.h * 0.72, fs * 0.8, C.phys);
+    const k = Math.min(1, (b.w - fs) / Math.max(e1.offsetWidth, e2.offsetWidth));
+    if (k < 1) [e1, e2].forEach(e => e.style.fontSize = fs * 0.8 * k + "px");
+  }
+
+  // moldura de um quadro, com o título em cima à esquerda; devolve a largura do título
+  function frame_(b, title, fs, short) {
+    rrect(b.x, b.y, b.w, b.h, 9, null, C.line, 1.2);
+    if (short && tw(title, fs * 0.8, FONT, 700) > b.w - 1.2 * fs) title = short;
+    return 0.6 * fs + text(title, b.x + 0.6 * fs, b.y + 0.75 * fs, fs * 0.8, C.muted, "left", FONT, 700);
+  }
+
+  // ---------- a mola e o gráfico ----------
+  function panels(fs, mod) {
+    const vert = S.pos === "vertical", top = S.scale, sc = L.scene, gr = L.graph;
+    const dNow = dOf(mod, S.t);
+    const R = clamp((13 + 6 * Math.cbrt(S.m)) * fs / 16, 0.6 * fs, 1.5 * fs);   // raio só visual
+    // escala vertical comum à cena (vertical) e ao gráfico: de iy0 (d = 0) a iy1 (d = top)
+    const iy0 = gr.y + 2.0 * fs, iy1 = gr.y + gr.h - 1.6 * fs;
+    const Ys = dd => iy0 + (dd / top) * (iy1 - iy0);
+    const down = vert && S.dir === "down";
+    const Yg = down ? Ys : dd => iy1 - (dd / top) * (iy1 - iy0);
+
+    // ---- cena ----
+    const scTitle = vert ? "Mola suspensa" : "Mola na horizontal (sem atrito)";
+    frame_(sc, scTitle, fs, vert ? "Mola" : "Mola (horizontal)");
+    let ballX = 0, ballY = 0;
+    if (vert) {
+      const cx = sc.x + sc.w * 0.42, yb = Ys(dNow), amp = 0.6 * fs;
+      // (se a esfera sair do referencial, o desenho fica cortado pela moldura)
+      ctx.save(); ctx.beginPath(); ctx.roundRect(sc.x, sc.y, sc.w, sc.h, 9); ctx.clip();
+      // teto tracejado
+      line(sc.x + 0.5 * fs, iy0, sc.x + sc.w - 0.5 * fs, iy0, C.ceil, 3);
+      for (let x = sc.x + 0.7 * fs; x < sc.x + sc.w - 0.9 * fs; x += 0.6 * fs) line(x, iy0, x + 0.5 * fs, iy0 - 0.55 * fs, C.ceil, 1.2);
+      if (S.mid) dashed(sc.x + 0.4 * fs, Ys(mod.D), sc.x + sc.w, Ys(mod.D), C.eq, 1.4);
+      springV(cx, iy0, Math.max(iy0 + 8, yb - R), amp, fs);
+      ball(cx, yb, R);
+      // cota d
+      const qx = cx + amp + 1.1 * fs;
+      line(qx, iy0 + 2, qx, yb, C.muted, 1.2);
+      line(qx - 4, yb, qx + 4, yb, C.muted, 1.2);
+      ctx.restore();
+      texAt("cd", "d", qx + 0.25 * fs, (iy0 + Math.min(yb, iy1)) / 2, fs * 0.85, C.muted, 0, 0.5, true);
+      ballX = cx; ballY = yb;
+    } else {
+      sceneH(sc, fs, mod, dNow, R, top);
     }
 
-    p.setup = () => {
-      const [w, h] = size();
-      p.createCanvas(w, h).parent(plotEl);
-      // no modo projeção, tamanhos de letra e espessuras multiplicados por K
-      const ts = p.textSize.bind(p), sw = p.strokeWeight.bind(p);
-      p.textSize = s => s === undefined ? ts() : ts(s * K);
-      p.strokeWeight = w => sw(w * K);
-      p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
-      p.noLoop();
-      ready = true;
-    };
-    p.windowResized = () => { const [w, h] = size(); p.resizeCanvas(w, h); };
+    // ---- gráfico ----
+    const cap = vert ? "d — distância do teto ao centro da esfera (m)" : "d — distância de O ao centro da esfera P (m)";
+    const tW = frame_(gr, cap, fs, vert ? "d — distância do teto à esfera" : "d — distância de O a P");
+    const now = texAt("now", `t = ${texNum(S.t, 2)}\\ \\text{s}\\quad d = ${texNum(dNow, 3)}\\ \\text{m}\\quad v = ${texNum(vOf(mod, S.t), 2)}\\ \\text{m/s}`,
+      gr.x + gr.w - 0.6 * fs, gr.y + 0.75 * fs, fs * 0.75, C.hot, 1, 0.5, true);
+    if (now.offsetWidth > gr.w - tW - 1.2 * fs) {
+      now._src = null;
+      const n2 = texAt("now", `t = ${texNum(S.t, 2)}\\ \\text{s}`, gr.x + gr.w - 0.6 * fs, gr.y + 0.75 * fs, fs * 0.75, C.hot, 1, 0.5, true);
+      if (n2.offsetWidth > gr.w - tW - 1.2 * fs) n2.style.display = "none";
+    }
+    const gx0 = gr.x + 3.2 * fs, gx1 = gr.x + gr.w - 1.4 * fs, GW = gx1 - gx0;
+    const tA = Math.max(0, S.t - S.win), tB = tA + S.win;
+    const X = t => gx0 + ((t - tA) / S.win) * GW;
+    const px = fs * 0.7;
+    // grelha e marcas
+    const sx = niceStep(S.win, GW < 25 * fs ? 5 : 10);
+    let n = 0;
+    for (let t = Math.ceil(tA / sx - 1e-9) * sx; t <= tB + 1e-9; t += sx, n++) {
+      line(X(t), iy0, X(t), iy1, C.grid, 1);
+      if (down && t < 1e-9) continue;   // (a seta do eixo d está aí)
+      texAt("gt" + n, texNum(+t.toFixed(6), sx < 0.1 ? 2 : sx < 1 ? 1 : 0, true), X(t), iy1 + 0.3 * fs, px, C.muted, 0.5, 0);
+    }
+    const sy = niceStep(top, (iy1 - iy0) < 14 * fs ? 5 : 10);
+    n = 0;
+    for (let y = 0; y <= top + 1e-9; y += sy, n++) {
+      line(gx0, Yg(y), gx1, Yg(y), C.grid, 1);
+      texAt("gy" + n, texNum(+y.toFixed(6), sy < 0.1 ? 2 : 1), gx0 - 0.4 * fs, Yg(y), px, C.muted, 1, 0.5);
+    }
+    // eixos: o eixo t passa em d = 0
+    line(gx0, Yg(0), gx1 + 0.3 * fs, Yg(0), C.axis, 1.5);
+    tri(gx1 + 0.5 * fs, Yg(0), 1, 0, 0.35 * fs, C.axis);
+    line(gx0, iy0 - (down ? 0 : 0.3 * fs), gx0, iy1 + (down ? 0.3 * fs : 0), C.axis, 1.5);
+    if (down) tri(gx0, iy1 + 0.5 * fs, 0, 1, 0.35 * fs, C.axis); else tri(gx0, iy0 - 0.5 * fs, 0, -1, 0.35 * fs, C.axis);
+    texAt("axt", "t\\ (\\text{s})", gx1 - 0.2 * fs, Yg(0) + (down ? 0.35 * fs : -0.35 * fs), fs * 0.8, C.ink, 1, down ? 0 : 1, true);
+    texAt("axd", "d\\ (\\text{m})", gx0 + 0.4 * fs, down ? iy1 - 0.4 * fs : iy0 + 0.4 * fs, fs * 0.8, C.ink, 0, 0.5, true);
 
-    p.draw = () => {
-      scaleM();
-      if (S.running) {
-        S.t += Math.min(0.1, p.deltaTime / 1000) * S.speed;
-        updateNow();
-      }
-      const mod = model();
-      const top = S.scale;   // escala fixa: não muda com os parâmetros
-      sceneW = p.width < 520 ? 104 : 150;
-      const plex = document.fonts && [...document.fonts].some(f => f.family.replace(/"/g, "") === "IBM Plex Mono" && f.status === "loaded");
-      p.textFont(plex ? "IBM Plex Mono" : "monospace");
-      p.background(css("--panel"));
+    // linha média (equilíbrio)
+    if (S.mid) {
+      dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), C.eq, 1.4);
+      texAt("eqt", `\\text{linha média}\\ \\ d = ${texNum(mod.D, 3)}`, gx1 - 0.2 * fs, Yg(mod.D) - 0.2 * fs, fs * 0.7, C.eq, 1, 1, true);
+    }
 
-      const horiz = S.pos === "horizontal";
-      const dNow = d(mod, S.t);
-      const R = Math.max(10, Math.min(22, 13 + 6 * Math.cbrt(S.m)));   // raio só visual
-
-      // na horizontal: cena numa faixa em cima, gráfico por baixo a toda a largura
-      const SH = horiz ? Math.round(Math.min(150, Math.max(110, p.height * 0.28))) : 0;
-      const GT = M.t + SH;                    // topo da área do gráfico
-      const H = p.height - GT - M.b;
-      // cena vertical: o teto em cima, d cresce para baixo (sempre)
-      const Ys = dd => M.t + (dd / top) * H;
-      // gráfico: pode seguir o sentido da mola ou o habitual (na horizontal, sempre o habitual)
-      const down = !horiz && S.dir === "down";
-      const Yg = down ? Ys : dd => GT + H - (dd / top) * H;
-
-      if (horiz) {
-        sceneW = 0;
-        drawHorizontal(mod, dNow, R, top, SH);
-      } else {
-      // ---- cena ----
-      const cx = sceneW / 2 + 6;
-      const yBall = Ys(dNow);
-
-      // teto tracejado
-      p.stroke(css("--ceil")); p.strokeWeight(3);
-      p.line(10, M.t, sceneW, M.t);
-      p.strokeWeight(1.2);
-      for (let x = 14; x < sceneW; x += 10) p.line(x, M.t, x + 8, M.t - 9);
-
-      // linha de equilíbrio na cena
-      if (S.mid) dashed(10, Ys(mod.D), sceneW, Ys(mod.D), css("--eq"), 1.2);
-
-      // mola: pontas direitas + zigue-zague com número fixo de espiras
-      const y0 = M.t, y1 = Math.max(M.t + 8, yBall - R);
-      const lead = Math.min(10, (y1 - y0) * 0.12);
-      const coils = 12, amp = 11;
-      p.noFill(); p.stroke(css("--spring")); p.strokeWeight(2); p.strokeJoin(p.ROUND);
-      p.beginShape();
-      p.vertex(cx, y0); p.vertex(cx, y0 + lead);
-      const span = (y1 - lead) - (y0 + lead);
-      for (let i = 0; i < coils * 2; i++) {
-        const yy = y0 + lead + span * (i + 0.5) / (coils * 2);
-        p.vertex(cx + (i % 2 ? -amp : amp), yy);
-      }
-      p.vertex(cx, y1 - lead); p.vertex(cx, y1);
-      p.endShape();
-
-      // esfera com brilho
-      p.noStroke(); p.fill(css("--ball")); p.circle(cx, yBall, 2 * R);
-      p.fill(255, 255, 255, 90); p.circle(cx - R * 0.35, yBall - R * 0.35, R * 0.7);
-
-      // cota d na cena
-      const qx = cx + amp + 22;
-      p.stroke(css("--muted")); p.strokeWeight(1);
-      p.line(qx, M.t + 2, qx, yBall);
-      p.line(qx - 4, yBall, qx + 4, yBall);
-      p.noStroke(); p.fill(css("--muted")); p.textSize(12); p.textAlign(p.LEFT, p.CENTER);
-      p.text("d", qx + 6, (M.t + yBall) / 2);
-      }
-
-      // ---- gráfico ----
-      const gx0 = sceneW + M.l, gx1 = p.width - M.r, W = gx1 - gx0;
-      const tA = Math.max(0, S.t - S.win), tB = tA + S.win;
-      const X = t => gx0 + ((t - tA) / S.win) * W;
-
-      p.textSize(11); p.strokeWeight(1);
-      const sx = niceStep(S.win, p.width < 520 ? 5 : 10);
-      for (let t = Math.ceil(tA / sx) * sx; t <= tB + 1e-9; t += sx) {
-        p.stroke(css("--grid-strong")); p.line(X(t), GT, X(t), GT + H);
-        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
-        p.text(fmt(+t.toFixed(6), sx < 0.1 ? 2 : sx < 1 ? 1 : 0), X(t), GT + H + 6);
-      }
-      const sy = niceStep(top, H < 260 ? 5 : 8);
-      for (let y = 0; y <= top + 1e-9; y += sy) {
-        p.stroke(css("--grid-strong")); p.line(gx0, Yg(y), gx1, Yg(y));
-        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.RIGHT, p.CENTER);
-        p.text(fmt(+y.toFixed(6), sy < 0.1 ? 2 : 1), gx0 - 8, Yg(y));
-      }
-
-      // eixos: o eixo t passa em d = 0
-      p.stroke(css("--axis")); p.strokeWeight(1.5);
-      p.line(gx0, Yg(0), gx1, Yg(0));
-      p.line(gx0, GT, gx0, GT + H);
-      arrow(gx1, Yg(0), 1, 0);
-      if (down) arrow(gx0, GT + H, 0, 1); else arrow(gx0, GT, 0, -1);
-
-      // equilíbrio e faixa da amplitude
-      if (S.mid) {
-      dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), css("--eq"), 1.2);
-      p.noStroke(); p.fill(css("--eq")); p.textSize(11); p.textAlign(p.RIGHT, p.BOTTOM);
-      p.text("equilíbrio  d = " + fmt(mod.D, 3), gx1 - 4, Yg(mod.D) - 3);
-      }
-
-      // traços: os guardados (até ao instante em que pararam) e o atual
-      const dc = p.drawingContext;
-      dc.save(); dc.beginPath(); dc.rect(gx0, GT - 2, W, H + 4); dc.clip();
+    // traços: os guardados (até ao instante em que pararam) e o atual
+    if (S.graph) {
+      ctx.save(); ctx.beginPath(); ctx.rect(gx0, iy0 - 2, GW, iy1 - iy0 + 4); ctx.clip();
       const trace = (md, tEnd, color, weight) => {
         const t1 = Math.min(tEnd, tB);
-        if (t1 <= tA) return;
-        const N = Math.max(60, Math.round(W * 2 * (t1 - tA) / S.win));
-        p.noFill(); p.stroke(color); p.strokeWeight(weight); p.strokeJoin(p.ROUND);
-        p.beginShape();
-        for (let i = 0; i <= N; i++) { const t = tA + (t1 - tA) * i / N; p.vertex(X(t), Yg(d(md, t))); }
-        p.endShape();
-        return [X(t1), Yg(d(md, t1))];
+        if (t1 <= tA) return null;
+        const N = Math.max(60, Math.round(GW * 2 * (t1 - tA) / S.win));
+        ctx.strokeStyle = color; ctx.lineWidth = weight; ctx.lineJoin = "round"; ctx.beginPath();
+        for (let i = 0; i <= N; i++) { const t = tA + (t1 - tA) * i / N, xx = X(t), yy = Yg(dOf(md, t)); i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); }
+        ctx.stroke();
+        return [X(t1), Yg(dOf(md, t1))];
       };
-      if (S.graph) S.traces.forEach(tr => {
-        const c = css(`--h${tr.c}`);
-        const end = trace(model(tr), tr.t, c, 2);
-        if (end && tr.t <= tB) { p.noStroke(); p.fill(c); p.circle(end[0], end[1], 6); }
+      S.traces.forEach(tr => {
+        const c = C.H[tr.c], end = trace(model(tr), tr.t, c, Math.max(1.6, 0.11 * fs));
+        if (end && tr.t <= tB) { ctx.beginPath(); ctx.arc(end[0], end[1], 0.2 * fs, 0, TAU); ctx.fillStyle = c; ctx.fill(); }
       });
-      if (S.graph && S.t > 0) trace(mod, S.t, css("--curve"), 2.8);
-      dc.restore();
-
+      if (S.t > 0) trace(mod, S.t, C.curve, Math.max(2.2, 0.16 * fs));
+      ctx.restore();
       // ponto atual e ligação à esfera
-      const px = X(S.t), py = Yg(dNow);
-      if (S.graph) {
-      if (down) dashed(sceneW / 2 + 6 + R + 2, Ys(dNow), px, py, css("--ball"), 1);
-      p.noStroke(); p.fill(css("--curve")); p.circle(px, py, 9);
-      }
-
-      // nomes dos eixos
-      p.textSize(13);
-      const label = (txt, x, y, right) => {
-        const w = p.textWidth(txt) + 8, x0 = right ? x - w : x;
-        p.noStroke(); p.fill(css("--panel")); p.rect(x0, y - 9, w, 18, 3);
-        p.fill(css("--ink")); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x0 + w / 2, y);
-      };
-      label("t (s)", gx1 - 2, Yg(0) + (down ? 14 : -14), true);
-      label("d (m)", gx0 + 8, down ? GT + H - 10 : GT + 10, false);
-    };
-
-    // montagem horizontal: parede com O à esquerda, mola, esfera P a deslizar no chão (sem atrito).
-    // A régua por baixo do chão usa a mesma escala de d que o gráfico.
-    function drawHorizontal(mod, dNow, R, top, SH) {
-      const x0 = M.l + 6, x1 = p.width - M.r - 10;
-      const Xs = dd => x0 + (dd / top) * (x1 - x0);
-      const floorY = M.t + SH - 44, cy = floorY - R - 2;
-
-      // chão e parede
-      p.stroke(css("--ceil")); p.strokeWeight(5); p.strokeCap(p.ROUND);
-      p.line(x0 - 4, floorY, x1 + 6, floorY);
-      p.line(x0 - 4, floorY + 2, x0 - 4, cy - R - 26);
-      p.strokeCap(p.ROUND);
-
-      // régua (escala de d) por baixo do chão
-      const st = niceStep(top, (x1 - x0) < 500 ? 5 : 10);
-      p.textSize(10); p.strokeWeight(1);
-      for (let v = 0; v <= top + 1e-9; v += st) {
-        p.stroke(css("--muted")); p.line(Xs(v), floorY + 4, Xs(v), floorY + 9);
-        p.noStroke(); p.fill(css("--muted")); p.textAlign(p.CENTER, p.TOP);
-        p.text(fmt(+v.toFixed(6), st < 0.1 ? 2 : 1), Xs(v), floorY + 11);
-      }
-
-      // linha de equilíbrio
-      if (S.mid) dashed(Xs(mod.D), cy - R - 18, Xs(mod.D), floorY, css("--eq"), 1.2);
-
-      // mola na horizontal, presa em O
-      const xb = Xs(dNow), xs0 = Xs(0), xs1 = Math.max(xs0 + 8, xb - R);
-      const lead = Math.min(12, (xs1 - xs0) * 0.12);
-      const coils = 14, amp = 9;
-      p.noFill(); p.stroke(css("--spring")); p.strokeWeight(2); p.strokeJoin(p.ROUND);
-      p.beginShape();
-      p.vertex(xs0, cy); p.vertex(xs0 + lead, cy);
-      const span = (xs1 - lead) - (xs0 + lead);
-      for (let i = 0; i < coils * 2; i++) p.vertex(xs0 + lead + span * (i + 0.5) / (coils * 2), cy + (i % 2 ? -amp : amp));
-      p.vertex(xs1 - lead, cy); p.vertex(xs1, cy);
-      p.endShape();
-
-      // O
-      p.noStroke(); p.fill(css("--ink")); p.circle(xs0, cy, 7);
-      p.textSize(14); p.textStyle(p.BOLD); p.textAlign(p.RIGHT, p.CENTER);
-      p.text("O", xs0 - 12, cy);
-
-      // esfera P
-      p.noStroke(); p.fill(css("--ball")); p.circle(xb, cy, 2 * R);
-      p.fill(255, 255, 255, 90); p.circle(xb - R * 0.35, cy - R * 0.35, R * 0.7);
-      p.fill(css("--panel")); p.circle(xb, cy, 5);
-      p.textAlign(p.LEFT, p.BOTTOM); p.fill(css("--ink"));
-      p.text("P", xb + R * 0.55, cy - R * 0.55);
-      p.textStyle(p.NORMAL);
-
-      // cota d por cima: de O ao centro de P
-      const qy = cy - R - 12;
-      p.stroke(css("--muted")); p.strokeWeight(1);
-      p.line(xs0, qy, xb, qy);
-      p.line(xs0, qy - 4, xs0, qy + 4); p.line(xb, qy - 4, xb, qy + 4);
-      p.noStroke(); p.fill(css("--muted")); p.textSize(12); p.textAlign(p.CENTER, p.BOTTOM);
-      p.text("d", (xs0 + xb) / 2, qy - 3);
-
-      // separador entre a cena e o gráfico
-      p.stroke(css("--line")); p.strokeWeight(1);
-      p.line(10, M.t + SH - 8, p.width - 10, M.t + SH - 8);
+      const ppx = X(S.t), ppy = Yg(dNow);
+      if (down) dashed(ballX + R + 2, ballY, ppx, ppy, C.ball, 1);
+      ctx.beginPath(); ctx.arc(ppx, ppy, 0.3 * fs, 0, TAU); ctx.fillStyle = C.curve; ctx.fill();
     }
 
-    function dashed(x0, y0, x1, y1, c, w) {
-      const dc = p.drawingContext;
-      dc.save(); dc.setLineDash([5, 5]);
-      p.stroke(c); p.strokeWeight(w); p.line(x0, y0, x1, y1);
-      dc.restore();
-    }
-    function arrow(x, y, ux, uy) {
-      const s = 7;
-      p.noStroke(); p.fill(css("--axis"));
-      p.triangle(x + ux * s, y + uy * s, x - uy * s * 0.6, y + ux * s * 0.6, x + uy * s * 0.6, y - ux * s * 0.6);
-    }
-  };
-  const P = new p5(sketch);
-
-  const redraw = () => { if (ready && !S.running) P.redraw(); };
-  new ResizeObserver(() => { if (ready) { P.windowResized(); P.redraw(); } }).observe(plotEl);
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
-  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  if (document.fonts) document.fonts.ready.then(redraw);
-
-  // ---------- textos ----------
-  function updateNow() {
-    const mod = model();
-    document.getElementById("cap-now").textContent =
-      `t = ${fmt(S.t, 2)} s   ·   d(t) = ${fmt(d(mod, S.t), 3)} m   ·   v(t) = ${fmt(v(mod, S.t), 2)} m/s`;
-    syncTime();
+    // avisos
+    const warns = [];
+    if (mod.D - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
+    if (mod.D + mod.A + 0.03 > S.scale) warns.push("⚠ A esfera sai do referencial: escolhe uma escala maior.");
+    warns.forEach((w, i) => {
+      const wpx = Math.min(fs * 0.72, fs * 0.72 * (GW - fs) / tw(w, fs * 0.72, FONT, 700));
+      const yy = (down ? iy0 + 1.2 * fs : iy1 - 1.4 * fs) + (down ? 1 : -1) * i * 1.1 * fs;
+      const ww = tw(w, wpx, FONT, 700);
+      rrect(gx0 + 0.5 * fs - 0.3 * fs, yy - 0.5 * fs, ww + 0.6 * fs, fs, 5, C.bg, null);
+      text(w, gx0 + 0.5 * fs, yy, wpx, C.hot, "left", FONT, 700);
+    });
   }
 
-  function changed() {
-    const mod = model();
-    const rows = [
-      ["ω = √(k/m)", `${fmt(mod.w, 2)} rad/s`],
-      ["T = 2π/ω", `${fmt(mod.T, 2)} s`],
-      ["f = 1/T", `${fmt(1 / mod.T, 2)} Hz`],
-      [S.pos === "vertical" ? "D = L₀ + mg/k" : "D = L₀", `${fmt(mod.D, 3)} m`],
-      ["A", `${fmt(mod.A, 3)} m`],
-      ["φ", `${fmt(mod.phi, 2)} rad`],
-    ];
-    document.getElementById("readout").innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
-    const fase = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "−" : "+"} ${fmt(Math.abs(mod.phi), 2)}`;
-    const ph = mod.A < 1e-9 ? "" : ` + ${fmt(mod.A, 3)} cos(${fmt(mod.w, 2)} t${fase})`;
-    document.getElementById("law").textContent = `d(t) = ${fmt(mod.D, 3)}${ph}`;
-    // a mesma expressão em LaTeX, no topo do gráfico (vírgula decimal entre chavetas, para não ganhar espaço)
-    const tx = (x, dec) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
-    const faseTx = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "-" : "+"} ${tx(Math.abs(mod.phi), 2)}`;
-    const lawTx = `d(t) = ${tx(mod.D, 3)}` + (mod.A < 1e-9 ? "" : ` + ${tx(mod.A, 3)}\\cos\\left(${tx(mod.w, 2)}\\,t${faseTx}\\right)`);
-    const lawEl = document.getElementById("plot-law");
-    if (window.katex) katex.render(lawTx, lawEl, { throwOnError: false, strict: false });
-    else lawEl.textContent = document.getElementById("law").textContent;
-    document.getElementById("warn").hidden = mod.D - mod.A > 0.08;
-    const vert = S.pos === "vertical";
-    document.getElementById("warn-where").textContent = vert ? "no teto" : "na parede";
-    document.getElementById("sign-note").textContent = vert
-      ? "x₀ > 0 e v₀ > 0: para baixo (a afastar-se do teto)."
-      : "x₀ > 0 e v₀ > 0: para a direita (a afastar-se de O).";
-    document.getElementById("cap-d").textContent = vert
-      ? "d — distância do teto ao centro da esfera (m)"
-      : "d — distância de O ao centro da esfera P (m)";
-    document.getElementById("dir-row").hidden = !vert;
-    document.getElementById("warn-scale").hidden = mod.D + mod.A + 0.03 <= S.scale;
-
-    // lista de traços
-    const desc = P => `${P.pos === "vertical" ? "↕" : "↔"} m=${fmt(P.m, 2)} k=${fmt(P.k, 0)} L₀=${fmt(P.L, 2)} x₀=${fmt(P.x0, 2)} v₀=${fmt(P.v0, 2)}`;
-    const items = S.traces.map(tr => `<li style="--c: var(--h${tr.c})">${desc(tr)}</li>`);
-    items.push(`<li class="now" style="--c: var(--curve)">${desc(S)} (atual)</li>`);
-    document.getElementById("traces").innerHTML = items.join("");
-    document.getElementById("clear-row").hidden = !S.traces.length;
-
-    runBtn.setAttribute("aria-pressed", S.running);
-    runBtn.textContent = S.running ? "⏸ Parar o tempo" : (S.t > 0 ? "▶ Continuar" : "▶ Ligar o tempo");
-    updateNow();
-    if (ready) { S.running ? P.loop() : (P.noLoop(), P.redraw()); }
+  function ball(x, y, R) {
+    ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fillStyle = C.ball; ctx.fill();
+    ctx.beginPath(); ctx.arc(x - R * 0.35, y - R * 0.35, R * 0.35, 0, TAU); ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fill();
   }
-  changed();
+  // mola vertical: pontas direitas + zigue-zague com número fixo de espiras
+  function springV(cx, y0, y1, amp, fs) {
+    const lead = Math.min(0.6 * fs, (y1 - y0) * 0.12), coils = 12, span = (y1 - lead) - (y0 + lead);
+    ctx.strokeStyle = C.spring; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(cx, y0); ctx.lineTo(cx, y0 + lead);
+    for (let i = 0; i < coils * 2; i++) ctx.lineTo(cx + (i % 2 ? -amp : amp), y0 + lead + span * (i + 0.5) / (coils * 2));
+    ctx.lineTo(cx, y1 - lead); ctx.lineTo(cx, y1); ctx.stroke();
+  }
+  // montagem horizontal: parede com O à esquerda, mola, esfera P a deslizar no chão (sem atrito);
+  // a régua por baixo do chão usa a escala de d
+  function sceneH(b, fs, mod, dNow, R, top) {
+    const x0 = b.x + 2.2 * fs, x1 = b.x + b.w - 1.4 * fs;
+    const Xs = dd => x0 + (dd / top) * (x1 - x0);
+    const floorY = b.y + b.h - 1.9 * fs, cy = floorY - R - 2;
+    line(x0 - 0.3 * fs, floorY, x1 + 0.4 * fs, floorY, C.ceil, 4);
+    line(x0 - 0.3 * fs, floorY + 2, x0 - 0.3 * fs, Math.max(b.y + 1.6 * fs, cy - R - 1.4 * fs), C.ceil, 4);
+    // régua
+    const st = niceStep(top, (x1 - x0) < 30 * fs ? 5 : 10);
+    let n = 0;
+    for (let v = 0; v <= top + 1e-9; v += st, n++) {
+      line(Xs(v), floorY + 0.25 * fs, Xs(v), floorY + 0.55 * fs, C.muted, 1);
+      texAt("rh" + n, texNum(+v.toFixed(6), st < 0.1 ? 2 : 1), Xs(v), floorY + 0.65 * fs, fs * 0.6, C.muted, 0.5, 0);
+    }
+    if (S.mid) dashed(Xs(mod.D), cy - R - 1.1 * fs, Xs(mod.D), floorY, C.eq, 1.4);
+    // mola presa em O
+    const xb = Xs(dNow), xs0 = Xs(0), xs1 = Math.max(xs0 + 8, xb - R);
+    const lead = Math.min(0.7 * fs, (xs1 - xs0) * 0.12), coils = 14, amp = 0.5 * fs, span = (xs1 - lead) - (xs0 + lead);
+    ctx.strokeStyle = C.spring; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(xs0, cy); ctx.lineTo(xs0 + lead, cy);
+    for (let i = 0; i < coils * 2; i++) ctx.lineTo(xs0 + lead + span * (i + 0.5) / (coils * 2), cy + (i % 2 ? -amp : amp));
+    ctx.lineTo(xs1 - lead, cy); ctx.lineTo(xs1, cy); ctx.stroke();
+    ctx.beginPath(); ctx.arc(xs0, cy, 0.2 * fs, 0, TAU); ctx.fillStyle = C.ink; ctx.fill();
+    texAt("hO", "O", xs0 - 0.5 * fs, cy, fs * 0.9, C.ink, 1, 0.5);
+    ball(xb, cy, R);
+    ctx.beginPath(); ctx.arc(xb, cy, 0.14 * fs, 0, TAU); ctx.fillStyle = C.bg; ctx.fill();
+    texAt("hP", "P", xb + R * 0.6, cy - R * 0.6, fs * 0.9, C.ink, 0, 1);
+    // cota d por cima: de O ao centro de P
+    const qy = cy - R - 0.7 * fs;
+    line(xs0, qy, xb, qy, C.muted, 1.2);
+    line(xs0, qy - 4, xs0, qy + 4, C.muted, 1.2); line(xb, qy - 4, xb, qy + 4, C.muted, 1.2);
+    texAt("hd", "d", (xs0 + xb) / 2, qy - 0.15 * fs, fs * 0.85, C.muted, 0.5, 1, true);
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  let drag = null;
+  const toggle = key => { S[key] = !S[key]; draw(); };
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    const h = hitAt(e.clientX, e.clientY);
+    if (!h) return;
+    e.preventDefault();
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
+    if (h.kind === "pos") { setPos(h.v); return; }
+    if (h.kind === "run") { toggleRun(); return; }
+    if (h.kind === "reset") { restart(); return; }
+    if (h.kind === "speed") { S.speed = h.v; draw(); return; }
+    if (h.kind === "scale") { S.scale = h.v; draw(); return; }
+    if (h.kind === "dir") { S.dir = h.v; draw(); return; }
+    if (["graph", "mid", "law", "phys", "keep"].includes(h.kind)) { toggle(h.kind); return; }
+    if (h.kind === "clear") { S.traces = []; nextColor = 0; draw(); return; }
+    if (h.kind === "slide") {
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = h; h.set(h.val(e.clientX)); cv.style.cursor = "grabbing";
+    }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (drag) {
+      // o cursor do tempo não muda de escala enquanto se arrasta
+      drag.set(drag.val(e.clientX));
+      return;
+    }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? "default" : h.kind === "slide" ? "ew-resize" : "pointer";
+  });
+  const end = () => { drag = null; cv.style.cursor = "default"; };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+
+  // teclado (fora das caixas): espaço liga/para o tempo, r recomeça, ←/→ mexem no tempo (Shift ×10),
+  // g gráfico, l linha média, e expressão, f grandezas, v troca a montagem
+  window.addEventListener("keydown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === " ") toggleRun();
+    else if (e.key === "r") restart();
+    else if (e.key === "ArrowRight" || e.key === "ArrowLeft") setTime(S.t + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 0.1 : 0.01));
+    else if (e.key === "g") toggle("graph");
+    else if (e.key === "l") toggle("mid");
+    else if (e.key === "e") toggle("law");
+    else if (e.key === "f") toggle("phys");
+    else if (e.key === "v") setPos(S.pos === "vertical" ? "horizontal" : "vertical");
+    else return;
+    e.preventDefault();
+  });
+
+  // endereço com condições iniciais: #horizontal&m=1&k=88.83&L=0.6&x0=0.08&v0=0&w=2 (w = janela de tempo)
+  // (ponto ou vírgula decimal; os valores ficam dentro dos limites dos cursores)
+  (() => {
+    const parts = location.hash.slice(1).split("&");
+    if (parts[0] === "horizontal") S.pos = "horizontal";
+    for (const kv of parts) {
+      const [key, val] = kv.split("=");
+      if (val === undefined) continue;
+      const x = parseFloat(decodeURIComponent(val).replace(",", "."));
+      if (!isFinite(x)) continue;
+      if (key === "w") { setWin(x); continue; }
+      if (key in LIM) S[key] = clamp(x, LIM[key][0], LIM[key][1]);   // (sem arredondar ao passo do cursor)
+    }
+  })();
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
 })();
 </script>
 </body>
