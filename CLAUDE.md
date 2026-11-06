@@ -8,7 +8,7 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 - Fontes: Atkinson Hyperlegible (texto) e IBM Plex Mono (valores), via Google Fonts; tokens de cor em CSS com modo escuro.
 
 ## Estrutura
-- `index.html` (raiz) — página inicial: menu e faixa iguais aos do weblog + grelha de cartões (um `a.card` por app, com `<b>` título e `<span>` descrição). As fórmulas dos cartões (título e descrição) escrevem-se em LaTeX entre `$…$` (KaTeX auto-render, só dentro de `.grelha`); cada fórmula fica numa só linha. O CSS dos cartões usa `a.card > span` (não `a.card span`, que estragaria os spans do KaTeX).
+- `index.html` (raiz) — página inicial: menu e faixa iguais aos do weblog + grelha de cartões compactos (pedido do utilizador, 2026-11-06): um `div.card` por app com `a.abre` (o `<b>` título e uma frase curta `span.curta`; o `::after` do link cobre o cartão, que abre a app) e um botão redondo `button.mais` «›» (roda 90° quando aberto, `aria-expanded`) que mostra/esconde a descrição completa `p.desc` (`hidden`, por baixo de uma linha tracejada); `.grelha` com `align-items: start` (abrir um cartão não estica os vizinhos). App nova: escrever a frase curta e a descrição. As fórmulas (título, frase e descrição) escrevem-se em LaTeX entre `$…$` (KaTeX auto-render, só dentro de `.grelha`); cada fórmula fica numa só linha.
 - `README.md` — uma linha por app, com link e descrição.
 - `img/logo.png` — logótipo.
 - Uma pasta por app:
