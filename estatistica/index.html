@@ -130,6 +130,7 @@
       <div class="seg" role="group" aria-label="Tipo de gráfico">
         <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
         <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
+        <button class="b small" data-g="dots" aria-pressed="false">Diagrama de pontos</button>
       </div>
     </div>
     <div class="row" id="hist-opts">
@@ -141,7 +142,7 @@
       <span class="lbl">início</span>
       <input class="inp" id="a0" type="text" inputmode="decimal" aria-label="Início da primeira classe" style="width:4.2rem">
     </div>
-    <div class="row">
+    <div class="row" id="freq-row">
       <span class="lbl">Frequência</span>
       <div class="seg" role="group" aria-label="Frequência">
         <button class="b small" data-f="abs" aria-pressed="true">absoluta</button>
@@ -493,8 +494,9 @@
     $("tab-frame").hidden = !S.tab;
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
+    $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
     if (xs.length < 1) { put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
-    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel";
+    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
     const xlabel = name || "x";
 
     // medidas
@@ -514,7 +516,7 @@
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), c3 = css("--c3"), bar = css("--bar"), grid = css("--grid2");
     const [W, H] = figSize($("fig-main"));
     const marks = [];
-    let tableRows = [], maxY = 1;
+    let tableRows = [], maxY = 1, dotTop = 1;
     if (S.graph === "hist") {
       const C = classes(st);
       if (!fromInputs) {
@@ -550,19 +552,35 @@
       let Fi = 0;
       tableRows = data.map(c => { Fi += c.ni; return [fmt(c.v, 4), c.ni, c.ni / st.n, Fi, Fi / st.n]; });
       var xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = data.length <= 25 ? data.map(c => c.v) : undefined;
+      if (S.graph === "dots") {
+        // diagrama de pontos: um ponto por observação, empilhados por cima do seu valor
+        marks.length = 0;
+        const span = xdom[1] - xdom[0];
+        // as pilhas ocupam a altura do gráfico; o raio vem do espaço entre valores e entre níveis
+        const pxGap = (W - 60) / span * gap, pyUnit = (H - 66) / (maxY + 0.5);
+        const r = Math.max(2, Math.min(12, Math.min(pxGap, pyUnit) / 2 - 1));
+        dotTop = maxY + 0.5;
+        const dots = data.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ v: c.v, k })));
+        marks.push(
+          Plot.dot(dots, { x: "v", y: "k", r, fill: c1, stroke: css("--bg"), strokeWidth: r > 4 ? 1.2 : 0.6 }),
+          Plot.ruleY([0], { stroke: ink }),
+        );
+        $("main-title").textContent = "Diagrama de pontos";
+      }
     }
     if (S.mean) {
       marks.push(Plot.ruleX([st.m], { stroke: c2, strokeWidth: 2, strokeDasharray: "6 4" }),
                  Plot.ruleX([st.med], { stroke: c3, strokeWidth: 2 }),
-                 Plot.text([st.m], { x: d => d, frameAnchor: "top", text: () => "média " + fmt(st.m, S.dec), fill: c2, dy: -4, textAnchor: "start", dx: 4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }),
-                 Plot.text([st.med], { x: d => d, frameAnchor: "bottom", text: () => "mediana " + fmt(st.med, S.dec), fill: c3, dy: -8, textAnchor: "start", dx: 4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
+                 Plot.text([st.m], { x: d => d, frameAnchor: "top", text: () => "média " + fmt(st.m, S.dec), fill: c2, dy: -4, textAnchor: st.m <= st.med ? "end" : "start", dx: st.m <= st.med ? -4 : 4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }),
+                 Plot.text([st.med], { x: d => d, frameAnchor: "top", text: () => "mediana " + fmt(st.med, S.dec), fill: c3, dy: -4, textAnchor: st.m <= st.med ? "start" : "end", dx: st.m <= st.med ? 4 : -4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
     }
     const main = Plot.plot({
       width: W, height: H, marginLeft: 48, marginBottom: 40, marginTop: 26, style: plotStyle(),
       x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
       // frequências absolutas: só marcas inteiras
-      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: true, tickFormat: decTick, labelArrow: "none",
-           ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger) },
+      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: S.graph !== "dots", tickFormat: decTick, labelArrow: "none",
+           domain: S.graph === "dots" ? [0, dotTop] : undefined,
+           ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
       marks,
     });
     put($("fig-main"), main);
