@@ -16,6 +16,8 @@
     --bg: #ffffff; --ink: #17202b; --muted: #333d4a; --faint: #6b7685; --grid: #e6eaf0; --grid2: #c4cdd8;
     --btn: #eef2f6; --line: #b3bfcc; --band: #f6f8fb; --on: #ffffff; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5;
     --c1: #1565c0; --c2: #d32f2f; --c3: #2e7d32; --hot: #ef6c00; --pi: #7b3fb0; --bar: #90b4e0;
+    /* cores dos grupos (sem o vermelho, que é o da curva de regressão e dos outliers) */
+    --g0: #1565c0; --g1: #e65100; --g2: #2e7d32; --g3: #8e24aa; --g4: #00838f; --g5: #ad1457; --g6: #6d4c41; --g7: #a07800; --g8: #546e7a; --g9: #827717;
     --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, monospace;
   }
@@ -23,6 +25,7 @@
     --bg: #151b22; --ink: #e6ebf1; --muted: #b4bdc8; --faint: #8592a1; --grid: #232c36; --grid2: #3a4552;
     --btn: #212b36; --line: #46525f; --band: #1c242d; --on: #151b22; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22;
     --c1: #64a8ff; --c2: #ff6b6b; --c3: #5cc26a; --hot: #ffa040; --pi: #c79bff; --bar: #3d6aa3;
+    --g0: #64a8ff; --g1: #ffa040; --g2: #5cc26a; --g3: #ce93d8; --g4: #4dd0e1; --g5: #f48fb1; --g6: #bcaaa4; --g7: #ffd54f; --g8: #b0bec5; --g9: #d4e157;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -80,6 +83,17 @@
   .eq { font-size: 1.15rem; padding: 0.15rem 0; overflow: hidden; }
   .eq .katex-html { white-space: nowrap; }
   .eq.none { font-size: 0.88rem; color: var(--faint); font-style: italic; }   /* a equação numa só linha; o fitEq encolhe a letra até caber */
+  /* medidas por grupo: uma coluna por grupo */
+  .gmeas { overflow-x: auto; }
+  .gmeas table.freq th { text-align: right; font-weight: 700; white-space: nowrap; }
+  .gmeas table.freq td:first-child { color: var(--muted); }
+  .geq { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1rem; overflow: hidden; }
+  .geq .sw, .gname .sw { flex: none; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 2.5px solid; display: inline-block; }
+  .geq .t { flex: 1; min-width: 0; overflow: hidden; } .geq .t .katex-html { white-space: nowrap; }
+  .geq .m { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+  .geq .e { font-size: 0.82rem; color: var(--faint); font-style: italic; }
+  .gname { font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; }
+  #yest .gname { margin-right: 0.7rem; font-weight: 400; }
   .note { font-size: 0.75rem; color: var(--faint); font-style: italic; }
 
   /* gráficos */
@@ -105,6 +119,8 @@
   #stem .r { display: flex; white-space: nowrap; }
   #stem .s { min-width: 2.6ch; text-align: right; font-weight: 600; padding-right: 0.5ch; border-right: 1.5px solid var(--ink); margin-right: 0.6ch; }
   #stem .l { color: var(--c1); letter-spacing: 0.08ch; }
+  #stem .gh { font-family: var(--font); font-weight: 700; font-size: 0.85rem; margin: 0.5rem 0 0.15rem; }
+  #stem .gh:first-child { margin-top: 0; }
   #stem .k { font-family: var(--font); font-style: italic; font-size: 0.78rem; color: var(--faint); margin-top: 0.35rem; white-space: normal; }
   .frame { border: 1.2px solid var(--line); border-radius: 9px; padding: 0.4rem 0.6rem; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .frame h3 { margin: 0 0 0.2rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
@@ -166,6 +182,7 @@
         <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
         <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
         <button class="b small" data-g="dots" aria-pressed="false">Diagrama de pontos</button>
+        <button class="b small" data-g="dens" id="g-dens" aria-pressed="false" hidden title="Só com uma coluna de grupos: a curva de densidade de cada grupo, sobrepostas">Densidades sobrepostas</button>
       </div>
     </div>
     <div class="row" id="hist-opts">
@@ -216,6 +233,7 @@
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
       <label class="chk"><input type="checkbox" id="sh-dat"> Tabela dos dados</label>
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
+      <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
     </div>
     <div class="row">
       <span class="lbl">Estimar para</span><span id="xname-est"></span>
@@ -270,8 +288,8 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
-    col: { v: null, x: null, y: null },   // colunas escolhidas, quando os dados são uma tabela (CSV)
-    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, dec2: 3, xest: "",
+    col: { v: null, x: null, y: null, g: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = coluna dos grupos
+    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
   // pinguins de Palmer (Horst, Hill e Gorman, pacote palmerpenguins, domínio público CC0)
@@ -313,6 +331,7 @@
   // deteta o separador (tabulação, «;» ou «,») pela primeira linha; o cabeçalho tem de ter texto e pelo menos 2 colunas,
   // e pelo menos 80 % das linhas o mesmo número de campos. Valores em falta: vazio, NA, N/A, NaN, null, ?, -
   const MISSING = /^(|na|n\/a|nan|null|none|\?|-)$/i;
+  const MAXG = 10;   // número máximo de grupos
   let TCACHE = { text: null, T: null };
   function parseTable(text) {
     if (TCACHE.text === text) return TCACHE.T;
@@ -330,7 +349,12 @@
           const raw = body.map(r => r[j].trim());
           const vals = raw.map(v => MISSING.test(v) ? null : num(v));
           const present = raw.filter(v => !MISSING.test(v)).length, numeric = vals.filter(v => v !== null && !isNaN(v)).length;
-          return { name: h || `coluna ${j + 1}`, vals, missing: raw.length - present, numeric: present > 0 && numeric / present >= 0.8 };
+          const isNum = present > 0 && numeric / present >= 0.8;
+          // níveis (valores diferentes) — a coluna pode servir de grupos se tiver de 2 a MAXG níveis
+          let lv = [...new Set(raw.filter(v => !MISSING.test(v)))];
+          if (isNum) lv.sort((u, v) => num(u) - num(v));
+          return { name: h || `coluna ${j + 1}`, vals, raw, levels: lv.length >= 2 && lv.length <= MAXG ? lv : null,
+                   missing: raw.length - present, numeric: isNum };
         });
         if (!T || cols.length > T.cols.length) T = { sep, cols, n: body.length };
       }
@@ -341,6 +365,8 @@
   }
   const numCols = T => T.cols.filter(c => c.numeric);
   const colOf = (T, name, k = 0) => { const nc = numCols(T); return nc.find(c => c.name === name) || nc[Math.min(k, nc.length - 1)]; };
+  const groupCols = T => T.cols.filter(c => c.levels);
+  const groupCol = T => (S.col.g && groupCols(T).find(c => c.name === S.col.g)) || null;
   // escolha das colunas (só aparece com uma tabela); refaz as listas só quando as colunas ou o modo mudam
   let colsKey = "";
   function colsUI(T) {
@@ -349,14 +375,17 @@
     const nc = numCols(T), miss = d3.sum(T.cols, c => c.missing);
     $("tinfo").textContent = `Tabela: ${T.n} linhas · ${T.cols.length} colunas (${nc.length} numéricas)${miss ? ` · ${miss} valores em falta` : ""}`;
     box.hidden = false;
-    const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric).join(",");
+    const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
+    const gc = groupCols(T);
+    // grupos: colunas com 2 a MAXG valores diferentes (texto, como a espécie, ou números, como o ano)
+    const gsel = gc.length ? `<span class="lbl" title="Coluna que divide os dados em grupos">Grupos</span><select class="inp" id="c-g"><option value="">(nenhum)</option>${gc.map(c => `<option${c.name === S.col.g ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : "";
     const opts = sel => nc.map(c => `<option${c.name === sel ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     if (key !== colsKey) {
       colsKey = key;
       box.innerHTML = S.mode === "uni"
-        ? `<span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select>`
-        : `<span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select>`;
-      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value; EXCL.clear(); render(); });
+        ? `<span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select>${gsel}`
+        : `<span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select>${gsel}`;
+      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); render(); });
     }
   }
 
@@ -364,9 +393,19 @@
     const T = parseTable(text);
     colsUI(T);
     if (T) {
-      const c = colOf(T, S.col.v);
+      const c = colOf(T, S.col.v), gc = groupCol(T);
+      const miss = c.missing ? `${c.missing} valores em falta em «${c.name}» foram ignorados.` : "";
+      if (gc) {
+        // um conjunto de valores por grupo (pela ordem dos níveis); sem grupo, o valor fica de fora
+        const by = new Map(gc.levels.map(l => [l, []]));
+        let noG = 0;
+        c.vals.forEach((v, i) => { if (v === null || isNaN(v)) return; const g = gc.raw[i]; if (MISSING.test(g)) noG++; else by.get(g).push(v); });
+        const groups = [...by].filter(([, xs]) => xs.length).map(([name, xs]) => ({ name, xs }));
+        const note = [miss, noG ? `${noG} valores sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
+        if (groups.length >= 2) return { name: c.name, xs: groups.flatMap(g => g.xs), bad: [], note, groups, gname: gc.name };
+      }
       const xs = c.vals.filter(v => v !== null && !isNaN(v));
-      return { name: c.name, xs, bad: [], note: c.missing ? `${c.missing} valores em falta em «${c.name}» foram ignorados.` : "" };
+      return { name: c.name, xs, bad: [], note: miss };
     }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let name = "", bad = [];
@@ -380,10 +419,19 @@
     const T = parseTable(text);
     colsUI(T);
     if (T) {
-      const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), pts = [];
-      let lost = 0;
-      cx.vals.forEach((x, i) => { const y = cy.vals[i]; if (x === null || y === null || isNaN(x) || isNaN(y)) lost++; else pts.push([x, y]); });
-      return { nx: cx.name, ny: cy.name, pts, bad: [], note: lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "" };
+      const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), gc = groupCol(T), pts = [];
+      let lost = 0, noG = 0;
+      // com grupos, cada par leva o seu grupo em terceiro lugar: [x, y, grupo]
+      cx.vals.forEach((x, i) => {
+        const y = cy.vals[i];
+        if (x === null || y === null || isNaN(x) || isNaN(y)) lost++;
+        else if (gc && MISSING.test(gc.raw[i])) noG++;
+        else pts.push(gc ? [x, y, gc.raw[i]] : [x, y]);
+      });
+      let groups = gc ? gc.levels.filter(l => pts.some(p => p[2] === l)) : null;
+      if (groups && groups.length < 2) { groups = null; pts.forEach(p => p.length = 2); }
+      const note = [lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "", noG ? `${noG} linhas sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
+      return { nx: cx.name, ny: cy.name, pts, bad: [], note, groups, gname: groups ? gc.name : null };
     }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let nx = "", ny = "", bad = [];
@@ -579,7 +627,7 @@
     const rd = new FileReader();
     rd.onload = () => {
       const txt = String(rd.result).replace(/^\uFEFF/, "");
-      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null }; EXCL.clear(); save(); render();
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; EXCL.clear(); save(); render();
       if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
     };
     rd.readAsText(f);
@@ -601,7 +649,7 @@
   });
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
-  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -692,7 +740,10 @@
   }
 
   function renderUni(fromInputs) {
-    const { name, xs, bad, note } = readUni(ta.value);
+    const RU = readUni(ta.value), { name, xs, bad, note } = RU;
+    // «Densidades sobrepostas» só existe com grupos
+    $("g-dens").hidden = !RU.groups;
+    if (!RU.groups && S.graph === "dens") { S.graph = "hist"; document.querySelectorAll("[data-g]").forEach(x => x.setAttribute("aria-pressed", x.dataset.g === "hist")); }
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
     $("msg").classList.toggle("info", !bad.length);
     const plots = $("plots");
@@ -702,7 +753,9 @@
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
     $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
+    $("meas").className = "meas"; $("fig-box").style.height = "";
     if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
+    if (RU.groups) return renderUniG(fromInputs, RU);
     const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
     const xlabel = name || "x";
 
@@ -855,7 +908,7 @@
     // tabela de frequências
     const SL = stemLeaf(st);
     if (S.stem) $("stem").innerHTML = stemHTML(SL);
-    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
+    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, histTab: S.graph === "hist", graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
              fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) };
     if (S.tab) {
       const f4 = v => fmt(v, 4);
@@ -865,8 +918,221 @@
     }
   }
 
+  // ---------- uma variável, por grupos ----------
+  const gColors = () => d3.range(MAXG).map(i => css(`--g${i}`));
+  // margem esquerda com espaço para os nomes dos grupos (é a mesma nos dois gráficos, para as escalas horizontais coincidirem)
+  const gMarginL = names => Math.max(48, Math.min(150, d3.max(names, n => n.length) * 7.2 + 18));
+  const swatch = c => `<span class="sw" style="border-color:${c}"></span>`;
+  function measG(G, st, d) {
+    const modeOf = s => s.modes.length === 0 ? "—" : s.modes.length > 2 ? "várias" : s.modes.map(v => fmt(v, d)).join("; ");
+    const R = [["n", s => s.n], ["\\text{mín.}", s => fmt(s.min, d)], ["\\text{máx.}", s => fmt(s.max, d)], ["\\text{amplitude}", s => fmt(s.max - s.min, d)],
+      ["\\bar{x}", s => fmt(s.m, d)], ["\\tilde{x}", s => fmt(s.med, d)], ["\\text{moda}", modeOf], ["Q_1", s => fmt(s.q1, d)], ["Q_3", s => fmt(s.q3, d)],
+      ["\\text{AIQ}", s => fmt(s.q3 - s.q1, d)], ["s^2", s => fmt(s.s2, d)], ["s", s => fmt(s.s, d)]];
+    const cols = [...G.map(g => ({ h: `<span style="color:${g.c}">${esc(g.name)}</span>`, s: g.st })), { h: "Todos", s: st }];
+    return `<table class="freq"><thead><tr><th></th>${cols.map(c => `<th>${c.h}</th>`).join("")}</tr></thead><tbody>` +
+      R.map(([k, f]) => `<tr><td>${K(k)}</td>${cols.map(c => `<td>${f(c.s)}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+  }
+
+  function renderUniG(fromInputs, { name, xs, groups, gname }) {
+    const st = uniStats(xs), d = S.dec, dens = S.graph === "dens";
+    const rel = S.freq === "rel" && S.graph !== "dots" && !dens;
+    const xlabel = name || "x", pal = gColors();
+    const G = groups.map((g, i) => ({ name: g.name, xs: g.xs, st: uniStats(g.xs), c: pal[i % MAXG] }));
+    const names = G.map(g => g.name), ng = G.length;
+    const color = { domain: names, range: G.map(g => g.c) };
+    $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
+    $("freq-row").style.display = S.graph === "dots" || dens ? "none" : "";
+    const meas = $("meas"); meas.className = "gmeas"; meas.innerHTML = measG(G, st, d);
+
+    const ink = css("--ink"), c2 = css("--c2"), c3 = css("--c3"), bg = css("--bg");
+    // (a altura do quadro dos diagramas de extremos e quartis muda com o número de grupos: fixa-se antes de medir o gráfico principal)
+    const bh = 34 + 30 * ng;
+    if (S.box) $("fig-box").style.height = bh + "px";
+    const [W, H] = figSize($("fig-main"));
+    const mL = gMarginL(names), mT = 26, mB = 44, Wx = W - (mL - 48);   // (Wx: largura para as marcas do eixo)
+    const facetH = (H - mT - mB) / ng;
+    const marks = [];
+    let xdom, ticks, binW, maxY = 1, dotTop = 1, hint = "", last = [];
+    // classes (as mesmas para todos os grupos) e tabela de frequências por grupo
+    const C = classes(st);
+    if (!fromInputs && S.graph === "hist") {
+      if (document.activeElement !== $("k")) $("k").value = C.k;
+      if (document.activeElement !== $("h")) $("h").value = fmt(C.h, 4);
+      if (document.activeElement !== $("a0")) $("a0").value = fmt(C.a, 4);
+    }
+    const inCl = (v, c) => v >= c.lo - 1e-9 && (v < c.hi - 1e-9 || (c.last && v <= c.hi + 1e-9));
+    const clName = c => `[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`;
+    const byVal = S.graph === "bars" || S.graph === "dots";
+    const tableRows = byVal
+      ? st.counts.map(([v, ni]) => [fmt(v, 4), ...G.map(g => g.xs.filter(x => x === v).length), ni])
+      : C.cl.map(c => [clName(c), ...G.map(g => g.xs.filter(v => inCl(v, c)).length), c.ni]);
+    const gLabel = g => `${g.name} (n = ${g.st.n})`;
+
+    if (S.graph === "hist") {
+      // um histograma por grupo, uns por baixo dos outros (facetas), com as mesmas classes
+      const data = G.flatMap(g => C.cl.map(c => { const ni = g.xs.filter(v => inCl(v, c)).length; return { g: g.name, lo: c.lo, hi: c.hi, last: c.last, ni, y: rel ? ni / g.st.n : ni }; }));
+      maxY = d3.max(data, r => r.y);
+      marks.push(
+        Plot.rectY(data, { x1: "lo", x2: "hi", y: "y", fy: "g", fill: "g", fillOpacity: 0.35, stroke: "g", strokeWidth: 1.2,
+          title: r => `${r.g}\n${clName(r)}\nnᵢ = ${r.ni}\nfᵢ = ${fmt(r.ni / G[names.indexOf(r.g)].st.n, 4)}` }),
+        Plot.text(data.filter(r => r.ni > 0), { x: r => (r.lo + r.hi) / 2, y: "y", fy: "g", text: r => rel ? fmt(r.y, 2) : String(r.ni), dy: -7, fill: ink, fontSize: 11, fontWeight: 700 }),
+      );
+      binW = C.h; xdom = [C.a, C.a + C.k * C.h]; ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), Wx);
+      $("main-title").textContent = "Histogramas por grupo";
+      hint = C.out ? `${C.out} valor(es) fora das classes` : `${C.k} classes de amplitude ${fmt(C.h, 4)}${rel ? " · fᵢ em cada grupo" : ""}`;
+    } else if (byVal) {
+      const vals = st.counts.map(c => c[0]);
+      const gap = d3.min(d3.pairs(vals), ([a, b]) => b - a) || 1;
+      binW = gap; xdom = [st.min - gap * 0.6, st.max + gap * 0.6];
+      ticks = fits(vals, Wx) ? vals : niceTicks(xdom, vals, Wx);
+      const data = G.flatMap(g => g.st.counts.map(([v, ni]) => ({ g: g.name, v, ni, y: rel ? ni / g.st.n : ni })));
+      maxY = d3.max(data, r => r.y);
+      if (S.graph === "bars") {
+        marks.push(
+          Plot.ruleX(data, { x: "v", y1: 0, y2: "y", fy: "g", stroke: "g", strokeWidth: Math.max(3, Math.min(16, (W - mL) / vals.length / 3)) }),
+          Plot.text(data, { x: "v", y: "y", fy: "g", text: r => rel ? fmt(r.y, 2) : String(r.ni), dy: -7, fill: ink, fontSize: 11, fontWeight: 700 }),
+        );
+        $("main-title").textContent = "Diagramas de barras por grupo";
+      } else {
+        // pontos empilhados em cada faceta; o raio vem do espaço entre valores e da altura de cada faceta
+        const pxGap = (W - mL - 20) / (xdom[1] - xdom[0]) * gap, pyUnit = facetH * 0.82 / (maxY + 0.5);
+        const r = Math.max(1.5, Math.min(10, Math.min(pxGap, pyUnit) / 2 - 0.5));
+        dotTop = maxY + 0.5;
+        const dots = data.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ g: c.g, v: c.v, k })));
+        marks.push(Plot.dot(dots, { x: "v", y: "k", fy: "g", r, fill: bg, stroke: "g", strokeWidth: Math.max(1.4, Math.min(2.6, r * 0.28)) }));
+        $("main-title").textContent = "Diagramas de pontos por grupo";
+      }
+      hint = `${vals.length} valores diferentes`;
+    } else {
+      // densidades sobrepostas: a curva de cada grupo (área 1), com a área por baixo ténue, e o nome junto do pico
+      const span = st.max - st.min || 1;
+      xdom = [st.min - span * 0.12, st.max + span * 0.12];
+      ticks = niceTicks(xdom, d3.ticks(xdom[0], xdom[1], 10), Wx);
+      const N = 240, curves = [], peaks = [], missing = [];
+      G.forEach(g => {
+        const k = kdeOf(g.xs);
+        if (!k) { missing.push(g.name); return; }
+        const cv = d3.range(N + 1).map(i => { const x = xdom[0] + (xdom[1] - xdom[0]) * i / N; return { g: g.name, x, y: k(x) }; });
+        curves.push(...cv); peaks.push(cv.reduce((a, b) => b.y > a.y ? b : a));
+      });
+      maxY = d3.max(curves, c => c.y) || 1;
+      marks.push(
+        Plot.areaY(curves, { x: "x", y1: 0, y2: "y", z: "g", fill: "g", fillOpacity: 0.1, curve: "natural" }),
+        Plot.line(curves, { x: "x", y: "y", z: "g", stroke: "g", strokeWidth: 2.2, curve: "natural" }),
+        Plot.ruleY([0], { stroke: ink }),
+      );
+      // (os nomes por cima de tudo, incluindo as linhas da média e da mediana)
+      last.push(Plot.text(peaks, { x: "x", y: "y", text: p => gLabel(G[names.indexOf(p.g)]), fill: "g", dy: -9, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
+      $("main-title").textContent = "Curvas de densidade por grupo";
+      hint = "núcleo gaussiano; área 1 em cada grupo" + (missing.length ? ` · sem curva (poucos valores): ${missing.join(", ")}` : "");
+    }
+    // curva de densidade em cada faceta, na escala das frequências do grupo
+    if (S.dens && !dens) {
+      const N = 240, curves = [];
+      G.forEach(g => {
+        const k = kdeOf(g.xs);
+        if (!k) return;
+        const m = (rel ? 1 : g.st.n) * binW;
+        d3.range(N + 1).forEach(i => { const x = xdom[0] + (xdom[1] - xdom[0]) * i / N; curves.push({ g: g.name, x, y: k(x) * m }); });
+      });
+      marks.push(Plot.areaY(curves, { x: "x", y1: 0, y2: "y", fy: "g", z: "g", fill: "g", fillOpacity: 0.1, curve: "natural" }),
+                 Plot.line(curves, { x: "x", y: "y", fy: "g", z: "g", stroke: "g", strokeWidth: 2.4, curve: "natural" }));
+      const top = d3.max(curves, c => c.y) || 0;
+      maxY = Math.max(maxY, top);
+      if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
+    }
+    if (!dens) marks.push(Plot.ruleY([0], { stroke: ink }));
+    // diagramas de extremos e quartis (um por grupo); com outliers, as barreiras de todos ficam à vista
+    const B = G.map((g, i) => {
+      const s = g.st, aiq = s.q3 - s.q1, fLo = s.q1 - 1.5 * aiq, fHi = s.q3 + 1.5 * aiq;
+      const outs = S.out ? s.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) : [];
+      const ins = S.out ? s.xs.filter(v => v >= fLo - 1e-9 && v <= fHi + 1e-9) : s.xs;
+      return { i, name: g.name, n: s.n, min: s.min, max: s.max, q1: s.q1, med: s.med, q3: s.q3, m: s.m, fLo, fHi, outs, wLo: ins[0], wHi: ins[ins.length - 1] };
+    });
+    if (S.box && S.out) {
+      const lo = d3.min(B, b => b.fLo), hi = d3.max(B, b => b.fHi), padF = (Math.max(xdom[1], hi) - Math.min(xdom[0], lo)) * 0.03;
+      xdom = [Math.min(xdom[0], lo - padF), Math.max(xdom[1], hi + padF)];
+    }
+    if (S.mean) {
+      const fyo = dens ? {} : { fy: "name" };
+      marks.push(Plot.ruleX(G, { x: g => g.st.m, ...fyo, stroke: dens ? "name" : c2, strokeWidth: 2, strokeDasharray: "6 4" }),
+                 Plot.ruleX(G, { x: g => g.st.med, ...fyo, stroke: dens ? "name" : c3, strokeWidth: 2 }));
+      hint += " · a tracejado, a média; a cheio, a mediana";
+    }
+    // nome do grupo no canto de cada faceta
+    if (!dens) marks.push(Plot.text(G, { fy: "name", frameAnchor: "top-right", text: gLabel, fill: "name", dy: 2, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
+    marks.push(...last);
+    $("main-hint").textContent = hint;
+    const yTicks = Math.max(2, Math.round((dens ? H : facetH) / (dens ? 70 : 40)));
+    const main = Plot.plot({
+      width: W, height: H, marginLeft: mL, marginBottom: mB, marginTop: mT, style: plotStyle(), color,
+      x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
+      ...(dens ? {} : { fy: { axis: null, domain: names, padding: 0.16 } }),
+      y: dens ? { label: "densidade", grid: true, tickFormat: decTick, labelArrow: "none", ticks: yTicks }
+        : { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: S.graph !== "dots", tickFormat: decTick, labelArrow: "none",
+            domain: S.graph === "dots" ? [0, dotTop] : undefined,
+            ticks: rel ? yTicks : d3.ticks(0, maxY || 1, yTicks).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
+      marks,
+    });
+    put($("fig-main"), main);
+
+    if (S.box) {
+      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W);
+      const tick = (v, i, h) => ({ v, i, h });
+      const box = Plot.plot({
+        width: Math.max(260, bw), height: bh, marginLeft: mL, marginBottom: 30, marginTop: 6, style: plotStyle(), color,
+        x: { domain: xdom, label: null, ticks, tickFormat: decTick }, y: { axis: null, domain: [-0.6, ng - 0.4], reverse: true },
+        marks: [
+          ...(S.out ? [Plot.link(B.flatMap(b => [tick(b.fLo, b.i), tick(b.fHi, b.i)]), { x1: "v", x2: "v", y1: t => t.i - 0.42, y2: t => t.i + 0.42, stroke: c2, strokeOpacity: 0.7, strokeDasharray: "4 3" })] : []),
+          Plot.link(B, { x1: "wLo", x2: "q1", y1: "i", y2: "i", stroke: ink, strokeWidth: 1.5 }),
+          Plot.link(B, { x1: "q3", x2: "wHi", y1: "i", y2: "i", stroke: ink, strokeWidth: 1.5 }),
+          Plot.link(B.flatMap(b => [tick(b.wLo, b.i), tick(b.wHi, b.i)]), { x1: "v", x2: "v", y1: t => t.i - 0.17, y2: t => t.i + 0.17, stroke: ink, strokeWidth: 1.5 }),
+          Plot.rect(B, { x1: "q1", x2: "q3", y1: b => b.i - 0.3, y2: b => b.i + 0.3, fill: "name", fillOpacity: 0.35, stroke: "name", strokeWidth: 1.6 }),
+          Plot.link(B, { x1: "med", x2: "med", y1: b => b.i - 0.3, y2: b => b.i + 0.3, stroke: ink, strokeWidth: 2.6 }),
+          Plot.dot(B.flatMap(b => b.outs.map(v => ({ v, i: b.i }))), { x: "v", y: "i", r: 4, stroke: c2, strokeWidth: 1.8, fill: bg }),
+          ...(S.mean ? [Plot.dot(B, { x: "m", y: "i", symbol: "times", r: 5, stroke: c2, strokeWidth: 2.5 })] : []),
+          Plot.text(B, { y: "i", frameAnchor: "left", text: "name", dx: -8, textAnchor: "end", fill: "name", fontWeight: 700 }),
+          Plot.tip(B, Plot.pointerY({ x: "med", y: "i", title: b => `${b.name} (n = ${b.n})\nmínimo ${fmt(b.min, d)}\nQ₁ ${fmt(b.q1, d)}\nmediana ${fmt(b.med, d)}\nQ₃ ${fmt(b.q3, d)}\nmáximo ${fmt(b.max, d)}` })),
+        ],
+      });
+      put($("fig-box"), box);
+      $("out-hint").textContent = S.out ? "outliers: " + B.map(b => `${b.name} ${b.outs.length}`).join(" · ") : "";
+    }
+
+    // caule e folhas de cada grupo
+    if (S.stem) $("stem").innerHTML = G.map(g => `<div class="gh" style="color:${g.c}">${esc(g.name)}</div>` + stemHTML(stemLeaf(g.st))).join("");
+    if (S.tab) {
+      $("tab").innerHTML = `<table class="freq"><thead><tr><th>${byVal ? "Valor" : "Classe"}</th>${G.map(g => `<th style="color:${g.c}" title="nᵢ em ${esc(g.name)}">${esc(g.name)}</th>`).join("")}<th>Total</th></tr></thead><tbody>` +
+        tableRows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("") +
+        `</tbody><tfoot><tr><td>Total</td>${G.map(g => `<td>${g.st.n}</td>`).join("")}<td>${st.n}</td></tr></tfoot></table>`;
+    }
+    // para o relatório: a tabela de frequências da amostra toda (nᵢ, fᵢ, Nᵢ, Fᵢ) e os grupos
+    let Fi = 0;
+    const totRows = tableRows.map(r => { const ni = r[r.length - 1]; Fi += ni; return [r[0], ni, ni / st.n, Fi, Fi / st.n]; });
+    const aiq = st.q3 - st.q1, fLo = st.q1 - 1.5 * aiq, fHi = st.q3 + 1.5 * aiq;
+    LAST = { mode: "uni", name: xlabel, st, tableRows: totRows, histTab: !byVal, SL: stemLeaf(st), graph: S.graph, title: $("main-title").textContent, hint: `${C.k} classes de amplitude ${fmt(C.h, 4)}`,
+             fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9), groups: G, B, gname, gTable: tableRows };
+  }
+
+  // legenda dos grupos dentro do SVG (para sair também nas imagens exportadas), numa linha na margem de cima, encostada à direita
+  function svgLegend(svg, items, right, y) {
+    const NS = "http://www.w3.org/2000/svg", g = document.createElementNS(NS, "g");
+    g.setAttribute("font-weight", "700"); g.setAttribute("font-size", "12"); g.setAttribute("text-anchor", "start");
+    const wOf = name => 14 + name.length * 7.4 + 16;
+    let cx = right - d3.sum(items, it => wOf(it.name)) + 16;
+    items.forEach(({ name, c }) => {
+      const ci = document.createElementNS(NS, "circle");
+      ci.setAttribute("cx", cx + 5); ci.setAttribute("cy", y); ci.setAttribute("r", 5); ci.setAttribute("fill", "none"); ci.setAttribute("stroke", c); ci.setAttribute("stroke-width", 2);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", cx + 14); t.setAttribute("y", y); t.setAttribute("dy", "0.35em"); t.setAttribute("fill", c); t.textContent = name;
+      g.append(ci, t);
+      cx += wOf(name);
+    });
+    svg.appendChild(g);
+  }
+
   function renderBi() {
-    const { nx, ny, pts: all, bad, note } = readBi(ta.value);
+    const { nx, ny, pts: all, bad, note, groups, gname } = readBi(ta.value);
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
     const pts = all.filter((p, i) => !EXCL.has(i)), out = all.filter((p, i) => EXCL.has(i));
@@ -874,13 +1140,22 @@
     $("msg").classList.toggle("info", !bad.length);
     $("plots").className = "plots bi" + (S.dat ? " tab" : "");
     $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
+    $("byg-lbl").hidden = !groups;
     $("main-title").textContent = "Diagrama de dispersão";
     $("main-hint").textContent = S.dat ? "" : "passa o ponteiro sobre um ponto para ver as coordenadas";
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
     if (pts.length < 2) { LAST = null; put($("fig-main"), null); if (S.dat) $("dat").innerHTML = ""; eq.textContent = all.length >= 2 ? "São precisos pelo menos dois pares incluídos." : "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
+    // grupos: cor de cada um e, com «Um modelo por grupo», um ajuste para cada
+    const pal = gColors();
+    const GR = groups ? groups.map((name, i) => ({ name, c: pal[i % MAXG], pts: pts.filter(p => p[2] === name) })) : null;
+    const gIdx = groups ? new Map(groups.map((g, i) => [g, i])) : null;
+    const byG = !!(GR && S.byG && S.model);
     const F = S.model ? fit(S.model, pts, d) : { err: "Escolhe um modelo de regressão.", none: true };
+    if (byG) GR.forEach(g => { g.F = g.pts.length >= 2 ? fit(S.model, g.pts, d) : { err: "São precisos pelo menos dois pares." }; });
+    // a função do modelo que se aplica a um par (a do seu grupo, ou a de todos)
+    const fOf = p => byG ? (GR[gIdx.get(p[2])].F.err ? null : GR[gIdx.get(p[2])].F.f) : (F.err ? null : F.f);
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
     rm.innerHTML = "";
     const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
@@ -888,87 +1163,125 @@
     // desvios padrão (amostra, n − 1)
     const sdv = V => { const m = sum(V) / V.length; return V.length > 1 ? Math.sqrt(sum(V.map(v => (v - m) ** 2)) / (V.length - 1)) : NaN; };
     add("s_x", fmt(sdv(X), d)); add("s_y", fmt(sdv(Y), d));
-    eq.classList.toggle("none", !!F.none); eq.style.fontSize = "";
-    if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
-    else {
-      tex(eq, F.eq); fitEq(eq);
-      if (F.r !== undefined) { add("r", fmt(F.r, d)); add("r^2", fmt(F.r2, d)); }
-      if (F.R2 !== undefined) add("R^2", fmt(F.R2, d));
-      $("rnote").textContent = F.note;
+    eq.style.fontSize = "";
+    if (byG) {
+      // uma equação por grupo, cada uma na sua linha (a letra encolhe para caber)
+      eq.classList.remove("none");
+      eq.innerHTML = GR.map((g, i) => `<div class="geq">${swatch(g.c)}<span class="t" data-i="${i}"></span><span class="m"></span></div>`).join("");
+      GR.forEach((g, i) => {
+        const t = eq.querySelector(`.t[data-i="${i}"]`), m = t.nextElementSibling;
+        if (g.F.err) { t.innerHTML = `<span class="e">${esc(g.name)}: ${esc(g.F.err)}</span>`; return; }
+        tex(t, g.F.eq.replace(/\\qquad.*$/, ""));
+        m.textContent = g.F.r !== undefined ? `r = ${fmt(g.F.r, d)}` : g.F.R2 !== undefined ? `R² = ${fmt(g.F.R2, d)}` : "";
+        m.title = g.name;
+      });
+      eq.querySelectorAll(".t").forEach(fitEq);
+      const okG = GR.find(g => !g.F.err);
+      $("rnote").textContent = okG ? `Um ajuste para cada grupo de «${gname}» (cor da legenda). ${okG.F.note}` : "";
+    } else {
+      eq.classList.toggle("none", !!F.none);
+      if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
+      else {
+        tex(eq, F.eq); fitEq(eq);
+        if (F.r !== undefined) { add("r", fmt(F.r, d)); add("r^2", fmt(F.r2, d)); }
+        if (F.R2 !== undefined) add("R^2", fmt(F.R2, d));
+        $("rnote").textContent = F.note;
+      }
     }
-    // estimativa
-    const xe = num(S.xest);
-    if (!F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe))) {
-      $("xest").classList.remove("bad");
-      tex($("yest"), `\\hat{y} = ${tnum(F.f(xe), d)}`);
-    } else { $("yest").textContent = ""; $("xest").classList.toggle("bad", S.xest.trim() !== "" && !isFinite(xe)); }
+    // estimativa (com um modelo por grupo, uma para cada grupo)
+    const xe = num(S.xest), hasX = S.xest.trim() !== "" && isFinite(xe);
+    const ests = !hasX ? [] : byG ? GR.filter(g => !g.F.err && isFinite(g.F.f(xe))).map(g => ({ y: g.F.f(xe), c: g.c, name: g.name }))
+                                  : (!F.err && isFinite(F.f(xe)) ? [{ y: F.f(xe), c: null }] : []);
+    $("xest").classList.toggle("bad", S.xest.trim() !== "" && !isFinite(xe));
+    if (!ests.length) $("yest").textContent = "";
+    else if (!byG) tex($("yest"), `\\hat{y} = ${tnum(ests[0].y, d)}`);
+    else $("yest").innerHTML = ests.map(e => `<span class="gname" title="${esc(e.name)}">${swatch(e.c)}<span class="k"></span></span>`).join("");
+    if (byG && ests.length) $("yest").querySelectorAll(".gname .k").forEach((el, i) => tex(el, `\\hat{y} = ${tnum(ests[i].y, d)}`));
 
-    const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint");
+    const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint"), bg = css("--bg");
     const [W, H] = figSize($("fig-main"));
     // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
     let x0 = d3.min(all, p => p[0]), x1 = d3.max(all, p => p[0]);
     const pad = (x1 - x0 || 1) * 0.08;
     let a = x0 - pad, b = x1 + pad;
-    if (!F.err && F.xmin0 && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
-    if (isFinite(xe) && S.xest.trim() !== "" && !F.err) { a = Math.min(a, xe - pad); b = Math.max(b, xe + pad); }
+    if (S.model && (byG ? GR.some(g => g.F.xmin0) : !F.err && F.xmin0) && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
+    if (ests.length) { a = Math.min(a, xe - pad); b = Math.max(b, xe + pad); }
     // eixos só se o 0 estiver à vista (o referencial ajusta-se aos dados, como nas calculadoras)
     const marks = [];
     if (a <= 0 && b >= 0) marks.push(Plot.ruleX([0], { stroke: faint }));
-    if (!F.err && S.curve) {
-      const N = 300, cv = d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, y: F.f(x) }; }).filter(p => isFinite(p.y));
-      marks.push(Plot.line(cv, { x: "x", y: "y", stroke: c2, strokeWidth: 2.5, clip: true }));
-      if (S.res) marks.push(Plot.link(pts, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => F.f(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
+    const curveOn = (f, lo, hi, stroke) => {
+      const N = 300, cv = d3.range(N + 1).map(i => { const x = lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y));
+      marks.push(Plot.line(cv, { x: "x", y: "y", stroke, strokeWidth: 2.5, clip: true }));
+    };
+    if (S.curve) {
+      // com um modelo por grupo, cada curva só no intervalo dos x do seu grupo
+      if (byG) GR.forEach(g => { if (!g.F.err) { const e = d3.extent(g.pts, p => p[0]), w = (e[1] - e[0]) * 0.04; curveOn(g.F.f, e[0] - w, e[1] + w, g.c); } });
+      else if (!F.err) curveOn(F.f, a, b, c2);
+      if (S.res) {
+        const rp = pts.filter(p => fOf(p));
+        marks.push(Plot.link(rp, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => fOf(p)(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
+      }
     }
-    // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos
-    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: css("--bg"), stroke: c1, strokeWidth: 1.8 }));
+    // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos; com grupos, cada um na sua cor
+    const color = GR ? { domain: groups, range: GR.map(g => g.c) } : undefined;
+    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: GR ? p => p[2] : c1, strokeWidth: 1.8 }));
     // excluídos: vazios e esbatidos, com uma cruz
-    if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: css("--bg"), stroke: faint, strokeWidth: 1.5 }),
+    if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: faint, strokeWidth: 1.5 }),
                                Plot.dot(out, { x: p => p[0], y: p => p[1], r: 3.5, symbol: "times", stroke: faint, strokeWidth: 1.4 }));
     if (S.cg) marks.push(Plot.dot([[mx, my]], { x: p => p[0], y: p => p[1], r: 7, symbol: "times", stroke: hot, strokeWidth: 3 }),
                          Plot.text([[mx, my]], { x: p => p[0], y: p => p[1], text: () => `(x̄, ȳ) = (${fmt(mx, d)}; ${fmt(my, d)})`, dx: 10, dy: -10, textAnchor: "start", fill: hot, fontWeight: 700 }));
-    if (!F.err && isFinite(xe) && S.xest.trim() !== "" && isFinite(F.f(xe))) {
-      marks.push(Plot.dot([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], r: 6, fill: hot }),
-                 Plot.text([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: hot, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
-    }
-    marks.push(Plot.tip(all, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
-    LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
+    ests.forEach(e => {
+      marks.push(Plot.dot([[xe, e.y]], { x: p => p[0], y: p => p[1], r: 6, fill: e.c || hot }),
+                 Plot.text([[xe, e.y]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: e.c || hot, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
+    });
+    marks.push(Plot.tip(all, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
+    LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my,
+             xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null };
     // escala vertical explícita (para as curvas de densidade poderem ocupar uma faixa junto de cada eixo)
-    const yAll = all.map(p => p[1]).concat(LAST && LAST.xe !== null && LAST.F === F ? [F.f(LAST.xe)] : []), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
+    const yAll = all.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
     let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
     // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
-    const BAND = S.mdens ? 64 : 0, mTop = 22 + BAND, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
+    // (com grupos, uma curva por grupo, sobrepostas, na mesma escala)
+    const LEG = GR ? 22 : 0, BAND = S.mdens ? 64 : 0, mTop = 22 + BAND + LEG, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
     if (S.mdens && pts.length > 2) {
-      const kx = kdeOf(X), ky = kdeOf(Y), pi = css("--pi"), N = 200;
+      const N = 200, sets = GR ? GR.map(g => ({ P: g.pts, c: g.c })) : [{ P: pts, c: css("--pi") }];
       const dyU = (ydom[1] - ydom[0]) / (H - mTop - mBottom), dxU = (b - a) / (W - mLeft - mRight);
-      if (kx) {
-        const cv = d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, d: kx(x) }; }), top = d3.max(cv, c => c.d);
-        const base = ydom[1] + 8 * dyU, hgt = (BAND - 14) * dyU;
-        cv.forEach(c => c.y = base + c.d / top * hgt);
-        marks.unshift(Plot.areaY(cv, { x: "x", y1: base, y2: "y", fill: pi, fillOpacity: 0.1, curve: "natural" }),
-                      Plot.line(cv, { x: "x", y: "y", stroke: pi, strokeWidth: 2, curve: "natural" }));
-      }
-      if (ky) {
-        const cv = d3.range(N + 1).map(i => { const y = ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(y) }; }), top = d3.max(cv, c => c.d);
-        const base = b + 8 * dxU, wid = (BAND - 14) * dxU;
-        cv.forEach(c => c.x = base + c.d / top * wid);
-        marks.unshift(Plot.areaX(cv, { y: "y", x1: base, x2: "x", fill: pi, fillOpacity: 0.1, curve: "natural" }),
-                      Plot.line(cv, { x: "x", y: "y", stroke: pi, strokeWidth: 2, curve: "natural" }));
-      }
+      const cx = [], cyv = [];
+      sets.forEach(({ P, c }) => {
+        if (P.length < 2) return;
+        const kx = kdeOf(P.map(p => p[0])), ky = kdeOf(P.map(p => p[1]));
+        if (kx) cx.push({ c, cv: d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, d: kx(x) }; }) });
+        if (ky) cyv.push({ c, cv: d3.range(N + 1).map(i => { const y = ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(y) }; }) });
+      });
+      const topX = d3.max(cx, s => d3.max(s.cv, c => c.d)), topY = d3.max(cyv, s => d3.max(s.cv, c => c.d));
+      const baseY = ydom[1] + 8 * dyU, hgt = (BAND - 14) * dyU, baseX = b + 8 * dxU, wid = (BAND - 14) * dxU;
+      cx.forEach(({ c, cv }) => {
+        cv.forEach(p => p.y = baseY + p.d / topX * hgt);
+        marks.unshift(Plot.areaY(cv, { x: "x", y1: baseY, y2: "y", fill: c, fillOpacity: 0.1, curve: "natural" }),
+                      Plot.line(cv, { x: "x", y: "y", stroke: c, strokeWidth: 2, curve: "natural" }));
+      });
+      cyv.forEach(({ c, cv }) => {
+        cv.forEach(p => p.x = baseX + p.d / topY * wid);
+        marks.unshift(Plot.areaX(cv, { y: "y", x1: baseX, x2: "x", fill: c, fillOpacity: 0.1, curve: "natural" }),
+                      Plot.line(cv, { x: "x", y: "y", stroke: c, strokeWidth: 2, curve: "natural" }));
+      });
     }
     const chart = Plot.plot({
-      width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(),
+      width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(), color,
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
       y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
       marks: d3.min(all, p => p[1]) <= 0 && d3.max(all, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
+    if (GR) svgLegend(chart, GR, W - mRight, 11);
     put($("fig-main"), chart);
 
     // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
     if (S.dat) {
-      const okF = !F.err;
+      // só os dados (sem ŷ nem resíduos, a pedido do utilizador)
+      const gcolOf = p => GR[gIdx.get(p[2])].c;
       // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
-      $("dat").innerHTML = `<table class="freq"><thead><tr><th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th><th>${esc(xl)}</th><th>${esc(yl)}</th>${okF ? "<th>ŷ</th><th>resíduo</th>" : ""}</tr></thead><tbody>` +
-        all.slice(0, 500).map(([x, y], i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>" +
+      $("dat").innerHTML = `<table class="freq"><thead><tr><th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th>${GR ? `<th>${esc(gname)}</th>` : ""}<th>${esc(xl)}</th><th>${esc(yl)}</th></tr></thead><tbody>` +
+        all.slice(0, 500).map((p, i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td>${GR ? `<td style="color:${gcolOf(p)};font-weight:700">${esc(p[2])}</td>` : ""}<td>${fmt(p[0], 4)}</td><td>${fmt(p[1], 4)}</td></tr>`).join("") + "</tbody></table>" +
         (all.length > 500 ? `<p class="note">Só se mostram as primeiras 500 de ${all.length} linhas.</p>` : "");
       $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
       const rowsEl = [...$("dat").querySelectorAll("tbody tr")];
@@ -987,7 +1300,7 @@
     }
   }
 
-  let pend = 0, fromInp = false;
+  let pend = 0, fromInp = false, reflow = 0;
   function render(fromInputs = false) {
     fromInp = fromInp || fromInputs;
     if (pend) return;
@@ -995,7 +1308,11 @@
       pend = 0;
       const f = fromInp; fromInp = false;
       if (!window.Plot || !window.d3) { $("msg").textContent = "Não foi possível carregar o Observable Plot (é preciso ligação à internet)."; return; }
+      const before = figSize($("fig-main")).join();
       if (S.mode === "uni") renderUni(f); else renderBi();
+      // se o quadro do gráfico principal mudou de tamanho entretanto (p. ex. um título noutro quadro passou a ter duas linhas),
+      // desenha outra vez (no máximo duas vezes seguidas)
+      if (figSize($("fig-main")).join() !== before && reflow < 2) { reflow++; render(f); } else reflow = 0;
     });
   }
   // ---------- exportar os gráficos ----------
@@ -1078,30 +1395,44 @@
       ]);
       body += `<p class="note">Percentil de ordem ${K("k")}: com ${K("L = nk/100")}, se ${K("L")} é inteiro, ${K("P_k = \\frac{x_{(L)} + x_{(L+1)}}{2}")}; senão, ${K("P_k = x_{(\\lfloor L \\rfloor + 1)}")}, onde ${K("x_{(i)}")} é o ${K("i")}-ésimo valor da amostra ordenada.</p>`;
       body += H2("Distribuição de frequências");
-      body += TAB(R.graph === "hist" ? `Tabela de frequências (${esc(R.hint)})` : "Tabela de frequências", [R.graph === "hist" ? "Classe" : "Valor", K("n_i"), K("f_i"), K("N_i"), K("F_i")],
+      if (R.groups) {
+        const G = R.groups, MR = [["Dimensão", K("n"), s => s.n], ["Mínimo", "", s => f(s.min)], ["Máximo", "", s => f(s.max)], ["Média", K("\\bar{x}"), s => f(s.m)],
+          ["Mediana", K("\\tilde{x}"), s => f(s.med)], ["1.º quartil", K("Q_1"), s => f(s.q1)], ["3.º quartil", K("Q_3"), s => f(s.q3)],
+          ["Amplitude interquartil", K("\\text{AIQ}"), s => f(s.q3 - s.q1)], ["Desvio padrão", K("s"), s => f(s.s)]];
+        body += `<p>Os dados dividem-se em ${G.length} grupos pela coluna <i>${esc(R.gname)}</i>: ${G.map(g => `<i>${esc(g.name)}</i>`).join(", ")}.</p>`;
+        body += TAB(`Medidas de cada grupo de <i>${esc(R.gname)}</i>`, ["Medida", "", ...G.map(g => esc(g.name)), "Todos"],
+          MR.map(([a, k, fn]) => [a, k, ...G.map(g => fn(g.st)), fn(st)]));
+        body += TAB(`Frequências absolutas em cada grupo`, [R.histTab ? "Classe" : "Valor", ...G.map(g => esc(g.name)), "Total"], R.gTable,
+          `<tfoot><tr><td>Total</td>${G.map(g => `<td>${g.st.n}</td>`).join("")}<td>${st.n}</td></tr></tfoot>`);
+      }
+      body += TAB(R.histTab ? `Tabela de frequências${R.groups ? " da amostra toda" : ""} (${esc(R.hint.split(" · ")[0])})` : `Tabela de frequências${R.groups ? " da amostra toda" : ""}`, [R.histTab ? "Classe" : "Valor", K("n_i"), K("f_i"), K("N_i"), K("F_i")],
         R.tableRows.map(r => [r[0], r[1], f4(r[2]), r[3], f4(r[4])]),
         `<tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot>`);
-      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}${S.dens ? "; a roxo, a curva de densidade (estimativa por núcleo gaussiano)" : ""}.`);
+      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${R.groups ? ` (grupos de <i>${esc(R.gname)}</i>)` : ""}${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}${S.dens ? "; a roxo, a curva de densidade (estimativa por núcleo gaussiano)" : ""}.`);
       if (S.stem) body += `<figure class="stem">${R.SL.lines.map(([a, b]) => `<div class="r"><span class="s">${a}</span><span class="l">${b}</span></div>`).join("")}<figcaption><b>Figura ${++fig}:</b> Diagrama de caule e folhas de <i>${esc(R.name)}</i>. Chave: ${R.SL.key}${R.SL.trunc ? " (algarismos seguintes truncados)" : ""}.</figcaption></figure>`;
       body += H2("Diagrama de extremos e quartis e outliers");
       const aiq = st.q3 - st.q1;
       body += KD(`Q_1 - 1{,}5\\times\\text{AIQ} = ${tnum(R.fLo, d)} \\qquad Q_3 + 1{,}5\\times\\text{AIQ} = ${tnum(R.fHi, d)}`);
       body += `<p>${R.outs.length ? `${R.outs.length === 1 ? "Há um valor" : `Há ${R.outs.length} valores`} fora das barreiras (outliers): ${[...new Set(R.outs)].map(v => f(v)).join("; ")}.` : "Não há valores fora das barreiras: a amostra não tem outliers."}</p>`;
-      body += FIG(figs.box, `Diagrama de extremos e quartis de <i>${esc(R.name)}</i>${S.out ? " (com as barreiras e os outliers)" : ""}.`);
+      if (R.groups) body += `<p>Em cada grupo (com as barreiras do próprio grupo): ${R.groups.map(g => {
+        const s = g.st, a = s.q3 - s.q1, o = s.xs.filter(v => v < s.q1 - 1.5 * a - 1e-9 || v > s.q3 + 1.5 * a + 1e-9);
+        return `<i>${esc(g.name)}</i>, ${o.length ? `${o.length === 1 ? "um outlier" : `${o.length} outliers`} (${[...new Set(o)].map(v => f(v)).join("; ")})` : "sem outliers"}`; }).join("; ")}.</p>`;
+      body += FIG(figs.box, `Diagrama${R.groups ? "s" : ""} de extremos e quartis de <i>${esc(R.name)}</i>${R.groups ? ` por grupo de <i>${esc(R.gname)}</i>` : ""}${S.out ? " (com as barreiras e os outliers)" : ""}.`);
     } else {
       const d = S.dec2, f = v => fmt(v, d), P = R.pts, X = P.map(p => p[0]), Y = P.map(p => p[1]);
       const sx = Math.sqrt(sum(X.map(x => (x - R.mx) ** 2)) / (P.length - 1)), sy = Math.sqrt(sum(Y.map(y => (y - R.my) ** 2)) / (P.length - 1));
       const r = linfit(X, Y).r;
       body += H2("Dados");
       body += `<p>Variáveis: ${K("x")} = <i>${esc(R.xl)}</i> e ${K("y")} = <i>${esc(R.yl)}</i>, com ${K(`n = ${P.length}`)} pares${R.excluded.length ? ` usados no estudo (${R.excluded.length === 1 ? "foi excluído o par" : `foram excluídos ${R.excluded.length} pares:`} ${R.excluded.map(([i, x, y]) => `n.º ${i}, (${fmt(x, 4)}; ${fmt(y, 4)})`).join("; ")})` : ""}.</p>`;
-      if (P.length <= 40) body += TAB("Dados", [K("i"), K("x_i"), K("y_i")], P.map((p, i) => [i + 1, fmt(p[0], 4), fmt(p[1], 4)]));
+      if (R.groups) body += `<p>Os pares dividem-se em ${R.groups.length} grupos pela coluna <i>${esc(R.gname)}</i>: ${R.groups.map(g => `<i>${esc(g.name)}</i> (${g.pts.length})`).join(", ")}.</p>`;
+      if (P.length <= 40) body += TAB("Dados", [K("i"), K("x_i"), K("y_i"), ...(R.groups ? [esc(R.gname)] : [])], P.map((p, i) => [i + 1, fmt(p[0], 4), fmt(p[1], 4), ...(R.groups ? [esc(p[2])] : [])]));
       body += H2("Resumo");
       body += TAB("Medidas de cada variável e correlação linear", ["", K("x"), K("y")], [
         ["Média", f(R.mx), f(R.my)], ["Desvio padrão", f(sx), f(sy)],
       ]);
       body += KD(`r = \\frac{\\sum (x_i - \\bar{x})(y_i - \\bar{y})}{\\sqrt{\\sum (x_i - \\bar{x})^2 \\sum (y_i - \\bar{y})^2}} = ${tnum(r, d)}`);
       const NAMES = { lin: "Linear", quad: "Quadrático", exp: "Exponencial", log: "Logarítmico", pow: "Potência", sin: "Sinusoidal" };
-      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${!R.F.err && S.curve ? `, com a curva do modelo ${NAMES[R.model].toLowerCase()}` : ""}${S.mdens ? "; nas margens, a roxo, as curvas de densidade de cada variável" : ""}.`);
+      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${R.groups ? `, com os grupos de <i>${esc(R.gname)}</i> em cores diferentes` : ""}${S.curve && (R.byG || !R.F.err) && R.model ? `, com ${R.byG ? "as curvas do modelo" : "a curva do modelo"} ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}` : ""}${S.mdens ? (R.groups ? "; nas margens, as curvas de densidade de cada variável em cada grupo" : "; nas margens, a roxo, as curvas de densidade de cada variável") : ""}.`);
       body += H2("Modelos de regressão");
       const rows = Object.keys(NAMES).map(m => {
         const G = fit(m, P, d);
@@ -1110,7 +1441,12 @@
       });
       body += TAB("Os modelos ajustados aos dados (◂ = o escolhido)", ["Modelo", "Equação", "Ajuste"], rows);
       body += `<p class="note">Os modelos exponencial, logarítmico e potência ajustam-se por linearização, como nas calculadoras gráficas (o ${K("r^2")} é o da reta transformada); o quadrático e o sinusoidal por mínimos quadrados (${K("R^2")} = coeficiente de determinação).</p>`;
-      if (!R.F.err) {
+      if (R.byG) {
+        body += `<p>Modelo escolhido: <b>${NAMES[R.model].toLowerCase()}</b>, ajustado a cada grupo de <i>${esc(R.gname)}</i> em separado.</p>`;
+        body += TAB(`Modelo ${NAMES[R.model].toLowerCase()} em cada grupo`, ["Grupo", "Equação", "Ajuste", ...(R.xeG !== null ? [K(`\\hat{y}\\ (x = ${tnum(R.xeG, 4)})`)] : [])], R.groups.map(g => g.F.err
+          ? [esc(g.name), `<span class="note">${esc(g.F.err)}</span>`, "—", ...(R.xeG !== null ? ["—"] : [])]
+          : [esc(g.name), K(g.F.eq.replace(/\\qquad.*$/, "")), g.F.R2 !== undefined ? K(`R^2 = ${tnum(g.F.R2, d)}`) : K(`r^2 = ${tnum(g.F.r2, d)}`), ...(R.xeG !== null ? [f(g.F.f(R.xeG))] : [])]));
+      } else if (!R.F.err) {
         body += `<p>Modelo escolhido: <b>${NAMES[R.model].toLowerCase()}</b>.</p>` + KD(R.F.eq);
         if (R.xe !== null) body += `<p>Estimativa para ${K(`x = ${tnum(R.xe, 4)}`)}: ${K(`\\hat{y} = ${tnum(R.F.f(R.xe), d)}`)}.</p>`;
         if (P.length <= 30) {
