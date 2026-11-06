@@ -370,8 +370,8 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: false, violin: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
-    col: { v: null, x: null, y: null, g: null, t: null, s: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = grupos, t = tempo, s = tamanho dos pontos
-    logx: false, ti: 0,   // escala logarítmica em x; índice do instante mostrado (com a coluna do tempo)
+    col: { v: null, x: null, y: null, g: null, t: null, s: null, id: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = grupos, t = tempo, s = tamanho dos pontos
+    logx: false, logy: false, ti: 0,   // escala logarítmica em x; índice do instante mostrado (com a coluna do tempo)
     model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
     picked: { uni: "", bi: "" },   // escolha no menu de exemplos («e0», «d:penguins», …)
@@ -392,6 +392,8 @@
       src: "234 automóveis (1999 e 2008): displ = cilindrada (L), hwy e cty = milhas por galão em estrada e em cidade; conjunto mpg do ggplot2 (Tidyverse), dados da EPA" },
     { id: "gapminder", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp", g: "continent", t: "year", s: "pop", log: true },
       src: "Gapminder: esperança de vida, população e PIB por habitante de 142 países, de 5 em 5 anos (1952–2007); pacote gapminder do R (Jenny Bryan), CC0, dados de gapminder.org" },
+    { id: "co2", name: "CO₂ e PIB por país (Our World in Data)", file: "co2-pib.csv", uni: { v: "co2_per_capita" }, bi: { x: "gdp_per_capita", y: "co2_per_capita", g: "continent", t: "year", s: "population", log: true, logy: true },
+      src: "Our World in Data (CC BY 4.0): emissões de CO₂ de combustíveis fósseis e indústria por habitante (toneladas; Global Carbon Budget 2025), PIB por habitante (dólares internacionais de 2011; Maddison Project Database 2023) e população, de 5 em 5 anos (1950–2020)" },
   ];
   const EXAMPLES = {
     uni: [
@@ -429,6 +431,14 @@
   // e pelo menos 80 % das linhas o mesmo número de campos. Valores em falta: vazio, NA, N/A, NaN, null, ?, -
   const MISSING = /^(|na|n\/a|nan|null|none|\?|-)$/i;
   const MAXG = 10;   // número máximo de grupos
+  // data em texto → milissegundos (UTC); aceita AAAA-MM-DD (com hora ou sem), AAAA-MM e DD/MM/AAAA (ou DD-MM-AAAA)
+  const dateOf = v => {
+    let m = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?(?:[T ][\d:.]+Z?)?$/.exec(v);
+    if (m) return +m[2] >= 1 && +m[2] <= 12 && (!m[3] || (+m[3] >= 1 && +m[3] <= 31)) ? Date.UTC(+m[1], +m[2] - 1, m[3] ? +m[3] : 1) : NaN;
+    m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(v);
+    if (m) return +m[2] >= 1 && +m[2] <= 12 && +m[1] >= 1 && +m[1] <= 31 ? Date.UTC(+m[3], +m[2] - 1, +m[1]) : NaN;
+    return NaN;
+  };
   let TCACHE = { text: null, T: null };
   function parseTable(text) {
     if (TCACHE.text === text) return TCACHE.T;
@@ -450,8 +460,15 @@
           // níveis (valores diferentes) — a coluna pode servir de grupos se tiver de 2 a MAXG níveis
           let lv = [...new Set(raw.filter(v => !MISSING.test(v)))];
           if (isNum) lv.sort((u, v) => num(u) - num(v));
-          return { name: h || `coluna ${j + 1}`, vals, raw, levels: lv.length >= 2 && lv.length <= MAXG ? lv : null,
+          const col = { name: h || `coluna ${j + 1}`, vals, raw, levels: lv.length >= 2 && lv.length <= MAXG ? lv : null,
                    missing: raw.length - present, numeric: isNum };
+          // datas escritas como texto (2020-03-15, 2020-03, 15/03/2020): servem de coluna do tempo
+          if (!isNum && present) {
+            const dv = raw.map(v => MISSING.test(v) ? null : dateOf(v)), ok = dv.filter(v => v !== null && !isNaN(v)).length;
+            // (se todas as datas forem dia 1, são meses: escrevem-se mês/ano)
+            if (ok / present >= 0.8) { col.date = dv.every(v => v === null || isNaN(v) || new Date(v).getUTCDate() === 1) ? "month" : "day"; col.dvals = dv; }
+          }
+          return col;
         });
         if (!T || cols.length > T.cols.length) T = { sep, cols, n: body.length };
       }
@@ -465,7 +482,30 @@
   const groupCols = T => T.cols.filter(c => c.levels);
   const groupCol = T => (S.col.g && groupCols(T).find(c => c.name === S.col.g)) || null;
   // tempo (duas variáveis): coluna numérica com 3 a 200 valores diferentes, cada um repetido em várias linhas (p. ex. o ano no gapminder)
-  const timeCols = T => T._tc || (T._tc = numCols(T).filter(c => { const u = new Set(c.vals.filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
+  // (os valores do tempo: os números da coluna ou, com datas, os milissegundos)
+  const tvals = c => c.dvals || c.vals;
+  const timeCols = T => T._tc || (T._tc = T.cols.filter(c => c.numeric || c.dvals).filter(c => { const u = new Set(tvals(c).filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
+  // escrever um instante: com datas, dia/mês/ano ou mês/ano
+  const tFmt = c => !c || !c.dvals ? (v => fmt(v, 6)) : c.date === "month"
+    ? (v => { const d = new Date(v); return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; })
+    : (v => { const d = new Date(v); return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; });
+  // identificação escolhida (S.col.id: null = automática, "-" = nenhuma); só serve se não se repetir em nenhum instante
+  const idOk = (T, tc, c) => {
+    const tv = tvals(tc), seen = new Set();
+    for (let i = 0; i < T.n; i++) {
+      const t = tv[i];
+      if (t === null || isNaN(t) || MISSING.test(c.raw[i])) continue;
+      const k = c.raw[i] + "\u0001" + t;
+      if (seen.has(k)) return false;
+      seen.add(k);
+    }
+    return true;
+  };
+  const idChoice = (T, tc) => {
+    if (S.col.id === "-") return null;
+    const c = S.col.id && T.cols.find(c => c.name === S.col.id && c !== tc);
+    return c ? (idOk(T, tc, c) ? c : null) : idCol(T, tc);
+  };
   const timeCol = T => (S.col.t && timeCols(T).find(c => c.name === S.col.t)) || null;
   const sizeCol = T => (S.col.s && numCols(T).find(c => c.name === S.col.s)) || null;
   // identificação de cada caso ao longo do tempo (p. ex. o país): a primeira coluna de texto que não se repete em nenhum instante
@@ -473,17 +513,10 @@
     T._id = T._id || {};
     if (tc.name in T._id) return T._id[tc.name];
     let found = null;
+    // (automática: só colunas de texto — uma coluna numérica de valores, como o PIB, também não se repete num instante)
     for (const c of T.cols) {
-      if (c.numeric) continue;
-      const seen = new Set();
-      let ok = true;
-      for (let i = 0; i < T.n && ok; i++) {
-        const t = tc.vals[i];
-        if (t === null || isNaN(t) || MISSING.test(c.raw[i])) continue;
-        const k = c.raw[i] + "\u0001" + t;
-        if (seen.has(k)) ok = false; else seen.add(k);
-      }
-      if (ok && seen.size > new Set(c.raw).size) { found = c; break; }   // (e aparece em mais do que um instante)
+      if (c.numeric || c === tc || c.dvals) continue;
+      if (idOk(T, tc, c) && T.n > new Set(c.raw).size) { found = c; break; }   // (e aparece em mais do que um instante)
     }
     return (T._id[tc.name] = found);
   }
@@ -495,7 +528,7 @@
     const nc = numCols(T), miss = d3.sum(T.cols, c => c.missing);
     $("tinfo").textContent = `Tabela: ${T.n} linhas · ${T.cols.length} colunas (${nc.length} numéricas)${miss ? ` · ${miss} valores em falta` : ""}`;
     box.hidden = false;
-    const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
+    const key = S.mode + "|" + S.col.t + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
     const tcs = S.mode === "bi" ? timeCols(T) : [];
     const gc = groupCols(T);
     // grupos: colunas com 2 a MAXG valores diferentes (texto, como a espécie, ou números, como o ano)
@@ -505,17 +538,20 @@
       colsKey = key;
       box.innerHTML = S.mode === "uni"
         ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select></span>${gsel}`
-        : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><label class="chk" title="Escala logarítmica no eixo x (só com valores de x positivos)"><input type="checkbox" id="c-log"${S.logx ? " checked" : ""}> log</label></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select></span>${gsel}` +
+        : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><label class="chk" title="Escala logarítmica no eixo x (só com valores de x positivos)"><input type="checkbox" id="c-log"${S.logx ? " checked" : ""}> log</label></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select><label class="chk" title="Escala logarítmica no eixo y (só com valores de y positivos)"><input type="checkbox" id="c-logy"${S.logy ? " checked" : ""}> log</label></span>${gsel}` +
           (tcs.length ? `<span class="pair"><span class="lbl" title="Coluna do tempo: o gráfico mostra um instante de cada vez, com ▶ para ver a evolução">Tempo</span><select class="inp" id="c-t"><option value="">(nenhum)</option>${tcs.map(c => `<option${c.name === S.col.t ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "") +
+          (tcs.length && timeCol(T) ? (() => { const tc = timeCol(T), auto = idCol(T, tc);
+            return `<span class="pair"><span class="lbl" title="Coluna que identifica cada caso ao longo do tempo (p. ex. o país): permite a transição suave, o rasto e manter a seleção ao mudar de instante">Identificação</span><select class="inp" id="c-id"><option value="">(automática${auto ? ": " + esc(auto.name) : ": nenhuma"})</option><option value="-"${S.col.id === "-" ? " selected" : ""}>(nenhuma)</option>${T.cols.filter(c => c !== tc).map(c => `<option${c.name === S.col.id ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>`; })() : "") +
           `<span class="pair"><span class="lbl" title="Coluna que dá o tamanho de cada ponto (a área é proporcional ao valor)">Tamanho</span><select class="inp" id="c-s"><option value="">(nenhum)</option>${nc.map(c => `<option${c.name === S.col.s ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>`;
       box.querySelectorAll("select").forEach(sl => sl.onchange = () => {
         const k = sl.id.slice(2);
         S.col[k] = sl.value || null;
-        if (k === "s") { render(); return; }   // (o tamanho não mexe na seleção)
-        if (k === "t") { S.ti = 0; stopPlay(); }
+        if (k === "s" || k === "id") { render(); return; }   // (o tamanho e a identificação não mexem na seleção)
+        if (k === "t") { S.ti = 0; S.col.id = null; stopPlay(); }
         EXCL.clear(); SEL.clear(); HIDDEN.clear(); render();
       });
       if ($("c-log")) $("c-log").onchange = e => { S.logx = e.target.checked; render(); };
+      if ($("c-logy")) $("c-logy").onchange = e => { S.logy = e.target.checked; render(); };
     }
   }
 
@@ -550,17 +586,17 @@
     colsUI(T);
     if (T) {
       const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), gc = groupCol(T), pts = [];
-      const tc = timeCol(T), ic = tc ? idCol(T, tc) : null, sc = sizeCol(T);
+      const tc = timeCol(T), ic = tc ? idChoice(T, tc) : null, sc = sizeCol(T), tv = tc ? tvals(tc) : null;
       let lost = 0, noG = 0;
       // com grupos, cada par leva o seu grupo em terceiro lugar: [x, y, grupo]
       cx.vals.forEach((x, i) => {
         const y = cy.vals[i];
-        if (x === null || y === null || isNaN(x) || isNaN(y) || (tc && (tc.vals[i] === null || isNaN(tc.vals[i])))) lost++;
+        if (x === null || y === null || isNaN(x) || isNaN(y) || (tc && (tv[i] === null || isNaN(tv[i])))) lost++;
         else if (gc && MISSING.test(gc.raw[i])) noG++;
         else {
           const p = gc ? [x, y, gc.raw[i]] : [x, y]; p.r = i;   // (p.r: linha da tabela)
           // instante, identificação (p. ex. o país) e tamanho
-          if (tc) { p.t = tc.vals[i]; if (ic) p.id = ic.raw[i]; }
+          if (tc) { p.t = tv[i]; if (ic) p.id = ic.raw[i]; }
           if (sc) p.s = sc.vals[i];
           pts.push(p);
         }
@@ -570,7 +606,9 @@
       const note = [lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "", noG ? `${noG} linhas sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
       const times = tc ? [...new Set(pts.map(p => p.t))].sort((u, v) => u - v) : null;
       return { nx: cx.name, ny: cy.name, pts, bad: [], note, groups, gname: groups ? gc.name : null,
-               times: times && times.length >= 2 ? times : null, tname: tc && tc.name, idname: ic && ic.name, sname: sc && sc.name };
+               times: times && times.length >= 2 ? times : null, tname: tc && tc.name, idname: ic && ic.name, sname: sc && sc.name,
+               tfmt: tFmt(tc), tdate: tc && tc.dvals ? tc.date : null,
+               idbad: tc && S.col.id && S.col.id !== "-" && !ic ? S.col.id : null };
     }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let nx = "", ny = "", bad = [];
@@ -774,8 +812,8 @@
         if (!r.ok) throw new Error(r.status);
         const txt = (await r.text()).replace(/^\uFEFF/, "");
         S.data.uni = S.data.bi = ta.value = txt;
-        S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null, t: d.bi.t || null, s: d.bi.s || null };
-        S.logx = !!d.bi.log; S.ti = 0; stopPlay();
+        S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null, t: d.bi.t || null, s: d.bi.s || null, id: null };
+        S.logx = !!d.bi.log; S.logy = !!d.bi.logy; S.ti = 0; stopPlay();
         S.picked.uni = S.picked.bi = v;
       } catch (err) { $("msg").textContent = "Não foi possível carregar o conjunto de dados (é preciso abrir a app a partir do site)."; return; }
     }
@@ -790,7 +828,7 @@
     const rd = new FileReader();
     rd.onload = () => {
       const txt = String(rd.result).replace(/^\uFEFF/, "");
-      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null, t: null, s: null }; S.logx = false; S.ti = 0; stopPlay(); S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render();
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null, t: null, s: null, id: null }; S.logx = S.logy = false; S.ti = 0; stopPlay(); S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render();
       if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
     };
     rd.readAsText(f);
@@ -1562,7 +1600,8 @@
     TWU = 0; render(); PLAY = requestAnimationFrame(step);
   }
   function renderBi() {
-    const { nx, ny, pts: ALL, bad, note, groups, gname, times, tname, idname, sname } = readBi(ta.value);
+    const { nx, ny, pts: ALL, bad, note: note0, groups, gname, times, tname, idname, sname, tfmt, tdate, idbad } = readBi(ta.value);
+    const note = [note0, idbad ? `«${idbad}» repete-se no mesmo instante: não serve de identificação.` : ""].filter(Boolean).join(" ");
     // com a coluna do tempo, «all» são só os pares do instante mostrado (os índices da seleção e das exclusões referem-se a eles);
     // ao mudar de instante, a seleção e as exclusões passam para os mesmos casos (p. ex. os mesmos países) do novo instante
     const TM = !!times;
@@ -1588,17 +1627,20 @@
           const q = nx.get(p.id);
           if (!q) return p;
           const n = p.slice();
-          n[0] = S.logx && p[0] > 0 && q[0] > 0 ? p[0] * (q[0] / p[0]) ** u : L(p[0], q[0]); n[1] = L(p[1], q[1]);
+          const G = (v0, v1, lg) => lg && v0 > 0 && v1 > 0 ? v0 * (v1 / v0) ** u : L(v0, v1);
+          n[0] = G(p[0], q[0], S.logx); n[1] = G(p[1], q[1], S.logy);
           n.r = p.r; n.t = p.t; n.id = p.id; if (p.s !== undefined) n.s = q.s !== null && p.s !== null ? L(p.s, q.s) : p.s;
           return n;
         });
         // (o instante que se mostra avança com a transição; com instantes inteiros, de unidade em unidade)
         tShow = curT + (nextT - curT) * u;
-        if (times.every(Number.isInteger)) tShow = Math.floor(tShow + 1e-9);
+        if (tdate === "month") { const dd = new Date(tShow); tShow = Date.UTC(dd.getUTCFullYear(), dd.getUTCMonth(), 1); }   // (meses: de mês em mês)
+        else if (tdate) tShow = Math.floor(tShow / 864e5) * 864e5;   // (datas: de dia em dia)
+        else if (times.every(Number.isInteger)) tShow = Math.floor(tShow + 1e-9);
       }
       const rng = $("t-rng");
       rng.max = NT - 1; rng.value = S.ti;
-      $("t-val").textContent = `${tname} = ${fmt(tShow, 6)}`;
+      $("t-val").textContent = `${tname} = ${tfmt(tShow)}`;
     } else { PREVALL = null; PREVT = null; stopPlay(); }
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
@@ -1699,7 +1741,12 @@
     if (ests.length && (!LOG || xe > 0)) { a = LOG ? Math.min(a, xe / 10 ** pad) : Math.min(a, xe - pad); b = LOG ? Math.max(b, xe * 10 ** pad) : Math.max(b, xe + pad); }
     if (LOG && !(xe > 0)) ests.length = 0;
     // marcas do eixo logarítmico: só 1, 2 e 5 vezes uma potência de 10 levam número
-    const xTick = LOG ? (v => { const m = v / 10 ** Math.floor(Math.log10(v) + 1e-9); return [1, 2, 5].some(k => Math.abs(m - k) < 1e-6) ? fmt(v, 6) : ""; }) : decTick;
+    const logTick = v => { const m = v / 10 ** Math.floor(Math.log10(v) + 1e-9); return [1, 2, 5].some(k => Math.abs(m - k) < 1e-6) ? fmt(v, 6) : ""; };
+    const xTick = LOG ? logTick : decTick;
+    // escala logarítmica em y (só com todos os y positivos)
+    const LOGY = S.logy && d3.min(domPts, p => p[1]) > 0;
+    if ($("c-logy")) $("c-logy").title = S.logy && !LOGY ? "Há valores de y que não são positivos: a escala logarítmica não se pode usar" : "Escala logarítmica no eixo y (só com valores de y positivos)";
+    if (LOGY) for (let i = ests.length - 1; i >= 0; i--) if (!(ests[i].y > 0)) ests.splice(i, 1);
     // tamanho dos pontos (coluna «Tamanho»): área proporcional ao valor, a mesma escala em todos os instantes
     const SZ = !!sname, sMax = SZ ? d3.max(ALL, p => p.s) || 1 : 1, Rmax = Math.max(10, Math.min(W, H) / 16);
     const rad = p => SZ ? Math.max(2.5, Math.sqrt(Math.max(0, p.s || 0) / sMax) * Rmax) : 5;
@@ -1709,7 +1756,7 @@
     // as curvas dos modelos ficam por cima dos pontos (os pontos são opacos e tapavam-nas); os resíduos ficam por baixo
     const cvMarks = [];
     const curveOn = (f, lo, hi, stroke) => {
-      const N = 300, cv = d3.range(N + 1).map(i => { const x = LOG ? lo * (hi / lo) ** (i / N) : lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y));
+      const N = 300, cv = d3.range(N + 1).map(i => { const x = LOG ? lo * (hi / lo) ** (i / N) : lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y) && (!LOGY || p.y > 0));
       cvMarks.push(Plot.line(cv, { x: "x", y: "y", stroke, strokeWidth: 2.5, clip: true }));
     };
     if (S.curve) {
@@ -1740,13 +1787,14 @@
     marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p.id !== undefined ? `${p.id}\n` : "") + (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` +
       (SZ && p.s !== null && p.s !== undefined ? `\n${sname}: ${big(p.s)}` : "") + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
     // o instante, em grande, no fundo do gráfico
-    if (TM) marks.unshift(Plot.text([tShow], { frameAnchor: "bottom-right", text: v => fmt(v, 6), dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W / 6)), fontWeight: 700, fill: faint, fillOpacity: 0.28 }));
+    if (TM) { const lab = tfmt(tShow); marks.unshift(Plot.text([lab], { frameAnchor: "bottom-right", text: v => v, dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W * 0.4 / (0.62 * lab.length))), fontWeight: 700, fill: faint, fillOpacity: 0.28 })); }
     LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my,
              xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null,
-             tl: TM ? `${tname} = ${fmt(curT, 6)}` : null };
+             tl: TM ? `${tname} = ${tfmt(curT)}` : null };
     // escala vertical explícita (para as curvas de densidade poderem ocupar uma faixa junto de cada eixo)
     const yAll = domPts.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
     let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
+    if (LOGY) { const y0 = d3.min(yAll), y1 = d3.max(yAll), q = (Math.log10(y1 / y0) || 1) * 0.06; ydom = [y0 / 10 ** q, y1 * 10 ** q]; }
     // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
     // (com grupos, uma curva por grupo, sobrepostas, na mesma escala)
     // a legenda fica na linha do nome do eixo y, à direita; se não couber ao lado dele, desce para uma segunda linha
@@ -1759,15 +1807,17 @@
       sets.forEach(({ P, c }) => {
         if (P.length < 2) return;
         // (na escala logarítmica, a densidade de x calcula-se com log₁₀ x, para a curva ter a forma que se vê no eixo)
-        const kx = kdeOf(P.map(p => LOG ? Math.log10(p[0]) : p[0])), ky = kdeOf(P.map(p => p[1]));
+        const kx = kdeOf(P.map(p => LOG ? Math.log10(p[0]) : p[0])), ky = kdeOf(P.map(p => LOGY ? Math.log10(p[1]) : p[1]));
         if (kx) cx.push({ c, cv: d3.range(N + 1).map(i => { const x = LOG ? a * (b / a) ** (i / N) : a + (b - a) * i / N; return { x, d: kx(LOG ? Math.log10(x) : x) }; }) });
-        if (ky) cyv.push({ c, cv: d3.range(N + 1).map(i => { const y = ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(y) }; }) });
+        if (ky) cyv.push({ c, cv: d3.range(N + 1).map(i => { const y = LOGY ? ydom[0] * (ydom[1] / ydom[0]) ** (i / N) : ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(LOGY ? Math.log10(y) : y) }; }) });
       });
       const topX = d3.max(cx, s => d3.max(s.cv, c => c.d)), topY = d3.max(cyv, s => d3.max(s.cv, c => c.d));
       const baseY = ydom[1] + 8 * dyU, hgt = (BAND - 14) * dyU, baseX = b + 8 * dxU, wid = (BAND - 14) * dxU;
+      // (por cima de ydom[1], a uma distância em pixéis; na escala logarítmica, em potências de 10)
+      const yOff = px => LOGY ? ydom[1] * (ydom[1] / ydom[0]) ** (px / (H - mTop - mBottom)) : ydom[1] + px * dyU;
       cx.forEach(({ c, cv }) => {
-        cv.forEach(p => p.y = baseY + p.d / topX * hgt);
-        marks.unshift(Plot.areaY(cv, { x: "x", y1: baseY, y2: "y", fill: c, fillOpacity: 0.1, curve: "natural" }),
+        cv.forEach(p => p.y = yOff(8 + p.d / topX * (BAND - 14)));
+        marks.unshift(Plot.areaY(cv, { x: "x", y1: yOff(8), y2: "y", fill: c, fillOpacity: 0.1, curve: "natural" }),
                       Plot.line(cv, { x: "x", y: "y", stroke: c, strokeWidth: 2, curve: "natural" }));
       });
       cyv.forEach(({ c, cv }) => {
@@ -1782,8 +1832,8 @@
       width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(), color,
       x: { type: LOG ? "log" : "linear", domain: [a, b], label: xl + (LOG ? " (escala log.)" : ""), labelAnchor: "right", grid: true, tickFormat: xTick, labelArrow: "none" },
       r: { type: "identity" },
-      y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
-      marks: d3.min(domPts, p => p[1]) <= 0 && d3.max(domPts, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
+      y: { type: LOGY ? "log" : "linear", label: yl + (LOGY ? " (escala log.)" : ""), grid: true, domain: ydom, tickFormat: LOGY ? logTick : decTick, labelArrow: "none" },
+      marks: !LOGY && d3.min(domPts, p => p[1]) <= 0 && d3.max(domPts, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
     if (GALL) svgLegend(chart, GALL, W - mRight, legOne ? 11 : 30, FIXED ? null : (name, dbl) => groupClick(name, groups, dbl));
     if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
@@ -1832,7 +1882,7 @@
             if (k !== undefined && isHid(all[k])) return `<tr class="miss" title="Grupo escondido"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
             return k === undefined ? `<tr class="miss" title="Fica de fora (valor em falta)"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`
               : `<tr data-i="${k}"${EXCL.has(k) ? ' class="excl"' : ""}>${chk(k)}<td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
-          }).join("") + "</tbody></table>" + (TM ? `<p class="note">Linhas de ${esc(tname)} = ${fmt(curT, 6)}.</p>` : T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
+          }).join("") + "</tbody></table>" + (TM ? `<p class="note">Linhas de ${esc(tname)} = ${tfmt(curT)}.</p>` : T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
         bindHeads(T);
       } else {
         $("dat").innerHTML = `<table class="freq"><thead><tr>${pre}<th>${esc(xl)}</th><th>${esc(yl)}</th></tr></thead><tbody>` +
