@@ -1495,7 +1495,7 @@
     $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
     $("byg-lbl").hidden = !groups;
     $("main-title").textContent = "Diagrama de dispersão";
-    $("main-hint").textContent = S.dat ? "" : "passa o ponteiro sobre um ponto para ver as coordenadas";
+    $("main-hint").textContent = S.dat ? "" : "arrasta para selecionar pontos; botão direito para os excluir do ajuste";
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
@@ -1641,6 +1641,7 @@
     });
     if (GALL) svgLegend(chart, GALL, W - mRight, legOne ? 11 : 30, FIXED ? null : (name, dbl) => groupClick(name, groups, dbl));
     if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
+    const mainHint0 = $("main-hint").textContent;
     put($("fig-main"), chart);
 
     // gráfico de resíduos: eᵢ = yᵢ − ŷᵢ de cada par incluído, com a mesma escala horizontal do diagrama de dispersão
@@ -1664,7 +1665,10 @@
     }
 
     // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
-    if (S.dat) {
+    // tabela dos dados (se estiver aberta) e seleção com o rato: a seleção, o retângulo e o botão direito funcionam também sem a tabela
+    {
+      if (!S.dat) $("dat").innerHTML = "";
+      else {
       // só os dados (sem ŷ nem resíduos, a pedido do utilizador)
       // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
       const T = parseTable(ta.value), MAXR = 500;
@@ -1689,6 +1693,7 @@
           (all.length > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${all.length} linhas.</p>` : "");
       }
       $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
+      }
       // linhas indexadas pelo número do par (as linhas que ficam de fora não entram)
       const rowsEl = [];
       $("dat").querySelectorAll("tbody tr[data-i]").forEach(tr => { rowsEl[+tr.dataset.i] = tr; });
@@ -1722,7 +1727,9 @@
           c.setAttribute("fill", "none"); c.setAttribute("stroke", hot); c.setAttribute("stroke-width", 2.5);
           selG.appendChild(c);
         }
-        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "";   // (sem dica por omissão: a explicação está no título do quadro, ao passar o ponteiro)
+        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "";
+        // sem a tabela, a contagem vai para o título do gráfico
+        if (!S.dat) $("main-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "par selecionado" : "pares selecionados"} · botão direito para excluir do ajuste · Esc limpa` : mainHint0;   // (sem dica por omissão: a explicação está no título do quadro, ao passar o ponteiro)
         const nEx = [...SEL].filter(i => EXCL.has(i)).length;
         $("sel-ex").hidden = !SEL.size || nEx === SEL.size; $("sel-in").hidden = !nEx;
       };
