@@ -99,14 +99,27 @@
   /* gráficos */
   .plots { flex: 1; min-height: 340px; display: grid; gap: 0.6rem; }
   .plots.uni { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-  .plots.uni.tab { grid-template-columns: 1fr minmax(15rem, 22rem); }
-  .plots.uni.tab .box { grid-column: 1; }
+  /* com a coluna da direita (tabelas, caule e folhas): gráficos | barra de arrastar | coluna (largura em --side-w, guardada) */
+  .plots.tab { grid-template-columns: minmax(0, 1fr) 8px var(--side-w, minmax(15rem, 22rem)); column-gap: 0.25rem; }
+  .plots.tab .main { grid-column: 1; grid-row: 1; }
+  .plots.uni.tab .box { grid-column: 1; grid-row: 2; }
+  .grip { display: none; }
+  .plots.tab .grip { display: block; grid-column: 2; grid-row: 1 / -1; cursor: col-resize; border-radius: 4px; position: relative; touch-action: none; }
+  .plots.tab .grip::after { content: ""; position: absolute; left: 3px; top: 50%; width: 2px; height: 2.6rem; margin-top: -1.3rem; border-radius: 1px; background: var(--line); }
+  .plots.tab .grip:hover, .plots.tab .grip.on { background: color-mix(in srgb, var(--focus) 18%, transparent); }
   .side { display: none; }
-  .plots.uni.tab .side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
+  .plots.uni.tab .side { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
   .side .frame { flex: none; }
-  .plots.bi.tab { grid-template-columns: 1fr minmax(15rem, 22rem); }
-  .plots.bi.tab .side { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0; }
+  .plots.uni.tab #dat-frame { flex: 1 0 14rem; overflow: auto; }
+  .plots.bi.tab .side { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; min-height: 0; }
   .plots.bi.tab #dat-frame { flex: 1; min-height: 0; overflow: auto; }
+  /* tabela dos dados com todas as colunas: o cabeçalho escolhe o papel da coluna */
+  #dat th.col { cursor: pointer; white-space: nowrap; }
+  #dat th.col:hover { color: var(--focus); }
+  #dat .role { display: inline-block; margin-left: 0.3rem; padding: 0 0.3rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: var(--muted); color: var(--on); }
+  table.freq td.rc, table.freq th.rc { background: color-mix(in srgb, var(--c1) 9%, transparent); }
+  table.freq td.na { color: var(--faint); font-style: italic; }
+  table.freq tr.miss td { color: var(--faint); }
   /* tabela dos dados (duas variáveis): tudo centrado */
   #dat table.freq th, #dat table.freq td { text-align: center; }
   table.freq tr.excl td { color: var(--faint); text-decoration: line-through; }
@@ -155,8 +168,12 @@
   table.freq tfoot td { font-weight: 700; border-top: 1.5px solid var(--line); }
   @media (max-width: 760px) {
     .plots.uni.tab, .plots.bi.tab { grid-template-columns: 1fr; }
-    .plots.bi.tab .side { grid-column: 1; grid-row: auto; max-height: 20rem; }
+    .plots.tab .grip { display: none; }
+    .plots.tab .main, .plots.uni.tab .box { grid-row: auto; }
+    /* no ecrã estreito a coluna vai para baixo, e a altura arrasta-se pelo canto */
+    .plots.bi.tab .side { grid-column: 1; grid-row: auto; height: 20rem; resize: vertical; overflow: auto; }
     .plots.uni.tab .side { grid-column: 1; grid-row: auto; }
+    .plots.uni.tab #dat-frame { height: 20rem; flex: none; resize: vertical; }
   }
   [hidden] { display: none !important; }
 </style>
@@ -181,6 +198,7 @@
     <div class="row">
       <button class="b small" id="open" title="Abrir um ficheiro de dados (.csv, .tsv ou .txt), por exemplo descarregado do Kaggle">📂 Abrir ficheiro</button>
       <input type="file" id="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden>
+      <label class="chk" title="Mostra os dados numa tabela à direita dos gráficos; com uma tabela (CSV), clicar no cabeçalho de uma coluna escolhe-a"><input type="checkbox" id="sh-dat"> Tabela dos dados</label>
       <span class="lbl" id="tinfo"></span>
     </div>
     <div class="row" id="cols" hidden></div>
@@ -244,7 +262,6 @@
       <label class="chk"><input type="checkbox" id="sh-curve" checked> Curva de regressão</label>
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
-      <label class="chk"><input type="checkbox" id="sh-dat"> Tabela dos dados</label>
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
       <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
     </div>
@@ -270,6 +287,7 @@
     <span id="out-hint"></span>
     <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
     <button class="b small exp" data-fig="fig-box" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-box" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-box"></div></div>
+  <div class="grip" id="grip" title="Arrasta para mudar a largura da coluna da direita" role="separator" aria-orientation="vertical"></div>
   <div class="side" id="side">
     <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
     <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
@@ -440,10 +458,10 @@
         const y = cy.vals[i];
         if (x === null || y === null || isNaN(x) || isNaN(y)) lost++;
         else if (gc && MISSING.test(gc.raw[i])) noG++;
-        else pts.push(gc ? [x, y, gc.raw[i]] : [x, y]);
+        else { const p = gc ? [x, y, gc.raw[i]] : [x, y]; p.r = i; pts.push(p); }   // (p.r: linha da tabela)
       });
       let groups = gc ? gc.levels.filter(l => pts.some(p => p[2] === l)) : null;
-      if (groups && groups.length < 2) { groups = null; pts.forEach(p => p.length = 2); }
+      if (groups && groups.length < 2) { groups = null; pts.forEach(p => p.length = 2); }   // (o comprimento não mexe em p.r)
       const note = [lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "", noG ? `${noG} linhas sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
       return { nx: cx.name, ny: cy.name, pts, bad: [], note, groups, gname: groups ? gc.name : null };
     }
@@ -692,21 +710,98 @@
   const ctx = document.createElement("div");
   ctx.id = "ctx"; ctx.hidden = true; ctx.setAttribute("role", "menu");
   document.body.appendChild(ctx);
-  function selMenu(x, y) {
-    const n = SEL.size, nEx = [...SEL].filter(i => EXCL.has(i)).length;
-    ctx.innerHTML = `<div class="note" style="padding:0.2rem 0.6rem">${n === 1 ? "1 par selecionado" : n + " pares selecionados"}${nEx ? ` (${nEx} excluído${nEx > 1 ? "s" : ""})` : ""}</div>`;
-    [["Excluir do ajuste", exclSel, nEx === n], ["Voltar a incluir no ajuste", inclSel, nEx === 0], null,
-     ["Limpar a seleção", () => { SEL.clear(); render(); }, false]].forEach(it => {
+  // menu pequeno (botão direito na seleção, clique no cabeçalho de uma coluna): título e itens [texto, ação, desativado]
+  function menu(x, y, title, items) {
+    ctx.innerHTML = `<div class="note" style="padding:0.2rem 0.6rem">${title}</div>`;
+    items.forEach(it => {
       if (!it) { ctx.appendChild(document.createElement("hr")); return; }
       const b = document.createElement("button");
-      b.textContent = it[0]; b.disabled = it[2]; b.setAttribute("role", "menuitem");
+      b.textContent = it[0]; b.disabled = !!it[2]; b.setAttribute("role", "menuitem");
       b.onclick = () => { ctx.hidden = true; it[1](); };
       ctx.appendChild(b);
     });
     ctx.hidden = false;
     const r = ctx.getBoundingClientRect();
-    ctx.style.left = Math.min(x, innerWidth - r.width - 6) + "px"; ctx.style.top = Math.min(y, innerHeight - r.height - 6) + "px";
+    ctx.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 6)) + "px"; ctx.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 6)) + "px";
   }
+  function selMenu(x, y) {
+    const n = SEL.size, nEx = [...SEL].filter(i => EXCL.has(i)).length;
+    menu(x, y, `${n === 1 ? "1 par selecionado" : n + " pares selecionados"}${nEx ? ` (${nEx} excluído${nEx > 1 ? "s" : ""})` : ""}`,
+      [["Excluir do ajuste", exclSel, nEx === n], ["Voltar a incluir no ajuste", inclSel, nEx === 0], null, ["Limpar a seleção", () => { SEL.clear(); render(); }]]);
+  }
+  // papel de uma coluna da tabela (CSV): variável (uma variável), x ou y (duas), grupos; x e y trocam se for preciso
+  function setRole(k, name) {
+    const T = parseTable(ta.value);
+    if (k === "x" || k === "y") {
+      const o = k === "x" ? "y" : "x", cur = colOf(T, S.col[o], o === "x" ? 0 : 1).name, old = colOf(T, S.col[k], k === "x" ? 0 : 1).name;
+      if (cur === name) S.col[o] = old;
+    }
+    S.col[k] = name;
+    EXCL.clear(); SEL.clear(); colsKey = ""; render();
+  }
+  function colMenu(x, y, c) {
+    const T = parseTable(ta.value), uni = S.mode === "uni";
+    const isG = c.name === S.col.g && groupCol(T);
+    const items = uni ? [["Usar como variável", () => setRole("v", c.name), !c.numeric]]
+                      : [["Usar como x", () => setRole("x", c.name), !c.numeric], ["Usar como y", () => setRole("y", c.name), !c.numeric]];
+    items.push(null, isG ? ["Sem grupos", () => setRole("g", null)] : ["Usar como grupos", () => setRole("g", c.name), !c.levels]);
+    menu(x, y, `Coluna «${esc(c.name)}»${c.numeric ? "" : " (texto)"}`, items);
+  }
+  // cabeçalho e células da tabela dos dados com todas as colunas; roles: nome → etiqueta («x», «y», «variável», «grupos»)
+  function tableHead(T, roles, pre) {
+    return `<thead><tr>${pre}${T.cols.map((c, j) => `<th class="col${roles[c.name] ? " rc" : ""}" data-c="${j}" title="Clica para escolher o papel desta coluna">${esc(c.name)}${roles[c.name] ? `<span class="role">${roles[c.name]}</span>` : ""}</th>`).join("")}</tr></thead>`;
+  }
+  function tableCells(T, r, roles, gColor) {
+    return T.cols.map(c => {
+      const v = c.raw[r], na = MISSING.test(v), cls = [roles[c.name] ? "rc" : "", na ? "na" : ""].filter(Boolean).join(" ");
+      const st = gColor && roles[c.name] === "grupos" && !na && gColor(v) ? ` style="color:${gColor(v)};font-weight:700"` : "";
+      return `<td${cls ? ` class="${cls}"` : ""}${st}>${na ? (v ? esc(v) : "—") : esc(c.numeric ? fmt(num(v), 6) : v)}</td>`;
+    }).join("");
+  }
+  const bindHeads = T => $("dat").querySelectorAll("th.col").forEach(th => th.onclick = e => { e.stopPropagation(); const r = th.getBoundingClientRect(); colMenu(r.left, r.bottom + 2, T.cols[+th.dataset.c]); });
+  // uma variável: a tabela é só para ver os dados e escolher as colunas
+  function uniTable(RU) {
+    if (!S.dat) return;
+    const T = parseTable(ta.value), MAXR = 500;
+    $("sel-ex").hidden = $("sel-in").hidden = true;
+    if (!T) {
+      $("dat-hint").textContent = "";
+      $("dat").innerHTML = `<table class="freq"><thead><tr><th>i</th><th>${esc(RU.name || "x")}</th></tr></thead><tbody>` +
+        RU.xs.slice(0, MAXR).map((v, i) => `<tr><td>${i + 1}</td><td>${fmt(v, 6)}</td></tr>`).join("") + "</tbody></table>" +
+        (RU.xs.length > MAXR ? `<p class="note">Só se mostram os primeiros ${MAXR} de ${RU.xs.length} valores.</p>` : "");
+      return;
+    }
+    const cv = colOf(T, S.col.v), gc = RU.groups ? groupCol(T) : null, roles = { [cv.name]: "variável" };
+    if (gc) roles[gc.name] = "grupos";
+    const gi = gc ? new Map(RU.groups.map((g, i) => [g.name, css(`--g${i % MAXG}`)])) : null;
+    $("dat-hint").textContent = "clica no cabeçalho de uma coluna para a escolher";
+    $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, "<th>i</th>")}<tbody>` +
+      d3.range(Math.min(T.n, MAXR)).map(r => {
+        const miss = cv.vals[r] === null || isNaN(cv.vals[r]) || (gc && MISSING.test(gc.raw[r]));
+        return `<tr${miss ? ' class="miss" title="Fica de fora (valor em falta)"' : ""}><td>${r + 1}</td>${tableCells(T, r, roles, gi && (v => gi.get(v)))}</tr>`;
+      }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
+    bindHeads(T);
+  }
+  // barra entre os gráficos e a coluna da direita: arrastar muda a largura da coluna (guardada no navegador)
+  const SIDEKEY = "apps-mat-estatistica-coluna";
+  try { const w = localStorage.getItem(SIDEKEY); if (w) $("plots").style.setProperty("--side-w", w); } catch (e) {}
+  $("grip").addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const g = $("grip"), pl = $("plots");
+    g.classList.add("on"); g.setPointerCapture(e.pointerId);
+    const mv = ev => {
+      const b = pl.getBoundingClientRect(), w = Math.round(Math.max(200, Math.min(b.width - 330, b.right - ev.clientX - 6)));
+      pl.style.setProperty("--side-w", w + "px"); render();
+    };
+    const up = () => {
+      g.classList.remove("on"); g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
+      try { localStorage.setItem(SIDEKEY, pl.style.getPropertyValue("--side-w")); } catch (e) {}
+    };
+    g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+  });
+  // duplo clique na barra: volta à largura de origem
+  $("grip").addEventListener("dblclick", () => { $("plots").style.removeProperty("--side-w"); try { localStorage.removeItem(SIDEKEY); } catch (e) {} render(); });
   document.addEventListener("pointerdown", e => { if (!ctx.hidden && !ctx.contains(e.target)) ctx.hidden = true; }, true);
   addEventListener("scroll", () => ctx.hidden = true, true);
   $("sel-ex").onclick = exclSel; $("sel-in").onclick = inclSel;
@@ -787,9 +882,10 @@
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
     $("msg").classList.toggle("info", !bad.length);
     const plots = $("plots");
-    plots.className = "plots uni" + (S.tab || S.stem ? " tab" : "");
+    plots.className = "plots uni" + (S.tab || S.stem || S.dat ? " tab" : "");
     $("tab-frame").hidden = !S.tab;
-    $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = true;
+    $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = !S.dat;
+    uniTable(RU);
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
     $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
@@ -1155,18 +1251,19 @@
   }
 
   // legenda dos grupos dentro do SVG (para sair também nas imagens exportadas), numa linha na margem de cima, encostada à direita
+  const legW1 = name => 14 + name.length * 7.4 + 16;
+  const legendW = items => d3.sum(items, it => legW1(it.name)) - 16;
   function svgLegend(svg, items, right, y) {
     const NS = "http://www.w3.org/2000/svg", g = document.createElementNS(NS, "g");
     g.setAttribute("font-weight", "700"); g.setAttribute("font-size", "12"); g.setAttribute("text-anchor", "start");
-    const wOf = name => 14 + name.length * 7.4 + 16;
-    let cx = right - d3.sum(items, it => wOf(it.name)) + 16;
+    let cx = right - legendW(items);
     items.forEach(({ name, c }) => {
       const ci = document.createElementNS(NS, "circle");
       ci.setAttribute("cx", cx + 5); ci.setAttribute("cy", y); ci.setAttribute("r", 5); ci.setAttribute("fill", "none"); ci.setAttribute("stroke", c); ci.setAttribute("stroke-width", 2);
       const t = document.createElementNS(NS, "text");
       t.setAttribute("x", cx + 14); t.setAttribute("y", y); t.setAttribute("dy", "0.35em"); t.setAttribute("fill", c); t.textContent = name;
       g.append(ci, t);
-      cx += wOf(name);
+      cx += legW1(name);
     });
     svg.appendChild(g);
   }
@@ -1287,7 +1384,9 @@
     let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
     // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
     // (com grupos, uma curva por grupo, sobrepostas, na mesma escala)
-    const LEG = GR ? 22 : 0, BAND = S.mdens ? 64 : 0, mTop = 22 + BAND + LEG, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
+    // a legenda fica na linha do nome do eixo y, à direita; se não couber ao lado dele, desce para uma segunda linha
+    const legOne = GR && W - (20 + (S.mdens ? 64 : 0)) - legendW(GR) > yl.length * 7.2 + 24;
+    const LEG = GR ? (legOne ? 22 : 40) : 0, BAND = S.mdens ? 64 : 0, mTop = 22 + BAND + LEG, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
     if (S.mdens && pts.length > 2) {
       const N = 200, sets = GR ? GR.map(g => ({ P: g.pts, c: g.c })) : [{ P: pts, c: css("--pi") }];
       const dyU = (ydom[1] - ydom[0]) / (H - mTop - mBottom), dxU = (b - a) / (W - mLeft - mRight);
@@ -1317,19 +1416,37 @@
       y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
       marks: d3.min(all, p => p[1]) <= 0 && d3.max(all, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
-    if (GR) svgLegend(chart, GR, W - mRight, 11);
+    if (GR) svgLegend(chart, GR, W - mRight, legOne ? 11 : 30);
     put($("fig-main"), chart);
 
     // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
     if (S.dat) {
       // só os dados (sem ŷ nem resíduos, a pedido do utilizador)
-      const gcolOf = p => GR[gIdx.get(p[2])].c;
       // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
-      $("dat").innerHTML = `<table class="freq"><thead><tr><th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th>${GR ? `<th>${esc(gname)}</th>` : ""}<th>${esc(xl)}</th><th>${esc(yl)}</th></tr></thead><tbody>` +
-        all.slice(0, 500).map((p, i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td>${GR ? `<td style="color:${gcolOf(p)};font-weight:700">${esc(p[2])}</td>` : ""}<td>${fmt(p[0], 4)}</td><td>${fmt(p[1], 4)}</td></tr>`).join("") + "</tbody></table>" +
-        (all.length > 500 ? `<p class="note">Só se mostram as primeiras 500 de ${all.length} linhas.</p>` : "");
+      const T = parseTable(ta.value), MAXR = 500;
+      const chk = i => `<td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td>`;
+      const pre = `<th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th>`;
+      if (T) {
+        // com uma tabela (CSV): todas as colunas; as linhas sem um dos valores (ou sem grupo) ficam esbatidas e de fora
+        const roles = { [xl]: "x", [yl]: "y" };
+        if (GR) roles[gname] = "grupos";
+        const kOf = new Map(all.map((p, k) => [p.r, k])), gc = GR ? (v => gIdx.has(v) ? GR[gIdx.get(v)].c : null) : null;
+        $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, pre)}<tbody>` +
+          d3.range(Math.min(T.n, MAXR)).map(r => {
+            const k = kOf.get(r);
+            return k === undefined ? `<tr class="miss" title="Fica de fora (valor em falta)"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`
+              : `<tr data-i="${k}"${EXCL.has(k) ? ' class="excl"' : ""}>${chk(k)}<td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
+          }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
+        bindHeads(T);
+      } else {
+        $("dat").innerHTML = `<table class="freq"><thead><tr>${pre}<th>${esc(xl)}</th><th>${esc(yl)}</th></tr></thead><tbody>` +
+          all.slice(0, MAXR).map((p, i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}>${chk(i)}<td>${i + 1}</td><td>${fmt(p[0], 4)}</td><td>${fmt(p[1], 4)}</td></tr>`).join("") + "</tbody></table>" +
+          (all.length > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${all.length} linhas.</p>` : "");
+      }
       $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
-      const rowsEl = [...$("dat").querySelectorAll("tbody tr")];
+      // linhas indexadas pelo número do par (as linhas que ficam de fora não entram)
+      const rowsEl = [];
+      $("dat").querySelectorAll("tbody tr[data-i]").forEach(tr => { rowsEl[+tr.dataset.i] = tr; });
       const sx = chart.scale("x"), sy = chart.scale("y"), NS = "http://www.w3.org/2000/svg";
       const ring = document.createElementNS(NS, "circle");
       ring.setAttribute("r", 10); ring.setAttribute("fill", "none"); ring.setAttribute("stroke", hot); ring.setAttribute("stroke-width", 3); ring.style.display = "none"; ring.style.pointerEvents = "none";
@@ -1360,7 +1477,7 @@
           c.setAttribute("fill", "none"); c.setAttribute("stroke", hot); c.setAttribute("stroke-width", 2.5);
           selG.appendChild(c);
         }
-        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "arrasta o rato sobre as linhas ou sobre o gráfico para selecionar";
+        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "arrasta o rato sobre as linhas ou o gráfico para selecionar" + (T ? " · clica num cabeçalho para escolher a coluna" : "");
         const nEx = [...SEL].filter(i => EXCL.has(i)).length;
         $("sel-ex").hidden = !SEL.size || nEx === SEL.size; $("sel-in").hidden = !nEx;
       };
