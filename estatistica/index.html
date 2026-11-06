@@ -150,7 +150,7 @@
       </div>
     </div>
     <div class="row">
-      <label class="chk"><input type="checkbox" id="sh-box" checked> Caixa de bigodes</label>
+      <label class="chk"><input type="checkbox" id="sh-box" checked> Diagrama de extremos e quartis</label>
       <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
       <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
     </div>
@@ -195,7 +195,7 @@
 
 <div class="plots uni" id="plots">
   <div class="frame main"><h3><b id="main-title">Histograma</b><span id="main-hint"></span></h3><div class="fig" id="fig-main"></div></div>
-  <div class="frame box" id="box-frame"><h3><b>Caixa de bigodes</b></h3><div class="fig" id="fig-box"></div></div>
+  <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b></h3><div class="fig" id="fig-box"></div></div>
   <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
 </div>
 
@@ -585,7 +585,7 @@
     });
     put($("fig-main"), main);
 
-    // caixa de bigodes com os quartis acima (a mesma escala horizontal do gráfico principal)
+    // diagrama de extremos e quartis com os quartis acima (a mesma escala horizontal do gráfico principal)
     if (S.box) {
       const bw = $("fig-box").clientWidth || W, bh = 96;
       const q = [st.min, st.q1, st.med, st.q3, st.max];
