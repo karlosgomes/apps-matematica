@@ -87,6 +87,11 @@
   .frame { border: 1.2px solid var(--line); border-radius: 9px; padding: 0.4rem 0.6rem; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .frame h3 { margin: 0 0 0.2rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
   .frame h3 span { font-weight: 400; color: var(--faint); font-style: italic; font-size: 0.78rem; }
+  .frame h3 .hr { display: inline-flex; align-items: center; gap: 0.35rem; font-style: normal; }
+  .frame h3 .hr > span { font-style: italic; }
+  .frame h3 .chk.out { font-size: 0.8rem; font-weight: 700; color: var(--muted); font-style: normal; margin-right: 0.3rem; }
+  .frame h3 .chk.out input { accent-color: var(--c2); }
+  button.b.exp { font-size: 0.72rem; padding: 0.05rem 0.45rem; font-weight: 700; color: var(--muted); }
   .fig { flex: 1; min-height: 0; position: relative; }
   .fig svg { display: block; overflow: visible; }
   /* (o gráfico não pode determinar o tamanho do seu quadro: mede-se o quadro e desenha-se lá dentro) */
@@ -111,6 +116,7 @@
     <div class="seg" role="group" aria-label="Tipo de dados">
       <button class="b" id="m-uni" aria-pressed="true">Uma variável</button>
       <button class="b" id="m-bi" aria-pressed="false">Duas variáveis (regressão)</button>
+      <button class="b" id="report" title="Relatório com os dados, as medidas, as tabelas e os gráficos, pronto a guardar em PDF">📄 Relatório (PDF)</button>
     </div>
   </div>
   <button class="b" id="theme" title="Modo claro / escuro">☾</button>
@@ -131,6 +137,7 @@
         <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
         <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
         <button class="b small" data-g="dots" aria-pressed="false">Diagrama de pontos</button>
+        <button class="b small" data-g="stem" aria-pressed="false">Caule e folhas</button>
       </div>
     </div>
     <div class="row" id="hist-opts">
@@ -141,6 +148,9 @@
       <input class="inp" id="h" type="text" inputmode="decimal" aria-label="Amplitude das classes" style="width:4.2rem">
       <span class="lbl">início</span>
       <input class="inp" id="a0" type="text" inputmode="decimal" aria-label="Início da primeira classe" style="width:4.2rem">
+    </div>
+    <div class="row" id="stem-opts">
+      <label class="chk" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos (folhas 0–4 e 5–9)</label>
     </div>
     <div class="row" id="freq-row">
       <span class="lbl">Frequência</span>
@@ -194,8 +204,12 @@
 </div>
 
 <div class="plots uni" id="plots">
-  <div class="frame main"><h3><b id="main-title">Histograma</b><span id="main-hint"></span></h3><div class="fig" id="fig-main"></div></div>
-  <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b></h3><div class="fig" id="fig-box"></div></div>
+  <div class="frame main"><h3><b id="main-title">Histograma</b><span class="hr"><span id="main-hint"></span>
+    <button class="b small exp" data-fig="fig-main" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-main" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-main"></div></div>
+  <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b><span class="hr">
+    <span id="out-hint"></span>
+    <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
+    <button class="b small exp" data-fig="fig-box" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-box" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-box"></div></div>
   <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
 </div>
 
@@ -220,7 +234,7 @@
   const KEY = "apps-mat-estatistica";
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
-    box: true, mean: false, tab: false, dec: 2,
+    box: true, mean: false, tab: false, out: false, split: false, dec: 2,
     model: "lin", curve: true, res: false, cg: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
@@ -460,7 +474,7 @@
   });
   segBind("g", "graph"); segBind("f", "freq"); segBind("r", "model");
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
-  chkBind("sh-box", "box"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
+  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
@@ -480,11 +494,69 @@
   numBind("a0", "a0", v => isFinite(v));
   $("xest").addEventListener("input", e => { S.xest = e.target.value; render(); });
 
+  let LAST = null;   // resultados do último cálculo, usados pelo relatório
   // ---------- gráficos (Observable Plot) ----------
-  const figSize = el => [Math.max(260, el.clientWidth), Math.max(160, el.clientHeight)];
+  let FIXED = null;   // [largura, altura] dos gráficos quando se desenham para o relatório
+  const figSize = el => FIXED || [Math.max(260, el.clientWidth), Math.max(160, el.clientHeight)];
   function put(el, node) { el.innerHTML = ""; if (node) el.appendChild(node); }
   const plotStyle = () => ({ background: "transparent", color: css("--ink"), fontFamily: css("--font"), fontSize: "13px", overflow: "visible" });
   const decTick = d => fmt(d, 6);
+
+  // ---------- diagrama de caule e folhas (desenhado como SVG, para se poder exportar e entrar no relatório) ----------
+  // unidade das folhas u = 10^p: a menor que dá no máximo 15 caules (os algarismos abaixo de u são truncados)
+  function stemLeaf(st, W, H) {
+    const xs = st.xs;
+    const decs = Math.min(4, d3.max(xs, v => { const t = String(v).split(".")[1]; return t ? t.length : 0; }));
+    let p = -decs;
+    const stemOf = (v, u) => v < 0 ? -Math.floor(Math.abs(v) / (10 * u) + 1e-9) : Math.floor(v / (10 * u) + 1e-9);
+    while (p < 8 && stemOf(st.max, 10 ** p) - stemOf(st.min, 10 ** p) + 1 > 15) p++;
+    const u = 10 ** p;
+    const leafOf = v => Math.floor(Math.abs(v) / u + 1e-9) % 10;
+    // chave de cada linha: caule (com o sinal, para distinguir −0 de 0) e, com caules divididos, a metade
+    const rows = new Map();
+    const keyOf = v => { const sgn = v < 0 ? -1 : 1, s0 = Math.abs(stemOf(v, u)), half = S.split ? (leafOf(v) >= 5 ? 1 : 0) : 0; return [sgn, s0, half]; };
+    const kStr = ([sg, s0, h]) => `${sg}|${s0}|${h}`;
+    const lo = keyOf(st.min), hi = keyOf(st.max);
+    // todas as linhas entre a primeira e a última (também as vazias), de cima (menores) para baixo
+    const seq = [];
+    // ordem numérica das linhas (nos caules negativos, a metade das folhas 5–9 é a de valores menores)
+    const val = ([sg, s0, h]) => sg > 0 ? s0 * 10 + (h ? 5 : 0) : -(s0 * 10 + (h ? 9.5 : 4.5)) - 0.1;
+    const all = [];
+    for (let sg of [-1, 1]) for (let s0 = 0; s0 <= Math.max(lo[1], hi[1]) + 1; s0++) for (let h = 0; h < (S.split ? 2 : 1); h++) all.push([sg, s0, h]);
+    all.sort((a, b) => val(a) - val(b));
+    const iLo = all.findIndex(k => kStr(k) === kStr(lo)), iHi = all.findIndex(k => kStr(k) === kStr(hi));
+    for (let i = iLo; i <= iHi; i++) { seq.push(all[i]); rows.set(kStr(all[i]), []); }
+    xs.forEach(v => rows.get(kStr(keyOf(v))).push(leafOf(v)));
+    for (const [k, a] of rows) if (k.startsWith("-1")) a.sort((x, y) => y - x); else a.sort((x, y) => x - y);
+    const stemTxt = ([sg, s0]) => (sg < 0 ? "−" : "") + String(s0);
+    // tamanho da letra: que caibam as linhas na altura e a linha mais comprida na largura
+    const maxLeaves = d3.max([...rows.values()], a => a.length) || 1, stemW = d3.max(seq, k => stemTxt(k).length);
+    const n = seq.length + 2;
+    const fsz = Math.max(9, Math.min(26, (H - 20) / (n * 1.45), (W - 40) / ((stemW + 3 + maxLeaves * 1.6) * 0.62)));
+    const lh = fsz * 1.45, cw = fsz * 0.62;
+    const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("style", `color:${css("--ink")}`);
+    const ink = css("--ink"), c1 = css("--c1");
+    const x0 = 20 + stemW * cw, top = 14 + fsz;
+    const t = (x, y, str, anchor, fill, weight = 400) => { const e = document.createElementNS(NS, "text"); e.setAttribute("x", x); e.setAttribute("y", y); e.setAttribute("text-anchor", anchor); e.setAttribute("fill", fill); e.setAttribute("font-size", fsz); e.setAttribute("font-weight", weight); e.setAttribute("font-family", "IBM Plex Mono, ui-monospace, monospace"); e.textContent = str; svg.appendChild(e); return e; };
+    seq.forEach((k, i) => {
+      const y = top + i * lh;
+      t(x0, y, stemTxt(k), "end", ink, 700);
+      t(x0 + cw * 1.6, y, rows.get(kStr(k)).join(" "), "start", c1);
+    });
+    const ln = document.createElementNS(NS, "line");
+    ln.setAttribute("x1", x0 + cw * 0.8); ln.setAttribute("x2", x0 + cw * 0.8); ln.setAttribute("y1", top - fsz); ln.setAttribute("y2", top + (seq.length - 1) * lh + fsz * 0.35);
+    ln.setAttribute("stroke", ink); ln.setAttribute("stroke-width", 1.5); svg.appendChild(ln);
+    // chave, com o maior valor da amostra
+    const v0 = xs[xs.length - 1], kk = keyOf(v0), shown = (Math.abs(stemOf(v0, u)) * 10 + leafOf(v0)) * u * (v0 < 0 ? -1 : 1);
+    const keyTxt = `Chave: ${stemTxt(kk)} | ${leafOf(v0)} representa ${fmt(shown, Math.max(0, -p))}`;
+    const kt = t(20, top + (seq.length + 0.6) * lh, keyTxt, "start", css("--faint"));
+    kt.setAttribute("font-family", css("--font")); kt.setAttribute("font-style", "italic"); kt.setAttribute("font-size", Math.min(fsz * 0.8, 15));
+    stemInfo = `${seq.length} ${S.split ? "linhas (caules divididos)" : "caules"} · ${keyTxt.replace("Chave: ", "chave ")}${xs.some(v => Math.abs(v / u - Math.round(v / u)) > 1e-9) ? " (algarismos seguintes truncados)" : ""}`;
+    return svg;
+  }
+  let stemInfo = "";
 
   function renderUni(fromInputs) {
     const { name, xs, bad } = readUni(ta.value);
@@ -494,9 +566,10 @@
     $("tab-frame").hidden = !S.tab;
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
-    $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
-    if (xs.length < 1) { put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
-    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
+    $("freq-row").style.display = S.graph === "dots" || S.graph === "stem" ? "none" : "";   // (nestes, cada ponto/folha é uma observação)
+    $("stem-opts").style.display = S.graph === "stem" ? "" : "none";
+    if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
+    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots" && S.graph !== "stem";
     const xlabel = name || "x";
 
     // medidas
@@ -568,6 +641,12 @@
         $("main-title").textContent = "Diagrama de pontos";
       }
     }
+    // com os outliers ligados, as duas barreiras têm de ficar à vista: a escala horizontal (comum aos dois gráficos) alarga-se
+    const aiq = st.q3 - st.q1, fLo = st.q1 - 1.5 * aiq, fHi = st.q3 + 1.5 * aiq;
+    if (S.box && S.out) {
+      const padF = (Math.max(xdom[1], fHi) - Math.min(xdom[0], fLo)) * 0.03;
+      xdom = [Math.min(xdom[0], fLo - padF), Math.max(xdom[1], fHi + padF)];
+    }
     if (S.mean) {
       marks.push(Plot.ruleX([st.m], { stroke: c2, strokeWidth: 2, strokeDasharray: "6 4" }),
                  Plot.ruleX([st.med], { stroke: c3, strokeWidth: 2 }),
@@ -583,30 +662,51 @@
            ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
       marks,
     });
-    put($("fig-main"), main);
+    if (S.graph === "stem") {
+      put($("fig-main"), stemLeaf(st, W, H));
+      $("main-title").textContent = "Diagrama de caule e folhas";
+      $("main-hint").textContent = stemInfo;
+    } else put($("fig-main"), main);
 
     // diagrama de extremos e quartis com os quartis acima (a mesma escala horizontal do gráfico principal)
     if (S.box) {
-      const bw = $("fig-box").clientWidth || W, bh = 96;
+      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W), bh = 96;
       const q = [st.min, st.q1, st.med, st.q3, st.max];
       const lbl = [["mín.", st.min], ["Q_1", st.q1], ["Mediana", st.med], ["Q_3", st.q3], ["máx.", st.max]];
+      // outliers: fora de [Q₁ − 1,5 × AIQ, Q₃ + 1,5 × AIQ]; os bigodes vão só até ao menor e ao maior valor que não o são
+      const outs = S.out ? st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) : [];
+      const ins = S.out ? st.xs.filter(v => v >= fLo - 1e-9 && v <= fHi + 1e-9) : st.xs;
+      const wLo = ins[0], wHi = ins[ins.length - 1];
+      if (S.out) {
+        const distinct = [...new Set(outs)];
+        $("out-hint").textContent = `barreiras ${fmt(fLo, S.dec)} e ${fmt(fHi, S.dec)} · ` +
+          (outs.length ? `${outs.length === 1 ? "outlier" : outs.length + " outliers"}: ${distinct.slice(0, 6).map(v => fmt(v, S.dec)).join("; ")}${distinct.length > 6 ? "…" : ""}` : "sem outliers");
+      } else $("out-hint").textContent = "";
+      // os pontos repetidos empilham-se um pouco na vertical
+      const outPts = d3.rollups(outs, v => v.length, v => v).flatMap(([v, n]) => d3.range(n).map(i => ({ v, y: (i - (n - 1) / 2) * 0.32 })));
       const box = Plot.plot({
         width: Math.max(260, bw), height: bh, marginLeft: 48, marginBottom: 30, marginTop: 6, style: plotStyle(),
         x: { domain: xdom, label: null, ticks, tickFormat: decTick }, y: { axis: null, domain: [-1, 1] },
         marks: [
-          Plot.ruleY([0], { x1: st.min, x2: st.q1, stroke: ink, strokeWidth: 1.6 }),
-          Plot.ruleY([0], { x1: st.q3, x2: st.max, stroke: ink, strokeWidth: 1.6 }),
+          // as duas barreiras, sempre (tracejadas, com o valor por cima)
+          ...(S.out ? [Plot.ruleX([fLo, fHi], { y1: -0.75, y2: 0.75, stroke: c2, strokeOpacity: 0.7, strokeDasharray: "4 3" }),
+                       Plot.text([fLo, fHi], { x: d => d, y: 0.75, text: d => fmt(d, S.dec), dy: -7, fill: c2, fontWeight: 700, fontSize: 11 })] : []),
+          Plot.ruleY([0], { x1: wLo, x2: st.q1, stroke: ink, strokeWidth: 1.6 }),
+          Plot.ruleY([0], { x1: st.q3, x2: wHi, stroke: ink, strokeWidth: 1.6 }),
           Plot.rect([0], { x1: st.q1, x2: st.q3, y1: -0.6, y2: 0.6, fill: bar, stroke: c1, strokeWidth: 1.6 }),
           Plot.ruleX([st.med], { y1: -0.6, y2: 0.6, stroke: c3, strokeWidth: 3 }),
-          Plot.ruleX([st.min, st.max], { y1: -0.3, y2: 0.3, stroke: ink, strokeWidth: 1.6 }),
+          Plot.ruleX([wLo, wHi], { y1: -0.3, y2: 0.3, stroke: ink, strokeWidth: 1.6 }),
+          Plot.dot(outPts, { x: "v", y: "y", r: 4.5, stroke: c2, strokeWidth: 2, fill: css("--bg") }),
           ...(S.mean ? [Plot.dot([st.m], { x: d => d, y: 0, symbol: "times", r: 5, stroke: c2, strokeWidth: 2.5 })] : []),
-          Plot.tip(q.map((v, i) => ({ v, t: ["mínimo", "Q₁", "mediana", "Q₃", "máximo"][i] })), Plot.pointerX({ x: "v", y: 0, title: d => `${d.t} = ${fmt(d.v, S.dec)}` })),
+          Plot.tip([wLo, st.q1, st.med, st.q3, wHi].map((v, i) => ({ v, t: [S.out && outs.some(o => o < fLo) ? "menor valor que não é outlier" : "mínimo", "Q₁", "mediana", "Q₃", S.out && outs.some(o => o > fHi) ? "maior valor que não é outlier" : "máximo"][i] })), Plot.pointerX({ x: "v", y: 0, title: d => `${d.t} = ${fmt(d.v, S.dec)}` })),
         ],
       });
       put($("fig-box"), box);
     }
 
     // tabela de frequências
+    LAST = { mode: "uni", name: xlabel, st, tableRows, graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
+             fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) };
     if (S.tab) {
       const f4 = v => fmt(v, 4);
       $("tab").innerHTML = `<table class="freq"><thead><tr><th>${S.graph === "hist" ? "Classe" : "Valor"}</th><th>nᵢ</th><th>fᵢ</th><th>Nᵢ</th><th>Fᵢ</th></tr></thead><tbody>` +
@@ -625,7 +725,7 @@
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
-    if (pts.length < 2) { put($("fig-main"), null); eq.textContent = "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
+    if (pts.length < 2) { LAST = null; put($("fig-main"), null); eq.textContent = "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
     const F = fit(S.model, pts, d);
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
     rm.innerHTML = "";
@@ -668,6 +768,7 @@
                  Plot.text([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: hot, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
     }
     marks.push(Plot.tip(pts, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` })));
+    LAST = { mode: "bi", xl, yl, pts, F, model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
     put($("fig-main"), Plot.plot({
       width: W, height: H, marginLeft: 56, marginBottom: 42, marginTop: 22, style: plotStyle(),
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
@@ -687,6 +788,170 @@
       if (S.mode === "uni") renderUni(f); else renderBi();
     });
   }
+  // ---------- exportar os gráficos ----------
+  // SVG: o próprio desenho do Observable Plot, com fundo e a cor do texto fixados;
+  // PNG: esse SVG desenhado num canvas com o dobro da resolução
+  const slug = t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  function exportFig(figId, type) {
+    const svg = $(figId).querySelector("svg");
+    if (!svg) return;
+    const title = figId === "fig-main" ? $("main-title").textContent : "Diagrama de extremos e quartis";
+    const w = +svg.getAttribute("width"), h = +svg.getAttribute("height");
+    const c = svg.cloneNode(true);
+    c.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    c.querySelectorAll("[aria-label=tip]").forEach(e => e.remove());   // (sem as dicas do ponteiro)
+    c.style.cssText = `background:${css("--bg")};color:${css("--ink")};font-family:${css("--font")};font-size:13px;overflow:visible`;
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", 0); bg.setAttribute("y", 0); bg.setAttribute("width", w); bg.setAttribute("height", h); bg.setAttribute("fill", css("--bg"));
+    c.insertBefore(bg, c.firstChild);
+    const src = new XMLSerializer().serializeToString(c);
+    const save = (blob, ext) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${slug(title)}.${ext}`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+    if (type === "svg") { save(new Blob([src], { type: "image/svg+xml" }), "svg"); return; }
+    const img = new Image(), k = 2;
+    img.onload = () => {
+      const cv = document.createElement("canvas"); cv.width = w * k; cv.height = h * k;
+      const g = cv.getContext("2d"); g.fillStyle = css("--bg"); g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => save(b, "png"), "image/png");
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+  }
+  // ---------- relatório (estilo de um documento LaTeX/Quarto), para imprimir ou guardar em PDF ----------
+  // os gráficos voltam a desenhar-se com tamanho fixo e no tema claro; o texto matemático vai já em HTML do KaTeX
+  function captureFigs() {
+    const keepDark = dark, keepBox = S.box;
+    if (dark) setDark(false, false);
+    S.box = true; FIXED = [720, 380];
+    if (S.mode === "uni") renderUni(true); else renderBi();
+    const grab = id => {
+      const svg = $(id).querySelector("svg");
+      if (!svg) return "";
+      const c = svg.cloneNode(true);
+      c.querySelectorAll("[aria-label=tip]").forEach(e => e.remove());
+      c.removeAttribute("width"); c.removeAttribute("height");
+      c.style.cssText = "width:100%;height:auto;color:#17202b;background:transparent;font-family:KaTeX_Main,'Latin Modern Roman',serif;font-size:13px;overflow:visible";
+      return c.outerHTML;
+    };
+    const out = { main: grab("fig-main"), box: S.mode === "uni" ? grab("fig-box") : "" };
+    FIXED = null; S.box = keepBox;
+    if (keepDark) setDark(true, false);
+    if (S.mode === "uni") renderUni(true); else renderBi();
+    return out;
+  }
+  const K = src => window.katex ? katex.renderToString(src, { throwOnError: false, strict: false }) : src;
+  const KD = src => window.katex ? katex.renderToString(src, { throwOnError: false, strict: false, displayMode: true }) : src;
+  const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  function reportHTML() {
+    const R = LAST, figs = captureFigs();
+    const today = new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" });
+    let sec = 0, fig = 0, tab = 0;
+    const H2 = t => `<h2><span class="n">${++sec}</span>${t}</h2>`;
+    const FIG = (svg, cap) => svg ? `<figure>${svg}<figcaption><b>Figura ${++fig}:</b> ${cap}</figcaption></figure>` : "";
+    const TAB = (cap, head, rows, foot = "") => `<table><caption><b>Tabela ${++tab}:</b> ${cap}</caption><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>${foot}</table>`;
+    let body = "";
+    if (R.mode === "uni") {
+      const st = R.st, d = S.dec, f = v => fmt(v, d), f4 = v => fmt(v, 4);
+      body += H2("Dados");
+      body += `<p>Variável em estudo: <i>${esc(R.name)}</i>. Foram registadas ${K(`n = ${st.n}`)} observações, que se apresentam ordenadas:</p>`;
+      body += `<p class="data">${st.xs.map(v => f4(v)).join("&ensp; ")}</p>`;
+      body += H2("Medidas de localização e de dispersão");
+      const modeTxt = st.modes.length === 0 ? "não há" : st.modes.map(v => f(v)).join("; ");
+      body += TAB("Medidas da amostra", ["Medida", "", "Valor"], [
+        ["Mínimo e máximo", K("x_{(1)},\\ x_{(n)}"), `${f(st.min)} e ${f(st.max)}`],
+        ["Amplitude", K("x_{(n)} - x_{(1)}"), f(st.max - st.min)],
+        ["Média", K("\\bar{x} = \\frac{1}{n}\\sum_{i=1}^{n} x_i"), f(st.m)],
+        ["Mediana", K("\\tilde{x} = P_{50}"), f(st.med)],
+        ["Moda", "", modeTxt],
+        ["1.º e 3.º quartis", K("Q_1 = P_{25},\\ Q_3 = P_{75}"), `${f(st.q1)} e ${f(st.q3)}`],
+        ["Amplitude interquartil", K("\\text{AIQ} = Q_3 - Q_1"), f(st.q3 - st.q1)],
+        ["Variância", K("s^2 = \\frac{1}{n-1}\\sum_{i=1}^{n}(x_i - \\bar{x})^2"), f(st.s2)],
+        ["Desvio padrão", K("s = \\sqrt{s^2}"), f(st.s)],
+      ]);
+      body += `<p class="note">Percentil de ordem ${K("k")}: com ${K("L = nk/100")}, se ${K("L")} é inteiro, ${K("P_k = \\frac{x_{(L)} + x_{(L+1)}}{2}")}; senão, ${K("P_k = x_{(\\lfloor L \\rfloor + 1)}")}, onde ${K("x_{(i)}")} é o ${K("i")}-ésimo valor da amostra ordenada.</p>`;
+      body += H2("Distribuição de frequências");
+      body += TAB(R.graph === "hist" ? `Tabela de frequências (${esc(R.hint)})` : "Tabela de frequências", [R.graph === "hist" ? "Classe" : "Valor", K("n_i"), K("f_i"), K("N_i"), K("F_i")],
+        R.tableRows.map(r => [r[0], r[1], f4(r[2]), r[3], f4(r[4])]),
+        `<tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot>`);
+      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}.`);
+      body += H2("Diagrama de extremos e quartis e outliers");
+      const aiq = st.q3 - st.q1;
+      body += KD(`Q_1 - 1{,}5\\times\\text{AIQ} = ${tnum(R.fLo, d)} \\qquad Q_3 + 1{,}5\\times\\text{AIQ} = ${tnum(R.fHi, d)}`);
+      body += `<p>${R.outs.length ? `${R.outs.length === 1 ? "Há um valor" : `Há ${R.outs.length} valores`} fora das barreiras (outliers): ${[...new Set(R.outs)].map(v => f(v)).join("; ")}.` : "Não há valores fora das barreiras: a amostra não tem outliers."}</p>`;
+      body += FIG(figs.box, `Diagrama de extremos e quartis de <i>${esc(R.name)}</i>${S.out ? " (com as barreiras e os outliers)" : ""}.`);
+    } else {
+      const d = S.dec2, f = v => fmt(v, d), P = R.pts, X = P.map(p => p[0]), Y = P.map(p => p[1]);
+      const sx = Math.sqrt(sum(X.map(x => (x - R.mx) ** 2)) / (P.length - 1)), sy = Math.sqrt(sum(Y.map(y => (y - R.my) ** 2)) / (P.length - 1));
+      const r = linfit(X, Y).r;
+      body += H2("Dados");
+      body += `<p>Variáveis: ${K("x")} = <i>${esc(R.xl)}</i> e ${K("y")} = <i>${esc(R.yl)}</i>, com ${K(`n = ${P.length}`)} pares.</p>`;
+      if (P.length <= 40) body += TAB("Dados", [K("i"), K("x_i"), K("y_i")], P.map((p, i) => [i + 1, fmt(p[0], 4), fmt(p[1], 4)]));
+      body += H2("Resumo");
+      body += TAB("Medidas de cada variável e correlação linear", ["", K("x"), K("y")], [
+        ["Média", f(R.mx), f(R.my)], ["Desvio padrão", f(sx), f(sy)],
+      ]);
+      body += KD(`r = \\frac{\\sum (x_i - \\bar{x})(y_i - \\bar{y})}{\\sqrt{\\sum (x_i - \\bar{x})^2 \\sum (y_i - \\bar{y})^2}} = ${tnum(r, d)}`);
+      const NAMES = { lin: "Linear", quad: "Quadrático", exp: "Exponencial", log: "Logarítmico", pow: "Potência", sin: "Sinusoidal" };
+      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${!R.F.err && S.curve ? `, com a curva do modelo ${NAMES[R.model].toLowerCase()}` : ""}.`);
+      body += H2("Modelos de regressão");
+      const rows = Object.keys(NAMES).map(m => {
+        const G = fit(m, P, d);
+        if (G.err) return [NAMES[m] + (m === R.model ? " ◂" : ""), `<span class="note">${esc(G.err)}</span>`, "—"];
+        return [NAMES[m] + (m === R.model ? " ◂" : ""), K(G.eq.replace(/\\qquad.*$/, "")), G.R2 !== undefined ? K(`R^2 = ${tnum(G.R2, d)}`) : K(`r^2 = ${tnum(G.r2, d)}`)];
+      });
+      body += TAB("Os modelos ajustados aos dados (◂ = o escolhido)", ["Modelo", "Equação", "Ajuste"], rows);
+      body += `<p class="note">Os modelos exponencial, logarítmico e potência ajustam-se por linearização, como nas calculadoras gráficas (o ${K("r^2")} é o da reta transformada); o quadrático e o sinusoidal por mínimos quadrados (${K("R^2")} = coeficiente de determinação).</p>`;
+      if (!R.F.err) {
+        body += `<p>Modelo escolhido: <b>${NAMES[R.model].toLowerCase()}</b>.</p>` + KD(R.F.eq);
+        if (R.xe !== null) body += `<p>Estimativa para ${K(`x = ${tnum(R.xe, 4)}`)}: ${K(`\\hat{y} = ${tnum(R.F.f(R.xe), d)}`)}.</p>`;
+        if (P.length <= 30) {
+          const res = P.map(([x, y]) => y - R.F.f(x));
+          body += TAB("Valores ajustados e resíduos", [K("x_i"), K("y_i"), K("\\hat{y}_i"), K("e_i = y_i - \\hat{y}_i")],
+            P.map(([x, y], i) => [fmt(x, 4), fmt(y, 4), f(R.F.f(x)), f(res[i])]),
+            `<tfoot><tr><td colspan="3">Soma dos quadrados dos resíduos</td><td>${f(sum(res.map(e => e * e)))}</td></tr></tfoot>`);
+        }
+      }
+    }
+    const title = R.mode === "uni" ? `Análise exploratória: ${esc(R.name)}` : `Regressão: ${esc(R.yl)} em função de ${esc(R.xl)}`;
+    return `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${title}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+  @page { size: A4; margin: 2.2cm 2.3cm 2.4cm; }
+  body { font-family: KaTeX_Main, "Latin Modern Roman", "Computer Modern", serif; font-size: 11pt; line-height: 1.45; color: #111; max-width: 16.5cm; margin: 1.5cm auto; }
+  .bar { position: sticky; top: 0; background: #f6f8fb; border: 1px solid #ccd; border-radius: 8px; padding: 6px 10px; margin-bottom: 1.2cm; font-family: system-ui, sans-serif; font-size: 10pt; display: flex; gap: 10px; align-items: center; }
+  .bar button { font: inherit; font-weight: 700; padding: 4px 12px; border-radius: 6px; border: 1px solid #99a; background: #fff; cursor: pointer; }
+  header { text-align: center; margin-bottom: 1cm; }
+  header h1 { font-size: 17pt; font-weight: normal; margin: 0 0 0.35cm; }
+  header .sub { font-size: 11pt; } header .date { margin-top: 0.25cm; }
+  h2 { font-size: 13pt; margin: 0.75cm 0 0.25cm; break-after: avoid; } h2 .n { display: inline-block; min-width: 1.4em; }
+  p { margin: 0.2cm 0; text-align: justify; hyphens: auto; }
+  .data { font-size: 10pt; line-height: 1.6; }
+  .note { font-size: 9.5pt; color: #333; }
+  table { border-collapse: collapse; margin: 0.35cm auto; font-size: 10pt; break-inside: avoid; border-top: 1.4px solid #000; border-bottom: 1.4px solid #000; }
+  caption { caption-side: top; font-size: 10pt; padding-bottom: 0.15cm; }
+  th { font-weight: normal; border-bottom: 0.8px solid #000; padding: 3px 10px; }
+  td { padding: 2px 10px; text-align: right; } td:first-child, th:first-child { text-align: left; }
+  tfoot td { border-top: 0.8px solid #000; }
+  figure { margin: 0.45cm 0; break-inside: avoid; text-align: center; }
+  figure svg { max-width: 100%; }
+  figcaption { font-size: 10pt; margin-top: 0.15cm; }
+  .katex { font-size: 1.05em; } .katex-display { margin: 0.3cm 0; }
+  @media print { .bar { display: none; } body { margin: 0; max-width: none; } }
+</style></head><body>
+<div class="bar"><button onclick="print()">Imprimir / Guardar como PDF</button><span>Na janela de impressão, escolhe «Guardar como PDF».</span></div>
+<header><h1>${title}</h1><div class="sub">Aplicações Interativas de Matemática · Estatística</div><div class="date">${today}</div></header>
+${body}
+<script>document.fonts.ready.then(() => setTimeout(() => print(), 300));<\/script>
+</body></html>`;
+  }
+  $("report").onclick = () => {
+    if (!LAST) { $("msg").textContent = "Não há dados suficientes para o relatório."; return; }
+    const w = window.open("", "_blank");
+    if (!w) { $("msg").textContent = "O browser bloqueou a janela do relatório: autoriza as janelas deste site."; return; }
+    w.document.open(); w.document.write(reportHTML()); w.document.close();
+  };
+  window.__reportHTML = reportHTML;   // (para testes)
+
+  document.querySelectorAll(".exp").forEach(b => b.onclick = () => exportFig(b.dataset.fig, b.dataset.t));
+
   new ResizeObserver(() => render()).observe($("plots"));
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render());
   if (document.fonts) document.fonts.ready.then(() => render());
