@@ -59,7 +59,22 @@
   }
   .card { position: relative; background: var(--band); border: 1.2px solid var(--line); border-radius: 9px; padding: 0.55rem 0.7rem 0.6rem 1rem;
           display: flex; flex-direction: column; gap: 0.4rem; overflow: hidden; }
-  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--bar-c, var(--muted)); }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--bar-c, var(--muted)); border-radius: 9px 0 0 9px; }
+  /* menu pendente «Opções» (caixas de cada cartão): abre por cima do que está por baixo */
+  .card:has(details.dd[open]) { overflow: visible; z-index: 5; }
+  details.dd { position: relative; align-self: flex-start; }
+  details.dd > summary { font-weight: 700; font-size: 0.82rem; padding: 0.15rem 0.6rem; border-radius: 8px; cursor: pointer; background: var(--btn); color: var(--ink);
+                        border: 2px solid var(--line); line-height: 1.3; white-space: nowrap; }
+  details.dd[open] > summary { border-color: var(--muted); }
+  details.dd > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  details.dd > summary { list-style: none; display: inline-flex; align-items: center; gap: 0.35rem; user-select: none; }
+  details.dd > summary::-webkit-details-marker { display: none; }
+  details.dd > summary::after { content: "▾"; font-size: 0.8em; transition: transform .15s; }
+  details.dd[open] > summary::after { transform: rotate(180deg); }
+  details.dd > summary .cnt:empty { display: none; }
+  details.dd > summary .cnt { min-width: 1.15rem; padding: 0 0.3rem; border-radius: 9px; background: var(--muted); color: var(--on); font-size: 0.75rem; text-align: center; }
+  details.dd .ddp { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 16rem; display: flex; flex-direction: column; gap: 0.45rem;
+                    padding: 0.6rem 0.8rem; background: var(--bg); border: 1.2px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); }
   .card h2 { margin: 0; font-size: 0.85rem; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
   .row { display: flex; align-items: center; gap: 0.4rem 0.6rem; flex-wrap: wrap; font-size: 0.9rem; }
   .lbl { color: var(--muted); font-size: 0.85rem; }
@@ -116,7 +131,10 @@
   .plots.uni.tab .side { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
   .side .frame { flex: none; }
   .plots.uni.tab #dat-frame { flex: 1 0 14rem; overflow: auto; }
-  .plots.bi.tab .side { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; min-height: 0; }
+  .plots.bi { grid-template-rows: minmax(0, 1fr) auto; }
+  .plots.bi .resid { grid-column: 1; grid-row: 2; }
+  #fig-res { flex: none; height: 150px; }
+  .plots.bi.tab .side { grid-column: 3; grid-row: 1 / -1; display: flex; flex-direction: column; min-height: 0; }
   .plots.bi.tab #dat-frame { flex: 1; min-height: 0; overflow: auto; }
   /* tabela dos dados com todas as colunas: o cabeçalho escolhe o papel da coluna */
   #dat th.col { cursor: pointer; white-space: nowrap; }
@@ -174,7 +192,7 @@
   @media (max-width: 760px) {
     .plots.uni.tab, .plots.bi.tab { grid-template-columns: 1fr; }
     .plots.tab .grip { display: none; }
-    .plots.tab .main, .plots.uni.tab .box { grid-row: auto; }
+    .plots.tab .main, .plots.uni.tab .box, .plots.bi .resid { grid-row: auto; }
     /* no ecrã estreito a coluna vai para baixo, e a altura arrasta-se pelo canto */
     .plots.bi.tab .side { grid-column: 1; grid-row: auto; height: 20rem; resize: vertical; overflow: auto; }
     .plots.uni.tab .side { grid-column: 1; grid-row: auto; }
@@ -237,13 +255,16 @@
         <button class="b small" data-f="rel" aria-pressed="false">relativa</button>
       </div>
     </div>
-    <div class="row">
+    <details class="dd" id="dd-uni">
+      <summary class="b small">Opções <span class="cnt"></span></summary>
+      <div class="ddp">
       <label class="chk"><input type="checkbox" id="sh-box"> Diagrama de extremos e quartis</label>
       <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
       <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
       <label class="chk"><input type="checkbox" id="sh-stem"> Caule e folhas</label>
       <label class="chk" title="Estimativa da densidade por núcleo gaussiano, sobreposta ao gráfico, na escala das frequências"><input type="checkbox" id="sh-dens"> Curva de densidade</label>
-    </div>
+      </div>
+    </details>
   </div>
   <div class="card uni-only" style="--bar-c: var(--c3)">
     <h2>Medidas <span class="row"><span class="lbl">casas decimais</span>
@@ -263,13 +284,16 @@
       <button class="b small" data-r="pow" aria-pressed="false">Potência</button>
       <button class="b small" data-r="sin" aria-pressed="false">Sinusoidal</button>
     </div>
-    <div class="row">
+    <details class="dd" id="dd-bi">
+      <summary class="b small">Opções <span class="cnt"></span></summary>
+      <div class="ddp">
       <label class="chk"><input type="checkbox" id="sh-curve" checked> Curva de regressão</label>
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
       <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
-    </div>
+      </div>
+    </details>
     <div class="row">
       <span class="lbl">Estimar para</span><span id="xname-est"></span>
       <input class="inp" id="xest" type="text" inputmode="decimal" aria-label="Valor de x para estimar">
@@ -292,11 +316,13 @@
     <span id="out-hint"></span>
     <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
     <button class="b small exp" data-fig="fig-box" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-box" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-box"></div></div>
+  <div class="frame resid" id="res-frame" hidden><h3><b>Gráfico de resíduos</b><span class="hr"><span id="res-hint"></span>
+    <button class="b small exp" data-fig="fig-res" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-res" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-res"></div></div>
   <div class="grip" id="grip" title="Arrasta para mudar a largura da coluna da direita" role="separator" aria-orientation="vertical"></div>
   <div class="side" id="side">
-    <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
+    <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b><span class="hr"><button class="b small close" type="button" data-close="tab" title="Fechar a tabela de frequências" aria-label="Fechar a tabela de frequências">×</button></span></h3><div id="tab"></div></div>
     <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
-      <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
+      <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label><button class="b small close" type="button" data-close="stem" title="Fechar o caule e folhas" aria-label="Fechar o caule e folhas">×</button></span></h3>
       <div id="stem"></div></div>
     <div class="frame table" id="dat-frame" hidden><h3><b title="Arrasta o rato sobre as linhas ou sobre o gráfico para selecionar pares (Ctrl junta, Shift estende, Esc limpa); botão direito para excluir do ajuste. Clica no cabeçalho de uma coluna para a escolher como x, y, variável ou grupos.">Dados</b><span class="hr"><span id="dat-hint"></span>
       <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button><button class="b small close" id="dat-close" type="button" title="Fechar a tabela dos dados" aria-label="Fechar a tabela dos dados">×</button></span></h3><div id="dat"></div></div>
@@ -688,9 +714,8 @@
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
   // abrir / fechar os cartões das medidas e dos resultados (estado guardado no navegador)
-  const FOLDKEY = "apps-mat-estatistica-fechados";
-  let folded = {};
-  try { folded = JSON.parse(localStorage.getItem(FOLDKEY)) || {}; } catch (e) {}
+  // (começam sempre fechados — pedido do utilizador; abrir/fechar não fica guardado)
+  const folded = { meas: true, res: true };
   document.querySelectorAll("button.fold").forEach(b => {
     const card = b.closest(".card"), set = on => {
       card.classList.toggle("folded", on);
@@ -701,10 +726,18 @@
     b.onclick = () => {
       folded[b.dataset.fold] = !card.classList.contains("folded");
       set(folded[b.dataset.fold]);
-      try { localStorage.setItem(FOLDKEY, JSON.stringify(folded)); } catch (e) {}
       render();   // (a equação ajusta a letra à largura quando volta a aparecer)
     };
   });
+  // menus «Opções»: número de opções ligadas no botão; fecham ao clicar fora ou com Esc
+  const dds = [...document.querySelectorAll("details.dd")];
+  const ddCount = () => dds.forEach(d => {
+    const n = [...d.querySelectorAll(".ddp input[type=checkbox]")].filter(c => c.checked && !c.closest("[hidden]")).length;
+    d.querySelector(".cnt").textContent = n || "";
+  });
+  dds.forEach(d => d.addEventListener("change", ddCount));
+  document.addEventListener("pointerdown", e => dds.forEach(d => { if (d.open && !d.contains(e.target)) d.open = false; }));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") dds.forEach(d => d.open = false); });
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -829,6 +862,8 @@
   addEventListener("scroll", () => ctx.hidden = true, true);
   // × no título da tabela dos dados: fecha-a (o mesmo que tirar a marca da caixa no cartão Dados)
   $("dat-close").onclick = () => { S.dat = false; $("sh-dat").checked = false; render(); };
+  // × da tabela de frequências e do caule e folhas: o mesmo que tirar a marca nas «Opções»
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { const k = b.dataset.close; S[k] = false; $("sh-" + k).checked = false; render(); });
   $("sel-ex").onclick = exclSel; $("sel-in").onclick = inclSel;
   // ---------- gráficos (Observable Plot) ----------
   let FIXED = null;   // [largura, altura] dos gráficos quando se desenham para o relatório
@@ -911,7 +946,7 @@
     $("tab-frame").hidden = !S.tab;
     $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = !S.dat;
     uniTable(RU);
-    $("box-frame").hidden = !S.box;
+    $("box-frame").hidden = !S.box; $("res-frame").hidden = true;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
     $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
     $("meas").className = "meas"; $("fig-box").style.height = "";
@@ -1366,6 +1401,9 @@
     if (byG && ests.length) $("yest").querySelectorAll(".gname .k").forEach((el, i) => tex(el, `\\hat{y} = ${tnum(ests[i].y, d)}`));
 
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint"), bg = css("--bg");
+    // gráfico de resíduos (opção «Resíduos», com um modelo): o quadro aparece antes de medir o gráfico principal
+    const showRes = !!(S.res && S.model && (byG ? GR.some(g => !g.F.err) : !F.err));
+    $("res-frame").hidden = !showRes;
     const [W, H] = figSize($("fig-main"));
     // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
     let x0 = d3.min(all, p => p[0]), x1 = d3.max(all, p => p[0]);
@@ -1443,6 +1481,26 @@
     });
     if (GR) svgLegend(chart, GR, W - mRight, legOne ? 11 : 30);
     put($("fig-main"), chart);
+
+    // gráfico de resíduos: eᵢ = yᵢ − ŷᵢ de cada par incluído, com a mesma escala horizontal do diagrama de dispersão
+    if (showRes) {
+      const R = pts.filter(p => fOf(p)).map(p => ({ x: p[0], e: p[1] - fOf(p)(p[0]), g: p[2], p })).filter(r => isFinite(r.e));
+      const ext = d3.max(R, r => Math.abs(r.e)) || 1, rw = FIXED ? FIXED[0] : ($("fig-res").clientWidth || W);
+      const rp = Plot.plot({
+        width: Math.max(260, rw), height: 150, marginLeft: mLeft, marginRight: mRight, marginTop: 20, marginBottom: 28, style: plotStyle(), color,
+        x: { domain: [a, b], label: null, grid: true, tickFormat: decTick },
+        y: { domain: [-ext * 1.15, ext * 1.15], label: "resíduo", grid: true, ticks: 4, tickFormat: decTick, labelArrow: "none" },
+        marks: [
+          Plot.ruleY([0], { stroke: c2, strokeWidth: 1.5 }),
+          Plot.ruleX(R, { x: "x", y1: 0, y2: "e", stroke: hot, strokeOpacity: 0.55, strokeDasharray: "3 3" }),
+          Plot.dot(R, { x: "x", y: "e", r: 4, fill: bg, stroke: GR ? "g" : c1, strokeWidth: 1.6 }),
+          Plot.tip(R, Plot.pointer({ x: "x", y: "e", title: r => (r.g !== undefined ? `${r.g}\n` : "") + `(${fmt(r.p[0], 4)}; ${fmt(r.p[1], 4)})\nresíduo ${fmt(r.e, d)}` })),
+        ],
+      });
+      put($("fig-res"), rp);
+      $("res-hint").textContent = `Σ eᵢ² = ${fmt(sum(R.map(r => r.e * r.e)), d)}`;
+      LAST.sse = sum(R.map(r => r.e * r.e));
+    }
 
     // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
     if (S.dat) {
@@ -1587,6 +1645,7 @@
       if (!window.Plot || !window.d3) { $("msg").textContent = "Não foi possível carregar o Observable Plot (é preciso ligação à internet)."; return; }
       const before = figSize($("fig-main")).join();
       if (S.mode === "uni") renderUni(f); else renderBi();
+      ddCount();
       // se o quadro do gráfico principal mudou de tamanho entretanto (p. ex. um título noutro quadro passou a ter duas linhas),
       // desenha outra vez (no máximo duas vezes seguidas)
       if (figSize($("fig-main")).join() !== before && reflow < 2) { reflow++; render(f); } else reflow = 0;
@@ -1599,7 +1658,7 @@
   function exportFig(figId, type) {
     const svg = $(figId).querySelector("svg");
     if (!svg) return;
-    const title = figId === "fig-main" ? $("main-title").textContent : "Diagrama de extremos e quartis";
+    const title = figId === "fig-main" ? $("main-title").textContent : figId === "fig-res" ? "Gráfico de resíduos" : "Diagrama de extremos e quartis";
     const w = +svg.getAttribute("width"), h = +svg.getAttribute("height");
     const c = svg.cloneNode(true);
     c.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -1635,7 +1694,7 @@
       c.style.cssText = "width:100%;height:auto;color:#17202b;background:transparent;font-family:KaTeX_Main,'Latin Modern Roman',serif;font-size:13px;overflow:visible";
       return c.outerHTML;
     };
-    const out = { main: grab("fig-main"), box: S.mode === "uni" ? grab("fig-box") : "" };
+    const out = { main: grab("fig-main"), box: S.mode === "uni" ? grab("fig-box") : "", res: S.mode === "bi" && !$("res-frame").hidden ? grab("fig-res") : "" };
     FIXED = null; S.box = keepBox;
     if (keepDark) setDark(true, false);
     if (S.mode === "uni") renderUni(true); else renderBi();
@@ -1733,6 +1792,7 @@
             `<tfoot><tr><td colspan="3">Soma dos quadrados dos resíduos</td><td>${f(sum(res.map(e => e * e)))}</td></tr></tfoot>`);
         }
       }
+      if (figs.res) body += FIG(figs.res, `Gráfico de resíduos ${K("e_i = y_i - \\hat{y}_i")} do modelo ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}, com a mesma escala de ${K("x")} do diagrama de dispersão; num modelo adequado os resíduos espalham-se ao acaso à volta de 0, sem padrão.`);
     }
     const title = R.mode === "uni" ? `Análise exploratória: ${esc(R.name)}` : `Regressão: ${esc(R.yl)} em função de ${esc(R.xl)}`;
     return `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${title}</title>
