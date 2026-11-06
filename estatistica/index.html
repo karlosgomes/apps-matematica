@@ -54,6 +54,13 @@
   .gchip.off { opacity: 0.4; text-decoration: line-through; background: none; }
   svg .legi { cursor: pointer; }
   #cols .pair { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+  #cols .chk { font-size: 0.82rem; color: var(--muted); }
+  /* animação no tempo (duas variáveis, com uma coluna «Tempo»): ▶/⏸, cursor e valor do instante */
+  .tbar { display: flex; align-items: center; gap: 0.6rem; padding-top: 0.3rem; }
+  .tbar[hidden] { display: none; }
+  .tbar input[type=range] { flex: 1; accent-color: var(--c1); }
+  .tbar b { min-width: 3.2rem; font-variant-numeric: tabular-nums; }
+  .tbar .b { min-width: 2.2rem; }
   #theme { width: 3.2rem; font-size: 1.1rem; align-self: flex-start; height: max(2.6rem, 100%); max-height: 3.4rem; }
 
   /* cartões dos controlos: numa coluna à esquerda no ecrã largo; em cima, numa grelha, nos ecrãs estreitos */
@@ -320,7 +327,8 @@
 
 <div class="plots uni" id="plots">
   <div class="frame main"><h3><b id="main-title">Histograma</b><span class="gchips" id="gchips" hidden></span><span class="hr"><span id="main-hint"></span>
-    <button class="b small exp" data-fig="fig-main" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-main" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-main"></div></div>
+    <button class="b small exp" data-fig="fig-main" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-main" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-main"></div>
+    <div class="tbar" id="tbar" hidden><button class="b small" id="t-play" title="Reproduzir / pausar (barra de espaço)">▶</button><input type="range" id="t-rng" min="0" max="1" step="1" value="0" aria-label="Instante"><b id="t-val"></b></div></div>
   <div class="hgrip" id="hgrip" title="Arrasta para mudar a altura do gráfico de baixo (duplo clique: altura de origem)" role="separator" aria-orientation="horizontal"></div>
   <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b><span class="hr">
     <span id="out-hint"></span>
@@ -362,7 +370,8 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: false, violin: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
-    col: { v: null, x: null, y: null, g: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = coluna dos grupos
+    col: { v: null, x: null, y: null, g: null, t: null, s: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = grupos, t = tempo, s = tamanho dos pontos
+    logx: false, ti: 0,   // escala logarítmica em x; índice do instante mostrado (com a coluna do tempo)
     model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
     picked: { uni: "", bi: "" },   // escolha no menu de exemplos («e0», «d:penguins», …)
@@ -381,7 +390,7 @@
       src: "32 automóveis da revista Motor Trend (1974): mpg = milhas por galão, wt = peso (milhares de libras), cyl = cilindros; conjunto mtcars do R" },
     { id: "mpg", name: "Consumo de combustível (mpg)", file: "mpg.csv", uni: { v: "hwy" }, bi: { x: "displ", y: "hwy" },
       src: "234 automóveis (1999 e 2008): displ = cilindrada (L), hwy e cty = milhas por galão em estrada e em cidade; conjunto mpg do ggplot2 (Tidyverse), dados da EPA" },
-    { id: "gapminder", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp" },
+    { id: "gapminder", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp", g: "continent", t: "year", s: "pop", log: true },
       src: "Gapminder: esperança de vida, população e PIB por habitante de 142 países, de 5 em 5 anos (1952–2007); pacote gapminder do R (Jenny Bryan), CC0, dados de gapminder.org" },
   ];
   const EXAMPLES = {
@@ -455,6 +464,29 @@
   const colOf = (T, name, k = 0) => { const nc = numCols(T); return nc.find(c => c.name === name) || nc[Math.min(k, nc.length - 1)]; };
   const groupCols = T => T.cols.filter(c => c.levels);
   const groupCol = T => (S.col.g && groupCols(T).find(c => c.name === S.col.g)) || null;
+  // tempo (duas variáveis): coluna numérica com 3 a 200 valores diferentes, cada um repetido em várias linhas (p. ex. o ano no gapminder)
+  const timeCols = T => T._tc || (T._tc = numCols(T).filter(c => { const u = new Set(c.vals.filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
+  const timeCol = T => (S.col.t && timeCols(T).find(c => c.name === S.col.t)) || null;
+  const sizeCol = T => (S.col.s && numCols(T).find(c => c.name === S.col.s)) || null;
+  // identificação de cada caso ao longo do tempo (p. ex. o país): a primeira coluna de texto que não se repete em nenhum instante
+  function idCol(T, tc) {
+    T._id = T._id || {};
+    if (tc.name in T._id) return T._id[tc.name];
+    let found = null;
+    for (const c of T.cols) {
+      if (c.numeric) continue;
+      const seen = new Set();
+      let ok = true;
+      for (let i = 0; i < T.n && ok; i++) {
+        const t = tc.vals[i];
+        if (t === null || isNaN(t) || MISSING.test(c.raw[i])) continue;
+        const k = c.raw[i] + "\u0001" + t;
+        if (seen.has(k)) ok = false; else seen.add(k);
+      }
+      if (ok && seen.size > new Set(c.raw).size) { found = c; break; }   // (e aparece em mais do que um instante)
+    }
+    return (T._id[tc.name] = found);
+  }
   // escolha das colunas (só aparece com uma tabela); refaz as listas só quando as colunas ou o modo mudam
   let colsKey = "";
   function colsUI(T) {
@@ -464,6 +496,7 @@
     $("tinfo").textContent = `Tabela: ${T.n} linhas · ${T.cols.length} colunas (${nc.length} numéricas)${miss ? ` · ${miss} valores em falta` : ""}`;
     box.hidden = false;
     const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
+    const tcs = S.mode === "bi" ? timeCols(T) : [];
     const gc = groupCols(T);
     // grupos: colunas com 2 a MAXG valores diferentes (texto, como a espécie, ou números, como o ano)
     const gsel = gc.length ? `<span class="pair"><span class="lbl" title="Coluna que divide os dados em grupos">Grupos</span><select class="inp" id="c-g"><option value="">(nenhum)</option>${gc.map(c => `<option${c.name === S.col.g ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "";
@@ -472,8 +505,17 @@
       colsKey = key;
       box.innerHTML = S.mode === "uni"
         ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select></span>${gsel}`
-        : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select></span>${gsel}`;
-      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); SEL.clear(); HIDDEN.clear(); render(); });
+        : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><label class="chk" title="Escala logarítmica no eixo x (só com valores de x positivos)"><input type="checkbox" id="c-log"${S.logx ? " checked" : ""}> log</label></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select></span>${gsel}` +
+          (tcs.length ? `<span class="pair"><span class="lbl" title="Coluna do tempo: o gráfico mostra um instante de cada vez, com ▶ para ver a evolução">Tempo</span><select class="inp" id="c-t"><option value="">(nenhum)</option>${tcs.map(c => `<option${c.name === S.col.t ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "") +
+          `<span class="pair"><span class="lbl" title="Coluna que dá o tamanho de cada ponto (a área é proporcional ao valor)">Tamanho</span><select class="inp" id="c-s"><option value="">(nenhum)</option>${nc.map(c => `<option${c.name === S.col.s ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>`;
+      box.querySelectorAll("select").forEach(sl => sl.onchange = () => {
+        const k = sl.id.slice(2);
+        S.col[k] = sl.value || null;
+        if (k === "s") { render(); return; }   // (o tamanho não mexe na seleção)
+        if (k === "t") { S.ti = 0; stopPlay(); }
+        EXCL.clear(); SEL.clear(); HIDDEN.clear(); render();
+      });
+      if ($("c-log")) $("c-log").onchange = e => { S.logx = e.target.checked; render(); };
     }
   }
 
@@ -508,18 +550,27 @@
     colsUI(T);
     if (T) {
       const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), gc = groupCol(T), pts = [];
+      const tc = timeCol(T), ic = tc ? idCol(T, tc) : null, sc = sizeCol(T);
       let lost = 0, noG = 0;
       // com grupos, cada par leva o seu grupo em terceiro lugar: [x, y, grupo]
       cx.vals.forEach((x, i) => {
         const y = cy.vals[i];
-        if (x === null || y === null || isNaN(x) || isNaN(y)) lost++;
+        if (x === null || y === null || isNaN(x) || isNaN(y) || (tc && (tc.vals[i] === null || isNaN(tc.vals[i])))) lost++;
         else if (gc && MISSING.test(gc.raw[i])) noG++;
-        else { const p = gc ? [x, y, gc.raw[i]] : [x, y]; p.r = i; pts.push(p); }   // (p.r: linha da tabela)
+        else {
+          const p = gc ? [x, y, gc.raw[i]] : [x, y]; p.r = i;   // (p.r: linha da tabela)
+          // instante, identificação (p. ex. o país) e tamanho
+          if (tc) { p.t = tc.vals[i]; if (ic) p.id = ic.raw[i]; }
+          if (sc) p.s = sc.vals[i];
+          pts.push(p);
+        }
       });
       let groups = gc ? gc.levels.filter(l => pts.some(p => p[2] === l)) : null;
       if (groups && groups.length < 2) { groups = null; pts.forEach(p => p.length = 2); }   // (o comprimento não mexe em p.r)
       const note = [lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "", noG ? `${noG} linhas sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
-      return { nx: cx.name, ny: cy.name, pts, bad: [], note, groups, gname: groups ? gc.name : null };
+      const times = tc ? [...new Set(pts.map(p => p.t))].sort((u, v) => u - v) : null;
+      return { nx: cx.name, ny: cy.name, pts, bad: [], note, groups, gname: groups ? gc.name : null,
+               times: times && times.length >= 2 ? times : null, tname: tc && tc.name, idname: ic && ic.name, sname: sc && sc.name };
     }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let nx = "", ny = "", bad = [];
@@ -723,7 +774,8 @@
         if (!r.ok) throw new Error(r.status);
         const txt = (await r.text()).replace(/^\uFEFF/, "");
         S.data.uni = S.data.bi = ta.value = txt;
-        S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null };
+        S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null, t: d.bi.t || null, s: d.bi.s || null };
+        S.logx = !!d.bi.log; S.ti = 0; stopPlay();
         S.picked.uni = S.picked.bi = v;
       } catch (err) { $("msg").textContent = "Não foi possível carregar o conjunto de dados (é preciso abrir a app a partir do site)."; return; }
     }
@@ -738,7 +790,7 @@
     const rd = new FileReader();
     rd.onload = () => {
       const txt = String(rd.result).replace(/^\uFEFF/, "");
-      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render();
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null, t: null, s: null }; S.logx = false; S.ti = 0; stopPlay(); S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render();
       if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
     };
     rd.readAsText(f);
@@ -825,6 +877,12 @@
       b.ondblclick = () => groupClick(names[+b.dataset.i], names, true);
     });
   }
+  // ▶/⏸ e cursor do tempo; a barra de espaço também reproduz ou pausa (fora das caixas de texto)
+  $("t-play").onclick = togglePlay;
+  $("t-rng").oninput = e => { stopPlay(); S.ti = +e.target.value; render(); };
+  document.addEventListener("keydown", e => {
+    if (e.key === " " && !$("tbar").hidden && !e.target.closest("textarea, input:not([type=range]), select, button")) { e.preventDefault(); togglePlay(); }
+  });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { const open = !ctx.hidden; ctx.hidden = true; if (!open && SEL.size) { SEL.clear(); render(); } } });
   // excluir do ajuste / voltar a incluir os pares selecionados (botões no título da tabela e menu do botão direito)
   const exclSel = () => { SEL.forEach(i => EXCL.add(i)); render(); };
@@ -1480,8 +1538,38 @@
     svg.appendChild(g);
   }
 
+  // animação no tempo: um instante de cada vez; ▶ avança de instante em instante
+  let PLAY = null, NT = 0, PREVT = null, PREVALL = null;
+  function stopPlay() { if (PLAY) { clearInterval(PLAY); PLAY = null; } const b = $("t-play"); if (b) { b.textContent = "▶"; b.title = "Reproduzir (barra de espaço)"; } }
+  function togglePlay() {
+    if (PLAY) { stopPlay(); return; }
+    if (S.ti >= NT - 1) S.ti = 0;
+    $("t-play").textContent = "⏸"; $("t-play").title = "Pausar (barra de espaço)";
+    render();
+    PLAY = setInterval(() => { if (S.mode !== "bi" || $("tbar").hidden || S.ti >= NT - 1) { stopPlay(); return; } S.ti++; render(); }, 800);
+  }
   function renderBi() {
-    const { nx, ny, pts: all, bad, note, groups, gname } = readBi(ta.value);
+    const { nx, ny, pts: ALL, bad, note, groups, gname, times, tname, idname, sname } = readBi(ta.value);
+    // com a coluna do tempo, «all» são só os pares do instante mostrado (os índices da seleção e das exclusões referem-se a eles);
+    // ao mudar de instante, a seleção e as exclusões passam para os mesmos casos (p. ex. os mesmos países) do novo instante
+    const TM = !!times;
+    let all = ALL, curT = null;
+    $("tbar").hidden = !TM;
+    if (TM) {
+      NT = times.length; S.ti = Math.max(0, Math.min(NT - 1, S.ti)); curT = times[S.ti];
+      all = ALL.filter(p => p.t === curT);
+      if (PREVALL && PREVT !== curT) {
+        if (idname) {
+          const sId = new Set([...SEL].map(i => PREVALL[i] && PREVALL[i].id)), eId = new Set([...EXCL].map(i => PREVALL[i] && PREVALL[i].id));
+          SEL.clear(); EXCL.clear();
+          all.forEach((p, k) => { if (sId.has(p.id)) SEL.add(k); if (eId.has(p.id)) EXCL.add(k); });
+        } else { SEL.clear(); EXCL.clear(); }
+      }
+      PREVALL = all; PREVT = curT;
+      const rng = $("t-rng");
+      rng.max = NT - 1; rng.value = S.ti;
+      $("t-val").textContent = `${tname} = ${fmt(curT, 6)}`;
+    } else { PREVALL = null; PREVT = null; stopPlay(); }
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
     // grupos escondidos: os seus pares saem do gráfico e dos cálculos (vis = pares à vista)
@@ -1565,24 +1653,34 @@
     $("plots").classList.toggle("lower", showRes);
     $("res-frame").hidden = !showRes; $("fig-res").style.height = (LOWH.res || 150) + "px";
     const [W, H] = figSize($("fig-main"));
-    // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
-    let x0 = d3.min(vis, p => p[0]), x1 = d3.max(vis, p => p[0]);
-    const pad = (x1 - x0 || 1) * 0.08;
-    let a = x0 - pad, b = x1 + pad;
-    if (S.model && (byG ? GR.some(g => g.F.xmin0) : !F.err && F.xmin0) && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
-    if (ests.length) { a = Math.min(a, xe - pad); b = Math.max(b, xe + pad); }
+    // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos; com o tempo, os eixos são os mesmos em todos os instantes)
+    const domPts = TM ? ALL.filter(p => !isHid(p)) : vis;
+    let x0 = d3.min(domPts, p => p[0]), x1 = d3.max(domPts, p => p[0]);
+    // escala logarítmica em x (só com todos os x positivos): a margem conta-se em potências de 10
+    const LOG = S.logx && x0 > 0;
+    if ($("c-log")) $("c-log").title = S.logx && !LOG ? "Há valores de x que não são positivos: a escala logarítmica não se pode usar" : "Escala logarítmica no eixo x (só com valores de x positivos)";
+    const pad = LOG ? (Math.log10(x1 / x0) || 1) * 0.06 : (x1 - x0 || 1) * 0.08;
+    let a = LOG ? x0 / 10 ** pad : x0 - pad, b = LOG ? x1 * 10 ** pad : x1 + pad;
+    if (!LOG && S.model && (byG ? GR.some(g => g.F.xmin0) : !F.err && F.xmin0) && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
+    if (ests.length && (!LOG || xe > 0)) { a = LOG ? Math.min(a, xe / 10 ** pad) : Math.min(a, xe - pad); b = LOG ? Math.max(b, xe * 10 ** pad) : Math.max(b, xe + pad); }
+    if (LOG && !(xe > 0)) ests.length = 0;
+    // marcas do eixo logarítmico: só 1, 2 e 5 vezes uma potência de 10 levam número
+    const xTick = LOG ? (v => { const m = v / 10 ** Math.floor(Math.log10(v) + 1e-9); return [1, 2, 5].some(k => Math.abs(m - k) < 1e-6) ? fmt(v, 6) : ""; }) : decTick;
+    // tamanho dos pontos (coluna «Tamanho»): área proporcional ao valor, a mesma escala em todos os instantes
+    const SZ = !!sname, sMax = SZ ? d3.max(ALL, p => p.s) || 1 : 1, Rmax = Math.max(10, Math.min(W, H) / 16);
+    const rad = p => SZ ? Math.max(2.5, Math.sqrt(Math.max(0, p.s || 0) / sMax) * Rmax) : 5;
     // eixos só se o 0 estiver à vista (o referencial ajusta-se aos dados, como nas calculadoras)
     const marks = [];
     if (a <= 0 && b >= 0) marks.push(Plot.ruleX([0], { stroke: faint }));
     // as curvas dos modelos ficam por cima dos pontos (os pontos são opacos e tapavam-nas); os resíduos ficam por baixo
     const cvMarks = [];
     const curveOn = (f, lo, hi, stroke) => {
-      const N = 300, cv = d3.range(N + 1).map(i => { const x = lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y));
+      const N = 300, cv = d3.range(N + 1).map(i => { const x = LOG ? lo * (hi / lo) ** (i / N) : lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y));
       cvMarks.push(Plot.line(cv, { x: "x", y: "y", stroke, strokeWidth: 2.5, clip: true }));
     };
     if (S.curve) {
       // com um modelo por grupo, cada curva só no intervalo dos x do seu grupo
-      if (byG) GR.forEach(g => { if (!g.F.err) { const e = d3.extent(g.pts, p => p[0]), w = (e[1] - e[0]) * 0.04; curveOn(g.F.f, e[0] - w, e[1] + w, g.c); } });
+      if (byG) GR.forEach(g => { if (!g.F.err) { const e = d3.extent(g.pts, p => p[0]), w = (e[1] - e[0]) * 0.04; if (LOG) curveOn(g.F.f, e[0] / 1.1, e[1] * 1.1, g.c); else curveOn(g.F.f, e[0] - w, e[1] + w, g.c); } });
       else if (!F.err) curveOn(F.f, a, b, c2);
       if (S.res) {
         const rp = pts.filter(p => fOf(p));
@@ -1591,9 +1689,11 @@
     }
     // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos; com grupos, cada um na sua cor
     const color = GALL ? { domain: groups, range: GALL.map(g => g.c) } : undefined;
-    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: GR ? p => p[2] : c1, strokeWidth: 1.8 }));
+    // com «Tamanho», bolhas cheias e meio transparentes, as maiores por baixo
+    if (SZ) marks.push(Plot.dot(pts.slice().sort((u, v) => (v.s || 0) - (u.s || 0)), { x: p => p[0], y: p => p[1], r: rad, fill: GR ? p => p[2] : c1, fillOpacity: 0.5, stroke: GR ? p => p[2] : c1, strokeWidth: 1.2 }));
+    else marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: GR ? p => p[2] : c1, strokeWidth: 1.8 }));
     // excluídos: vazios e esbatidos, com uma cruz
-    if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: faint, strokeWidth: 1.5 }),
+    if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: rad, fill: bg, fillOpacity: SZ ? 0.6 : 1, stroke: faint, strokeWidth: 1.5 }),
                                Plot.dot(out, { x: p => p[0], y: p => p[1], r: 3.5, symbol: "times", stroke: faint, strokeWidth: 1.4 }));
     marks.push(...cvMarks);
     if (S.cg) marks.push(Plot.dot([[mx, my]], { x: p => p[0], y: p => p[1], r: 7, symbol: "times", stroke: hot, strokeWidth: 3 }),
@@ -1602,11 +1702,16 @@
       marks.push(Plot.dot([[xe, e.y]], { x: p => p[0], y: p => p[1], r: 6, fill: e.c || hot }),
                  Plot.text([[xe, e.y]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: e.c || hot, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
     });
-    marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
+    const big = v => v.toLocaleString("pt-PT", { maximumFractionDigits: 2 });
+    marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p.id !== undefined ? `${p.id}\n` : "") + (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` +
+      (SZ && p.s !== null && p.s !== undefined ? `\n${sname}: ${big(p.s)}` : "") + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
+    // o instante, em grande, no fundo do gráfico
+    if (TM) marks.unshift(Plot.text([curT], { frameAnchor: "bottom-right", text: v => fmt(v, 6), dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W / 6)), fontWeight: 700, fill: faint, fillOpacity: 0.28 }));
     LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my,
-             xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null };
+             xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null,
+             tl: TM ? `${tname} = ${fmt(curT, 6)}` : null };
     // escala vertical explícita (para as curvas de densidade poderem ocupar uma faixa junto de cada eixo)
-    const yAll = vis.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
+    const yAll = domPts.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
     let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
     // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
     // (com grupos, uma curva por grupo, sobrepostas, na mesma escala)
@@ -1619,8 +1724,9 @@
       const cx = [], cyv = [];
       sets.forEach(({ P, c }) => {
         if (P.length < 2) return;
-        const kx = kdeOf(P.map(p => p[0])), ky = kdeOf(P.map(p => p[1]));
-        if (kx) cx.push({ c, cv: d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, d: kx(x) }; }) });
+        // (na escala logarítmica, a densidade de x calcula-se com log₁₀ x, para a curva ter a forma que se vê no eixo)
+        const kx = kdeOf(P.map(p => LOG ? Math.log10(p[0]) : p[0])), ky = kdeOf(P.map(p => p[1]));
+        if (kx) cx.push({ c, cv: d3.range(N + 1).map(i => { const x = LOG ? a * (b / a) ** (i / N) : a + (b - a) * i / N; return { x, d: kx(LOG ? Math.log10(x) : x) }; }) });
         if (ky) cyv.push({ c, cv: d3.range(N + 1).map(i => { const y = ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(y) }; }) });
       });
       const topX = d3.max(cx, s => d3.max(s.cv, c => c.d)), topY = d3.max(cyv, s => d3.max(s.cv, c => c.d));
@@ -1631,16 +1737,19 @@
                       Plot.line(cv, { x: "x", y: "y", stroke: c, strokeWidth: 2, curve: "natural" }));
       });
       cyv.forEach(({ c, cv }) => {
-        cv.forEach(p => p.x = baseX + p.d / topY * wid);
-        marks.unshift(Plot.areaX(cv, { y: "y", x1: baseX, x2: "x", fill: c, fillOpacity: 0.1, curve: "natural" }),
+        // (à direita de b, a uma distância em pixéis; na escala logarítmica, em potências de 10)
+        const xOff = px => LOG ? b * (b / a) ** (px / (W - mLeft - mRight)) : b + px * dxU;
+        cv.forEach(p => p.x = xOff(8 + p.d / topY * (BAND - 14)));
+        marks.unshift(Plot.areaX(cv, { y: "y", x1: xOff(8), x2: "x", fill: c, fillOpacity: 0.1, curve: "natural" }),
                       Plot.line(cv, { x: "x", y: "y", stroke: c, strokeWidth: 2, curve: "natural" }));
       });
     }
     const chart = Plot.plot({
       width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(), color,
-      x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
+      x: { type: LOG ? "log" : "linear", domain: [a, b], label: xl + (LOG ? " (escala log.)" : ""), labelAnchor: "right", grid: true, tickFormat: xTick, labelArrow: "none" },
+      r: { type: "identity" },
       y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
-      marks: d3.min(vis, p => p[1]) <= 0 && d3.max(vis, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
+      marks: d3.min(domPts, p => p[1]) <= 0 && d3.max(domPts, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
     if (GALL) svgLegend(chart, GALL, W - mRight, legOne ? 11 : 30, FIXED ? null : (name, dbl) => groupClick(name, groups, dbl));
     if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
@@ -1653,7 +1762,7 @@
       const ext = d3.max(R, r => Math.abs(r.e)) || 1, rw = FIXED ? FIXED[0] : ($("fig-res").clientWidth || W);
       const rp = Plot.plot({
         width: Math.max(260, rw), height: LOWH.res || 150, marginLeft: mLeft, marginRight: mRight, marginTop: 20, marginBottom: 28, style: plotStyle(), color,
-        x: { domain: [a, b], label: null, grid: true, tickFormat: decTick },
+        x: { type: LOG ? "log" : "linear", domain: [a, b], label: null, grid: true, tickFormat: xTick },
         y: { domain: [-ext * 1.15, ext * 1.15], label: "resíduo", grid: true, ticks: 4, tickFormat: decTick, labelArrow: "none" },
         marks: [
           Plot.ruleY([0], { stroke: c2, strokeWidth: 1.5 }),
@@ -1683,12 +1792,13 @@
         if (GR) roles[gname] = "grupos";
         const kOf = new Map(all.map((p, k) => [p.r, k])), gc = GALL ? (v => gIdx.has(v) ? GALL[gIdx.get(v)].c : null) : null;
         $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, pre)}<tbody>` +
-          d3.range(Math.min(T.n, MAXR)).map(r => {
+          // (com o tempo, só as linhas do instante mostrado)
+          (TM ? all.map(p => p.r).slice(0, MAXR) : d3.range(Math.min(T.n, MAXR))).map(r => {
             const k = kOf.get(r);
             if (k !== undefined && isHid(all[k])) return `<tr class="miss" title="Grupo escondido"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
             return k === undefined ? `<tr class="miss" title="Fica de fora (valor em falta)"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`
               : `<tr data-i="${k}"${EXCL.has(k) ? ' class="excl"' : ""}>${chk(k)}<td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
-          }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
+          }).join("") + "</tbody></table>" + (TM ? `<p class="note">Linhas de ${esc(tname)} = ${fmt(curT, 6)}.</p>` : T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
         bindHeads(T);
       } else {
         $("dat").innerHTML = `<table class="freq"><thead><tr>${pre}<th>${esc(xl)}</th><th>${esc(yl)}</th></tr></thead><tbody>` +
@@ -1708,7 +1818,7 @@
         rowsEl.forEach((r, k) => r.classList.toggle("hot", k === i));
         if (i === null || i < 0) { ring.style.display = "none"; return; }
         // (passar o ponteiro sobre um ponto realça a linha, mas não faz scroll à tabela — pedido do utilizador)
-        ring.setAttribute("cx", sx.apply(all[i][0])); ring.setAttribute("cy", sy.apply(all[i][1])); ring.style.display = "";
+        ring.setAttribute("cx", sx.apply(all[i][0])); ring.setAttribute("cy", sy.apply(all[i][1])); ring.setAttribute("r", rad(all[i]) + 5); ring.style.display = "";
       };
       chart.addEventListener("input", () => mark(chart.value ? all.indexOf(chart.value) : null, "chart"));
       rowsEl.forEach((r, i) => { r.onmouseenter = () => mark(i, "table"); r.onmouseleave = () => mark(null); });
@@ -1724,9 +1834,31 @@
       const showSel = () => {
         rowsEl.forEach((r, k) => r.classList.toggle("sel", SEL.has(k)));
         selG.innerHTML = "";
+        // com o tempo: o rasto de cada caso selecionado até ao instante mostrado, com o nome (p. ex. o país)
+        if (TM && idname) for (const i of SEL) {
+          const q = all[i], col = GALL ? GALL[gIdx.get(q[2])].c : c1;
+          const path = ALL.filter(p => p.id === q.id && p.t <= curT).sort((u, v) => u.t - v.t);
+          if (path.length > 1) {
+            const pl = document.createElementNS(NS, "polyline");
+            pl.setAttribute("points", path.map(p => `${sx.apply(p[0])},${sy.apply(p[1])}`).join(" "));
+            pl.setAttribute("fill", "none"); pl.setAttribute("stroke", col); pl.setAttribute("stroke-width", 2); pl.setAttribute("stroke-opacity", 0.8); pl.setAttribute("stroke-linejoin", "round");
+            selG.appendChild(pl);
+            path.slice(0, -1).forEach(p => {
+              const c = document.createElementNS(NS, "circle");
+              c.setAttribute("cx", sx.apply(p[0])); c.setAttribute("cy", sy.apply(p[1])); c.setAttribute("r", 3); c.setAttribute("fill", col);
+              selG.appendChild(c);
+            });
+          }
+          const tx = document.createElementNS(NS, "text");
+          tx.setAttribute("x", sx.apply(q[0]) + rad(q) + 6); tx.setAttribute("y", sy.apply(q[1]) - rad(q) * 0.6 - 2);
+          tx.setAttribute("fill", col); tx.setAttribute("font-weight", 700); tx.setAttribute("font-size", 13);
+          tx.setAttribute("stroke", bg); tx.setAttribute("stroke-width", 4); tx.setAttribute("paint-order", "stroke");
+          tx.textContent = q.id;
+          selG.appendChild(tx);
+        }
         for (const i of SEL) {
           const c = document.createElementNS(NS, "circle");
-          c.setAttribute("cx", sx.apply(all[i][0])); c.setAttribute("cy", sy.apply(all[i][1])); c.setAttribute("r", 8.5);
+          c.setAttribute("cx", sx.apply(all[i][0])); c.setAttribute("cy", sy.apply(all[i][1])); c.setAttribute("r", rad(all[i]) + 3.5);
           c.setAttribute("fill", "none"); c.setAttribute("stroke", hot); c.setAttribute("stroke-width", 2.5);
           selG.appendChild(c);
         }
@@ -1816,7 +1948,7 @@
       const f = fromInp; fromInp = false;
       if (!window.Plot || !window.d3) { $("msg").textContent = "Não foi possível carregar o Observable Plot (é preciso ligação à internet)."; return; }
       const before = figSize($("fig-main")).join();
-      if (S.mode === "uni") renderUni(f); else renderBi();
+      if (S.mode === "uni") { $("tbar").hidden = true; stopPlay(); renderUni(f); } else renderBi();
       // se o quadro do gráfico principal mudou de tamanho entretanto (p. ex. um título noutro quadro passou a ter duas linhas),
       // desenha outra vez (no máximo duas vezes seguidas)
       if (figSize($("fig-main")).join() !== before && reflow < 2) { reflow++; render(f); } else reflow = 0;
@@ -1939,7 +2071,7 @@
       ]);
       body += KD(`r = \\frac{\\sum (x_i - \\bar{x})(y_i - \\bar{y})}{\\sqrt{\\sum (x_i - \\bar{x})^2 \\sum (y_i - \\bar{y})^2}} = ${tnum(r, d)}`);
       const NAMES = { lin: "Linear", quad: "Quadrático", exp: "Exponencial", log: "Logarítmico", pow: "Potência", sin: "Sinusoidal" };
-      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${R.groups ? `, com os grupos de <i>${esc(R.gname)}</i> em cores diferentes` : ""}${S.curve && (R.byG || !R.F.err) && R.model ? `, com ${R.byG ? "as curvas do modelo" : "a curva do modelo"} ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}` : ""}${S.mdens ? (R.groups ? "; nas margens, as curvas de densidade de cada variável em cada grupo" : "; nas margens, a roxo, as curvas de densidade de cada variável") : ""}.`);
+      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${R.tl ? ` (${esc(R.tl)})` : ""}${R.groups ? `, com os grupos de <i>${esc(R.gname)}</i> em cores diferentes` : ""}${S.curve && (R.byG || !R.F.err) && R.model ? `, com ${R.byG ? "as curvas do modelo" : "a curva do modelo"} ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}` : ""}${S.mdens ? (R.groups ? "; nas margens, as curvas de densidade de cada variável em cada grupo" : "; nas margens, a roxo, as curvas de densidade de cada variável") : ""}.`);
       body += H2("Modelos de regressão");
       const rows = Object.keys(NAMES).map(m => {
         const G = fit(m, P, d);
