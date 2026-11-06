@@ -1574,9 +1574,11 @@
     // eixos só se o 0 estiver à vista (o referencial ajusta-se aos dados, como nas calculadoras)
     const marks = [];
     if (a <= 0 && b >= 0) marks.push(Plot.ruleX([0], { stroke: faint }));
+    // as curvas dos modelos ficam por cima dos pontos (os pontos são opacos e tapavam-nas); os resíduos ficam por baixo
+    const cvMarks = [];
     const curveOn = (f, lo, hi, stroke) => {
       const N = 300, cv = d3.range(N + 1).map(i => { const x = lo + (hi - lo) * i / N; return { x, y: f(x) }; }).filter(p => isFinite(p.y));
-      marks.push(Plot.line(cv, { x: "x", y: "y", stroke, strokeWidth: 2.5, clip: true }));
+      cvMarks.push(Plot.line(cv, { x: "x", y: "y", stroke, strokeWidth: 2.5, clip: true }));
     };
     if (S.curve) {
       // com um modelo por grupo, cada curva só no intervalo dos x do seu grupo
@@ -1593,6 +1595,7 @@
     // excluídos: vazios e esbatidos, com uma cruz
     if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: faint, strokeWidth: 1.5 }),
                                Plot.dot(out, { x: p => p[0], y: p => p[1], r: 3.5, symbol: "times", stroke: faint, strokeWidth: 1.4 }));
+    marks.push(...cvMarks);
     if (S.cg) marks.push(Plot.dot([[mx, my]], { x: p => p[0], y: p => p[1], r: 7, symbol: "times", stroke: hot, strokeWidth: 3 }),
                          Plot.text([[mx, my]], { x: p => p[0], y: p => p[1], text: () => `(x̄, ȳ) = (${fmt(mx, d)}; ${fmt(my, d)})`, dx: 10, dy: -10, textAnchor: "start", fill: hot, fontWeight: 700 }));
     ests.forEach(e => {
