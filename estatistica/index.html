@@ -41,6 +41,7 @@
   button.b[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); color: var(--on); }
   button.b.small { font-size: 0.82rem; padding: 0.15rem 0.55rem; }
   button.b:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #cols select.inp { max-width: 11rem; }
   #theme { width: 3.2rem; font-size: 1.1rem; align-self: flex-start; height: max(2.6rem, 100%); max-height: 3.4rem; }
 
   /* cartões dos controlos: numa coluna à esquerda no ecrã largo; em cima, numa grelha, nos ecrãs estreitos */
@@ -49,7 +50,8 @@
     body { display: grid; grid-template-columns: minmax(330px, 25rem) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
            height: 100vh; min-height: 0; }
     .top { grid-column: 1 / -1; }
-    .cards { grid-template-columns: minmax(0, 1fr); overflow-y: auto; min-height: 0; padding-right: 2px; }
+    /* (max-content: os cartões não encolhem — a coluna é que desce) */
+    .cards { grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; overflow-y: auto; min-height: 0; padding-right: 2px; }
     .plots { min-height: 0; }
   }
   .card { position: relative; background: var(--band); border: 1.2px solid var(--line); border-radius: 9px; padding: 0.55rem 0.7rem 0.6rem 1rem;
@@ -66,6 +68,7 @@
   input.inp { width: 5rem; text-align: right; }
   input.inp.bad { border-color: var(--bad); background: var(--badbg); }
   .msg { font-size: 0.8rem; color: var(--bad); min-height: 1em; }
+  .msg.info { color: var(--faint); font-style: italic; }
   .chk { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.88rem; }
   .chk input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--muted); cursor: pointer; }
 
@@ -146,6 +149,12 @@
   <div class="card" style="--bar-c: var(--c1)">
     <h2><span id="data-title">Dados</span><span class="seg" id="examples"></span></h2>
     <textarea id="data" spellcheck="false" aria-label="Dados"></textarea>
+    <div class="row">
+      <button class="b small" id="open" title="Abrir um ficheiro de dados (.csv, .tsv ou .txt), por exemplo descarregado do Kaggle">📂 Abrir ficheiro</button>
+      <input type="file" id="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden>
+      <span class="lbl" id="tinfo"></span>
+    </div>
+    <div class="row" id="cols" hidden></div>
     <div class="msg" id="msg"></div>
   </div>
 
@@ -261,19 +270,24 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
+    col: { v: null, x: null, y: null },   // colunas escolhidas, quando os dados são uma tabela (CSV)
     model: null, curve: true, res: false, cg: false, dat: false, mdens: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
+  // pinguins de Palmer (Horst, Hill e Gorman, pacote palmerpenguins, domínio público CC0)
+  const PENGUINS = "species,island,bill_length_mm,bill_depth_mm,flipper_length_mm,body_mass_g,sex,year\nAdelie,Torgersen,39.1,18.7,181,3750,male,2007\nAdelie,Torgersen,39.5,17.4,186,3800,female,2007\nAdelie,Torgersen,40.3,18,195,3250,female,2007\nAdelie,Torgersen,NA,NA,NA,NA,NA,2007\nAdelie,Torgersen,36.7,19.3,193,3450,female,2007\nAdelie,Torgersen,39.3,20.6,190,3650,male,2007\nAdelie,Torgersen,38.9,17.8,181,3625,female,2007\nAdelie,Torgersen,39.2,19.6,195,4675,male,2007\nAdelie,Torgersen,34.1,18.1,193,3475,NA,2007\nAdelie,Torgersen,42,20.2,190,4250,NA,2007\nAdelie,Torgersen,37.8,17.1,186,3300,NA,2007\nAdelie,Torgersen,37.8,17.3,180,3700,NA,2007\nAdelie,Torgersen,41.1,17.6,182,3200,female,2007\nAdelie,Torgersen,38.6,21.2,191,3800,male,2007\nAdelie,Torgersen,34.6,21.1,198,4400,male,2007\nAdelie,Torgersen,36.6,17.8,185,3700,female,2007\nAdelie,Torgersen,38.7,19,195,3450,female,2007\nAdelie,Torgersen,42.5,20.7,197,4500,male,2007\nAdelie,Torgersen,34.4,18.4,184,3325,female,2007\nAdelie,Torgersen,46,21.5,194,4200,male,2007\nAdelie,Biscoe,37.8,18.3,174,3400,female,2007\nAdelie,Biscoe,37.7,18.7,180,3600,male,2007\nAdelie,Biscoe,35.9,19.2,189,3800,female,2007\nAdelie,Biscoe,38.2,18.1,185,3950,male,2007\nAdelie,Biscoe,38.8,17.2,180,3800,male,2007\nAdelie,Biscoe,35.3,18.9,187,3800,female,2007\nAdelie,Biscoe,40.6,18.6,183,3550,male,2007\nAdelie,Biscoe,40.5,17.9,187,3200,female,2007\nAdelie,Biscoe,37.9,18.6,172,3150,female,2007\nAdelie,Biscoe,40.5,18.9,180,3950,male,2007\nAdelie,Dream,39.5,16.7,178,3250,female,2007\nAdelie,Dream,37.2,18.1,178,3900,male,2007\nAdelie,Dream,39.5,17.8,188,3300,female,2007\nAdelie,Dream,40.9,18.9,184,3900,male,2007\nAdelie,Dream,36.4,17,195,3325,female,2007\nAdelie,Dream,39.2,21.1,196,4150,male,2007\nAdelie,Dream,38.8,20,190,3950,male,2007\nAdelie,Dream,42.2,18.5,180,3550,female,2007\nAdelie,Dream,37.6,19.3,181,3300,female,2007\nAdelie,Dream,39.8,19.1,184,4650,male,2007\nAdelie,Dream,36.5,18,182,3150,female,2007\nAdelie,Dream,40.8,18.4,195,3900,male,2007\nAdelie,Dream,36,18.5,186,3100,female,2007\nAdelie,Dream,44.1,19.7,196,4400,male,2007\nAdelie,Dream,37,16.9,185,3000,female,2007\nAdelie,Dream,39.6,18.8,190,4600,male,2007\nAdelie,Dream,41.1,19,182,3425,male,2007\nAdelie,Dream,37.5,18.9,179,2975,NA,2007\nAdelie,Dream,36,17.9,190,3450,female,2007\nAdelie,Dream,42.3,21.2,191,4150,male,2007\nAdelie,Biscoe,39.6,17.7,186,3500,female,2008\nAdelie,Biscoe,40.1,18.9,188,4300,male,2008\nAdelie,Biscoe,35,17.9,190,3450,female,2008\nAdelie,Biscoe,42,19.5,200,4050,male,2008\nAdelie,Biscoe,34.5,18.1,187,2900,female,2008\nAdelie,Biscoe,41.4,18.6,191,3700,male,2008\nAdelie,Biscoe,39,17.5,186,3550,female,2008\nAdelie,Biscoe,40.6,18.8,193,3800,male,2008\nAdelie,Biscoe,36.5,16.6,181,2850,female,2008\nAdelie,Biscoe,37.6,19.1,194,3750,male,2008\nAdelie,Biscoe,35.7,16.9,185,3150,female,2008\nAdelie,Biscoe,41.3,21.1,195,4400,male,2008\nAdelie,Biscoe,37.6,17,185,3600,female,2008\nAdelie,Biscoe,41.1,18.2,192,4050,male,2008\nAdelie,Biscoe,36.4,17.1,184,2850,female,2008\nAdelie,Biscoe,41.6,18,192,3950,male,2008\nAdelie,Biscoe,35.5,16.2,195,3350,female,2008\nAdelie,Biscoe,41.1,19.1,188,4100,male,2008\nAdelie,Torgersen,35.9,16.6,190,3050,female,2008\nAdelie,Torgersen,41.8,19.4,198,4450,male,2008\nAdelie,Torgersen,33.5,19,190,3600,female,2008\nAdelie,Torgersen,39.7,18.4,190,3900,male,2008\nAdelie,Torgersen,39.6,17.2,196,3550,female,2008\nAdelie,Torgersen,45.8,18.9,197,4150,male,2008\nAdelie,Torgersen,35.5,17.5,190,3700,female,2008\nAdelie,Torgersen,42.8,18.5,195,4250,male,2008\nAdelie,Torgersen,40.9,16.8,191,3700,female,2008\nAdelie,Torgersen,37.2,19.4,184,3900,male,2008\nAdelie,Torgersen,36.2,16.1,187,3550,female,2008\nAdelie,Torgersen,42.1,19.1,195,4000,male,2008\nAdelie,Torgersen,34.6,17.2,189,3200,female,2008\nAdelie,Torgersen,42.9,17.6,196,4700,male,2008\nAdelie,Torgersen,36.7,18.8,187,3800,female,2008\nAdelie,Torgersen,35.1,19.4,193,4200,male,2008\nAdelie,Dream,37.3,17.8,191,3350,female,2008\nAdelie,Dream,41.3,20.3,194,3550,male,2008\nAdelie,Dream,36.3,19.5,190,3800,male,2008\nAdelie,Dream,36.9,18.6,189,3500,female,2008\nAdelie,Dream,38.3,19.2,189,3950,male,2008\nAdelie,Dream,38.9,18.8,190,3600,female,2008\nAdelie,Dream,35.7,18,202,3550,female,2008\nAdelie,Dream,41.1,18.1,205,4300,male,2008\nAdelie,Dream,34,17.1,185,3400,female,2008\nAdelie,Dream,39.6,18.1,186,4450,male,2008\nAdelie,Dream,36.2,17.3,187,3300,female,2008\nAdelie,Dream,40.8,18.9,208,4300,male,2008\nAdelie,Dream,38.1,18.6,190,3700,female,2008\nAdelie,Dream,40.3,18.5,196,4350,male,2008\nAdelie,Dream,33.1,16.1,178,2900,female,2008\nAdelie,Dream,43.2,18.5,192,4100,male,2008\nAdelie,Biscoe,35,17.9,192,3725,female,2009\nAdelie,Biscoe,41,20,203,4725,male,2009\nAdelie,Biscoe,37.7,16,183,3075,female,2009\nAdelie,Biscoe,37.8,20,190,4250,male,2009\nAdelie,Biscoe,37.9,18.6,193,2925,female,2009\nAdelie,Biscoe,39.7,18.9,184,3550,male,2009\nAdelie,Biscoe,38.6,17.2,199,3750,female,2009\nAdelie,Biscoe,38.2,20,190,3900,male,2009\nAdelie,Biscoe,38.1,17,181,3175,female,2009\nAdelie,Biscoe,43.2,19,197,4775,male,2009\nAdelie,Biscoe,38.1,16.5,198,3825,female,2009\nAdelie,Biscoe,45.6,20.3,191,4600,male,2009\nAdelie,Biscoe,39.7,17.7,193,3200,female,2009\nAdelie,Biscoe,42.2,19.5,197,4275,male,2009\nAdelie,Biscoe,39.6,20.7,191,3900,female,2009\nAdelie,Biscoe,42.7,18.3,196,4075,male,2009\nAdelie,Torgersen,38.6,17,188,2900,female,2009\nAdelie,Torgersen,37.3,20.5,199,3775,male,2009\nAdelie,Torgersen,35.7,17,189,3350,female,2009\nAdelie,Torgersen,41.1,18.6,189,3325,male,2009\nAdelie,Torgersen,36.2,17.2,187,3150,female,2009\nAdelie,Torgersen,37.7,19.8,198,3500,male,2009\nAdelie,Torgersen,40.2,17,176,3450,female,2009\nAdelie,Torgersen,41.4,18.5,202,3875,male,2009\nAdelie,Torgersen,35.2,15.9,186,3050,female,2009\nAdelie,Torgersen,40.6,19,199,4000,male,2009\nAdelie,Torgersen,38.8,17.6,191,3275,female,2009\nAdelie,Torgersen,41.5,18.3,195,4300,male,2009\nAdelie,Torgersen,39,17.1,191,3050,female,2009\nAdelie,Torgersen,44.1,18,210,4000,male,2009\nAdelie,Torgersen,38.5,17.9,190,3325,female,2009\nAdelie,Torgersen,43.1,19.2,197,3500,male,2009\nAdelie,Dream,36.8,18.5,193,3500,female,2009\nAdelie,Dream,37.5,18.5,199,4475,male,2009\nAdelie,Dream,38.1,17.6,187,3425,female,2009\nAdelie,Dream,41.1,17.5,190,3900,male,2009\nAdelie,Dream,35.6,17.5,191,3175,female,2009\nAdelie,Dream,40.2,20.1,200,3975,male,2009\nAdelie,Dream,37,16.5,185,3400,female,2009\nAdelie,Dream,39.7,17.9,193,4250,male,2009\nAdelie,Dream,40.2,17.1,193,3400,female,2009\nAdelie,Dream,40.6,17.2,187,3475,male,2009\nAdelie,Dream,32.1,15.5,188,3050,female,2009\nAdelie,Dream,40.7,17,190,3725,male,2009\nAdelie,Dream,37.3,16.8,192,3000,female,2009\nAdelie,Dream,39,18.7,185,3650,male,2009\nAdelie,Dream,39.2,18.6,190,4250,male,2009\nAdelie,Dream,36.6,18.4,184,3475,female,2009\nAdelie,Dream,36,17.8,195,3450,female,2009\nAdelie,Dream,37.8,18.1,193,3750,male,2009\nAdelie,Dream,36,17.1,187,3700,female,2009\nAdelie,Dream,41.5,18.5,201,4000,male,2009\nGentoo,Biscoe,46.1,13.2,211,4500,female,2007\nGentoo,Biscoe,50,16.3,230,5700,male,2007\nGentoo,Biscoe,48.7,14.1,210,4450,female,2007\nGentoo,Biscoe,50,15.2,218,5700,male,2007\nGentoo,Biscoe,47.6,14.5,215,5400,male,2007\nGentoo,Biscoe,46.5,13.5,210,4550,female,2007\nGentoo,Biscoe,45.4,14.6,211,4800,female,2007\nGentoo,Biscoe,46.7,15.3,219,5200,male,2007\nGentoo,Biscoe,43.3,13.4,209,4400,female,2007\nGentoo,Biscoe,46.8,15.4,215,5150,male,2007\nGentoo,Biscoe,40.9,13.7,214,4650,female,2007\nGentoo,Biscoe,49,16.1,216,5550,male,2007\nGentoo,Biscoe,45.5,13.7,214,4650,female,2007\nGentoo,Biscoe,48.4,14.6,213,5850,male,2007\nGentoo,Biscoe,45.8,14.6,210,4200,female,2007\nGentoo,Biscoe,49.3,15.7,217,5850,male,2007\nGentoo,Biscoe,42,13.5,210,4150,female,2007\nGentoo,Biscoe,49.2,15.2,221,6300,male,2007\nGentoo,Biscoe,46.2,14.5,209,4800,female,2007\nGentoo,Biscoe,48.7,15.1,222,5350,male,2007\nGentoo,Biscoe,50.2,14.3,218,5700,male,2007\nGentoo,Biscoe,45.1,14.5,215,5000,female,2007\nGentoo,Biscoe,46.5,14.5,213,4400,female,2007\nGentoo,Biscoe,46.3,15.8,215,5050,male,2007\nGentoo,Biscoe,42.9,13.1,215,5000,female,2007\nGentoo,Biscoe,46.1,15.1,215,5100,male,2007\nGentoo,Biscoe,44.5,14.3,216,4100,NA,2007\nGentoo,Biscoe,47.8,15,215,5650,male,2007\nGentoo,Biscoe,48.2,14.3,210,4600,female,2007\nGentoo,Biscoe,50,15.3,220,5550,male,2007\nGentoo,Biscoe,47.3,15.3,222,5250,male,2007\nGentoo,Biscoe,42.8,14.2,209,4700,female,2007\nGentoo,Biscoe,45.1,14.5,207,5050,female,2007\nGentoo,Biscoe,59.6,17,230,6050,male,2007\nGentoo,Biscoe,49.1,14.8,220,5150,female,2008\nGentoo,Biscoe,48.4,16.3,220,5400,male,2008\nGentoo,Biscoe,42.6,13.7,213,4950,female,2008\nGentoo,Biscoe,44.4,17.3,219,5250,male,2008\nGentoo,Biscoe,44,13.6,208,4350,female,2008\nGentoo,Biscoe,48.7,15.7,208,5350,male,2008\nGentoo,Biscoe,42.7,13.7,208,3950,female,2008\nGentoo,Biscoe,49.6,16,225,5700,male,2008\nGentoo,Biscoe,45.3,13.7,210,4300,female,2008\nGentoo,Biscoe,49.6,15,216,4750,male,2008\nGentoo,Biscoe,50.5,15.9,222,5550,male,2008\nGentoo,Biscoe,43.6,13.9,217,4900,female,2008\nGentoo,Biscoe,45.5,13.9,210,4200,female,2008\nGentoo,Biscoe,50.5,15.9,225,5400,male,2008\nGentoo,Biscoe,44.9,13.3,213,5100,female,2008\nGentoo,Biscoe,45.2,15.8,215,5300,male,2008\nGentoo,Biscoe,46.6,14.2,210,4850,female,2008\nGentoo,Biscoe,48.5,14.1,220,5300,male,2008\nGentoo,Biscoe,45.1,14.4,210,4400,female,2008\nGentoo,Biscoe,50.1,15,225,5000,male,2008\nGentoo,Biscoe,46.5,14.4,217,4900,female,2008\nGentoo,Biscoe,45,15.4,220,5050,male,2008\nGentoo,Biscoe,43.8,13.9,208,4300,female,2008\nGentoo,Biscoe,45.5,15,220,5000,male,2008\nGentoo,Biscoe,43.2,14.5,208,4450,female,2008\nGentoo,Biscoe,50.4,15.3,224,5550,male,2008\nGentoo,Biscoe,45.3,13.8,208,4200,female,2008\nGentoo,Biscoe,46.2,14.9,221,5300,male,2008\nGentoo,Biscoe,45.7,13.9,214,4400,female,2008\nGentoo,Biscoe,54.3,15.7,231,5650,male,2008\nGentoo,Biscoe,45.8,14.2,219,4700,female,2008\nGentoo,Biscoe,49.8,16.8,230,5700,male,2008\nGentoo,Biscoe,46.2,14.4,214,4650,NA,2008\nGentoo,Biscoe,49.5,16.2,229,5800,male,2008\nGentoo,Biscoe,43.5,14.2,220,4700,female,2008\nGentoo,Biscoe,50.7,15,223,5550,male,2008\nGentoo,Biscoe,47.7,15,216,4750,female,2008\nGentoo,Biscoe,46.4,15.6,221,5000,male,2008\nGentoo,Biscoe,48.2,15.6,221,5100,male,2008\nGentoo,Biscoe,46.5,14.8,217,5200,female,2008\nGentoo,Biscoe,46.4,15,216,4700,female,2008\nGentoo,Biscoe,48.6,16,230,5800,male,2008\nGentoo,Biscoe,47.5,14.2,209,4600,female,2008\nGentoo,Biscoe,51.1,16.3,220,6000,male,2008\nGentoo,Biscoe,45.2,13.8,215,4750,female,2008\nGentoo,Biscoe,45.2,16.4,223,5950,male,2008\nGentoo,Biscoe,49.1,14.5,212,4625,female,2009\nGentoo,Biscoe,52.5,15.6,221,5450,male,2009\nGentoo,Biscoe,47.4,14.6,212,4725,female,2009\nGentoo,Biscoe,50,15.9,224,5350,male,2009\nGentoo,Biscoe,44.9,13.8,212,4750,female,2009\nGentoo,Biscoe,50.8,17.3,228,5600,male,2009\nGentoo,Biscoe,43.4,14.4,218,4600,female,2009\nGentoo,Biscoe,51.3,14.2,218,5300,male,2009\nGentoo,Biscoe,47.5,14,212,4875,female,2009\nGentoo,Biscoe,52.1,17,230,5550,male,2009\nGentoo,Biscoe,47.5,15,218,4950,female,2009\nGentoo,Biscoe,52.2,17.1,228,5400,male,2009\nGentoo,Biscoe,45.5,14.5,212,4750,female,2009\nGentoo,Biscoe,49.5,16.1,224,5650,male,2009\nGentoo,Biscoe,44.5,14.7,214,4850,female,2009\nGentoo,Biscoe,50.8,15.7,226,5200,male,2009\nGentoo,Biscoe,49.4,15.8,216,4925,male,2009\nGentoo,Biscoe,46.9,14.6,222,4875,female,2009\nGentoo,Biscoe,48.4,14.4,203,4625,female,2009\nGentoo,Biscoe,51.1,16.5,225,5250,male,2009\nGentoo,Biscoe,48.5,15,219,4850,female,2009\nGentoo,Biscoe,55.9,17,228,5600,male,2009\nGentoo,Biscoe,47.2,15.5,215,4975,female,2009\nGentoo,Biscoe,49.1,15,228,5500,male,2009\nGentoo,Biscoe,47.3,13.8,216,4725,NA,2009\nGentoo,Biscoe,46.8,16.1,215,5500,male,2009\nGentoo,Biscoe,41.7,14.7,210,4700,female,2009\nGentoo,Biscoe,53.4,15.8,219,5500,male,2009\nGentoo,Biscoe,43.3,14,208,4575,female,2009\nGentoo,Biscoe,48.1,15.1,209,5500,male,2009\nGentoo,Biscoe,50.5,15.2,216,5000,female,2009\nGentoo,Biscoe,49.8,15.9,229,5950,male,2009\nGentoo,Biscoe,43.5,15.2,213,4650,female,2009\nGentoo,Biscoe,51.5,16.3,230,5500,male,2009\nGentoo,Biscoe,46.2,14.1,217,4375,female,2009\nGentoo,Biscoe,55.1,16,230,5850,male,2009\nGentoo,Biscoe,44.5,15.7,217,4875,NA,2009\nGentoo,Biscoe,48.8,16.2,222,6000,male,2009\nGentoo,Biscoe,47.2,13.7,214,4925,female,2009\nGentoo,Biscoe,NA,NA,NA,NA,NA,2009\nGentoo,Biscoe,46.8,14.3,215,4850,female,2009\nGentoo,Biscoe,50.4,15.7,222,5750,male,2009\nGentoo,Biscoe,45.2,14.8,212,5200,female,2009\nGentoo,Biscoe,49.9,16.1,213,5400,male,2009\nChinstrap,Dream,46.5,17.9,192,3500,female,2007\nChinstrap,Dream,50,19.5,196,3900,male,2007\nChinstrap,Dream,51.3,19.2,193,3650,male,2007\nChinstrap,Dream,45.4,18.7,188,3525,female,2007\nChinstrap,Dream,52.7,19.8,197,3725,male,2007\nChinstrap,Dream,45.2,17.8,198,3950,female,2007\nChinstrap,Dream,46.1,18.2,178,3250,female,2007\nChinstrap,Dream,51.3,18.2,197,3750,male,2007\nChinstrap,Dream,46,18.9,195,4150,female,2007\nChinstrap,Dream,51.3,19.9,198,3700,male,2007\nChinstrap,Dream,46.6,17.8,193,3800,female,2007\nChinstrap,Dream,51.7,20.3,194,3775,male,2007\nChinstrap,Dream,47,17.3,185,3700,female,2007\nChinstrap,Dream,52,18.1,201,4050,male,2007\nChinstrap,Dream,45.9,17.1,190,3575,female,2007\nChinstrap,Dream,50.5,19.6,201,4050,male,2007\nChinstrap,Dream,50.3,20,197,3300,male,2007\nChinstrap,Dream,58,17.8,181,3700,female,2007\nChinstrap,Dream,46.4,18.6,190,3450,female,2007\nChinstrap,Dream,49.2,18.2,195,4400,male,2007\nChinstrap,Dream,42.4,17.3,181,3600,female,2007\nChinstrap,Dream,48.5,17.5,191,3400,male,2007\nChinstrap,Dream,43.2,16.6,187,2900,female,2007\nChinstrap,Dream,50.6,19.4,193,3800,male,2007\nChinstrap,Dream,46.7,17.9,195,3300,female,2007\nChinstrap,Dream,52,19,197,4150,male,2007\nChinstrap,Dream,50.5,18.4,200,3400,female,2008\nChinstrap,Dream,49.5,19,200,3800,male,2008\nChinstrap,Dream,46.4,17.8,191,3700,female,2008\nChinstrap,Dream,52.8,20,205,4550,male,2008\nChinstrap,Dream,40.9,16.6,187,3200,female,2008\nChinstrap,Dream,54.2,20.8,201,4300,male,2008\nChinstrap,Dream,42.5,16.7,187,3350,female,2008\nChinstrap,Dream,51,18.8,203,4100,male,2008\nChinstrap,Dream,49.7,18.6,195,3600,male,2008\nChinstrap,Dream,47.5,16.8,199,3900,female,2008\nChinstrap,Dream,47.6,18.3,195,3850,female,2008\nChinstrap,Dream,52,20.7,210,4800,male,2008\nChinstrap,Dream,46.9,16.6,192,2700,female,2008\nChinstrap,Dream,53.5,19.9,205,4500,male,2008\nChinstrap,Dream,49,19.5,210,3950,male,2008\nChinstrap,Dream,46.2,17.5,187,3650,female,2008\nChinstrap,Dream,50.9,19.1,196,3550,male,2008\nChinstrap,Dream,45.5,17,196,3500,female,2008\nChinstrap,Dream,50.9,17.9,196,3675,female,2009\nChinstrap,Dream,50.8,18.5,201,4450,male,2009\nChinstrap,Dream,50.1,17.9,190,3400,female,2009\nChinstrap,Dream,49,19.6,212,4300,male,2009\nChinstrap,Dream,51.5,18.7,187,3250,male,2009\nChinstrap,Dream,49.8,17.3,198,3675,female,2009\nChinstrap,Dream,48.1,16.4,199,3325,female,2009\nChinstrap,Dream,51.4,19,201,3950,male,2009\nChinstrap,Dream,45.7,17.3,193,3600,female,2009\nChinstrap,Dream,50.7,19.7,203,4050,male,2009\nChinstrap,Dream,42.5,17.3,187,3350,female,2009\nChinstrap,Dream,52.2,18.8,197,3450,male,2009\nChinstrap,Dream,45.2,16.6,191,3250,female,2009\nChinstrap,Dream,49.3,19.9,203,4050,male,2009\nChinstrap,Dream,50.2,18.8,202,3800,male,2009\nChinstrap,Dream,45.6,19.4,194,3525,female,2009\nChinstrap,Dream,51.9,19.5,206,3950,male,2009\nChinstrap,Dream,46.8,16.5,189,3650,female,2009\nChinstrap,Dream,45.7,17,195,3650,female,2009\nChinstrap,Dream,55.8,19.8,207,4000,male,2009\nChinstrap,Dream,43.5,18.1,202,3400,female,2009\nChinstrap,Dream,49.6,18.2,193,3775,male,2009\nChinstrap,Dream,50.8,19,210,4100,male,2009\nChinstrap,Dream,50.2,18.7,198,3775,female,2009";
   const EXAMPLES = {
     uni: [
       ["Teste", "Classificações de um teste\n12 14 9 16 11 13 15 8 17 12\n10 14 13 18 11 9 15 12 16 14\n7 13 19 11 14"],
       ["Alturas", "Altura (cm)\n158 162 170 165 172 168 175 160 166 171\n169 163 177 159 174 167 161 173 164 168\n181 156 170 166 163 176 169 171 165 160"],
+      ["Pinguins", PENGUINS],
       ["Irmãos", "Número de irmãos\n0 1 1 2 0 1 3 1 2 1\n0 2 1 1 4 0 1 2 1 0\n1 2 3 1 0"],
     ],
     bi: [
       ["Horas de estudo", "Horas de estudo\tClassificação\n1\t8\n2\t9,5\n2\t11\n3\t10\n3\t12,5\n4\t12\n4\t13,5\n5\t14\n5\t15,5\n6\t15\n7\t17\n8\t18"],
       ["Bactérias", "Tempo (h)\tBactérias\n0\t100\n1\t152\n2\t227\n3\t341\n4\t509\n5\t768\n6\t1150"],
       ["Temperaturas", "Mês\tTemperatura média (°C)\n1\t11,6\n2\t12,6\n3\t14,6\n4\t15,9\n5\t18,1\n6\t21\n7\t22,8\n8\t23,2\n9\t21,8\n10\t18,9\n11\t14,9\n12\t12,4"],
+      ["Pinguins", PENGUINS],
       ["Lançamento", "Tempo (s)\tAltura (m)\n0\t1,5\n0,2\t4,6\n0,4\t7,1\n0,6\t8,7\n0,8\t9,6\n1\t9,9\n1,2\t9,4\n1,4\t8,1\n1,6\t6,4\n1,8\t3,9\n2\t0,9"],
     ],
   };
@@ -295,7 +309,65 @@
   // ---------- leitura dos dados ----------
   // uma variável: números separados por espaços, «;» ou mudanças de linha (vírgula decimal);
   // uma primeira linha com texto dá o nome da variável
+  // ---------- tabelas (CSV/TSV com cabeçalho, p. ex. do Kaggle) ----------
+  // deteta o separador (tabulação, «;» ou «,») pela primeira linha; o cabeçalho tem de ter texto e pelo menos 2 colunas,
+  // e pelo menos 80 % das linhas o mesmo número de campos. Valores em falta: vazio, NA, N/A, NaN, null, ?, -
+  const MISSING = /^(|na|n\/a|nan|null|none|\?|-)$/i;
+  let TCACHE = { text: null, T: null };
+  function parseTable(text) {
+    if (TCACHE.text === text) return TCACHE.T;
+    let T = null;
+    const first = text.split(/\r?\n/).find(l => l.trim());
+    if (first) {
+      for (const sep of ["\t", ";", ","].filter(c => first.includes(c))) {
+        const rows = d3.dsvFormat(sep).parseRows(text.trim()).filter(r => r.some(c => c.trim() !== ""));
+        if (rows.length < 2) continue;
+        const head = rows[0].map(c => c.trim());
+        if (head.length < 2 || !head.some(h => isNaN(num(h)))) continue;
+        const body = rows.slice(1).filter(r => r.length === head.length);
+        if (body.length / (rows.length - 1) < 0.8) continue;
+        const cols = head.map((h, j) => {
+          const raw = body.map(r => r[j].trim());
+          const vals = raw.map(v => MISSING.test(v) ? null : num(v));
+          const present = raw.filter(v => !MISSING.test(v)).length, numeric = vals.filter(v => v !== null && !isNaN(v)).length;
+          return { name: h || `coluna ${j + 1}`, vals, missing: raw.length - present, numeric: present > 0 && numeric / present >= 0.8 };
+        });
+        if (!T || cols.length > T.cols.length) T = { sep, cols, n: body.length };
+      }
+      if (T && !T.cols.some(c => c.numeric)) T = null;
+    }
+    TCACHE = { text, T };
+    return T;
+  }
+  const numCols = T => T.cols.filter(c => c.numeric);
+  const colOf = (T, name, k = 0) => { const nc = numCols(T); return nc.find(c => c.name === name) || nc[Math.min(k, nc.length - 1)]; };
+  // escolha das colunas (só aparece com uma tabela); refaz as listas só quando as colunas ou o modo mudam
+  let colsKey = "";
+  function colsUI(T) {
+    const box = $("cols");
+    if (!T) { box.hidden = true; $("tinfo").textContent = ""; colsKey = ""; return; }
+    const nc = numCols(T), miss = d3.sum(T.cols, c => c.missing);
+    $("tinfo").textContent = `Tabela: ${T.n} linhas · ${T.cols.length} colunas (${nc.length} numéricas)${miss ? ` · ${miss} valores em falta` : ""}`;
+    box.hidden = false;
+    const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric).join(",");
+    const opts = sel => nc.map(c => `<option${c.name === sel ? " selected" : ""}>${esc(c.name)}</option>`).join("");
+    if (key !== colsKey) {
+      colsKey = key;
+      box.innerHTML = S.mode === "uni"
+        ? `<span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select>`
+        : `<span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select>`;
+      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value; EXCL.clear(); render(); });
+    }
+  }
+
   function readUni(text) {
+    const T = parseTable(text);
+    colsUI(T);
+    if (T) {
+      const c = colOf(T, S.col.v);
+      const xs = c.vals.filter(v => v !== null && !isNaN(v));
+      return { name: c.name, xs, bad: [], note: c.missing ? `${c.missing} valores em falta em «${c.name}» foram ignorados.` : "" };
+    }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let name = "", bad = [];
     if (lines.length && lines[0].split(/[\s;]+/).some(t => isNaN(num(t)))) name = lines.shift();
@@ -305,6 +377,14 @@
   }
   // duas variáveis: um par por linha (tabulação, «;» ou espaços entre x e y); a primeira linha pode ter os nomes
   function readBi(text) {
+    const T = parseTable(text);
+    colsUI(T);
+    if (T) {
+      const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), pts = [];
+      let lost = 0;
+      cx.vals.forEach((x, i) => { const y = cy.vals[i]; if (x === null || y === null || isNaN(x) || isNaN(y)) lost++; else pts.push([x, y]); });
+      return { nx: cx.name, ny: cy.name, pts, bad: [], note: lost ? `${lost} linhas sem um dos valores foram ignoradas.` : "" };
+    }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     let nx = "", ny = "", bad = [];
     const split = l => l.includes("\t") ? l.split("\t").map(s => s.trim()).filter(Boolean) : l.split(/\s*;\s*|\s+/).filter(Boolean);
@@ -479,8 +559,9 @@
     document.querySelectorAll(".uni-only").forEach(e => e.hidden = m !== "uni");
     document.querySelectorAll(".bi-only").forEach(e => e.hidden = m !== "bi");
     ta.value = S.data[m];
-    ta.placeholder = m === "uni" ? "Nome da variável (opcional)\n12 14 9 16 11 …" : "Nome de x\tNome de y (opcional)\n1\t8\n2\t9,5\n…";
-    $("data-title").textContent = m === "uni" ? "Dados" : "Dados (um par x, y por linha)";
+    // aceita a lista simples (um par por linha, em duas variáveis) ou uma tabela CSV/TSV com cabeçalho
+    ta.placeholder = m === "uni" ? "Nome da variável (opcional)\n12 14 9 16 11 …\n\nou uma tabela com cabeçalho (CSV), p. ex. do Kaggle" : "Nome de x\tNome de y (opcional)\n1\t8\n2\t9,5\n…\n\nou uma tabela com cabeçalho (CSV), p. ex. do Kaggle";
+    $("data-title").textContent = "Dados";
     const ex = $("examples"); ex.innerHTML = "";
     EXAMPLES[m].forEach(([name, txt]) => {
       const b = document.createElement("button"); b.className = "b small"; b.textContent = name;
@@ -491,6 +572,19 @@
   }
   $("m-uni").onclick = () => setMode("uni");
   $("m-bi").onclick = () => setMode("bi");
+  $("open").onclick = () => $("file").click();
+  $("file").onchange = () => {
+    const f = $("file").files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const txt = String(rd.result).replace(/^\uFEFF/, "");
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null }; EXCL.clear(); save(); render();
+      if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
+    };
+    rd.readAsText(f);
+    $("file").value = "";
+  };
   ta.addEventListener("input", () => { S.data[S.mode] = ta.value; EXCL.clear(); save(); render(); });
 
   const segBind = (attr, key) => document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
@@ -598,8 +692,9 @@
   }
 
   function renderUni(fromInputs) {
-    const { name, xs, bad } = readUni(ta.value);
-    $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : "";
+    const { name, xs, bad, note } = readUni(ta.value);
+    $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
+    $("msg").classList.toggle("info", !bad.length);
     const plots = $("plots");
     plots.className = "plots uni" + (S.tab || S.stem ? " tab" : "");
     $("tab-frame").hidden = !S.tab;
@@ -771,11 +866,12 @@
   }
 
   function renderBi() {
-    const { nx, ny, pts: all, bad } = readBi(ta.value);
+    const { nx, ny, pts: all, bad, note } = readBi(ta.value);
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
     const pts = all.filter((p, i) => !EXCL.has(i)), out = all.filter((p, i) => EXCL.has(i));
-    $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : "";
+    $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : (note || "");
+    $("msg").classList.toggle("info", !bad.length);
     $("plots").className = "plots bi" + (S.dat ? " tab" : "");
     $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
     $("main-title").textContent = "Diagrama de dispersão";
@@ -823,7 +919,8 @@
       marks.push(Plot.line(cv, { x: "x", y: "y", stroke: c2, strokeWidth: 2.5, clip: true }));
       if (S.res) marks.push(Plot.link(pts, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => F.f(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
     }
-    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: c1, stroke: css("--bg"), strokeWidth: 1.5 }));
+    // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos
+    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: css("--bg"), stroke: c1, strokeWidth: 1.8 }));
     // excluídos: vazios e esbatidos, com uma cruz
     if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: css("--bg"), stroke: faint, strokeWidth: 1.5 }),
                                Plot.dot(out, { x: p => p[0], y: p => p[1], r: 3.5, symbol: "times", stroke: faint, strokeWidth: 1.4 }));
@@ -871,7 +968,8 @@
       const okF = !F.err;
       // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
       $("dat").innerHTML = `<table class="freq"><thead><tr><th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th><th>${esc(xl)}</th><th>${esc(yl)}</th>${okF ? "<th>ŷ</th><th>resíduo</th>" : ""}</tr></thead><tbody>` +
-        all.map(([x, y], i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>";
+        all.slice(0, 500).map(([x, y], i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>" +
+        (all.length > 500 ? `<p class="note">Só se mostram as primeiras 500 de ${all.length} linhas.</p>` : "");
       $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
       const rowsEl = [...$("dat").querySelectorAll("tbody tr")];
       const sx = chart.scale("x"), sy = chart.scale("y"), NS = "http://www.w3.org/2000/svg";
@@ -881,7 +979,7 @@
       const mark = (i, from) => {
         rowsEl.forEach((r, k) => r.classList.toggle("hot", k === i));
         if (i === null || i < 0) { ring.style.display = "none"; return; }
-        if (from === "chart") rowsEl[i].scrollIntoView({ block: "nearest" });
+        if (from === "chart" && rowsEl[i]) rowsEl[i].scrollIntoView({ block: "nearest" });
         ring.setAttribute("cx", sx.apply(all[i][0])); ring.setAttribute("cy", sy.apply(all[i][1])); ring.style.display = "";
       };
       chart.addEventListener("input", () => mark(chart.value ? all.indexOf(chart.value) : null, "chart"));
