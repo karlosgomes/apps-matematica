@@ -45,6 +45,8 @@
   button.b.small { font-size: 0.82rem; padding: 0.15rem 0.55rem; }
   button.b:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   #cols select.inp { max-width: 11rem; }
+  /* cada nome com a sua lista, sempre na mesma linha (descem juntos) */
+  #cols .pair { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
   #theme { width: 3.2rem; font-size: 1.1rem; align-self: flex-start; height: max(2.6rem, 100%); max-height: 3.4rem; }
 
   /* cartões dos controlos: numa coluna à esquerda no ecrã largo; em cima, numa grelha, nos ecrãs estreitos */
@@ -442,13 +444,13 @@
     const key = S.mode + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
     const gc = groupCols(T);
     // grupos: colunas com 2 a MAXG valores diferentes (texto, como a espécie, ou números, como o ano)
-    const gsel = gc.length ? `<span class="lbl" title="Coluna que divide os dados em grupos">Grupos</span><select class="inp" id="c-g"><option value="">(nenhum)</option>${gc.map(c => `<option${c.name === S.col.g ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : "";
+    const gsel = gc.length ? `<span class="pair"><span class="lbl" title="Coluna que divide os dados em grupos">Grupos</span><select class="inp" id="c-g"><option value="">(nenhum)</option>${gc.map(c => `<option${c.name === S.col.g ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "";
     const opts = sel => nc.map(c => `<option${c.name === sel ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     if (key !== colsKey) {
       colsKey = key;
       box.innerHTML = S.mode === "uni"
-        ? `<span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select>${gsel}`
-        : `<span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select>${gsel}`;
+        ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select></span>${gsel}`
+        : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select></span>${gsel}`;
       box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); SEL.clear(); render(); });
     }
   }
