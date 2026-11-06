@@ -114,6 +114,19 @@
   #dat input.exc { accent-color: var(--c2); width: 0.95rem; height: 0.95rem; margin: 0; cursor: pointer; vertical-align: middle; }
   table.freq tr.hot td { background: color-mix(in srgb, var(--hot) 22%, transparent); }
   table.freq tbody tr { cursor: default; }
+  /* seleção com o rato (linhas da tabela dos dados ↔ pontos do gráfico) */
+  #dat tbody { user-select: none; }
+  /* menu do botão direito (pares selecionados) */
+  #ctx { position: fixed; z-index: 50; display: flex; flex-direction: column; min-width: 13rem; padding: 0.3rem; background: var(--band);
+         border: 1.2px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); font-size: 0.88rem; }
+  #ctx button { font: inherit; text-align: left; padding: 0.35rem 0.6rem; border: 0; border-radius: 5px; background: none; color: var(--ink); cursor: pointer; }
+  #ctx button:hover:not(:disabled), #ctx button:focus-visible { background: var(--btn); }
+  #ctx button:disabled { color: var(--faint); cursor: default; }
+  #ctx hr { border: 0; border-top: 1px solid var(--line); margin: 0.2rem 0; }
+  #dat-frame h3 { position: sticky; top: -0.4rem; z-index: 2; background: var(--bg); margin: -0.4rem -0.6rem 0.2rem; padding: 0.4rem 0.6rem 0.2rem; }
+  #dat tbody tr { cursor: pointer; }
+  table.freq tr.sel td { background: color-mix(in srgb, var(--c1) 20%, transparent); }
+  table.freq tr.sel.hot td { background: color-mix(in srgb, var(--hot) 30%, transparent); }
   /* caule e folhas: só texto, discreto */
   #stem { font-family: var(--mono); font-size: 0.92rem; line-height: 1.5; overflow-x: auto; }
   #stem .r { display: flex; white-space: nowrap; }
@@ -262,7 +275,8 @@
     <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
       <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
       <div id="stem"></div></div>
-    <div class="frame table" id="dat-frame" hidden><h3><b>Dados</b><span>passa o ponteiro sobre um ponto ou uma linha</span></h3><div id="dat"></div></div>
+    <div class="frame table" id="dat-frame" hidden><h3><b>Dados</b><span class="hr"><span id="dat-hint"></span>
+      <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button></span></h3><div id="dat"></div></div>
   </div>
 </div>
 
@@ -385,7 +399,7 @@
       box.innerHTML = S.mode === "uni"
         ? `<span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select>${gsel}`
         : `<span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select>${gsel}`;
-      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); render(); });
+      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); SEL.clear(); render(); });
     }
   }
 
@@ -613,7 +627,7 @@
     const ex = $("examples"); ex.innerHTML = "";
     EXAMPLES[m].forEach(([name, txt]) => {
       const b = document.createElement("button"); b.className = "b small"; b.textContent = name;
-      b.onclick = () => { S.data[m] = ta.value = txt; EXCL.clear(); save(); render(); };
+      b.onclick = () => { S.data[m] = ta.value = txt; EXCL.clear(); SEL.clear(); save(); render(); };
       ex.appendChild(b);
     });
     render();
@@ -627,13 +641,13 @@
     const rd = new FileReader();
     rd.onload = () => {
       const txt = String(rd.result).replace(/^\uFEFF/, "");
-      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; EXCL.clear(); save(); render();
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; EXCL.clear(); SEL.clear(); save(); render();
       if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
     };
     rd.readAsText(f);
     $("file").value = "";
   };
-  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; EXCL.clear(); save(); render(); });
+  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; EXCL.clear(); SEL.clear(); save(); render(); });
 
   const segBind = (attr, key) => document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
     S[key] = b.dataset[attr];
@@ -670,6 +684,32 @@
 
   let LAST = null;   // resultados do último cálculo, usados pelo relatório
   const EXCL = new Set();   // pares excluídos do ajuste (duas variáveis)
+  const SEL = new Set();    // pares selecionados com o rato (na tabela dos dados ou no gráfico)
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { const open = !ctx.hidden; ctx.hidden = true; if (!open && SEL.size) { SEL.clear(); render(); } } });
+  // excluir do ajuste / voltar a incluir os pares selecionados (botões no título da tabela e menu do botão direito)
+  const exclSel = () => { SEL.forEach(i => EXCL.add(i)); render(); };
+  const inclSel = () => { SEL.forEach(i => EXCL.delete(i)); render(); };
+  const ctx = document.createElement("div");
+  ctx.id = "ctx"; ctx.hidden = true; ctx.setAttribute("role", "menu");
+  document.body.appendChild(ctx);
+  function selMenu(x, y) {
+    const n = SEL.size, nEx = [...SEL].filter(i => EXCL.has(i)).length;
+    ctx.innerHTML = `<div class="note" style="padding:0.2rem 0.6rem">${n === 1 ? "1 par selecionado" : n + " pares selecionados"}${nEx ? ` (${nEx} excluído${nEx > 1 ? "s" : ""})` : ""}</div>`;
+    [["Excluir do ajuste", exclSel, nEx === n], ["Voltar a incluir no ajuste", inclSel, nEx === 0], null,
+     ["Limpar a seleção", () => { SEL.clear(); render(); }, false]].forEach(it => {
+      if (!it) { ctx.appendChild(document.createElement("hr")); return; }
+      const b = document.createElement("button");
+      b.textContent = it[0]; b.disabled = it[2]; b.setAttribute("role", "menuitem");
+      b.onclick = () => { ctx.hidden = true; it[1](); };
+      ctx.appendChild(b);
+    });
+    ctx.hidden = false;
+    const r = ctx.getBoundingClientRect();
+    ctx.style.left = Math.min(x, innerWidth - r.width - 6) + "px"; ctx.style.top = Math.min(y, innerHeight - r.height - 6) + "px";
+  }
+  document.addEventListener("pointerdown", e => { if (!ctx.hidden && !ctx.contains(e.target)) ctx.hidden = true; }, true);
+  addEventListener("scroll", () => ctx.hidden = true, true);
+  $("sel-ex").onclick = exclSel; $("sel-in").onclick = inclSel;
   // ---------- gráficos (Observable Plot) ----------
   let FIXED = null;   // [largura, altura] dos gráficos quando se desenham para o relatório
   const figSize = el => FIXED || [Math.max(260, el.clientWidth), Math.max(160, el.clientHeight)];
@@ -1302,6 +1342,96 @@
       };
       chart.addEventListener("input", () => mark(chart.value ? all.indexOf(chart.value) : null, "chart"));
       rowsEl.forEach((r, i) => { r.onmouseenter = () => mark(i, "table"); r.onmouseleave = () => mark(null); });
+
+      // ---- seleção de vários pares com o rato ----
+      // na tabela: arrastar sobre as linhas (Ctrl/⌘ junta à seleção, Shift estende desde a última linha);
+      // no gráfico: arrastar um retângulo (Ctrl/⌘ junta), clicar num ponto seleciona-o (Ctrl/⌘ junta ou tira),
+      // clicar fora dos pontos ou Esc limpa
+      for (const i of [...SEL]) if (i >= all.length) SEL.delete(i);
+      const selG = document.createElementNS(NS, "g");
+      selG.style.pointerEvents = "none";
+      chart.insertBefore(selG, ring);
+      const showSel = () => {
+        rowsEl.forEach((r, k) => r.classList.toggle("sel", SEL.has(k)));
+        selG.innerHTML = "";
+        for (const i of SEL) {
+          const c = document.createElementNS(NS, "circle");
+          c.setAttribute("cx", sx.apply(all[i][0])); c.setAttribute("cy", sy.apply(all[i][1])); c.setAttribute("r", 8.5);
+          c.setAttribute("fill", "none"); c.setAttribute("stroke", hot); c.setAttribute("stroke-width", 2.5);
+          selG.appendChild(c);
+        }
+        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "arrasta o rato sobre as linhas ou sobre o gráfico para selecionar";
+        const nEx = [...SEL].filter(i => EXCL.has(i)).length;
+        $("sel-ex").hidden = !SEL.size || nEx === SEL.size; $("sel-in").hidden = !nEx;
+      };
+      showSel();
+      // botão direito: menu com excluir / incluir / limpar (sobre um par não selecionado, seleciona-o primeiro)
+      const menuAt = (e, k) => {
+        e.preventDefault();
+        if (k >= 0 && !SEL.has(k)) { SEL.clear(); SEL.add(k); showSel(); }
+        if (SEL.size) selMenu(e.clientX, e.clientY);
+      };
+      rowsEl.forEach((r, i) => r.addEventListener("contextmenu", e => menuAt(e, i)));
+      chart.addEventListener("contextmenu", e => menuAt(e, chart.value ? all.indexOf(chart.value) : -1));
+      const range = (a, b) => d3.range(Math.min(a, b), Math.max(a, b) + 1);
+      let drag = null, anchor = null;
+      rowsEl.forEach((r, i) => {
+        r.addEventListener("mousedown", e => {
+          if (e.button !== 0 || e.target.closest("input")) return;
+          e.preventDefault();
+          const add = e.ctrlKey || e.metaKey;
+          const from = e.shiftKey && anchor !== null ? anchor : i;
+          const base = add || e.shiftKey ? new Set(SEL) : new Set();
+          // um clique sozinho na única linha selecionada tira a seleção
+          if (!add && !e.shiftKey && SEL.size === 1 && SEL.has(i)) { SEL.clear(); anchor = null; showSel(); return; }
+          if (add && SEL.has(i) && !e.shiftKey) { SEL.delete(i); anchor = i; showSel(); return; }
+          anchor = from; drag = { base, from };
+          window.addEventListener("mouseup", () => { drag = null; }, { once: true });
+          SEL.clear(); base.forEach(k => SEL.add(k)); range(from, i).forEach(k => SEL.add(k));
+          showSel();
+        });
+        r.addEventListener("mouseenter", () => {
+          if (!drag) return;
+          SEL.clear(); drag.base.forEach(k => SEL.add(k)); range(drag.from, i).forEach(k => SEL.add(k));
+          showSel();
+        });
+      });
+      // no gráfico: retângulo de seleção (o clique deixa de fixar a dica do Plot)
+      const box = document.createElementNS(NS, "rect");
+      box.setAttribute("fill", hot); box.setAttribute("fill-opacity", 0.08); box.setAttribute("stroke", hot); box.setAttribute("stroke-dasharray", "4 3");
+      box.style.display = "none"; box.style.pointerEvents = "none";
+      chart.appendChild(box);
+      const P = e => { const b = chart.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+      chart.addEventListener("pointerdown", e => {
+        if (e.button !== 0) return;
+        e.stopImmediatePropagation(); e.preventDefault();
+        const [x0, y0] = P(e), add = e.ctrlKey || e.metaKey, base = add ? new Set(SEL) : new Set(), hit = chart.value;
+        let moved = false;
+        const mv = ev => {
+          const [x1, y1] = P(ev);
+          if (!moved && Math.hypot(x1 - x0, y1 - y0) < 4) return;
+          moved = true;
+          const xa = Math.min(x0, x1), xb = Math.max(x0, x1), ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+          box.setAttribute("x", xa); box.setAttribute("y", ya); box.setAttribute("width", xb - xa); box.setAttribute("height", yb - ya); box.style.display = "";
+          SEL.clear(); base.forEach(k => SEL.add(k));
+          all.forEach((p, k) => { const px = sx.apply(p[0]), py = sy.apply(p[1]); if (px >= xa && px <= xb && py >= ya && py <= yb) SEL.add(k); });
+          showSel();
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up);
+          box.style.display = "none";
+          if (!moved) {
+            const k = hit ? all.indexOf(hit) : -1;
+            if (k < 0) { if (!add) SEL.clear(); }
+            else if (add) { if (SEL.has(k)) SEL.delete(k); else SEL.add(k); }
+            else { const only = SEL.size === 1 && SEL.has(k); SEL.clear(); if (!only) SEL.add(k); }
+            showSel();
+          }
+          const first = d3.min([...SEL]);
+          if (first !== undefined && rowsEl[first]) rowsEl[first].scrollIntoView({ block: "nearest" });
+        };
+        window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+      }, true);
     }
   }
 
@@ -1505,7 +1635,7 @@ ${body}
   };
   window.__reportHTML = reportHTML;   // (para testes)
 
-  document.querySelectorAll(".exp").forEach(b => b.onclick = () => exportFig(b.dataset.fig, b.dataset.t));
+  document.querySelectorAll(".exp[data-fig]").forEach(b => b.onclick = () => exportFig(b.dataset.fig, b.dataset.t));
 
   new ResizeObserver(() => render()).observe($("plots"));
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render());
