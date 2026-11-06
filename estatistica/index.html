@@ -74,7 +74,8 @@
   .meas div { display: flex; justify-content: space-between; gap: 0.4rem; border-bottom: 1px dotted var(--grid2); padding: 0.1rem 0; }
   .meas .k { color: var(--muted); }
   .meas .v { font-variant-numeric: tabular-nums; }
-  .eq { font-size: 1.15rem; padding: 0.15rem 0; overflow-x: auto; overflow-y: hidden; }
+  .eq { font-size: 1.15rem; padding: 0.15rem 0; overflow: hidden; }
+  .eq .katex-html { white-space: nowrap; }   /* a equação numa só linha; o fitEq encolhe a letra até caber */
   .note { font-size: 0.75rem; color: var(--faint); font-style: italic; }
 
   /* gráficos */
@@ -419,6 +420,15 @@
     }
   }
 
+  // equação numa só linha: se não couber na largura do cartão, a letra encolhe (até 55 %)
+  function fitEq(el) {
+    el.style.fontSize = "";
+    const w = el.clientWidth, k = el.querySelector(".katex");
+    if (!k || !w) return;
+    const kw = k.getBoundingClientRect().width;
+    if (kw > w) el.style.fontSize = Math.max(0.55, w / kw * 0.98) * parseFloat(getComputedStyle(el).fontSize) + "px";
+  }
+
   // ---------- controlos ----------
   const ta = $("data");
   function setMode(m) {
@@ -605,7 +615,7 @@
     add("n", pts.length); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
     if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
     else {
-      tex(eq, F.eq);
+      tex(eq, F.eq); fitEq(eq);
       if (F.r !== undefined) { add("r", fmt(F.r, d)); add("r^2", fmt(F.r2, d)); }
       if (F.R2 !== undefined) add("R^2", fmt(F.R2, d));
       $("rnote").textContent = F.note;
