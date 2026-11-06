@@ -47,6 +47,12 @@
   #cols select.inp { max-width: 11rem; }
   #ex-sel { min-width: 0; max-width: 15rem; font-size: 0.85rem; }
   /* cada nome com a sua lista, sempre na mesma linha (descem juntos) */
+  /* botões dos grupos (uma variável) e legenda clicável (duas): esbatidos e riscados quando escondidos */
+  .gchips { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+  .gchip { font: inherit; font-size: 0.76rem; font-weight: 700; font-style: normal; padding: 0.05rem 0.5rem; border-radius: 999px; cursor: pointer;
+           color: var(--gc); background: color-mix(in srgb, var(--gc) 12%, transparent); border: 1.5px solid var(--gc); }
+  .gchip.off { opacity: 0.4; text-decoration: line-through; background: none; }
+  svg .legi { cursor: pointer; }
   #cols .pair { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
   #theme { width: 3.2rem; font-size: 1.1rem; align-self: flex-start; height: max(2.6rem, 100%); max-height: 3.4rem; }
 
@@ -313,7 +319,7 @@
 </div>
 
 <div class="plots uni" id="plots">
-  <div class="frame main"><h3><b id="main-title">Histograma</b><span class="hr"><span id="main-hint"></span>
+  <div class="frame main"><h3><b id="main-title">Histograma</b><span class="gchips" id="gchips" hidden></span><span class="hr"><span id="main-hint"></span>
     <button class="b small exp" data-fig="fig-main" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-main" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-main"></div></div>
   <div class="hgrip" id="hgrip" title="Arrasta para mudar a altura do gráfico de baixo (duplo clique: altura de origem)" role="separator" aria-orientation="horizontal"></div>
   <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b><span class="hr">
@@ -467,7 +473,7 @@
       box.innerHTML = S.mode === "uni"
         ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select></span>${gsel}`
         : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select></span>${gsel}`;
-      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); SEL.clear(); render(); });
+      box.querySelectorAll("select").forEach(sl => sl.onchange = () => { S.col[sl.id.slice(2)] = sl.value || null; EXCL.clear(); SEL.clear(); HIDDEN.clear(); render(); });
     }
   }
 
@@ -721,7 +727,7 @@
         S.picked.uni = S.picked.bi = v;
       } catch (err) { $("msg").textContent = "Não foi possível carregar o conjunto de dados (é preciso abrir a app a partir do site)."; return; }
     }
-    colsKey = ""; EXCL.clear(); SEL.clear(); save(); showSrc(); render();
+    colsKey = ""; EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); showSrc(); render();
   };
   $("m-uni").onclick = () => setMode("uni");
   $("m-bi").onclick = () => setMode("bi");
@@ -732,13 +738,13 @@
     const rd = new FileReader();
     rd.onload = () => {
       const txt = String(rd.result).replace(/^\uFEFF/, "");
-      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); save(); render();
+      S.data.uni = S.data.bi = ta.value = txt; S.col = { v: null, x: null, y: null, g: null }; S.picked = { uni: "", bi: "" }; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render();
       if (!parseTable(txt)) $("msg").textContent = "O ficheiro não parece uma tabela com cabeçalho; foi lido como lista de números.";
     };
     rd.readAsText(f);
     $("file").value = "";
   };
-  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; S.picked[S.mode] = ""; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); save(); render(); });
+  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; S.picked[S.mode] = ""; $("ex-sel").value = ""; showSrc(); EXCL.clear(); SEL.clear(); HIDDEN.clear(); save(); render(); });
 
   const segBind = (attr, key) => document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
     S[key] = b.dataset[attr];
@@ -789,6 +795,36 @@
   let LAST = null;   // resultados do último cálculo, usados pelo relatório
   const EXCL = new Set();   // pares excluídos do ajuste (duas variáveis)
   const SEL = new Set();    // pares selecionados com o rato (na tabela dos dados ou no gráfico)
+  // grupos escondidos momentaneamente (clique na legenda ou nos botões dos grupos): saem do gráfico e dos cálculos
+  const HIDDEN = new Set();
+  let gClickT = null;
+  // clique: esconde / mostra o grupo (nunca todos); duplo clique: só esse grupo (outra vez: todos)
+  function groupClick(name, names, dbl) {
+    clearTimeout(gClickT);
+    if (dbl) {
+      const vis = names.filter(n => !HIDDEN.has(n));
+      HIDDEN.clear();
+      if (!(vis.length === 1 && vis[0] === name)) names.forEach(n => { if (n !== name) HIDDEN.add(n); });
+      render(); return;
+    }
+    gClickT = setTimeout(() => {
+      if (HIDDEN.has(name)) HIDDEN.delete(name);
+      else if (names.filter(n => !HIDDEN.has(n)).length > 1) HIDDEN.add(name);
+      render();
+    }, 230);
+  }
+  // botões dos grupos (uma variável), no título do gráfico
+  function groupChips(items) {
+    const box = $("gchips");
+    box.hidden = !items;
+    if (!items) { box.innerHTML = ""; return; }
+    box.innerHTML = items.map((g, i) => `<button type="button" class="gchip${g.hidden ? " off" : ""}" data-i="${i}" style="--gc:${g.c}" title="Clique: esconder / mostrar · duplo clique: só este grupo">${esc(g.name)}</button>`).join("");
+    const names = items.map(g => g.name);
+    box.querySelectorAll(".gchip").forEach(b => {
+      b.onclick = () => groupClick(names[+b.dataset.i], names, false);
+      b.ondblclick = () => groupClick(names[+b.dataset.i], names, true);
+    });
+  }
   document.addEventListener("keydown", e => { if (e.key === "Escape") { const open = !ctx.hidden; ctx.hidden = true; if (!open && SEL.size) { SEL.clear(); render(); } } });
   // excluir do ajuste / voltar a incluir os pares selecionados (botões no título da tabela e menu do botão direito)
   const exclSel = () => { SEL.forEach(i => EXCL.add(i)); render(); };
@@ -823,7 +859,7 @@
       if (cur === name) S.col[o] = old;
     }
     S.col[k] = name;
-    EXCL.clear(); SEL.clear(); colsKey = ""; render();
+    EXCL.clear(); SEL.clear(); HIDDEN.clear(); colsKey = ""; render();
   }
   function colMenu(x, y, c) {
     const T = parseTable(ta.value), uni = S.mode === "uni";
@@ -863,8 +899,8 @@
     $("dat-hint").textContent = "";
     $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, "<th>i</th>")}<tbody>` +
       d3.range(Math.min(T.n, MAXR)).map(r => {
-        const miss = cv.vals[r] === null || isNaN(cv.vals[r]) || (gc && MISSING.test(gc.raw[r]));
-        return `<tr${miss ? ' class="miss" title="Fica de fora (valor em falta)"' : ""}><td>${r + 1}</td>${tableCells(T, r, roles, gi && (v => gi.get(v)))}</tr>`;
+        const miss = cv.vals[r] === null || isNaN(cv.vals[r]) || (gc && MISSING.test(gc.raw[r])), hid = gc && HIDDEN.has(gc.raw[r]);
+        return `<tr${miss ? ' class="miss" title="Fica de fora (valor em falta)"' : hid ? ' class="miss" title="Grupo escondido"' : ""}><td>${r + 1}</td>${tableCells(T, r, roles, gi && (v => gi.get(v)))}</tr>`;
       }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
     bindHeads(T);
   }
@@ -1011,8 +1047,16 @@
     $("hist-opts").style.display = GT === "hist" ? "" : "none";
     $("freq-row").style.display = GT === "dots" || boxOnly ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
     $("meas").className = "meas"; $("fig-box").style.height = !boxOnly && LOWH.box ? LOWH.box + "px" : "";
-    if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
-    if (RU.groups) return renderUniG(fromInputs, RU);
+    if (xs.length < 1) { LAST = null; groupChips(null); put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
+    if (RU.groups) {
+      // botões dos grupos; os escondidos saem dos gráficos e das medidas (as cores ficam as de origem)
+      const pal = gColors(), all = RU.groups.map((g, i) => ({ ...g, ci: i, c: pal[i % MAXG], hidden: HIDDEN.has(g.name) }));
+      if (all.every(g => g.hidden)) { HIDDEN.clear(); all.forEach(g => g.hidden = false); }
+      groupChips(all);
+      const vis = all.filter(g => !g.hidden);
+      return renderUniG(fromInputs, { ...RU, groups: vis, xs: vis.flatMap(g => g.xs) });
+    }
+    groupChips(null);
     const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && GT !== "dots";
     const xlabel = name || "x";
 
@@ -1210,7 +1254,7 @@
     const st = uniStats(xs), d = S.dec, dens = GT === "dens";
     const rel = S.freq === "rel" && GT !== "dots" && !dens;
     const xlabel = name || "x", pal = gColors();
-    const G = groups.map((g, i) => ({ name: g.name, xs: g.xs, st: uniStats(g.xs), c: pal[i % MAXG] }));
+    const G = groups.map((g, i) => ({ name: g.name, xs: g.xs, st: uniStats(g.xs), c: pal[(g.ci ?? i) % MAXG] }));
     const names = G.map(g => g.name), ng = G.length;
     const color = { domain: names, range: G.map(g => g.c) };
     $("hist-opts").style.display = GT === "hist" ? "" : "none";
@@ -1407,16 +1451,30 @@
   // legenda dos grupos dentro do SVG (para sair também nas imagens exportadas), numa linha na margem de cima, encostada à direita
   const legW1 = name => 14 + name.length * 7.4 + 16;
   const legendW = items => d3.sum(items, it => legW1(it.name)) - 16;
-  function svgLegend(svg, items, right, y) {
+  // (com onPick, cada item é clicável: esconder / mostrar o grupo; os escondidos ficam esbatidos e riscados)
+  function svgLegend(svg, items, right, y, onPick) {
     const NS = "http://www.w3.org/2000/svg", g = document.createElementNS(NS, "g");
     g.setAttribute("font-weight", "700"); g.setAttribute("font-size", "12"); g.setAttribute("text-anchor", "start");
     let cx = right - legendW(items);
-    items.forEach(({ name, c }) => {
+    items.forEach(({ name, c, hidden }) => {
+      const it = document.createElementNS(NS, "g");
       const ci = document.createElementNS(NS, "circle");
       ci.setAttribute("cx", cx + 5); ci.setAttribute("cy", y); ci.setAttribute("r", 5); ci.setAttribute("fill", "none"); ci.setAttribute("stroke", c); ci.setAttribute("stroke-width", 2);
       const t = document.createElementNS(NS, "text");
       t.setAttribute("x", cx + 14); t.setAttribute("y", y); t.setAttribute("dy", "0.35em"); t.setAttribute("fill", c); t.textContent = name;
-      g.append(ci, t);
+      // (retângulo invisível para o clique apanhar também os espaços)
+      const hit = document.createElementNS(NS, "rect");
+      hit.setAttribute("x", cx - 3); hit.setAttribute("y", y - 9); hit.setAttribute("width", legW1(name) - 10); hit.setAttribute("height", 18); hit.setAttribute("fill", "transparent");
+      it.append(hit, ci, t);
+      if (hidden) { it.setAttribute("opacity", 0.35); t.setAttribute("text-decoration", "line-through"); }
+      if (onPick) {
+        it.setAttribute("class", "legi");
+        const tt = document.createElementNS(NS, "title"); tt.textContent = "Clique: esconder / mostrar · duplo clique: só este grupo"; it.appendChild(tt);
+        it.addEventListener("pointerdown", e => e.stopPropagation(), true);   // (não começa uma seleção)
+        it.addEventListener("click", e => { e.stopPropagation(); onPick(name, false); });
+        it.addEventListener("dblclick", e => { e.stopPropagation(); onPick(name, true); });
+      }
+      g.appendChild(it);
       cx += legW1(name);
     });
     svg.appendChild(g);
@@ -1426,7 +1484,11 @@
     const { nx, ny, pts: all, bad, note, groups, gname } = readBi(ta.value);
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
-    const pts = all.filter((p, i) => !EXCL.has(i)), out = all.filter((p, i) => EXCL.has(i));
+    // grupos escondidos: os seus pares saem do gráfico e dos cálculos (vis = pares à vista)
+    const isHid = p => groups && HIDDEN.has(p[2]);
+    const vis = all.filter(p => !isHid(p));
+    for (const i of [...SEL]) if (i >= all.length || isHid(all[i])) SEL.delete(i);
+    const pts = all.filter((p, i) => !EXCL.has(i) && !isHid(p)), out = all.filter((p, i) => EXCL.has(i) && !isHid(p));
     $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : (note || "");
     $("msg").classList.toggle("info", !bad.length);
     $("plots").className = "plots bi" + (S.dat ? " tab" : "");
@@ -1437,16 +1499,19 @@
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
+    if (pts.length < 2 && HIDDEN.size) { HIDDEN.clear(); render(); return; }   // (escondidos de mais: volta a mostrar todos)
     if (pts.length < 2) { LAST = null; put($("fig-main"), null); if (S.dat) $("dat").innerHTML = ""; eq.textContent = all.length >= 2 ? "São precisos pelo menos dois pares incluídos." : "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
     // grupos: cor de cada um e, com «Um modelo por grupo», um ajuste para cada
     const pal = gColors();
-    const GR = groups ? groups.map((name, i) => ({ name, c: pal[i % MAXG], pts: pts.filter(p => p[2] === name) })) : null;
-    const gIdx = groups ? new Map(groups.map((g, i) => [g, i])) : null;
+    // GALL: todos os grupos (cores, legenda); GR: só os que estão à vista (cálculos e desenho)
+    const GALL = groups ? groups.map((name, i) => ({ name, c: pal[i % MAXG], hidden: HIDDEN.has(name) })) : null;
+    const GR = GALL ? GALL.filter(g => !g.hidden).map(g => ({ ...g, pts: pts.filter(p => p[2] === g.name) })) : null;
+    const gIdx = groups ? new Map(groups.map((g, i) => [g, i])) : null, GRm = GR ? new Map(GR.map(g => [g.name, g])) : null;
     const byG = !!(GR && S.byG && S.model);
     const F = S.model ? fit(S.model, pts, d) : { err: "Escolhe um modelo de regressão.", none: true };
     if (byG) GR.forEach(g => { g.F = g.pts.length >= 2 ? fit(S.model, g.pts, d) : { err: "São precisos pelo menos dois pares." }; });
     // a função do modelo que se aplica a um par (a do seu grupo, ou a de todos)
-    const fOf = p => byG ? (GR[gIdx.get(p[2])].F.err ? null : GR[gIdx.get(p[2])].F.f) : (F.err ? null : F.f);
+    const fOf = p => byG ? (GRm.get(p[2]).F.err ? null : GRm.get(p[2]).F.f) : (F.err ? null : F.f);
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
     rm.innerHTML = "";
     const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
@@ -1501,7 +1566,7 @@
     $("res-frame").hidden = !showRes; $("fig-res").style.height = (LOWH.res || 150) + "px";
     const [W, H] = figSize($("fig-main"));
     // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
-    let x0 = d3.min(all, p => p[0]), x1 = d3.max(all, p => p[0]);
+    let x0 = d3.min(vis, p => p[0]), x1 = d3.max(vis, p => p[0]);
     const pad = (x1 - x0 || 1) * 0.08;
     let a = x0 - pad, b = x1 + pad;
     if (S.model && (byG ? GR.some(g => g.F.xmin0) : !F.err && F.xmin0) && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
@@ -1523,7 +1588,7 @@
       }
     }
     // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos; com grupos, cada um na sua cor
-    const color = GR ? { domain: groups, range: GR.map(g => g.c) } : undefined;
+    const color = GALL ? { domain: groups, range: GALL.map(g => g.c) } : undefined;
     marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: GR ? p => p[2] : c1, strokeWidth: 1.8 }));
     // excluídos: vazios e esbatidos, com uma cruz
     if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: faint, strokeWidth: 1.5 }),
@@ -1534,16 +1599,16 @@
       marks.push(Plot.dot([[xe, e.y]], { x: p => p[0], y: p => p[1], r: 6, fill: e.c || hot }),
                  Plot.text([[xe, e.y]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: e.c || hot, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
     });
-    marks.push(Plot.tip(all, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
+    marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
     LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my,
              xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null };
     // escala vertical explícita (para as curvas de densidade poderem ocupar uma faixa junto de cada eixo)
-    const yAll = all.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
+    const yAll = vis.map(p => p[1]).concat(ests.map(e => e.y)), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
     let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
     // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
     // (com grupos, uma curva por grupo, sobrepostas, na mesma escala)
     // a legenda fica na linha do nome do eixo y, à direita; se não couber ao lado dele, desce para uma segunda linha
-    const legOne = GR && W - (20 + (S.mdens ? 64 : 0)) - legendW(GR) > yl.length * 7.2 + 24;
+    const legOne = GALL && W - (20 + (S.mdens ? 64 : 0)) - legendW(GALL) > yl.length * 7.2 + 24;
     const LEG = GR ? (legOne ? 22 : 40) : 0, BAND = S.mdens ? 64 : 0, mTop = 22 + BAND + LEG, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
     if (S.mdens && pts.length > 2) {
       const N = 200, sets = GR ? GR.map(g => ({ P: g.pts, c: g.c })) : [{ P: pts, c: css("--pi") }];
@@ -1572,9 +1637,10 @@
       width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(), color,
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
       y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
-      marks: d3.min(all, p => p[1]) <= 0 && d3.max(all, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
+      marks: d3.min(vis, p => p[1]) <= 0 && d3.max(vis, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
-    if (GR) svgLegend(chart, GR, W - mRight, legOne ? 11 : 30);
+    if (GALL) svgLegend(chart, GALL, W - mRight, legOne ? 11 : 30, FIXED ? null : (name, dbl) => groupClick(name, groups, dbl));
+    if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
     put($("fig-main"), chart);
 
     // gráfico de resíduos: eᵢ = yᵢ − ŷᵢ de cada par incluído, com a mesma escala horizontal do diagrama de dispersão
@@ -1608,10 +1674,11 @@
         // com uma tabela (CSV): todas as colunas; as linhas sem um dos valores (ou sem grupo) ficam esbatidas e de fora
         const roles = { [xl]: "x", [yl]: "y" };
         if (GR) roles[gname] = "grupos";
-        const kOf = new Map(all.map((p, k) => [p.r, k])), gc = GR ? (v => gIdx.has(v) ? GR[gIdx.get(v)].c : null) : null;
+        const kOf = new Map(all.map((p, k) => [p.r, k])), gc = GALL ? (v => gIdx.has(v) ? GALL[gIdx.get(v)].c : null) : null;
         $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, pre)}<tbody>` +
           d3.range(Math.min(T.n, MAXR)).map(r => {
             const k = kOf.get(r);
+            if (k !== undefined && isHid(all[k])) return `<tr class="miss" title="Grupo escondido"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
             return k === undefined ? `<tr class="miss" title="Fica de fora (valor em falta)"><td></td><td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`
               : `<tr data-i="${k}"${EXCL.has(k) ? ' class="excl"' : ""}>${chk(k)}<td>${r + 1}</td>${tableCells(T, r, roles, gc)}</tr>`;
           }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
@@ -1698,7 +1765,7 @@
       chart.appendChild(box);
       const P = e => { const b = chart.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
       chart.addEventListener("pointerdown", e => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || e.target.closest(".legi")) return;   // (a legenda dos grupos tem o seu próprio clique)
         e.stopImmediatePropagation(); e.preventDefault();
         const [x0, y0] = P(e), add = e.ctrlKey || e.metaKey, base = add ? new Set(SEL) : new Set(), hit = chart.value;
         let moved = false;
