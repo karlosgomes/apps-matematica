@@ -179,6 +179,8 @@
   button.b.exp { font-size: 0.72rem; padding: 0.05rem 0.45rem; font-weight: 700; color: var(--muted); }
   .fig { flex: 1; min-height: 0; position: relative; }
   .fig svg { display: block; overflow: visible; }
+  /* fundo das dicas do Plot (Plot.tip usa --plot-background, branco por omissão): o da página, para se lerem no modo escuro */
+  .fig svg { --plot-background: var(--bg) !important; }
   /* (o gráfico não pode determinar o tamanho do seu quadro: mede-se o quadro e desenha-se lá dentro) */
   #fig-main > svg { position: absolute; left: 0; top: 0; }
   #fig-box { flex: none; height: 96px; }
@@ -267,7 +269,7 @@
     <h2>Medidas <span class="row"><span class="lbl">casas decimais</span>
       <select class="inp" id="dec" aria-label="Casas decimais"><option>1</option><option selected>2</option><option>3</option><option>4</option></select><button class="b small fold" data-fold="meas" type="button" aria-expanded="true" title="Fechar (minimizar)">▾</button></span></h2>
     <div class="meas" id="meas"></div>
-    <div class="note">Quartis: Q₁ = P₂₅ e Q₃ = P₇₅, com a definição de percentil do programa de Matemática A; s com n − 1.</div>
+    <div class="note">Quartis: Q₁ = P₂₅ e Q₃ = P₇₅.</div>
   </div>
 
   <!-- duas variáveis -->
