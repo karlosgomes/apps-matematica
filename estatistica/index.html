@@ -60,21 +60,8 @@
   .card { position: relative; background: var(--band); border: 1.2px solid var(--line); border-radius: 9px; padding: 0.55rem 0.7rem 0.6rem 1rem;
           display: flex; flex-direction: column; gap: 0.4rem; overflow: hidden; }
   .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--bar-c, var(--muted)); border-radius: 9px 0 0 9px; }
-  /* menu pendente «Opções» (caixas de cada cartão): abre por cima do que está por baixo */
-  .card:has(details.dd[open]) { overflow: visible; z-index: 5; }
-  details.dd { position: relative; align-self: flex-start; }
-  details.dd > summary { font-weight: 700; font-size: 0.82rem; padding: 0.15rem 0.6rem; border-radius: 8px; cursor: pointer; background: var(--btn); color: var(--ink);
-                        border: 2px solid var(--line); line-height: 1.3; white-space: nowrap; }
-  details.dd[open] > summary { border-color: var(--muted); }
-  details.dd > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  details.dd > summary { list-style: none; display: inline-flex; align-items: center; gap: 0.35rem; user-select: none; }
-  details.dd > summary::-webkit-details-marker { display: none; }
-  details.dd > summary::after { content: "▾"; font-size: 0.8em; transition: transform .15s; }
-  details.dd[open] > summary::after { transform: rotate(180deg); }
-  details.dd > summary .cnt:empty { display: none; }
-  details.dd > summary .cnt { min-width: 1.15rem; padding: 0 0.3rem; border-radius: 9px; background: var(--muted); color: var(--on); font-size: 0.75rem; text-align: center; }
-  details.dd .ddp { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 16rem; display: flex; flex-direction: column; gap: 0.45rem;
-                    padding: 0.6rem 0.8rem; background: var(--bg); border: 1.2px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); }
+  /* menus pendentes do tipo de gráfico e do modelo de regressão */
+  select.inp.sel { font-family: var(--font); font-weight: 700; font-size: 0.9rem; padding: 0.25rem 0.45rem; min-width: 14rem; cursor: pointer; }
   .card h2 { margin: 0; font-size: 0.85rem; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
   .row { display: flex; align-items: center; gap: 0.4rem 0.6rem; flex-wrap: wrap; font-size: 0.9rem; }
   .lbl { color: var(--muted); font-size: 0.85rem; }
@@ -118,21 +105,27 @@
 
   /* gráficos */
   .plots { flex: 1; min-height: 340px; display: grid; gap: 0.6rem; }
-  .plots.uni { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .plots.uni { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto auto; }
+  /* barra horizontal (arrastar) entre o gráfico principal e o de baixo (extremos e quartis / resíduos) */
+  .plots .main { grid-column: 1; grid-row: 1; }
+  .plots .box, .plots .resid { grid-column: 1; grid-row: 3; }
+  .hgrip { display: none; grid-column: 1; grid-row: 2; height: 8px; margin: -0.45rem 0; cursor: row-resize; border-radius: 4px; position: relative; touch-action: none; }
+  .plots.lower .hgrip { display: block; }
+  .hgrip::after { content: ""; position: absolute; top: 3px; left: 50%; height: 2px; width: 2.6rem; margin-left: -1.3rem; border-radius: 1px; background: var(--line); }
+  .hgrip:hover, .hgrip.on { background: color-mix(in srgb, var(--focus) 18%, transparent); }
   /* com a coluna da direita (tabelas, caule e folhas): gráficos | barra de arrastar | coluna (largura em --side-w, guardada) */
   .plots.tab { grid-template-columns: minmax(0, 1fr) 8px var(--side-w, minmax(15rem, 22rem)); column-gap: 0.25rem; }
   .plots.tab .main { grid-column: 1; grid-row: 1; }
-  .plots.uni.tab .box { grid-column: 1; grid-row: 2; }
+  .plots.uni.tab .box { grid-column: 1; grid-row: 3; }
   .grip { display: none; }
   .plots.tab .grip { display: block; grid-column: 2; grid-row: 1 / -1; cursor: col-resize; border-radius: 4px; position: relative; touch-action: none; }
   .plots.tab .grip::after { content: ""; position: absolute; left: 3px; top: 50%; width: 2px; height: 2.6rem; margin-top: -1.3rem; border-radius: 1px; background: var(--line); }
   .plots.tab .grip:hover, .plots.tab .grip.on { background: color-mix(in srgb, var(--focus) 18%, transparent); }
   .side { display: none; }
-  .plots.uni.tab .side { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
+  .plots.uni.tab .side { grid-column: 3; grid-row: 1 / -1; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
   .side .frame { flex: none; }
   .plots.uni.tab #dat-frame { flex: 1 0 14rem; overflow: auto; }
-  .plots.bi { grid-template-rows: minmax(0, 1fr) auto; }
-  .plots.bi .resid { grid-column: 1; grid-row: 2; }
+  .plots.bi { grid-template-rows: minmax(0, 1fr) auto auto; }
   #fig-res { flex: none; height: 150px; }
   .plots.bi.tab .side { grid-column: 3; grid-row: 1 / -1; display: flex; flex-direction: column; min-height: 0; }
   .plots.bi.tab #dat-frame { flex: 1; min-height: 0; overflow: auto; }
@@ -192,7 +185,8 @@
   @media (max-width: 760px) {
     .plots.uni.tab, .plots.bi.tab { grid-template-columns: 1fr; }
     .plots.tab .grip { display: none; }
-    .plots.tab .main, .plots.uni.tab .box, .plots.bi .resid { grid-row: auto; }
+    .plots .main, .plots .box, .plots .resid, .plots.uni.tab .box { grid-row: auto; }
+    .plots.lower .hgrip { display: none; }
     /* no ecrã estreito a coluna vai para baixo, e a altura arrasta-se pelo canto */
     .plots.bi.tab .side { grid-column: 1; grid-row: auto; height: 20rem; resize: vertical; overflow: auto; }
     .plots.uni.tab .side { grid-column: 1; grid-row: auto; }
@@ -232,12 +226,12 @@
   <div class="card uni-only" style="--bar-c: var(--hot)">
     <h2>Gráfico</h2>
     <div class="row">
-      <div class="seg" role="group" aria-label="Tipo de gráfico">
-        <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
-        <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
-        <button class="b small" data-g="dots" aria-pressed="false">Diagrama de pontos</button>
-        <button class="b small" data-g="dens" id="g-dens" aria-pressed="false" hidden title="Só com uma coluna de grupos: a curva de densidade de cada grupo, sobrepostas">Densidades sobrepostas</button>
-      </div>
+      <select class="inp sel" id="g-sel" aria-label="Tipo de gráfico">
+        <option value="hist" selected>Histograma</option>
+        <option value="bars">Diagrama de barras</option>
+        <option value="dots">Diagrama de pontos</option>
+        <option value="dens" id="g-dens" hidden disabled>Densidades sobrepostas (por grupo)</option>
+      </select>
     </div>
     <div class="row" id="hist-opts">
       <span class="lbl">Classes</span>
@@ -255,16 +249,13 @@
         <button class="b small" data-f="rel" aria-pressed="false">relativa</button>
       </div>
     </div>
-    <details class="dd" id="dd-uni">
-      <summary class="b small">Opções <span class="cnt"></span></summary>
-      <div class="ddp">
+    <div class="row">
       <label class="chk"><input type="checkbox" id="sh-box"> Diagrama de extremos e quartis</label>
       <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
       <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
       <label class="chk"><input type="checkbox" id="sh-stem"> Caule e folhas</label>
       <label class="chk" title="Estimativa da densidade por núcleo gaussiano, sobreposta ao gráfico, na escala das frequências"><input type="checkbox" id="sh-dens"> Curva de densidade</label>
-      </div>
-    </details>
+    </div>
   </div>
   <div class="card uni-only" style="--bar-c: var(--c3)">
     <h2>Medidas <span class="row"><span class="lbl">casas decimais</span>
@@ -276,24 +267,24 @@
   <!-- duas variáveis -->
   <div class="card bi-only" style="--bar-c: var(--hot)" hidden>
     <h2>Modelo de regressão</h2>
-    <div class="seg" role="group" aria-label="Modelo">
-      <button class="b small" data-r="lin" aria-pressed="false">Linear</button>
-      <button class="b small" data-r="quad" aria-pressed="false">Quadrático</button>
-      <button class="b small" data-r="exp" aria-pressed="false">Exponencial</button>
-      <button class="b small" data-r="log" aria-pressed="false">Logarítmico</button>
-      <button class="b small" data-r="pow" aria-pressed="false">Potência</button>
-      <button class="b small" data-r="sin" aria-pressed="false">Sinusoidal</button>
+    <div class="row">
+      <select class="inp sel" id="r-sel" aria-label="Modelo de regressão">
+        <option value="" selected>Escolhe um modelo…</option>
+        <option value="lin">Linear</option>
+        <option value="quad">Quadrático</option>
+        <option value="exp">Exponencial</option>
+        <option value="log">Logarítmico</option>
+        <option value="pow">Potência</option>
+        <option value="sin">Sinusoidal</option>
+      </select>
     </div>
-    <details class="dd" id="dd-bi">
-      <summary class="b small">Opções <span class="cnt"></span></summary>
-      <div class="ddp">
+    <div class="row">
       <label class="chk"><input type="checkbox" id="sh-curve" checked> Curva de regressão</label>
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
       <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
-      </div>
-    </details>
+    </div>
     <div class="row">
       <span class="lbl">Estimar para</span><span id="xname-est"></span>
       <input class="inp" id="xest" type="text" inputmode="decimal" aria-label="Valor de x para estimar">
@@ -312,6 +303,7 @@
 <div class="plots uni" id="plots">
   <div class="frame main"><h3><b id="main-title">Histograma</b><span class="hr"><span id="main-hint"></span>
     <button class="b small exp" data-fig="fig-main" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-main" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-main"></div></div>
+  <div class="hgrip" id="hgrip" title="Arrasta para mudar a altura do gráfico de baixo (duplo clique: altura de origem)" role="separator" aria-orientation="horizontal"></div>
   <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b><span class="hr">
     <span id="out-hint"></span>
     <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
@@ -703,13 +695,10 @@
     document.querySelectorAll(`[data-${attr}]`).forEach(x => x.setAttribute("aria-pressed", x === b));
     render();
   });
-  segBind("g", "graph"); segBind("f", "freq");
-  // modelo de regressão: nenhum ao início; tocar no escolhido volta a nenhum
-  document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
-    S.model = S.model === b.dataset.r ? null : b.dataset.r;
-    document.querySelectorAll("[data-r]").forEach(x => x.setAttribute("aria-pressed", x.dataset.r === S.model));
-    render();
-  });
+  segBind("f", "freq");
+  // tipo de gráfico e modelo de regressão: menus pendentes (o modelo começa em nenhum)
+  $("g-sel").onchange = e => { S.graph = e.target.value; render(); };
+  $("r-sel").onchange = e => { S.model = e.target.value || null; render(); };
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
@@ -729,15 +718,6 @@
       render();   // (a equação ajusta a letra à largura quando volta a aparecer)
     };
   });
-  // menus «Opções»: número de opções ligadas no botão; fecham ao clicar fora ou com Esc
-  const dds = [...document.querySelectorAll("details.dd")];
-  const ddCount = () => dds.forEach(d => {
-    const n = [...d.querySelectorAll(".ddp input[type=checkbox]")].filter(c => c.checked && !c.closest("[hidden]")).length;
-    d.querySelector(".cnt").textContent = n || "";
-  });
-  dds.forEach(d => d.addEventListener("change", ddCount));
-  document.addEventListener("pointerdown", e => dds.forEach(d => { if (d.open && !d.contains(e.target)) d.open = false; }));
-  document.addEventListener("keydown", e => { if (e.key === "Escape") dds.forEach(d => d.open = false); });
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -857,6 +837,24 @@
     g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
   });
   // duplo clique na barra: volta à largura de origem
+  // barra horizontal: arrastar muda a altura do gráfico de baixo (diagrama de extremos e quartis ou resíduos); guardada no navegador
+  const LOWKEY = "apps-mat-estatistica-baixo";
+  let LOWH = { box: null, res: null };
+  try { LOWH = { ...LOWH, ...(JSON.parse(localStorage.getItem(LOWKEY)) || {}) }; } catch (e) {}
+  $("hgrip").addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const g = $("hgrip"), k = S.mode === "uni" ? "box" : "res", fig = $(k === "box" ? "fig-box" : "fig-res");
+    const y0 = e.clientY, h0 = fig.clientHeight, ph = $("plots").clientHeight;
+    g.classList.add("on"); g.setPointerCapture(e.pointerId);
+    const mv = ev => { LOWH[k] = Math.round(Math.max(70, Math.min(ph - 220, h0 - (ev.clientY - y0)))); render(); };
+    const up = () => {
+      g.classList.remove("on"); g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up);
+      try { localStorage.setItem(LOWKEY, JSON.stringify(LOWH)); } catch (e) {}
+    };
+    g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+  });
+  $("hgrip").addEventListener("dblclick", () => { LOWH[S.mode === "uni" ? "box" : "res"] = null; try { localStorage.setItem(LOWKEY, JSON.stringify(LOWH)); } catch (e) {} render(); });
   $("grip").addEventListener("dblclick", () => { $("plots").style.removeProperty("--side-w"); try { localStorage.removeItem(SIDEKEY); } catch (e) {} render(); });
   document.addEventListener("pointerdown", e => { if (!ctx.hidden && !ctx.contains(e.target)) ctx.hidden = true; }, true);
   addEventListener("scroll", () => ctx.hidden = true, true);
@@ -937,8 +935,8 @@
   function renderUni(fromInputs) {
     const RU = readUni(ta.value), { name, xs, bad, note } = RU;
     // «Densidades sobrepostas» só existe com grupos
-    $("g-dens").hidden = !RU.groups;
-    if (!RU.groups && S.graph === "dens") { S.graph = "hist"; document.querySelectorAll("[data-g]").forEach(x => x.setAttribute("aria-pressed", x.dataset.g === "hist")); }
+    $("g-dens").hidden = $("g-dens").disabled = !RU.groups;
+    if (!RU.groups && S.graph === "dens") { S.graph = "hist"; $("g-sel").value = "hist"; }
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
     $("msg").classList.toggle("info", !bad.length);
     const plots = $("plots");
@@ -946,10 +944,10 @@
     $("tab-frame").hidden = !S.tab;
     $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = !S.dat;
     uniTable(RU);
-    $("box-frame").hidden = !S.box; $("res-frame").hidden = true;
+    $("box-frame").hidden = !S.box; $("res-frame").hidden = true; plots.classList.toggle("lower", S.box);
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
     $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
-    $("meas").className = "meas"; $("fig-box").style.height = "";
+    $("meas").className = "meas"; $("fig-box").style.height = LOWH.box ? LOWH.box + "px" : "";
     if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
     if (RU.groups) return renderUniG(fromInputs, RU);
     const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
@@ -1013,17 +1011,23 @@
       if (S.graph === "dots") {
         // diagrama de pontos: um ponto por observação, empilhados por cima do seu valor
         marks.length = 0;
-        const span = xdom[1] - xdom[0];
-        // as pilhas ocupam a altura do gráfico; o raio vem do espaço entre valores e entre níveis
-        const pxGap = (W - 60) / span * gap, pyUnit = (H - 66) / (maxY + 0.5);
-        const r = Math.max(2, Math.min(12, Math.min(pxGap, pyUnit) / 2 - 1));
+        // com a curva de densidade, os pontos agrupam-se em intervalos de amplitude w (múltiplo do espaço entre valores,
+        // centrados em mín. + k·w): as pilhas passam a contar por intervalo e ficam na mesma escala da curva (× n × w)
+        let w = gap, dd = data;
+        if (S.dens) {
+          const bins = Math.max(5, Math.round((W - 60) / 12));
+          w = gap * Math.max(1, Math.ceil((xdom[1] - xdom[0]) / bins / gap - 1e-9));
+          if (w > gap * (1 + 1e-9)) {
+            dd = d3.rollups(st.xs, v => v.length, v => Math.round((v - st.min) / w + 1e-9)).map(([k, ni]) => ({ v: st.min + k * w, ni }));
+            maxY = d3.max(dd, c => c.ni); binW = w;
+            xdom = [st.min - w * 0.6, Math.max(st.max, d3.max(dd, c => c.v)) + w * 0.6];
+            $("main-hint").textContent = `com a curva de densidade, cada pilha junta os valores num intervalo de amplitude ${fmt(w, 4)}`;
+          }
+        }
         dotTop = maxY + 0.5;
-        const dots = data.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ v: c.v, k })));
-        marks.push(
-          // pontos vazios: só o contorno (a cheio de cor de fundo, para a grelha não passar por dentro)
-          Plot.dot(dots, { x: "v", y: "k", r, fill: css("--bg"), stroke: c1, strokeWidth: Math.max(1.6, Math.min(3, r * 0.28)) }),
-          Plot.ruleY([0], { stroke: ink }),
-        );
+        // (o raio só se calcula depois da curva, que pode subir o topo da escala — ver PENDOTS)
+        var PENDOTS = { dots: dd.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ v: c.v, k }))), w };
+        marks.push(Plot.ruleY([0], { stroke: ink }));
         $("main-title").textContent = "Diagrama de pontos";
       }
     }
@@ -1048,6 +1052,13 @@
       maxY = Math.max(maxY, top);
       if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
     }
+    // diagrama de pontos: as pilhas ocupam a altura do gráfico; o raio vem do espaço entre pilhas e entre níveis, já com a escala final
+    if (typeof PENDOTS !== "undefined" && PENDOTS) {
+      const pxGap = (W - 60) / (xdom[1] - xdom[0]) * PENDOTS.w, pyUnit = (H - 66) / dotTop;
+      const r = Math.max(2, Math.min(12, Math.min(pxGap, pyUnit) / 2 - 1));
+      // pontos vazios: só o contorno (a cheio de cor de fundo, para a grelha não passar por dentro)
+      marks.unshift(Plot.dot(PENDOTS.dots, { x: "v", y: "k", r, fill: css("--bg"), stroke: c1, strokeWidth: Math.max(1.6, Math.min(3, r * 0.28)) }));
+    }
     if (S.mean) {
       marks.push(Plot.ruleX([st.m], { stroke: c2, strokeWidth: 2, strokeDasharray: "6 4" }),
                  Plot.ruleX([st.med], { stroke: c3, strokeWidth: 2 }),
@@ -1067,7 +1078,7 @@
 
     // diagrama de extremos e quartis com os quartis acima (a mesma escala horizontal do gráfico principal)
     if (S.box) {
-      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W), bh = 96;
+      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W), bh = LOWH.box || 96;
       const q = [st.min, st.q1, st.med, st.q3, st.max];
       const lbl = [["mín.", st.min], ["Q_1", st.q1], ["Mediana", st.med], ["Q_3", st.q3], ["máx.", st.max]];
       // outliers: fora de [Q₁ − 1,5 × AIQ, Q₃ + 1,5 × AIQ]; os bigodes vão só até ao menor e ao maior valor que não o são
@@ -1142,13 +1153,13 @@
 
     const ink = css("--ink"), c2 = css("--c2"), c3 = css("--c3"), bg = css("--bg");
     // (a altura do quadro dos diagramas de extremos e quartis muda com o número de grupos: fixa-se antes de medir o gráfico principal)
-    const bh = 34 + 30 * ng;
+    const bh = LOWH.box || 34 + 30 * ng;
     if (S.box) $("fig-box").style.height = bh + "px";
     const [W, H] = figSize($("fig-main"));
     const mL = gMarginL(names), mT = 26, mB = 44, Wx = W - (mL - 48);   // (Wx: largura para as marcas do eixo)
     const facetH = (H - mT - mB) / ng;
     const marks = [];
-    let xdom, ticks, binW, maxY = 1, dotTop = 1, hint = "", last = [];
+    let xdom, ticks, binW, maxY = 1, dotTop = 1, hint = "", last = [], pendDots = null;
     // classes (as mesmas para todos os grupos) e tabela de frequências por grupo
     const C = classes(st);
     if (!fromInputs && S.graph === "hist") {
@@ -1190,15 +1201,23 @@
         );
         $("main-title").textContent = "Diagramas de barras por grupo";
       } else {
-        // pontos empilhados em cada faceta; o raio vem do espaço entre valores e da altura de cada faceta
-        const pxGap = (W - mL - 20) / (xdom[1] - xdom[0]) * gap, pyUnit = facetH * 0.82 / (maxY + 0.5);
-        const r = Math.max(1.5, Math.min(10, Math.min(pxGap, pyUnit) / 2 - 0.5));
+        // pontos empilhados em cada faceta; com a curva de densidade, agrupados em intervalos de amplitude w (como sem grupos)
+        let w = gap, dd = data;
+        if (S.dens) {
+          const bins = Math.max(5, Math.round((W - mL - 20) / 12));
+          w = gap * Math.max(1, Math.ceil((xdom[1] - xdom[0]) / bins / gap - 1e-9));
+          if (w > gap * (1 + 1e-9)) {
+            dd = G.flatMap(g => d3.rollups(g.xs, v => v.length, v => Math.round((v - st.min) / w + 1e-9)).map(([k, ni]) => ({ g: g.name, v: st.min + k * w, ni })));
+            maxY = d3.max(dd, c => c.ni); binW = w;
+            xdom = [st.min - w * 0.6, Math.max(st.max, d3.max(dd, c => c.v)) + w * 0.6];
+            hint = `com a curva de densidade, cada pilha junta os valores num intervalo de amplitude ${fmt(w, 4)}`;
+          }
+        }
         dotTop = maxY + 0.5;
-        const dots = data.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ g: c.g, v: c.v, k })));
-        marks.push(Plot.dot(dots, { x: "v", y: "k", fy: "g", r, fill: bg, stroke: "g", strokeWidth: Math.max(1.4, Math.min(2.6, r * 0.28)) }));
+        pendDots = { dots: dd.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ g: c.g, v: c.v, k }))), w };
         $("main-title").textContent = "Diagramas de pontos por grupo";
       }
-      hint = `${vals.length} valores diferentes`;
+      if (!hint) hint = `${vals.length} valores diferentes`;
     } else {
       // densidades sobrepostas: a curva de cada grupo (área 1), com a área por baixo ténue, e o nome junto do pico
       const span = st.max - st.min || 1;
@@ -1236,6 +1255,12 @@
       const top = d3.max(curves, c => c.y) || 0;
       maxY = Math.max(maxY, top);
       if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
+    }
+    // o raio dos pontos só depois da curva (que pode subir o topo da escala)
+    if (pendDots) {
+      const pxGap = (W - mL - 20) / (xdom[1] - xdom[0]) * pendDots.w, pyUnit = facetH * 0.82 / dotTop;
+      const r = Math.max(1.5, Math.min(10, Math.min(pxGap, pyUnit) / 2 - 0.5));
+      marks.unshift(Plot.dot(pendDots.dots, { x: "v", y: "k", fy: "g", r, fill: bg, stroke: "g", strokeWidth: Math.max(1.4, Math.min(2.6, r * 0.28)) }));
     }
     if (!dens) marks.push(Plot.ruleY([0], { stroke: ink }));
     // diagramas de extremos e quartis (um por grupo); com outliers, as barreiras de todos ficam à vista
@@ -1403,7 +1428,8 @@
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint"), bg = css("--bg");
     // gráfico de resíduos (opção «Resíduos», com um modelo): o quadro aparece antes de medir o gráfico principal
     const showRes = !!(S.res && S.model && (byG ? GR.some(g => !g.F.err) : !F.err));
-    $("res-frame").hidden = !showRes;
+    $("plots").classList.toggle("lower", showRes);
+    $("res-frame").hidden = !showRes; $("fig-res").style.height = (LOWH.res || 150) + "px";
     const [W, H] = figSize($("fig-main"));
     // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
     let x0 = d3.min(all, p => p[0]), x1 = d3.max(all, p => p[0]);
@@ -1487,7 +1513,7 @@
       const R = pts.filter(p => fOf(p)).map(p => ({ x: p[0], e: p[1] - fOf(p)(p[0]), g: p[2], p })).filter(r => isFinite(r.e));
       const ext = d3.max(R, r => Math.abs(r.e)) || 1, rw = FIXED ? FIXED[0] : ($("fig-res").clientWidth || W);
       const rp = Plot.plot({
-        width: Math.max(260, rw), height: 150, marginLeft: mLeft, marginRight: mRight, marginTop: 20, marginBottom: 28, style: plotStyle(), color,
+        width: Math.max(260, rw), height: LOWH.res || 150, marginLeft: mLeft, marginRight: mRight, marginTop: 20, marginBottom: 28, style: plotStyle(), color,
         x: { domain: [a, b], label: null, grid: true, tickFormat: decTick },
         y: { domain: [-ext * 1.15, ext * 1.15], label: "resíduo", grid: true, ticks: 4, tickFormat: decTick, labelArrow: "none" },
         marks: [
@@ -1645,7 +1671,6 @@
       if (!window.Plot || !window.d3) { $("msg").textContent = "Não foi possível carregar o Observable Plot (é preciso ligação à internet)."; return; }
       const before = figSize($("fig-main")).join();
       if (S.mode === "uni") renderUni(f); else renderBi();
-      ddCount();
       // se o quadro do gráfico principal mudou de tamanho entretanto (p. ex. um título noutro quadro passou a ter duas linhas),
       // desenha outra vez (no máximo duas vezes seguidas)
       if (figSize($("fig-main")).join() !== before && reflow < 2) { reflow++; render(f); } else reflow = 0;
