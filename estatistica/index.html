@@ -111,6 +111,10 @@
   .plots .box, .plots .resid { grid-column: 1; grid-row: 3; }
   .hgrip { display: none; grid-column: 1; grid-row: 2; height: 8px; margin: -0.45rem 0; cursor: row-resize; border-radius: 4px; position: relative; touch-action: none; }
   .plots.lower .hgrip { display: block; }
+  /* «Diagrama de extremos e quartis» como gráfico: ocupa a área toda */
+  .plots.boxonly .main, .plots.boxonly .hgrip { display: none !important; }
+  .plots.boxonly .box { grid-row: 1 / -1; }
+  .plots.boxonly #fig-box { flex: 1; height: auto; min-height: 120px; }
   .hgrip::after { content: ""; position: absolute; top: 3px; left: 50%; height: 2px; width: 2.6rem; margin-left: -1.3rem; border-radius: 1px; background: var(--line); }
   .hgrip:hover, .hgrip.on { background: color-mix(in srgb, var(--focus) 18%, transparent); }
   /* com a coluna da direita (tabelas, caule e folhas): gráficos | barra de arrastar | coluna (largura em --side-w, guardada) */
@@ -171,6 +175,7 @@
   .frame h3 .hr > span { font-style: italic; }
   .frame h3 .chk.out { font-size: 0.8rem; font-weight: 700; color: var(--muted); font-style: normal; margin-right: 0.3rem; }
   .frame h3 .chk.out input { accent-color: var(--c2); }
+  .frame h3 .chk.vio input { accent-color: var(--pi); }
   button.b.exp { font-size: 0.72rem; padding: 0.05rem 0.45rem; font-weight: 700; color: var(--muted); }
   .fig { flex: 1; min-height: 0; position: relative; }
   .fig svg { display: block; overflow: visible; }
@@ -230,6 +235,7 @@
         <option value="hist" selected>Histograma</option>
         <option value="bars">Diagrama de barras</option>
         <option value="dots">Diagrama de pontos</option>
+        <option value="box">Diagrama de extremos e quartis</option>
         <option value="dens" id="g-dens" hidden disabled>Densidades sobrepostas (por grupo)</option>
       </select>
     </div>
@@ -307,6 +313,7 @@
   <div class="frame box" id="box-frame"><h3><b>Diagrama de extremos e quartis</b><span class="hr">
     <span id="out-hint"></span>
     <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
+    <label class="chk out vio" title="Gráfico de violino: a curva de densidade (núcleo gaussiano) espelhada à volta do diagrama, entre o mínimo e o máximo"><input type="checkbox" id="sh-vio"> Violino</label>
     <button class="b small exp" data-fig="fig-box" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-box" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-box"></div></div>
   <div class="frame resid" id="res-frame" hidden><h3><b>Gráfico de resíduos</b><span class="hr"><span id="res-hint"></span>
     <button class="b small exp" data-fig="fig-res" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-res" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-res"></div></div>
@@ -342,7 +349,7 @@
   const KEY = "apps-mat-estatistica";
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
-    box: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
+    box: false, violin: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
     col: { v: null, x: null, y: null, g: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = coluna dos grupos
     model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
@@ -700,7 +707,7 @@
   $("g-sel").onchange = e => { S.graph = e.target.value; render(); };
   $("r-sel").onchange = e => { S.model = e.target.value || null; render(); };
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
-  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
+  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("sh-vio", "violin"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
   // abrir / fechar os cartões das medidas e dos resultados (estado guardado no navegador)
   // (começam sempre fechados — pedido do utilizador; abrir/fechar não fica guardado)
@@ -924,6 +931,15 @@
     return vs.filter((v, i) => i % m === 0 || i === vs.length - 1 && (vs.length - 1) % m === 0);
   }
 
+  // violino: a curva de densidade de vs, espelhada à volta de y0, entre o mínimo e o máximo (como o «trim» habitual);
+  // top = densidade que corresponde à meia altura hmax (a mesma em todos os grupos, para as áreas se compararem)
+  function violinPts(vs, y0, top, hmax, extra = {}) {
+    const k = kdeOf(vs);
+    if (!k) return [];
+    const lo = d3.min(vs), hi = d3.max(vs), N = 160;
+    return d3.range(N + 1).map(i => { const x = lo + (hi - lo) * i / N, h = k(x) / top * hmax; return { ...extra, x, y1: y0 - h, y2: y0 + h }; });
+  }
+  const violinTop = sets => d3.max(sets, vs => { const k = kdeOf(vs); if (!k) return 0; const lo = d3.min(vs), hi = d3.max(vs); return d3.max(d3.range(161), i => k(lo + (hi - lo) * i / 160)); }) || 1;
   // densidade por núcleo gaussiano, com a largura de banda de Silverman
   function kdeOf(vs) {
     const v = [...vs].sort((a, b) => a - b), n = v.length, m = sum(v) / n;
@@ -937,6 +953,8 @@
     // «Densidades sobrepostas» só existe com grupos
     $("g-dens").hidden = $("g-dens").disabled = !RU.groups;
     if (!RU.groups && S.graph === "dens") { S.graph = "hist"; $("g-sel").value = "hist"; }
+    // «Diagrama de extremos e quartis» como tipo de gráfico: os cálculos são os do diagrama de barras, mas o gráfico de cima não se mostra
+    const boxOnly = S.graph === "box", GT = boxOnly ? "bars" : S.graph, SBOX = S.box || boxOnly;
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
     $("msg").classList.toggle("info", !bad.length);
     const plots = $("plots");
@@ -944,13 +962,15 @@
     $("tab-frame").hidden = !S.tab;
     $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = !S.dat;
     uniTable(RU);
-    $("box-frame").hidden = !S.box; $("res-frame").hidden = true; plots.classList.toggle("lower", S.box);
-    $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
-    $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
-    $("meas").className = "meas"; $("fig-box").style.height = LOWH.box ? LOWH.box + "px" : "";
+    $("box-frame").hidden = !SBOX; $("res-frame").hidden = true; plots.classList.toggle("lower", S.box && !boxOnly); plots.classList.toggle("boxonly", boxOnly);
+    // (com o diagrama como gráfico, a caixa dele e a curva de densidade não fazem sentido nas opções)
+    $("sh-box").closest("label").hidden = boxOnly; $("sh-dens").closest("label").hidden = boxOnly || S.graph === "dens";   // (nas densidades sobrepostas, as curvas já são o gráfico)
+    $("hist-opts").style.display = GT === "hist" ? "" : "none";
+    $("freq-row").style.display = GT === "dots" || boxOnly ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
+    $("meas").className = "meas"; $("fig-box").style.height = !boxOnly && LOWH.box ? LOWH.box + "px" : "";
     if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
     if (RU.groups) return renderUniG(fromInputs, RU);
-    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
+    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && GT !== "dots";
     const xlabel = name || "x";
 
     // medidas
@@ -968,10 +988,10 @@
     });
 
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), c3 = css("--c3"), bar = css("--bar"), grid = css("--grid2");
-    const [W, H] = figSize($("fig-main"));
+    const [W, H] = figSize($(boxOnly ? "fig-box" : "fig-main"));   // (sem o gráfico de cima, as marcas do eixo usam a largura do diagrama)
     const marks = [];
     let tableRows = [], maxY = 1, dotTop = 1;
-    if (S.graph === "hist") {
+    if (GT === "hist") {
       const C = classes(st);
       if (!fromInputs) {
         // mostra nas caixas as classes usadas (sem tirar o que se está a escrever)
@@ -1008,7 +1028,7 @@
       tableRows = data.map(c => { Fi += c.ni; return [fmt(c.v, 4), c.ni, c.ni / st.n, Fi, Fi / st.n]; });
       // marcas em todos os valores, se couberem; senão a escala escolhe marcas «redondas» (5, 10, 20, …)
       var binW = gap, xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = fits(data.map(c => c.v), W) ? data.map(c => c.v) : niceTicks(xdom, data.map(c => c.v), W);
-      if (S.graph === "dots") {
+      if (GT === "dots") {
         // diagrama de pontos: um ponto por observação, empilhados por cima do seu valor
         marks.length = 0;
         // com a curva de densidade, os pontos agrupam-se em intervalos de amplitude w (múltiplo do espaço entre valores,
@@ -1033,7 +1053,7 @@
     }
     // com os outliers ligados, as duas barreiras têm de ficar à vista: a escala horizontal (comum aos dois gráficos) alarga-se
     const aiq = st.q3 - st.q1, fLo = st.q1 - 1.5 * aiq, fHi = st.q3 + 1.5 * aiq;
-    if (S.box && S.out) {
+    if (SBOX && S.out) {
       const padF = (Math.max(xdom[1], fHi) - Math.min(xdom[0], fLo)) * 0.03;
       xdom = [Math.min(xdom[0], fLo - padF), Math.max(xdom[1], fHi + padF)];
     }
@@ -1050,7 +1070,7 @@
                  Plot.line(curve, { x: "x", y: "y", stroke: css("--pi"), strokeWidth: 2.2, curve: "natural" }));
       const top = d3.max(curve, c => c.y);
       maxY = Math.max(maxY, top);
-      if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
+      if (GT === "dots") dotTop = Math.max(dotTop, top * 1.05);
     }
     // diagrama de pontos: as pilhas ocupam a altura do gráfico; o raio vem do espaço entre pilhas e entre níveis, já com a escala final
     if (typeof PENDOTS !== "undefined" && PENDOTS) {
@@ -1069,16 +1089,16 @@
       width: W, height: H, marginLeft: 48, marginBottom: 40, marginTop: 26, style: plotStyle(),
       x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
       // frequências absolutas: só marcas inteiras
-      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: S.graph !== "dots", tickFormat: decTick, labelArrow: "none",
-           domain: S.graph === "dots" ? [0, dotTop] : undefined,
-           ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
+      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: GT !== "dots", tickFormat: decTick, labelArrow: "none",
+           domain: GT === "dots" ? [0, dotTop] : undefined,
+           ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => GT !== "dots" || t <= maxY) },
       marks,
     });
-    put($("fig-main"), main);
+    put($("fig-main"), boxOnly ? null : main);
 
     // diagrama de extremos e quartis com os quartis acima (a mesma escala horizontal do gráfico principal)
-    if (S.box) {
-      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W), bh = LOWH.box || 96;
+    if (SBOX) {
+      const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W), bh = boxOnly ? (FIXED ? 300 : Math.max(120, $("fig-box").clientHeight)) : LOWH.box || 96;
       const q = [st.min, st.q1, st.med, st.q3, st.max];
       const lbl = [["mín.", st.min], ["Q_1", st.q1], ["Mediana", st.med], ["Q_3", st.q3], ["máx.", st.max]];
       // outliers: fora de [Q₁ − 1,5 × AIQ, Q₃ + 1,5 × AIQ]; os bigodes vão só até ao menor e ao maior valor que não o são
@@ -1099,11 +1119,13 @@
           // as duas barreiras, sempre (tracejadas, com o valor por cima)
           ...(S.out ? [Plot.ruleX([fLo, fHi], { y1: -0.75, y2: 0.75, stroke: c2, strokeOpacity: 0.7, strokeDasharray: "4 3" }),
                        Plot.text([fLo, fHi], { x: d => d, y: 0.75, text: d => fmt(d, S.dec), dy: -7, fill: c2, fontWeight: 700, fontSize: 11 })] : []),
+          // violino (por baixo do diagrama, que fica mais estreito)
+          ...(S.violin ? [Plot.areaY(violinPts(st.xs, 0, violinTop([st.xs]), 0.85), { x: "x", y1: "y1", y2: "y2", fill: css("--pi"), fillOpacity: 0.15, stroke: css("--pi"), strokeWidth: 1.8, curve: "natural" })] : []),
           Plot.ruleY([0], { x1: wLo, x2: st.q1, stroke: ink, strokeWidth: 1.6 }),
           Plot.ruleY([0], { x1: st.q3, x2: wHi, stroke: ink, strokeWidth: 1.6 }),
-          Plot.rect([0], { x1: st.q1, x2: st.q3, y1: -0.6, y2: 0.6, fill: bar, stroke: c1, strokeWidth: 1.6 }),
-          Plot.ruleX([st.med], { y1: -0.6, y2: 0.6, stroke: c3, strokeWidth: 3 }),
-          Plot.ruleX([wLo, wHi], { y1: -0.3, y2: 0.3, stroke: ink, strokeWidth: 1.6 }),
+          Plot.rect([0], { x1: st.q1, x2: st.q3, y1: S.violin ? -0.2 : -0.6, y2: S.violin ? 0.2 : 0.6, fill: bar, stroke: c1, strokeWidth: 1.6 }),
+          Plot.ruleX([st.med], { y1: S.violin ? -0.2 : -0.6, y2: S.violin ? 0.2 : 0.6, stroke: c3, strokeWidth: 3 }),
+          Plot.ruleX([wLo, wHi], { y1: S.violin ? -0.12 : -0.3, y2: S.violin ? 0.12 : 0.3, stroke: ink, strokeWidth: 1.6 }),
           Plot.dot(outPts, { x: "v", y: "y", r: 4.5, stroke: c2, strokeWidth: 2, fill: css("--bg") }),
           ...(S.mean ? [Plot.dot([st.m], { x: d => d, y: 0, symbol: "times", r: 5, stroke: c2, strokeWidth: 2.5 })] : []),
           Plot.tip([wLo, st.q1, st.med, st.q3, wHi].map((v, i) => ({ v, t: [S.out && outs.some(o => o < fLo) ? "menor valor que não é outlier" : "mínimo", "Q₁", "mediana", "Q₃", S.out && outs.some(o => o > fHi) ? "maior valor que não é outlier" : "máximo"][i] })), Plot.pointerX({ x: "v", y: 0, title: d => `${d.t} = ${fmt(d.v, S.dec)}` })),
@@ -1115,11 +1137,11 @@
     // tabela de frequências
     const SL = stemLeaf(st);
     if (S.stem) $("stem").innerHTML = stemHTML(SL);
-    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, histTab: S.graph === "hist", graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
+    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, histTab: GT === "hist", graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
              fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) };
     if (S.tab) {
       const f4 = v => fmt(v, 4);
-      $("tab").innerHTML = `<table class="freq"><thead><tr><th>${S.graph === "hist" ? "Classe" : "Valor"}</th><th>nᵢ</th><th>fᵢ</th><th>Nᵢ</th><th>Fᵢ</th></tr></thead><tbody>` +
+      $("tab").innerHTML = `<table class="freq"><thead><tr><th>${GT === "hist" ? "Classe" : "Valor"}</th><th>nᵢ</th><th>fᵢ</th><th>Nᵢ</th><th>Fᵢ</th></tr></thead><tbody>` +
         tableRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${f4(r[2])}</td><td>${r[3]}</td><td>${f4(r[4])}</td></tr>`).join("") +
         `</tbody><tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot></table>`;
     }
@@ -1141,41 +1163,42 @@
   }
 
   function renderUniG(fromInputs, { name, xs, groups, gname }) {
-    const st = uniStats(xs), d = S.dec, dens = S.graph === "dens";
-    const rel = S.freq === "rel" && S.graph !== "dots" && !dens;
+    const boxOnly = S.graph === "box", GT = boxOnly ? "bars" : S.graph, SBOX = S.box || boxOnly;
+    const st = uniStats(xs), d = S.dec, dens = GT === "dens";
+    const rel = S.freq === "rel" && GT !== "dots" && !dens;
     const xlabel = name || "x", pal = gColors();
     const G = groups.map((g, i) => ({ name: g.name, xs: g.xs, st: uniStats(g.xs), c: pal[i % MAXG] }));
     const names = G.map(g => g.name), ng = G.length;
     const color = { domain: names, range: G.map(g => g.c) };
-    $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
-    $("freq-row").style.display = S.graph === "dots" || dens ? "none" : "";
+    $("hist-opts").style.display = GT === "hist" ? "" : "none";
+    $("freq-row").style.display = GT === "dots" || dens || boxOnly ? "none" : "";
     const meas = $("meas"); meas.className = "gmeas"; meas.innerHTML = measG(G, st, d);
 
     const ink = css("--ink"), c2 = css("--c2"), c3 = css("--c3"), bg = css("--bg");
     // (a altura do quadro dos diagramas de extremos e quartis muda com o número de grupos: fixa-se antes de medir o gráfico principal)
-    const bh = LOWH.box || 34 + 30 * ng;
-    if (S.box) $("fig-box").style.height = bh + "px";
-    const [W, H] = figSize($("fig-main"));
+    const bh = boxOnly ? (FIXED ? Math.max(300, 60 + 60 * ng) : Math.max(120, $("fig-box").clientHeight)) : LOWH.box || 34 + 30 * ng;
+    if (SBOX && !boxOnly) $("fig-box").style.height = bh + "px";
+    const [W, H] = figSize($(boxOnly ? "fig-box" : "fig-main"));   // (sem o gráfico de cima, as marcas do eixo usam a largura do diagrama)
     const mL = gMarginL(names), mT = 26, mB = 44, Wx = W - (mL - 48);   // (Wx: largura para as marcas do eixo)
     const facetH = (H - mT - mB) / ng;
     const marks = [];
     let xdom, ticks, binW, maxY = 1, dotTop = 1, hint = "", last = [], pendDots = null;
     // classes (as mesmas para todos os grupos) e tabela de frequências por grupo
     const C = classes(st);
-    if (!fromInputs && S.graph === "hist") {
+    if (!fromInputs && GT === "hist") {
       if (document.activeElement !== $("k")) $("k").value = C.k;
       if (document.activeElement !== $("h")) $("h").value = fmt(C.h, 4);
       if (document.activeElement !== $("a0")) $("a0").value = fmt(C.a, 4);
     }
     const inCl = (v, c) => v >= c.lo - 1e-9 && (v < c.hi - 1e-9 || (c.last && v <= c.hi + 1e-9));
     const clName = c => `[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`;
-    const byVal = S.graph === "bars" || S.graph === "dots";
+    const byVal = GT === "bars" || GT === "dots";
     const tableRows = byVal
       ? st.counts.map(([v, ni]) => [fmt(v, 4), ...G.map(g => g.xs.filter(x => x === v).length), ni])
       : C.cl.map(c => [clName(c), ...G.map(g => g.xs.filter(v => inCl(v, c)).length), c.ni]);
     const gLabel = g => `${g.name} (n = ${g.st.n})`;
 
-    if (S.graph === "hist") {
+    if (GT === "hist") {
       // um histograma por grupo, uns por baixo dos outros (facetas), com as mesmas classes
       const data = G.flatMap(g => C.cl.map(c => { const ni = g.xs.filter(v => inCl(v, c)).length; return { g: g.name, lo: c.lo, hi: c.hi, last: c.last, ni, y: rel ? ni / g.st.n : ni }; }));
       maxY = d3.max(data, r => r.y);
@@ -1194,7 +1217,7 @@
       ticks = fits(vals, Wx) ? vals : niceTicks(xdom, vals, Wx);
       const data = G.flatMap(g => g.st.counts.map(([v, ni]) => ({ g: g.name, v, ni, y: rel ? ni / g.st.n : ni })));
       maxY = d3.max(data, r => r.y);
-      if (S.graph === "bars") {
+      if (GT === "bars") {
         marks.push(
           Plot.ruleX(data, { x: "v", y1: 0, y2: "y", fy: "g", stroke: "g", strokeWidth: Math.max(3, Math.min(16, (W - mL) / vals.length / 3)) }),
           Plot.text(data, { x: "v", y: "y", fy: "g", text: r => rel ? fmt(r.y, 2) : String(r.ni), dy: -7, fill: ink, fontSize: 11, fontWeight: 700 }),
@@ -1254,7 +1277,7 @@
                  Plot.line(curves, { x: "x", y: "y", fy: "g", z: "g", stroke: "g", strokeWidth: 2.4, curve: "natural" }));
       const top = d3.max(curves, c => c.y) || 0;
       maxY = Math.max(maxY, top);
-      if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
+      if (GT === "dots") dotTop = Math.max(dotTop, top * 1.05);
     }
     // o raio dos pontos só depois da curva (que pode subir o topo da escala)
     if (pendDots) {
@@ -1270,7 +1293,7 @@
       const ins = S.out ? s.xs.filter(v => v >= fLo - 1e-9 && v <= fHi + 1e-9) : s.xs;
       return { i, name: g.name, n: s.n, min: s.min, max: s.max, q1: s.q1, med: s.med, q3: s.q3, m: s.m, fLo, fHi, outs, wLo: ins[0], wHi: ins[ins.length - 1] };
     });
-    if (S.box && S.out) {
+    if (SBOX && S.out) {
       const lo = d3.min(B, b => b.fLo), hi = d3.max(B, b => b.fHi), padF = (Math.max(xdom[1], hi) - Math.min(xdom[0], lo)) * 0.03;
       xdom = [Math.min(xdom[0], lo - padF), Math.max(xdom[1], hi + padF)];
     }
@@ -1290,14 +1313,14 @@
       x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
       ...(dens ? {} : { fy: { axis: null, domain: names, padding: 0.16 } }),
       y: dens ? { label: "densidade", grid: true, tickFormat: decTick, labelArrow: "none", ticks: yTicks }
-        : { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: S.graph !== "dots", tickFormat: decTick, labelArrow: "none",
-            domain: S.graph === "dots" ? [0, dotTop] : undefined,
-            ticks: rel ? yTicks : d3.ticks(0, maxY || 1, yTicks).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
+        : { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: GT !== "dots", tickFormat: decTick, labelArrow: "none",
+            domain: GT === "dots" ? [0, dotTop] : undefined,
+            ticks: rel ? yTicks : d3.ticks(0, maxY || 1, yTicks).filter(Number.isInteger).filter(t => GT !== "dots" || t <= maxY) },
       marks,
     });
-    put($("fig-main"), main);
+    put($("fig-main"), boxOnly ? null : main);
 
-    if (S.box) {
+    if (SBOX) {
       const bw = FIXED ? FIXED[0] : ($("fig-box").clientWidth || W);
       const tick = (v, i, h) => ({ v, i, h });
       const box = Plot.plot({
@@ -1305,11 +1328,14 @@
         x: { domain: xdom, label: null, ticks, tickFormat: decTick }, y: { axis: null, domain: [-0.6, ng - 0.4], reverse: true },
         marks: [
           ...(S.out ? [Plot.link(B.flatMap(b => [tick(b.fLo, b.i), tick(b.fHi, b.i)]), { x1: "v", x2: "v", y1: t => t.i - 0.42, y2: t => t.i + 0.42, stroke: c2, strokeOpacity: 0.7, strokeDasharray: "4 3" })] : []),
+          // violinos (um por grupo, na cor do grupo, com a mesma escala de densidade)
+          ...(S.violin ? (() => { const top = violinTop(G.map(g => g.xs));
+            return [Plot.areaY(G.flatMap((g, i) => violinPts(g.xs, i, top, 0.45, { name: g.name })), { x: "x", y1: "y1", y2: "y2", z: "name", fill: "name", fillOpacity: 0.15, stroke: "name", strokeWidth: 1.6, curve: "natural" })]; })() : []),
           Plot.link(B, { x1: "wLo", x2: "q1", y1: "i", y2: "i", stroke: ink, strokeWidth: 1.5 }),
           Plot.link(B, { x1: "q3", x2: "wHi", y1: "i", y2: "i", stroke: ink, strokeWidth: 1.5 }),
-          Plot.link(B.flatMap(b => [tick(b.wLo, b.i), tick(b.wHi, b.i)]), { x1: "v", x2: "v", y1: t => t.i - 0.17, y2: t => t.i + 0.17, stroke: ink, strokeWidth: 1.5 }),
-          Plot.rect(B, { x1: "q1", x2: "q3", y1: b => b.i - 0.3, y2: b => b.i + 0.3, fill: "name", fillOpacity: 0.35, stroke: "name", strokeWidth: 1.6 }),
-          Plot.link(B, { x1: "med", x2: "med", y1: b => b.i - 0.3, y2: b => b.i + 0.3, stroke: ink, strokeWidth: 2.6 }),
+          Plot.link(B.flatMap(b => [tick(b.wLo, b.i), tick(b.wHi, b.i)]), { x1: "v", x2: "v", y1: t => t.i - (S.violin ? 0.08 : 0.17), y2: t => t.i + (S.violin ? 0.08 : 0.17), stroke: ink, strokeWidth: 1.5 }),
+          Plot.rect(B, { x1: "q1", x2: "q3", y1: b => b.i - (S.violin ? 0.1 : 0.3), y2: b => b.i + (S.violin ? 0.1 : 0.3), fill: "name", fillOpacity: S.violin ? 0.6 : 0.35, stroke: "name", strokeWidth: 1.6 }),
+          Plot.link(B, { x1: "med", x2: "med", y1: b => b.i - (S.violin ? 0.1 : 0.3), y2: b => b.i + (S.violin ? 0.1 : 0.3), stroke: ink, strokeWidth: 2.6 }),
           Plot.dot(B.flatMap(b => b.outs.map(v => ({ v, i: b.i }))), { x: "v", y: "i", r: 4, stroke: c2, strokeWidth: 1.8, fill: bg }),
           ...(S.mean ? [Plot.dot(B, { x: "m", y: "i", symbol: "times", r: 5, stroke: c2, strokeWidth: 2.5 })] : []),
           Plot.text(B, { y: "i", frameAnchor: "left", text: "name", dx: -8, textAnchor: "end", fill: "name", fontWeight: 700 }),
@@ -1778,7 +1804,7 @@
       if (R.groups) body += `<p>Em cada grupo (com as barreiras do próprio grupo): ${R.groups.map(g => {
         const s = g.st, a = s.q3 - s.q1, o = s.xs.filter(v => v < s.q1 - 1.5 * a - 1e-9 || v > s.q3 + 1.5 * a + 1e-9);
         return `<i>${esc(g.name)}</i>, ${o.length ? `${o.length === 1 ? "um outlier" : `${o.length} outliers`} (${[...new Set(o)].map(v => f(v)).join("; ")})` : "sem outliers"}`; }).join("; ")}.</p>`;
-      body += FIG(figs.box, `Diagrama${R.groups ? "s" : ""} de extremos e quartis de <i>${esc(R.name)}</i>${R.groups ? ` por grupo de <i>${esc(R.gname)}</i>` : ""}${S.out ? " (com as barreiras e os outliers)" : ""}.`);
+      body += FIG(figs.box, `Diagrama${R.groups ? "s" : ""} de extremos e quartis de <i>${esc(R.name)}</i>${R.groups ? ` por grupo de <i>${esc(R.gname)}</i>` : ""}${S.violin ? ", com o violino (curva de densidade espelhada, entre o mínimo e o máximo)" : ""}${S.out ? " (com as barreiras e os outliers)" : ""}.`);
     } else {
       const d = S.dec2, f = v => fmt(v, d), P = R.pts, X = P.map(p => p[0]), Y = P.map(p => p[1]);
       const sx = Math.sqrt(sum(X.map(x => (x - R.mx) ** 2)) / (P.length - 1)), sy = Math.sqrt(sum(Y.map(y => (y - R.my) ** 2)) / (P.length - 1));
