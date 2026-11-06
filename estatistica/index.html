@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Estatística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.19/dist/plot.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --ink: #17202b; --muted: #333d4a; --faint: #6b7685; --grid: #e6eaf0; --grid2: #c4cdd8;
+    --btn: #eef2f6; --line: #b3bfcc; --band: #f6f8fb; --on: #ffffff; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5;
+    --c1: #1565c0; --c2: #d32f2f; --c3: #2e7d32; --hot: #ef6c00; --pi: #7b3fb0; --bar: #90b4e0;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  :root[data-theme="dark"] {
+    --bg: #151b22; --ink: #e6ebf1; --muted: #b4bdc8; --faint: #8592a1; --grid: #232c36; --grid2: #3a4552;
+    --btn: #212b36; --line: #46525f; --band: #1c242d; --on: #151b22; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22;
+    --c1: #64a8ff; --c2: #ff6b6b; --c3: #5cc26a; --hot: #ffa040; --pi: #c79bff; --bar: #3d6aa3;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); }
+  body { min-height: 100vh; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem; font-size: 15px; }
+  .katex { font-size: 1.08em; }
+
+  /* faixa de cima: título, modo (uma ou duas variáveis) e modo escuro */
+  .top { display: flex; gap: 0.5rem; }
+  .band { flex: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.4rem 1rem;
+          background: var(--band); border: 1.5px solid var(--line); border-radius: 8px; padding: 0.35rem 0.8rem; min-height: 2.6rem; }
+  .band h1 { margin: 0; font-size: 1.25rem; }
+  .seg { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; }
+  button.b { font: inherit; font-weight: 700; font-size: 0.9rem; padding: 0.25rem 0.75rem; border-radius: 8px; cursor: pointer;
+             background: var(--btn); color: var(--ink); border: 2px solid var(--line); white-space: nowrap; line-height: 1.3; }
+  button.b[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); color: var(--on); }
+  button.b.small { font-size: 0.82rem; padding: 0.15rem 0.55rem; }
+  button.b:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #theme { width: 3.2rem; font-size: 1.1rem; align-self: flex-start; height: max(2.6rem, 100%); max-height: 3.4rem; }
+
+  /* cartões dos controlos: numa coluna à esquerda no ecrã largo; em cima, numa grelha, nos ecrãs estreitos */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 0.6rem; align-content: start; }
+  @media (min-width: 900px) {
+    body { display: grid; grid-template-columns: minmax(330px, 25rem) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+           height: 100vh; min-height: 0; }
+    .top { grid-column: 1 / -1; }
+    .cards { grid-template-columns: minmax(0, 1fr); overflow-y: auto; min-height: 0; padding-right: 2px; }
+    .plots { min-height: 0; }
+  }
+  .card { position: relative; background: var(--band); border: 1.2px solid var(--line); border-radius: 9px; padding: 0.55rem 0.7rem 0.6rem 1rem;
+          display: flex; flex-direction: column; gap: 0.4rem; overflow: hidden; }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--bar-c, var(--muted)); }
+  .card h2 { margin: 0; font-size: 0.85rem; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+  .row { display: flex; align-items: center; gap: 0.4rem 0.6rem; flex-wrap: wrap; font-size: 0.9rem; }
+  .lbl { color: var(--muted); font-size: 0.85rem; }
+  textarea, input.inp, select.inp {
+    font-family: var(--mono); font-size: 0.85rem; color: var(--ink); background: var(--bg);
+    border: 2px solid var(--line); border-radius: 7px; padding: 0.25rem 0.4rem; outline: none; }
+  textarea { width: 100%; resize: vertical; min-height: 6.2rem; line-height: 1.35; }
+  textarea:focus, input.inp:focus, select.inp:focus { border-color: var(--focus); }
+  input.inp { width: 5rem; text-align: right; }
+  input.inp.bad { border-color: var(--bad); background: var(--badbg); }
+  .msg { font-size: 0.8rem; color: var(--bad); min-height: 1em; }
+  .chk { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.88rem; }
+  .chk input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--muted); cursor: pointer; }
+
+  /* medidas e resultados */
+  .meas { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.6rem, 1fr)); gap: 0.15rem 0.8rem; font-size: 0.9rem; }
+  .meas div { display: flex; justify-content: space-between; gap: 0.4rem; border-bottom: 1px dotted var(--grid2); padding: 0.1rem 0; }
+  .meas .k { color: var(--muted); }
+  .meas .v { font-variant-numeric: tabular-nums; }
+  .eq { font-size: 1.15rem; padding: 0.15rem 0; overflow-x: auto; overflow-y: hidden; }
+  .note { font-size: 0.75rem; color: var(--faint); font-style: italic; }
+
+  /* gráficos */
+  .plots { flex: 1; min-height: 340px; display: grid; gap: 0.6rem; }
+  .plots.uni { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .plots.uni.tab { grid-template-columns: 1fr minmax(15rem, 22rem); }
+  .plots.uni.tab .box { grid-column: 1; }
+  .plots.uni.tab .table { grid-column: 2; grid-row: 1 / span 2; }
+  .frame { border: 1.2px solid var(--line); border-radius: 9px; padding: 0.4rem 0.6rem; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .frame h3 { margin: 0 0 0.2rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+  .frame h3 span { font-weight: 400; color: var(--faint); font-style: italic; font-size: 0.78rem; }
+  .fig { flex: 1; min-height: 0; position: relative; }
+  .fig svg { display: block; overflow: visible; }
+  /* (o gráfico não pode determinar o tamanho do seu quadro: mede-se o quadro e desenha-se lá dentro) */
+  #fig-main > svg { position: absolute; left: 0; top: 0; }
+  #fig-box { flex: none; height: 96px; }
+  .table { overflow: auto; }
+  table.freq { border-collapse: collapse; font-size: 0.85rem; width: 100%; font-variant-numeric: tabular-nums; }
+  table.freq th, table.freq td { border-bottom: 1px solid var(--grid2); padding: 0.2rem 0.35rem; text-align: right; }
+  table.freq th:first-child, table.freq td:first-child { text-align: left; white-space: nowrap; }
+  table.freq tfoot td { font-weight: 700; border-top: 1.5px solid var(--line); }
+  @media (max-width: 760px) {
+    .plots.uni.tab { grid-template-columns: 1fr; }
+    .plots.uni.tab .table { grid-column: 1; grid-row: auto; }
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="band">
+    <h1>Estatística</h1>
+    <div class="seg" role="group" aria-label="Tipo de dados">
+      <button class="b" id="m-uni" aria-pressed="true">Uma variável</button>
+      <button class="b" id="m-bi" aria-pressed="false">Duas variáveis (regressão)</button>
+    </div>
+  </div>
+  <button class="b" id="theme" title="Modo claro / escuro">☾</button>
+</div>
+
+<div class="cards">
+  <div class="card" style="--bar-c: var(--c1)">
+    <h2><span id="data-title">Dados</span><span class="seg" id="examples"></span></h2>
+    <textarea id="data" spellcheck="false" aria-label="Dados"></textarea>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <!-- uma variável -->
+  <div class="card uni-only" style="--bar-c: var(--hot)">
+    <h2>Gráfico</h2>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Tipo de gráfico">
+        <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
+        <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
+      </div>
+    </div>
+    <div class="row" id="hist-opts">
+      <span class="lbl">Classes</span>
+      <label class="chk"><input type="checkbox" id="k-auto" checked> automático</label>
+      <input class="inp" id="k" type="text" inputmode="numeric" aria-label="Número de classes" style="width:3.2rem">
+      <span class="lbl">amplitude</span>
+      <input class="inp" id="h" type="text" inputmode="decimal" aria-label="Amplitude das classes" style="width:4.2rem">
+      <span class="lbl">início</span>
+      <input class="inp" id="a0" type="text" inputmode="decimal" aria-label="Início da primeira classe" style="width:4.2rem">
+    </div>
+    <div class="row">
+      <span class="lbl">Frequência</span>
+      <div class="seg" role="group" aria-label="Frequência">
+        <button class="b small" data-f="abs" aria-pressed="true">absoluta</button>
+        <button class="b small" data-f="rel" aria-pressed="false">relativa</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="sh-box" checked> Caixa de bigodes</label>
+      <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
+      <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
+    </div>
+  </div>
+  <div class="card uni-only" style="--bar-c: var(--c3)">
+    <h2>Medidas <span class="row"><span class="lbl">casas decimais</span>
+      <select class="inp" id="dec" aria-label="Casas decimais"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></span></h2>
+    <div class="meas" id="meas"></div>
+    <div class="note">Quartis: Q₁ = P₂₅ e Q₃ = P₇₅, com a definição de percentil do programa de Matemática A; s com n − 1.</div>
+  </div>
+
+  <!-- duas variáveis -->
+  <div class="card bi-only" style="--bar-c: var(--hot)" hidden>
+    <h2>Modelo de regressão</h2>
+    <div class="seg" role="group" aria-label="Modelo">
+      <button class="b small" data-r="lin" aria-pressed="true">Linear</button>
+      <button class="b small" data-r="quad" aria-pressed="false">Quadrático</button>
+      <button class="b small" data-r="exp" aria-pressed="false">Exponencial</button>
+      <button class="b small" data-r="log" aria-pressed="false">Logarítmico</button>
+      <button class="b small" data-r="pow" aria-pressed="false">Potência</button>
+      <button class="b small" data-r="sin" aria-pressed="false">Sinusoidal</button>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="sh-curve" checked> Curva de regressão</label>
+      <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
+      <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
+    </div>
+    <div class="row">
+      <span class="lbl">Estimar para</span><span id="xname-est"></span>
+      <input class="inp" id="xest" type="text" inputmode="decimal" aria-label="Valor de x para estimar">
+      <span id="yest"></span>
+    </div>
+  </div>
+  <div class="card bi-only" style="--bar-c: var(--c3)" hidden>
+    <h2>Resultados <span class="row"><span class="lbl">casas decimais</span>
+      <select class="inp" id="dec2" aria-label="Casas decimais"><option>2</option><option selected>3</option><option>4</option></select></span></h2>
+    <div class="eq" id="eq"></div>
+    <div class="meas" id="rmeas"></div>
+    <div class="note" id="rnote"></div>
+  </div>
+</div>
+
+<div class="plots uni" id="plots">
+  <div class="frame main"><h3><b id="main-title">Histograma</b><span id="main-hint"></span></h3><div class="fig" id="fig-main"></div></div>
+  <div class="frame box" id="box-frame"><h3><b>Caixa de bigodes</b></h3><div class="fig" id="fig-box"></div></div>
+  <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---------- modo escuro (a mesma chave do weblog) ----------
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    $("theme").textContent = on ? "☀" : "☾";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  $("theme").onclick = () => { setDark(!dark, true); render(); };
+
+  // ---------- estado ----------
+  const KEY = "apps-mat-estatistica";
+  const S = {
+    mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
+    box: true, mean: false, tab: false, dec: 2,
+    model: "lin", curve: true, res: false, cg: false, dec2: 3, xest: "",
+    data: { uni: null, bi: null },
+  };
+  const EXAMPLES = {
+    uni: [
+      ["Teste", "Classificações de um teste\n12 14 9 16 11 13 15 8 17 12\n10 14 13 18 11 9 15 12 16 14\n7 13 19 11 14"],
+      ["Alturas", "Altura (cm)\n158 162 170 165 172 168 175 160 166 171\n169 163 177 159 174 167 161 173 164 168\n181 156 170 166 163 176 169 171 165 160"],
+      ["Irmãos", "Número de irmãos\n0 1 1 2 0 1 3 1 2 1\n0 2 1 1 4 0 1 2 1 0\n1 2 3 1 0"],
+    ],
+    bi: [
+      ["Horas de estudo", "Horas de estudo\tClassificação\n1\t8\n2\t9,5\n2\t11\n3\t10\n3\t12,5\n4\t12\n4\t13,5\n5\t14\n5\t15,5\n6\t15\n7\t17\n8\t18"],
+      ["Bactérias", "Tempo (h)\tBactérias\n0\t100\n1\t152\n2\t227\n3\t341\n4\t509\n5\t768\n6\t1150"],
+      ["Temperaturas", "Mês\tTemperatura média (°C)\n1\t11,6\n2\t12,6\n3\t14,6\n4\t15,9\n5\t18,1\n6\t21\n7\t22,8\n8\t23,2\n9\t21,8\n10\t18,9\n11\t14,9\n12\t12,4"],
+      ["Lançamento", "Tempo (s)\tAltura (m)\n0\t1,5\n0,2\t4,6\n0,4\t7,1\n0,6\t8,7\n0,8\t9,6\n1\t9,9\n1,2\t9,4\n1,4\t8,1\n1,6\t6,4\n1,8\t3,9\n2\t0,9"],
+    ],
+  };
+  try { Object.assign(S.data, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
+  if (!S.data.uni) S.data.uni = EXAMPLES.uni[0][1];
+  if (!S.data.bi) S.data.bi = EXAMPLES.bi[0][1];
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S.data)); } catch (e) {} };
+
+  // ---------- números ----------
+  const fmt = (x, dec) => {
+    if (!isFinite(x)) return "—";
+    if (Math.abs(x) < 0.5 * 10 ** -dec) x = 0;
+    return x.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: dec, useGrouping: false }).replace("-", "−");
+  };
+  const tnum = (x, dec) => fmt(x, dec).replace(",", "{,}").replace("−", "-");
+  const num = s => { s = String(s).trim().replace("−", "-").replace(",", "."); return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s) ? parseFloat(s) : NaN; };
+  const tex = (el, src) => { if (window.katex) katex.render(src, el, { throwOnError: false, strict: false }); else el.textContent = src; };
+
+  // ---------- leitura dos dados ----------
+  // uma variável: números separados por espaços, «;» ou mudanças de linha (vírgula decimal);
+  // uma primeira linha com texto dá o nome da variável
+  function readUni(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let name = "", bad = [];
+    if (lines.length && lines[0].split(/[\s;]+/).some(t => isNaN(num(t)))) name = lines.shift();
+    const xs = [];
+    lines.forEach(l => l.split(/[\s;]+/).filter(Boolean).forEach(t => { const v = num(t); if (isNaN(v)) bad.push(t); else xs.push(v); }));
+    return { name, xs, bad };
+  }
+  // duas variáveis: um par por linha (tabulação, «;» ou espaços entre x e y); a primeira linha pode ter os nomes
+  function readBi(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let nx = "", ny = "", bad = [];
+    const split = l => l.includes("\t") ? l.split("\t").map(s => s.trim()).filter(Boolean) : l.split(/\s*;\s*|\s+/).filter(Boolean);
+    if (lines.length) {
+      const t = split(lines[0]);
+      if (t.some(s => isNaN(num(s)))) {
+        lines.shift();
+        if (t.length >= 2) { nx = t[0]; ny = t[1]; }
+      }
+    }
+    const pts = [];
+    lines.forEach((l, i) => {
+      const t = split(l);
+      const x = num(t[0]), y = num(t[1]);
+      if (t.length !== 2 || isNaN(x) || isNaN(y)) bad.push(l); else pts.push([x, y]);
+    });
+    return { nx, ny, pts, bad };
+  }
+
+  // ---------- estatística de uma variável ----------
+  const sum = a => a.reduce((s, v) => s + v, 0);
+  // percentil k, como no programa de Matemática A: com L = nk/100, se L é inteiro, média de x_L e x_(L+1); senão x_(⌊L⌋+1)
+  function percentil(xs, k) {
+    const n = xs.length, L = n * k / 100, r = Math.round(L);
+    if (Math.abs(L - r) < 1e-9) return r === 0 ? xs[0] : r >= n ? xs[n - 1] : (xs[r - 1] + xs[r]) / 2;
+    return xs[Math.floor(L)];
+  }
+  function uniStats(raw) {
+    const xs = [...raw].sort((a, b) => a - b), n = xs.length;
+    const m = sum(xs) / n;
+    const ss = sum(xs.map(v => (v - m) ** 2));
+    const counts = d3.rollups(xs, v => v.length, v => v).sort((a, b) => a[0] - b[0]);
+    const top = d3.max(counts, c => c[1]);
+    const modes = top > 1 ? counts.filter(c => c[1] === top).map(c => c[0]) : [];
+    return {
+      xs, n, m, min: xs[0], max: xs[n - 1], med: percentil(xs, 50), q1: percentil(xs, 25), q3: percentil(xs, 75),
+      s2: n > 1 ? ss / (n - 1) : NaN, s: n > 1 ? Math.sqrt(ss / (n - 1)) : NaN, sigma: Math.sqrt(ss / n), counts, modes,
+    };
+  }
+  // classes [a, a + h[ de igual amplitude (a última fechada); por omissão regra de Sturges
+  const niceUp = x => { const p = 10 ** Math.floor(Math.log10(x)), m = x / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+  function classes(st) {
+    let k = S.kAuto || !S.k ? Math.ceil(1 + Math.log2(st.n)) : S.k;
+    let h = !S.kAuto && S.h ? S.h : null, a = !S.kAuto && S.a0 !== null ? S.a0 : null;
+    const span = st.max - st.min;
+    const ints = st.xs.every(v => Number.isInteger(v));
+    if (h === null) {
+      h = span > 0 ? (ints ? Math.max(1, Math.ceil((span + 1) / k)) : niceUp(span / k)) : 1;
+    }
+    if (a === null) a = ints ? st.min : Math.floor(st.min / h) * h;
+    k = Math.max(1, Math.ceil((st.max - a) / h + (ints ? 1e-9 : 0)));
+    while (a + k * h <= st.max && !(Math.abs(a + k * h - st.max) < 1e-9 && !ints)) k++;
+    const cl = [];
+    for (let i = 0; i < k; i++) {
+      const lo = a + i * h, hi = lo + h, last = i === k - 1;
+      const ni = st.xs.filter(v => v >= lo - 1e-9 && (v < hi - 1e-9 || (last && v <= hi + 1e-9))).length;
+      cl.push({ lo, hi, ni, last });
+    }
+    const out = st.xs.filter(v => v < a - 1e-9 || v > a + k * h + 1e-9).length;
+    return { k, h, a, cl, out };
+  }
+
+  // ---------- regressão ----------
+  function linfit(X, Y) {
+    const n = X.length, mx = sum(X) / n, my = sum(Y) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) { sxy += (X[i] - mx) * (Y[i] - my); sxx += (X[i] - mx) ** 2; syy += (Y[i] - my) ** 2; }
+    const a = sxy / sxx;
+    return { a, b: my - a * mx, r: sxy / Math.sqrt(sxx * syy), mx, my };
+  }
+  function solve3(M, v) {
+    const A = M.map((r, i) => [...r, v[i]]);
+    for (let c = 0; c < 3; c++) {
+      let p = c; for (let r = c + 1; r < 3; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]];
+      if (Math.abs(A[c][c]) < 1e-14) return null;
+      for (let r = 0; r < 3; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k]; }
+    }
+    return [0, 1, 2].map(i => A[i][3] / A[i][i]);
+  }
+  // cada modelo devolve f, a equação em LaTeX e as medidas (r, r² ou R²); as formas são as das calculadoras gráficas
+  function fit(model, pts, dec) {
+    const X = pts.map(p => p[0]), Y = pts.map(p => p[1]);
+    const T = x => tnum(x, dec), sg = x => x < 0 ? "-" : "+";
+    if (model === "lin") {
+      const { a, b, r } = linfit(X, Y);
+      return { f: x => a * x + b, eq: `y = ${T(a)}x ${sg(b)} ${T(Math.abs(b))}`, r, r2: r * r, note: "Reta dos mínimos quadrados; r é o coeficiente de correlação linear." };
+    }
+    if (model === "quad") {
+      const s = k => sum(X.map(x => x ** k)), sy = k => sum(X.map((x, i) => x ** k * Y[i]));
+      const c = solve3([[s(4), s(3), s(2)], [s(3), s(2), s(1)], [s(2), s(1), pts.length]], [sy(2), sy(1), sy(0)]);
+      if (!c) return { err: "São precisos pelo menos três valores diferentes de x." };
+      const [a, b, cc] = c, f = x => a * x * x + b * x + cc;
+      const my = sum(Y) / Y.length, R2 = 1 - sum(pts.map(([x, y]) => (y - f(x)) ** 2)) / sum(Y.map(y => (y - my) ** 2));
+      return { f, eq: `y = ${T(a)}x^2 ${sg(b)} ${T(Math.abs(b))}x ${sg(cc)} ${T(Math.abs(cc))}`, R2, note: "Mínimos quadrados; R² é o coeficiente de determinação." };
+    }
+    if (model === "exp") {
+      if (Y.some(y => y <= 0)) return { err: "O modelo exponencial precisa de todos os valores de y positivos." };
+      const { a: lb, b: la, r } = linfit(X, Y.map(Math.log)), a = Math.exp(la), b = Math.exp(lb);
+      return { f: x => a * b ** x, eq: `y = ${T(a)}\\times ${T(b)}^{x}\\quad (= ${T(a)}\\,e^{${T(lb)}x})`, r, r2: r * r,
+               note: "Ajuste de ln y = ln a + x ln b (como nas calculadoras); r é o de (x, ln y)." };
+    }
+    if (model === "log") {
+      if (X.some(x => x <= 0)) return { err: "O modelo logarítmico precisa de todos os valores de x positivos." };
+      const { a: b, b: a, r } = linfit(X.map(Math.log), Y);
+      return { f: x => a + b * Math.log(x), eq: `y = ${T(a)} ${sg(b)} ${T(Math.abs(b))}\\ln x`, r, r2: r * r, xmin0: true,
+               note: "Ajuste de y = a + b ln x (como nas calculadoras); r é o de (ln x, y)." };
+    }
+    if (model === "sin") {
+      // y = a·sin(bx + c) + d (forma das calculadoras): para cada b, os mínimos quadrados em sin(bx), cos(bx), 1
+      // são lineares; procura-se o b com menor soma dos quadrados dos resíduos (grelha + refinamento)
+      const n = pts.length;
+      if (n < 4) return { err: "O modelo sinusoidal precisa de pelo menos quatro pares." };
+      const xs = [...new Set(X)].sort((u, v) => u - v);
+      if (xs.length < 4) return { err: "O modelo sinusoidal precisa de pelo menos quatro valores diferentes de x." };
+      const span = xs[xs.length - 1] - xs[0], dmin = d3.min(d3.pairs(xs), ([u, v]) => v - u);
+      const bLo = Math.PI / (2 * span), bHi = Math.PI / dmin;   // de um quarto de período no intervalo até ao limite de Nyquist
+      const at = b => {
+        const s = k => sum(X.map(x => [Math.sin(b * x), Math.cos(b * x), 1][k]));
+        const M = [[0, 1, 2].map(j => sum(X.map(x => Math.sin(b * x) * [Math.sin(b * x), Math.cos(b * x), 1][j]))),
+                   [0, 1, 2].map(j => sum(X.map(x => Math.cos(b * x) * [Math.sin(b * x), Math.cos(b * x), 1][j]))),
+                   [0, 1, 2].map(j => s(j))];
+        const v = [sum(X.map((x, i) => Math.sin(b * x) * Y[i])), sum(X.map((x, i) => Math.cos(b * x) * Y[i])), sum(Y)];
+        const c = solve3(M, v);
+        if (!c) return { sse: Infinity };
+        const f = x => c[0] * Math.sin(b * x) + c[1] * Math.cos(b * x) + c[2];
+        return { b, c, sse: sum(pts.map(([x, y]) => (y - f(x)) ** 2)) };
+      };
+      let best = { sse: Infinity };
+      const N = 1500;
+      for (let i = 0; i <= N; i++) { const r = at(bLo * (bHi / bLo) ** (i / N)); if (r.sse < best.sse) best = r; }
+      if (!isFinite(best.sse)) return { err: "Não foi possível ajustar uma sinusoide a estes dados." };
+      // refinamento à volta do melhor b (secção dourada)
+      let lo = best.b * (bHi / bLo) ** (-1 / N), hi = best.b * (bHi / bLo) ** (1 / N);
+      const g = (Math.sqrt(5) - 1) / 2;
+      for (let k = 0; k < 60; k++) {
+        const m1 = hi - g * (hi - lo), m2 = lo + g * (hi - lo);
+        if (at(m1).sse < at(m2).sse) hi = m2; else lo = m1;
+      }
+      const r = at((lo + hi) / 2); if (r.sse < best.sse) best = r;
+      const b = best.b, [A, B, dd] = best.c;
+      const a = Math.hypot(A, B);
+      let c = Math.atan2(B, A);                 // A sin(bx) + B cos(bx) = a sin(bx + c)
+      const f = x => a * Math.sin(b * x + c) + dd;
+      const my = sum(Y) / n, R2 = 1 - best.sse / sum(Y.map(y => (y - my) ** 2));
+      return { f, eq: `y = ${T(a)}\\sin(${T(b)}x ${sg(c)} ${T(Math.abs(c))}) ${sg(dd)} ${T(Math.abs(dd))}\\qquad T = \\tfrac{2\\pi}{b} \\approx ${T(2 * Math.PI / b)}`, R2,
+               note: "Mínimos quadrados para y = a sin(bx + c) + d (a > 0, c em radianos); R² é o coeficiente de determinação." };
+    }
+    if (model === "pow") {
+      if (X.some(x => x <= 0) || Y.some(y => y <= 0)) return { err: "O modelo potência precisa de x e y positivos." };
+      const { a: b, b: la, r } = linfit(X.map(Math.log), Y.map(Math.log)), a = Math.exp(la);
+      return { f: x => a * x ** b, eq: `y = ${T(a)}\\,x^{${T(b)}}`, r, r2: r * r, xmin0: true,
+               note: "Ajuste de ln y = ln a + b ln x (como nas calculadoras); r é o de (ln x, ln y)." };
+    }
+  }
+
+  // ---------- controlos ----------
+  const ta = $("data");
+  function setMode(m) {
+    S.mode = m;
+    $("m-uni").setAttribute("aria-pressed", m === "uni");
+    $("m-bi").setAttribute("aria-pressed", m === "bi");
+    document.querySelectorAll(".uni-only").forEach(e => e.hidden = m !== "uni");
+    document.querySelectorAll(".bi-only").forEach(e => e.hidden = m !== "bi");
+    ta.value = S.data[m];
+    ta.placeholder = m === "uni" ? "Nome da variável (opcional)\n12 14 9 16 11 …" : "Nome de x\tNome de y (opcional)\n1\t8\n2\t9,5\n…";
+    $("data-title").textContent = m === "uni" ? "Dados" : "Dados (um par x, y por linha)";
+    const ex = $("examples"); ex.innerHTML = "";
+    EXAMPLES[m].forEach(([name, txt]) => {
+      const b = document.createElement("button"); b.className = "b small"; b.textContent = name;
+      b.onclick = () => { S.data[m] = ta.value = txt; save(); render(); };
+      ex.appendChild(b);
+    });
+    render();
+  }
+  $("m-uni").onclick = () => setMode("uni");
+  $("m-bi").onclick = () => setMode("bi");
+  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; save(); render(); });
+
+  const segBind = (attr, key) => document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
+    S[key] = b.dataset[attr];
+    document.querySelectorAll(`[data-${attr}]`).forEach(x => x.setAttribute("aria-pressed", x === b));
+    render();
+  });
+  segBind("g", "graph"); segBind("f", "freq"); segBind("r", "model");
+  const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
+  chkBind("sh-box", "box"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg");
+  $("dec").onchange = e => { S.dec = +e.target.value; render(); };
+  $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
+  $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
+  // caixas das classes: escrever num valor desliga o «automático»
+  const numBind = (id, key, ok) => $(id).addEventListener("input", e => {
+    const v = num(e.target.value);
+    if (e.target.value.trim() === "") { S[key] = null; e.target.classList.remove("bad"); }
+    else if (!ok(v)) { e.target.classList.add("bad"); return; }
+    else { S[key] = v; e.target.classList.remove("bad"); }
+    S.kAuto = false; $("k-auto").checked = false;
+    if (key !== "k") S.k = null;
+    render(true);
+  });
+  numBind("k", "k", v => Number.isInteger(v) && v >= 1 && v <= 40);
+  numBind("h", "h", v => v > 0);
+  numBind("a0", "a0", v => isFinite(v));
+  $("xest").addEventListener("input", e => { S.xest = e.target.value; render(); });
+
+  // ---------- gráficos (Observable Plot) ----------
+  const figSize = el => [Math.max(260, el.clientWidth), Math.max(160, el.clientHeight)];
+  function put(el, node) { el.innerHTML = ""; if (node) el.appendChild(node); }
+  const plotStyle = () => ({ background: "transparent", color: css("--ink"), fontFamily: css("--font"), fontSize: "13px", overflow: "visible" });
+  const decTick = d => fmt(d, 6);
+
+  function renderUni(fromInputs) {
+    const { name, xs, bad } = readUni(ta.value);
+    $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : "";
+    const plots = $("plots");
+    plots.className = "plots uni" + (S.tab ? " tab" : "");
+    $("tab-frame").hidden = !S.tab;
+    $("box-frame").hidden = !S.box;
+    $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
+    if (xs.length < 1) { put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
+    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel";
+    const xlabel = name || "x";
+
+    // medidas
+    const modeTxt = st.modes.length === 0 ? "não há" : st.modes.length > 3 ? "várias" : st.modes.map(v => fmt(v, d)).join("; ");
+    const rows = [
+      ["n", st.n], ["\\text{mínimo}", fmt(st.min, d)], ["\\text{máximo}", fmt(st.max, d)],
+      ["\\text{amplitude}", fmt(st.max - st.min, d)], ["\\bar{x}", fmt(st.m, d)], ["\\tilde{x}", fmt(st.med, d)],
+      ["\\text{moda}", modeTxt], ["Q_1", fmt(st.q1, d)], ["Q_3", fmt(st.q3, d)], ["\\text{AIQ}", fmt(st.q3 - st.q1, d)],
+      ["s^2", fmt(st.s2, d)], ["s", fmt(st.s, d)],
+    ];
+    const meas = $("meas"); meas.innerHTML = "";
+    rows.forEach(([k, v]) => {
+      const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span");
+      a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); meas.appendChild(div);
+    });
+
+    const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), c3 = css("--c3"), bar = css("--bar"), grid = css("--grid2");
+    const [W, H] = figSize($("fig-main"));
+    const marks = [];
+    let tableRows = [], maxY = 1;
+    if (S.graph === "hist") {
+      const C = classes(st);
+      if (!fromInputs) {
+        // mostra nas caixas as classes usadas (sem tirar o que se está a escrever)
+        if (document.activeElement !== $("k")) $("k").value = C.k;
+        if (document.activeElement !== $("h")) $("h").value = fmt(C.h, 4);
+        if (document.activeElement !== $("a0")) $("a0").value = fmt(C.a, 4);
+      }
+      const data = C.cl.map(c => ({ ...c, y: rel ? c.ni / st.n : c.ni }));
+      maxY = d3.max(data, c => c.y);
+      marks.push(
+        Plot.rectY(data, { x1: "lo", x2: "hi", y: "y", fill: bar, stroke: c1, strokeWidth: 1.2, insetLeft: 0, insetRight: 0,
+          title: c => `[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}\nnᵢ = ${c.ni}\nfᵢ = ${fmt(c.ni / st.n, 4)}` }),
+        Plot.text(data.filter(c => c.ni > 0), { x: c => (c.lo + c.hi) / 2, y: "y", text: c => rel ? fmt(c.y, 3) : String(c.ni), dy: -8, fill: ink, fontWeight: 700 }),
+        Plot.ruleY([0], { stroke: ink }),
+      );
+      $("main-title").textContent = "Histograma";
+      $("main-hint").textContent = C.out ? `${C.out} valor(es) fora das classes` : `${C.k} classes de amplitude ${fmt(C.h, 4)}`;
+      let Fi = 0;
+      tableRows = C.cl.map(c => { Fi += c.ni; return [`[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`, c.ni, c.ni / st.n, Fi, Fi / st.n]; });
+      var xdom = [C.a, C.a + C.k * C.h], ticks = C.cl.map(c => c.lo).concat([C.a + C.k * C.h]);
+    } else {
+      const data = st.counts.map(([v, ni]) => ({ v, ni, y: rel ? ni / st.n : ni }));
+      maxY = d3.max(data, c => c.y);
+      const gap = d3.min(d3.pairs(data.map(c => c.v)), ([a, b]) => b - a) || 1;
+      marks.push(
+        Plot.ruleX(data, { x: "v", y1: 0, y2: "y", stroke: c1, strokeWidth: Math.max(4, Math.min(22, W / data.length / 3)) }),
+        Plot.text(data, { x: "v", y: "y", text: c => rel ? fmt(c.y, 3) : String(c.ni), dy: -8, fill: ink, fontWeight: 700 }),
+        Plot.ruleY([0], { stroke: ink }),
+      );
+      $("main-title").textContent = "Diagrama de barras";
+      $("main-hint").textContent = `${data.length} valores diferentes`;
+      let Fi = 0;
+      tableRows = data.map(c => { Fi += c.ni; return [fmt(c.v, 4), c.ni, c.ni / st.n, Fi, Fi / st.n]; });
+      var xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = data.length <= 25 ? data.map(c => c.v) : undefined;
+    }
+    if (S.mean) {
+      marks.push(Plot.ruleX([st.m], { stroke: c2, strokeWidth: 2, strokeDasharray: "6 4" }),
+                 Plot.ruleX([st.med], { stroke: c3, strokeWidth: 2 }),
+                 Plot.text([st.m], { x: d => d, frameAnchor: "top", text: () => "média " + fmt(st.m, S.dec), fill: c2, dy: -4, textAnchor: "start", dx: 4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }),
+                 Plot.text([st.med], { x: d => d, frameAnchor: "bottom", text: () => "mediana " + fmt(st.med, S.dec), fill: c3, dy: -8, textAnchor: "start", dx: 4, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
+    }
+    const main = Plot.plot({
+      width: W, height: H, marginLeft: 48, marginBottom: 40, marginTop: 26, style: plotStyle(),
+      x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
+      // frequências absolutas: só marcas inteiras
+      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: true, tickFormat: decTick, labelArrow: "none",
+           ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger) },
+      marks,
+    });
+    put($("fig-main"), main);
+
+    // caixa de bigodes com os quartis acima (a mesma escala horizontal do gráfico principal)
+    if (S.box) {
+      const bw = $("fig-box").clientWidth || W, bh = 96;
+      const q = [st.min, st.q1, st.med, st.q3, st.max];
+      const lbl = [["mín.", st.min], ["Q_1", st.q1], ["Mediana", st.med], ["Q_3", st.q3], ["máx.", st.max]];
+      const box = Plot.plot({
+        width: Math.max(260, bw), height: bh, marginLeft: 48, marginBottom: 30, marginTop: 6, style: plotStyle(),
+        x: { domain: xdom, label: null, ticks, tickFormat: decTick }, y: { axis: null, domain: [-1, 1] },
+        marks: [
+          Plot.ruleY([0], { x1: st.min, x2: st.q1, stroke: ink, strokeWidth: 1.6 }),
+          Plot.ruleY([0], { x1: st.q3, x2: st.max, stroke: ink, strokeWidth: 1.6 }),
+          Plot.rect([0], { x1: st.q1, x2: st.q3, y1: -0.6, y2: 0.6, fill: bar, stroke: c1, strokeWidth: 1.6 }),
+          Plot.ruleX([st.med], { y1: -0.6, y2: 0.6, stroke: c3, strokeWidth: 3 }),
+          Plot.ruleX([st.min, st.max], { y1: -0.3, y2: 0.3, stroke: ink, strokeWidth: 1.6 }),
+          ...(S.mean ? [Plot.dot([st.m], { x: d => d, y: 0, symbol: "times", r: 5, stroke: c2, strokeWidth: 2.5 })] : []),
+          Plot.tip(q.map((v, i) => ({ v, t: ["mínimo", "Q₁", "mediana", "Q₃", "máximo"][i] })), Plot.pointerX({ x: "v", y: 0, title: d => `${d.t} = ${fmt(d.v, S.dec)}` })),
+        ],
+      });
+      put($("fig-box"), box);
+    }
+
+    // tabela de frequências
+    if (S.tab) {
+      const f4 = v => fmt(v, 4);
+      $("tab").innerHTML = `<table class="freq"><thead><tr><th>${S.graph === "hist" ? "Classe" : "Valor"}</th><th>nᵢ</th><th>fᵢ</th><th>Nᵢ</th><th>Fᵢ</th></tr></thead><tbody>` +
+        tableRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${f4(r[2])}</td><td>${r[3]}</td><td>${f4(r[4])}</td></tr>`).join("") +
+        `</tbody><tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot></table>`;
+    }
+  }
+
+  function renderBi() {
+    const { nx, ny, pts, bad } = readBi(ta.value);
+    $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : "";
+    $("plots").className = "plots bi";
+    $("tab-frame").hidden = true; $("box-frame").hidden = true;
+    $("main-title").textContent = "Diagrama de dispersão";
+    $("main-hint").textContent = "passa o ponteiro sobre um ponto para ver as coordenadas";
+    $("xname-est").textContent = (nx || "x") + " =";
+    const xl = nx || "x", yl = ny || "y", d = S.dec2;
+    const eq = $("eq"), rm = $("rmeas");
+    if (pts.length < 2) { put($("fig-main"), null); eq.textContent = "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
+    const F = fit(S.model, pts, d);
+    const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
+    rm.innerHTML = "";
+    const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
+    add("n", pts.length); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
+    if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
+    else {
+      tex(eq, F.eq);
+      if (F.r !== undefined) { add("r", fmt(F.r, d)); add("r^2", fmt(F.r2, d)); }
+      if (F.R2 !== undefined) add("R^2", fmt(F.R2, d));
+      $("rnote").textContent = F.note;
+    }
+    // estimativa
+    const xe = num(S.xest);
+    if (!F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe))) {
+      $("xest").classList.remove("bad");
+      tex($("yest"), `\\hat{y} = ${tnum(F.f(xe), d)}`);
+    } else { $("yest").textContent = ""; $("xest").classList.toggle("bad", S.xest.trim() !== "" && !isFinite(xe)); }
+
+    const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint");
+    const [W, H] = figSize($("fig-main"));
+    let x0 = d3.min(X), x1 = d3.max(X);
+    const pad = (x1 - x0 || 1) * 0.08;
+    let a = x0 - pad, b = x1 + pad;
+    if (!F.err && F.xmin0 && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
+    if (isFinite(xe) && S.xest.trim() !== "" && !F.err) { a = Math.min(a, xe - pad); b = Math.max(b, xe + pad); }
+    // eixos só se o 0 estiver à vista (o referencial ajusta-se aos dados, como nas calculadoras)
+    const marks = [];
+    if (a <= 0 && b >= 0) marks.push(Plot.ruleX([0], { stroke: faint }));
+    if (!F.err && S.curve) {
+      const N = 300, cv = d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, y: F.f(x) }; }).filter(p => isFinite(p.y));
+      marks.push(Plot.line(cv, { x: "x", y: "y", stroke: c2, strokeWidth: 2.5 }));
+      if (S.res) marks.push(Plot.link(pts, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => F.f(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
+    }
+    marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: c1, stroke: css("--bg"), strokeWidth: 1.5 }));
+    if (S.cg) marks.push(Plot.dot([[mx, my]], { x: p => p[0], y: p => p[1], r: 7, symbol: "times", stroke: hot, strokeWidth: 3 }),
+                         Plot.text([[mx, my]], { x: p => p[0], y: p => p[1], text: () => `(x̄, ȳ) = (${fmt(mx, d)}; ${fmt(my, d)})`, dx: 10, dy: -10, textAnchor: "start", fill: hot, fontWeight: 700 }));
+    if (!F.err && isFinite(xe) && S.xest.trim() !== "" && isFinite(F.f(xe))) {
+      marks.push(Plot.dot([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], r: 6, fill: hot }),
+                 Plot.text([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: hot, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
+    }
+    marks.push(Plot.tip(pts, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` })));
+    put($("fig-main"), Plot.plot({
+      width: W, height: H, marginLeft: 56, marginBottom: 42, marginTop: 22, style: plotStyle(),
+      x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
+      y: { label: yl, grid: true, nice: true, zero: false, tickFormat: decTick, labelArrow: "none" },
+      marks: d3.min(Y) <= 0 && d3.max(Y) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
+    }));
+  }
+
+  let pend = 0, fromInp = false;
+  function render(fromInputs = false) {
+    fromInp = fromInp || fromInputs;
+    if (pend) return;
+    pend = requestAnimationFrame(() => {
+      pend = 0;
+      const f = fromInp; fromInp = false;
+      if (!window.Plot || !window.d3) { $("msg").textContent = "Não foi possível carregar o Observable Plot (é preciso ligação à internet)."; return; }
+      if (S.mode === "uni") renderUni(f); else renderBi();
+    });
+  }
+  new ResizeObserver(() => render()).observe($("plots"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render());
+  if (document.fonts) document.fonts.ready.then(() => render());
+
+  // endereço: #bi abre as duas variáveis
+  setMode(location.hash.includes("bi") ? "bi" : "uni");
+})();
+</script>
+</body>
+</html>
