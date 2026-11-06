@@ -86,6 +86,13 @@
   .side { display: none; }
   .plots.uni.tab .side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
   .side .frame { flex: none; }
+  .plots.bi.tab { grid-template-columns: 1fr minmax(15rem, 22rem); }
+  .plots.bi.tab .side { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0; }
+  .plots.bi.tab #dat-frame { flex: 1; min-height: 0; overflow: auto; }
+  /* tabela dos dados (duas variáveis): tudo centrado */
+  #dat table.freq th, #dat table.freq td { text-align: center; }
+  table.freq tr.hot td { background: color-mix(in srgb, var(--hot) 22%, transparent); }
+  table.freq tbody tr { cursor: default; }
   /* caule e folhas: só texto, discreto */
   #stem { font-family: var(--mono); font-size: 0.92rem; line-height: 1.5; overflow-x: auto; }
   #stem .r { display: flex; white-space: nowrap; }
@@ -111,7 +118,8 @@
   table.freq th:first-child, table.freq td:first-child { text-align: left; white-space: nowrap; }
   table.freq tfoot td { font-weight: 700; border-top: 1.5px solid var(--line); }
   @media (max-width: 760px) {
-    .plots.uni.tab { grid-template-columns: 1fr; }
+    .plots.uni.tab, .plots.bi.tab { grid-template-columns: 1fr; }
+    .plots.bi.tab .side { grid-column: 1; grid-row: auto; max-height: 20rem; }
     .plots.uni.tab .side { grid-column: 1; grid-row: auto; }
   }
   [hidden] { display: none !important; }
@@ -192,6 +200,7 @@
       <label class="chk"><input type="checkbox" id="sh-curve" checked> Curva de regressão</label>
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
+      <label class="chk"><input type="checkbox" id="sh-dat"> Tabela dos dados</label>
     </div>
     <div class="row">
       <span class="lbl">Estimar para</span><span id="xname-est"></span>
@@ -220,6 +229,7 @@
     <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
       <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
       <div id="stem"></div></div>
+    <div class="frame table" id="dat-frame" hidden><h3><b>Dados</b><span>passa o ponteiro sobre um ponto ou uma linha</span></h3><div id="dat"></div></div>
   </div>
 </div>
 
@@ -245,7 +255,7 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: true, mean: false, tab: false, stem: false, out: false, split: false, dec: 2,
-    model: "lin", curve: true, res: false, cg: false, dec2: 3, xest: "",
+    model: "lin", curve: true, res: false, cg: false, dat: true, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
   const EXAMPLES = {
@@ -485,7 +495,7 @@
   segBind("g", "graph"); segBind("f", "freq"); segBind("r", "model");
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
-  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -572,7 +582,7 @@
     const plots = $("plots");
     plots.className = "plots uni" + (S.tab || S.stem ? " tab" : "");
     $("tab-frame").hidden = !S.tab;
-    $("stem-frame").hidden = !S.stem;
+    $("stem-frame").hidden = !S.stem; $("dat-frame").hidden = true;
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
     $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
@@ -727,10 +737,10 @@
   function renderBi() {
     const { nx, ny, pts, bad } = readBi(ta.value);
     $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : "";
-    $("plots").className = "plots bi";
-    $("tab-frame").hidden = true; $("box-frame").hidden = true;
+    $("plots").className = "plots bi" + (S.dat ? " tab" : "");
+    $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
     $("main-title").textContent = "Diagrama de dispersão";
-    $("main-hint").textContent = "passa o ponteiro sobre um ponto para ver as coordenadas";
+    $("main-hint").textContent = S.dat ? "" : "passa o ponteiro sobre um ponto para ver as coordenadas";
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
@@ -778,12 +788,33 @@
     }
     marks.push(Plot.tip(pts, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` })));
     LAST = { mode: "bi", xl, yl, pts, F, model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
-    put($("fig-main"), Plot.plot({
+    const chart = Plot.plot({
       width: W, height: H, marginLeft: 56, marginBottom: 42, marginTop: 22, style: plotStyle(),
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
       y: { label: yl, grid: true, nice: true, zero: false, tickFormat: decTick, labelArrow: "none" },
       marks: d3.min(Y) <= 0 && d3.max(Y) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
-    }));
+    });
+    put($("fig-main"), chart);
+
+    // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
+    if (S.dat) {
+      const okF = !F.err;
+      $("dat").innerHTML = `<table class="freq"><thead><tr><th>i</th><th>${esc(xl)}</th><th>${esc(yl)}</th>${okF ? "<th>ŷ</th><th>resíduo</th>" : ""}</tr></thead><tbody>` +
+        pts.map(([x, y], i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>";
+      const rowsEl = [...$("dat").querySelectorAll("tbody tr")];
+      const sx = chart.scale("x"), sy = chart.scale("y"), NS = "http://www.w3.org/2000/svg";
+      const ring = document.createElementNS(NS, "circle");
+      ring.setAttribute("r", 10); ring.setAttribute("fill", "none"); ring.setAttribute("stroke", hot); ring.setAttribute("stroke-width", 3); ring.style.display = "none"; ring.style.pointerEvents = "none";
+      chart.appendChild(ring);
+      const mark = (i, from) => {
+        rowsEl.forEach((r, k) => r.classList.toggle("hot", k === i));
+        if (i === null || i < 0) { ring.style.display = "none"; return; }
+        if (from === "chart") rowsEl[i].scrollIntoView({ block: "nearest" });
+        ring.setAttribute("cx", sx.apply(pts[i][0])); ring.setAttribute("cy", sy.apply(pts[i][1])); ring.style.display = "";
+      };
+      chart.addEventListener("input", () => mark(chart.value ? pts.indexOf(chart.value) : null, "chart"));
+      rowsEl.forEach((r, i) => { r.onmouseenter = () => mark(i, "table"); r.onmouseleave = () => mark(null); });
+    }
   }
 
   let pend = 0, fromInp = false;
