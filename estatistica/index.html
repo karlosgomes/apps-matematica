@@ -90,7 +90,7 @@
   .geq { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1rem; overflow: hidden; }
   .geq .sw, .gname .sw { flex: none; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 2.5px solid; display: inline-block; }
   .geq .t { flex: 1; min-width: 0; overflow: hidden; } .geq .t .katex-html { white-space: nowrap; }
-  .geq .m { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+  .geq .m { flex: none; font-size: 0.85rem; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .geq .e { font-size: 0.82rem; color: var(--faint); font-style: italic; }
   .gname { font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; }
   #yest .gname { margin-right: 0.7rem; font-weight: 400; }
@@ -1159,10 +1159,7 @@
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
     rm.innerHTML = "";
     const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
-    add("n", pts.length + (out.length ? ` (${out.length} excl.)` : "")); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
-    // desvios padrão (amostra, n − 1)
-    const sdv = V => { const m = sum(V) / V.length; return V.length > 1 ? Math.sqrt(sum(V.map(v => (v - m) ** 2)) / (V.length - 1)) : NaN; };
-    add("s_x", fmt(sdv(X), d)); add("s_y", fmt(sdv(Y), d));
+    // (as medidas do ajuste — r, r² ou R² — vão primeiro, logo por baixo da equação; depois n, médias e desvios padrão)
     eq.style.fontSize = "";
     if (byG) {
       // uma equação por grupo, cada uma na sua linha (a letra encolhe para caber)
@@ -1178,6 +1175,10 @@
       eq.querySelectorAll(".t").forEach(fitEq);
       const okG = GR.find(g => !g.F.err);
       $("rnote").textContent = okG ? `Um ajuste para cada grupo de «${gname}» (cor da legenda). ${okG.F.note}` : "";
+      // r (ou R²) de cada grupo também na lista das medidas
+      const tname = n => `\\text{${String(n).replace(/[\\{}$^_&#%~]/g, "")}}`;
+      GR.forEach(g => { if (g.F.err) return;
+        if (g.F.r !== undefined) add(`r_{${tname(g.name)}}`, fmt(g.F.r, d)); else if (g.F.R2 !== undefined) add(`R^2_{${tname(g.name)}}`, fmt(g.F.R2, d)); });
     } else {
       eq.classList.toggle("none", !!F.none);
       if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
@@ -1188,6 +1189,10 @@
         $("rnote").textContent = F.note;
       }
     }
+    add("n", pts.length + (out.length ? ` (${out.length} excl.)` : "")); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
+    // desvios padrão (amostra, n − 1)
+    const sdv = V => { const m = sum(V) / V.length; return V.length > 1 ? Math.sqrt(sum(V.map(v => (v - m) ** 2)) / (V.length - 1)) : NaN; };
+    add("s_x", fmt(sdv(X), d)); add("s_y", fmt(sdv(Y), d));
     // estimativa (com um modelo por grupo, uma para cada grupo)
     const xe = num(S.xest), hasX = S.xest.trim() !== "" && isFinite(xe);
     const ests = !hasX ? [] : byG ? GR.filter(g => !g.F.err && isFinite(g.F.f(xe))).map(g => ({ y: g.F.f(xe), c: g.c, name: g.name }))
