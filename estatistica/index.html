@@ -293,7 +293,7 @@
     <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
       <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
       <div id="stem"></div></div>
-    <div class="frame table" id="dat-frame" hidden><h3><b>Dados</b><span class="hr"><span id="dat-hint"></span>
+    <div class="frame table" id="dat-frame" hidden><h3><b title="Arrasta o rato sobre as linhas ou sobre o gráfico para selecionar pares (Ctrl junta, Shift estende, Esc limpa); botão direito para excluir do ajuste. Clica no cabeçalho de uma coluna para a escolher como x, y, variável ou grupos.">Dados</b><span class="hr"><span id="dat-hint"></span>
       <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button></span></h3><div id="dat"></div></div>
   </div>
 </div>
@@ -774,7 +774,7 @@
     const cv = colOf(T, S.col.v), gc = RU.groups ? groupCol(T) : null, roles = { [cv.name]: "variável" };
     if (gc) roles[gc.name] = "grupos";
     const gi = gc ? new Map(RU.groups.map((g, i) => [g.name, css(`--g${i % MAXG}`)])) : null;
-    $("dat-hint").textContent = "clica no cabeçalho de uma coluna para a escolher";
+    $("dat-hint").textContent = "";
     $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, "<th>i</th>")}<tbody>` +
       d3.range(Math.min(T.n, MAXR)).map(r => {
         const miss = cv.vals[r] === null || isNaN(cv.vals[r]) || (gc && MISSING.test(gc.raw[r]));
@@ -1454,7 +1454,7 @@
       const mark = (i, from) => {
         rowsEl.forEach((r, k) => r.classList.toggle("hot", k === i));
         if (i === null || i < 0) { ring.style.display = "none"; return; }
-        if (from === "chart" && rowsEl[i]) rowsEl[i].scrollIntoView({ block: "nearest" });
+        // (passar o ponteiro sobre um ponto realça a linha, mas não faz scroll à tabela — pedido do utilizador)
         ring.setAttribute("cx", sx.apply(all[i][0])); ring.setAttribute("cy", sy.apply(all[i][1])); ring.style.display = "";
       };
       chart.addEventListener("input", () => mark(chart.value ? all.indexOf(chart.value) : null, "chart"));
@@ -1477,7 +1477,7 @@
           c.setAttribute("fill", "none"); c.setAttribute("stroke", hot); c.setAttribute("stroke-width", 2.5);
           selG.appendChild(c);
         }
-        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "arrasta o rato sobre as linhas ou o gráfico para selecionar" + (T ? " · clica num cabeçalho para escolher a coluna" : "");
+        $("dat-hint").textContent = SEL.size ? `${SEL.size} ${SEL.size === 1 ? "selecionado" : "selecionados"} · Esc limpa` : "";   // (sem dica por omissão: a explicação está no título do quadro, ao passar o ponteiro)
         const nEx = [...SEL].filter(i => EXCL.has(i)).length;
         $("sel-ex").hidden = !SEL.size || nEx === SEL.size; $("sel-in").hidden = !nEx;
       };
@@ -1545,7 +1545,7 @@
             showSel();
           }
           const first = d3.min([...SEL]);
-          if (first !== undefined && rowsEl[first]) rowsEl[first].scrollIntoView({ block: "nearest" });
+          if (moved && first !== undefined && rowsEl[first]) rowsEl[first].scrollIntoView({ block: "nearest" });   // (só depois de um retângulo)
         };
         window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
       }, true);
