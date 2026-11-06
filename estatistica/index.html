@@ -94,6 +94,11 @@
   .geq .e { font-size: 0.82rem; color: var(--faint); font-style: italic; }
   .gname { font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; }
   #yest .gname { margin-right: 0.7rem; font-weight: 400; }
+  /* cartões que se fecham (Medidas, Resultados): fica só o título */
+  .card.folded > :not(h2) { display: none !important; }
+  .card.folded h2 .lbl, .card.folded h2 select { display: none; }
+  button.b.close { width: 1.7rem; padding: 0 0 0.1rem; font-size: 1.05rem; line-height: 1.15; margin-left: 0.2rem; }
+  button.b.fold { width: 1.9rem; padding: 0.05rem 0; font-size: 0.95rem; line-height: 1.2; }
   .note { font-size: 0.75rem; color: var(--faint); font-style: italic; }
 
   /* gráficos */
@@ -242,7 +247,7 @@
   </div>
   <div class="card uni-only" style="--bar-c: var(--c3)">
     <h2>Medidas <span class="row"><span class="lbl">casas decimais</span>
-      <select class="inp" id="dec" aria-label="Casas decimais"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></span></h2>
+      <select class="inp" id="dec" aria-label="Casas decimais"><option>1</option><option selected>2</option><option>3</option><option>4</option></select><button class="b small fold" data-fold="meas" type="button" aria-expanded="true" title="Fechar (minimizar)">▾</button></span></h2>
     <div class="meas" id="meas"></div>
     <div class="note">Quartis: Q₁ = P₂₅ e Q₃ = P₇₅, com a definição de percentil do programa de Matemática A; s com n − 1.</div>
   </div>
@@ -273,7 +278,7 @@
   </div>
   <div class="card bi-only" style="--bar-c: var(--c3)" hidden>
     <h2>Resultados <span class="row"><span class="lbl">casas decimais</span>
-      <select class="inp" id="dec2" aria-label="Casas decimais"><option>2</option><option selected>3</option><option>4</option></select></span></h2>
+      <select class="inp" id="dec2" aria-label="Casas decimais"><option>2</option><option selected>3</option><option>4</option></select><button class="b small fold" data-fold="res" type="button" aria-expanded="true" title="Fechar (minimizar)">▾</button></span></h2>
     <div class="eq" id="eq"></div>
     <div class="meas" id="rmeas"></div>
     <div class="note" id="rnote"></div>
@@ -294,7 +299,7 @@
       <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
       <div id="stem"></div></div>
     <div class="frame table" id="dat-frame" hidden><h3><b title="Arrasta o rato sobre as linhas ou sobre o gráfico para selecionar pares (Ctrl junta, Shift estende, Esc limpa); botão direito para excluir do ajuste. Clica no cabeçalho de uma coluna para a escolher como x, y, variável ou grupos.">Dados</b><span class="hr"><span id="dat-hint"></span>
-      <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button></span></h3><div id="dat"></div></div>
+      <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button><button class="b small close" id="dat-close" type="button" title="Fechar a tabela dos dados" aria-label="Fechar a tabela dos dados">×</button></span></h3><div id="dat"></div></div>
   </div>
 </div>
 
@@ -682,6 +687,24 @@
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
+  // abrir / fechar os cartões das medidas e dos resultados (estado guardado no navegador)
+  const FOLDKEY = "apps-mat-estatistica-fechados";
+  let folded = {};
+  try { folded = JSON.parse(localStorage.getItem(FOLDKEY)) || {}; } catch (e) {}
+  document.querySelectorAll("button.fold").forEach(b => {
+    const card = b.closest(".card"), set = on => {
+      card.classList.toggle("folded", on);
+      b.textContent = on ? "▸" : "▾"; b.setAttribute("aria-expanded", !on);
+      b.title = on ? "Abrir (maximizar)" : "Fechar (minimizar)";
+    };
+    set(!!folded[b.dataset.fold]);
+    b.onclick = () => {
+      folded[b.dataset.fold] = !card.classList.contains("folded");
+      set(folded[b.dataset.fold]);
+      try { localStorage.setItem(FOLDKEY, JSON.stringify(folded)); } catch (e) {}
+      render();   // (a equação ajusta a letra à largura quando volta a aparecer)
+    };
+  });
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -804,6 +827,8 @@
   $("grip").addEventListener("dblclick", () => { $("plots").style.removeProperty("--side-w"); try { localStorage.removeItem(SIDEKEY); } catch (e) {} render(); });
   document.addEventListener("pointerdown", e => { if (!ctx.hidden && !ctx.contains(e.target)) ctx.hidden = true; }, true);
   addEventListener("scroll", () => ctx.hidden = true, true);
+  // × no título da tabela dos dados: fecha-a (o mesmo que tirar a marca da caixa no cartão Dados)
+  $("dat-close").onclick = () => { S.dat = false; $("sh-dat").checked = false; render(); };
   $("sel-ex").onclick = exclSel; $("sel-in").onclick = inclSel;
   // ---------- gráficos (Observable Plot) ----------
   let FIXED = null;   // [largura, altura] dos gráficos quando se desenham para o relatório
