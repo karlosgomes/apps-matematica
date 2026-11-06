@@ -206,6 +206,7 @@
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
       <label class="chk"><input type="checkbox" id="sh-dat"> Tabela dos dados</label>
+      <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
     </div>
     <div class="row">
       <span class="lbl">Estimar para</span><span id="xname-est"></span>
@@ -260,7 +261,7 @@
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
     box: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
-    model: null, curve: true, res: false, cg: false, dat: false, dec2: 3, xest: "",
+    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
   const EXAMPLES = {
@@ -506,7 +507,7 @@
   });
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
-  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
   $("k-auto").onchange = e => { S.kAuto = e.target.checked; render(); };
@@ -586,6 +587,14 @@
     let m = 1;
     while (m < vs.length && Math.ceil(vs.length / m) * labW(vs) > W - 60) m++;
     return vs.filter((v, i) => i % m === 0 || i === vs.length - 1 && (vs.length - 1) % m === 0);
+  }
+
+  // densidade por núcleo gaussiano, com a largura de banda de Silverman
+  function kdeOf(vs) {
+    const v = [...vs].sort((a, b) => a - b), n = v.length, m = sum(v) / n;
+    const s = Math.sqrt(sum(v.map(x => (x - m) ** 2)) / (n - 1)), aiq = percentil(v, 75) - percentil(v, 25);
+    const h = 0.9 * Math.min(s, aiq / 1.34 || s) * n ** -0.2;
+    return h > 0 ? x => sum(v.map(t => Math.exp(-0.5 * ((x - t) / h) ** 2))) / (n * h * Math.sqrt(2 * Math.PI)) : null;
   }
 
   function renderUni(fromInputs) {
@@ -811,7 +820,7 @@
     if (a <= 0 && b >= 0) marks.push(Plot.ruleX([0], { stroke: faint }));
     if (!F.err && S.curve) {
       const N = 300, cv = d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, y: F.f(x) }; }).filter(p => isFinite(p.y));
-      marks.push(Plot.line(cv, { x: "x", y: "y", stroke: c2, strokeWidth: 2.5 }));
+      marks.push(Plot.line(cv, { x: "x", y: "y", stroke: c2, strokeWidth: 2.5, clip: true }));
       if (S.res) marks.push(Plot.link(pts, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => F.f(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
     }
     marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: c1, stroke: css("--bg"), strokeWidth: 1.5 }));
@@ -826,10 +835,33 @@
     }
     marks.push(Plot.tip(all, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
     LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
+    // escala vertical explícita (para as curvas de densidade poderem ocupar uma faixa junto de cada eixo)
+    const yAll = all.map(p => p[1]).concat(LAST && LAST.xe !== null && LAST.F === F ? [F.f(LAST.xe)] : []), ypad = (d3.max(yAll) - d3.min(yAll) || 1) * 0.08;
+    let ydom = d3.nice(d3.min(yAll) - ypad, d3.max(yAll) + ypad, 10);
+    // curvas de densidade nas margens, fora do referencial: a de x numa faixa por cima, a de y numa faixa à direita
+    const BAND = S.mdens ? 64 : 0, mTop = 22 + BAND, mRight = 20 + BAND, mLeft = 56, mBottom = 42;
+    if (S.mdens && pts.length > 2) {
+      const kx = kdeOf(X), ky = kdeOf(Y), pi = css("--pi"), N = 200;
+      const dyU = (ydom[1] - ydom[0]) / (H - mTop - mBottom), dxU = (b - a) / (W - mLeft - mRight);
+      if (kx) {
+        const cv = d3.range(N + 1).map(i => { const x = a + (b - a) * i / N; return { x, d: kx(x) }; }), top = d3.max(cv, c => c.d);
+        const base = ydom[1] + 8 * dyU, hgt = (BAND - 14) * dyU;
+        cv.forEach(c => c.y = base + c.d / top * hgt);
+        marks.unshift(Plot.areaY(cv, { x: "x", y1: base, y2: "y", fill: pi, fillOpacity: 0.1, curve: "natural" }),
+                      Plot.line(cv, { x: "x", y: "y", stroke: pi, strokeWidth: 2, curve: "natural" }));
+      }
+      if (ky) {
+        const cv = d3.range(N + 1).map(i => { const y = ydom[0] + (ydom[1] - ydom[0]) * i / N; return { y, d: ky(y) }; }), top = d3.max(cv, c => c.d);
+        const base = b + 8 * dxU, wid = (BAND - 14) * dxU;
+        cv.forEach(c => c.x = base + c.d / top * wid);
+        marks.unshift(Plot.areaX(cv, { y: "y", x1: base, x2: "x", fill: pi, fillOpacity: 0.1, curve: "natural" }),
+                      Plot.line(cv, { x: "x", y: "y", stroke: pi, strokeWidth: 2, curve: "natural" }));
+      }
+    }
     const chart = Plot.plot({
-      width: W, height: H, marginLeft: 56, marginBottom: 42, marginTop: 22, style: plotStyle(),
+      width: W, height: H, marginLeft: mLeft, marginBottom: mBottom, marginTop: mTop, marginRight: mRight, style: plotStyle(),
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
-      y: { label: yl, grid: true, nice: true, zero: false, tickFormat: decTick, labelArrow: "none" },
+      y: { label: yl, grid: true, domain: ydom, tickFormat: decTick, labelArrow: "none" },
       marks: d3.min(all, p => p[1]) <= 0 && d3.max(all, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
     put($("fig-main"), chart);
@@ -971,7 +1003,7 @@
       ]);
       body += KD(`r = \\frac{\\sum (x_i - \\bar{x})(y_i - \\bar{y})}{\\sqrt{\\sum (x_i - \\bar{x})^2 \\sum (y_i - \\bar{y})^2}} = ${tnum(r, d)}`);
       const NAMES = { lin: "Linear", quad: "Quadrático", exp: "Exponencial", log: "Logarítmico", pow: "Potência", sin: "Sinusoidal" };
-      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${!R.F.err && S.curve ? `, com a curva do modelo ${NAMES[R.model].toLowerCase()}` : ""}.`);
+      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${!R.F.err && S.curve ? `, com a curva do modelo ${NAMES[R.model].toLowerCase()}` : ""}${S.mdens ? "; nas margens, a roxo, as curvas de densidade de cada variável" : ""}.`);
       body += H2("Modelos de regressão");
       const rows = Object.keys(NAMES).map(m => {
         const G = fit(m, P, d);
