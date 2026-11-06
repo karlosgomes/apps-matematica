@@ -1539,24 +1539,37 @@
   }
 
   // animação no tempo: um instante de cada vez; ▶ avança de instante em instante
-  let PLAY = null, NT = 0, PREVT = null, PREVALL = null;
-  function stopPlay() { if (PLAY) { clearInterval(PLAY); PLAY = null; } const b = $("t-play"); if (b) { b.textContent = "▶"; b.title = "Reproduzir (barra de espaço)"; } }
+  // transição suave: entre dois instantes, cada caso (p. ex. cada país) desliza da posição de um para a do seguinte
+  // (TWU ∈ [0, 1[ é a fração do caminho; DUR, a duração de cada passo em ms)
+  let PLAY = null, NT = 0, PREVT = null, PREVALL = null, TWU = 0;
+  const DUR = 1000;
+  function stopPlay() { if (PLAY) { cancelAnimationFrame(PLAY); PLAY = null; } TWU = 0; const b = $("t-play"); if (b) { b.textContent = "▶"; b.title = "Reproduzir (barra de espaço)"; } }
   function togglePlay() {
-    if (PLAY) { stopPlay(); return; }
+    if (PLAY) {
+      // pausa: fica no instante mais próximo
+      const next = TWU >= 0.5 && S.ti < NT - 1;
+      stopPlay(); if (next) S.ti++; render(); return;
+    }
     if (S.ti >= NT - 1) S.ti = 0;
     $("t-play").textContent = "⏸"; $("t-play").title = "Pausar (barra de espaço)";
-    render();
-    PLAY = setInterval(() => { if (S.mode !== "bi" || $("tbar").hidden || S.ti >= NT - 1) { stopPlay(); return; } S.ti++; render(); }, 800);
+    let t0 = performance.now();
+    const step = now => {
+      if (S.mode !== "bi" || $("tbar").hidden) { stopPlay(); return; }
+      let u = (now - t0) / DUR;
+      if (u >= 1) { S.ti++; t0 = now; u = 0; if (S.ti >= NT - 1) { stopPlay(); render(); return; } }
+      TWU = u; render(); PLAY = requestAnimationFrame(step);
+    };
+    TWU = 0; render(); PLAY = requestAnimationFrame(step);
   }
   function renderBi() {
     const { nx, ny, pts: ALL, bad, note, groups, gname, times, tname, idname, sname } = readBi(ta.value);
     // com a coluna do tempo, «all» são só os pares do instante mostrado (os índices da seleção e das exclusões referem-se a eles);
     // ao mudar de instante, a seleção e as exclusões passam para os mesmos casos (p. ex. os mesmos países) do novo instante
     const TM = !!times;
-    let all = ALL, curT = null;
+    let all = ALL, curT = null, tShow = null, TW = false;
     $("tbar").hidden = !TM;
     if (TM) {
-      NT = times.length; S.ti = Math.max(0, Math.min(NT - 1, S.ti)); curT = times[S.ti];
+      NT = times.length; S.ti = Math.max(0, Math.min(NT - 1, S.ti)); curT = tShow = times[S.ti];
       all = ALL.filter(p => p.t === curT);
       if (PREVALL && PREVT !== curT) {
         if (idname) {
@@ -1566,9 +1579,26 @@
         } else { SEL.clear(); EXCL.clear(); }
       }
       PREVALL = all; PREVT = curT;
+      // a meio de uma transição: posição (e tamanho) de cada caso entre este instante e o seguinte; em x, com «log», entre potências
+      const nextT = S.ti < NT - 1 ? times[S.ti + 1] : null;
+      TW = !!(PLAY && TWU > 0 && nextT !== null && idname);
+      if (TW) {
+        const nx = new Map(ALL.filter(p => p.t === nextT).map(p => [p.id, p])), u = TWU, L = (v0, v1) => v0 + (v1 - v0) * u;
+        all = all.map(p => {
+          const q = nx.get(p.id);
+          if (!q) return p;
+          const n = p.slice();
+          n[0] = S.logx && p[0] > 0 && q[0] > 0 ? p[0] * (q[0] / p[0]) ** u : L(p[0], q[0]); n[1] = L(p[1], q[1]);
+          n.r = p.r; n.t = p.t; n.id = p.id; if (p.s !== undefined) n.s = q.s !== null && p.s !== null ? L(p.s, q.s) : p.s;
+          return n;
+        });
+        // (o instante que se mostra avança com a transição; com instantes inteiros, de unidade em unidade)
+        tShow = curT + (nextT - curT) * u;
+        if (times.every(Number.isInteger)) tShow = Math.floor(tShow + 1e-9);
+      }
       const rng = $("t-rng");
       rng.max = NT - 1; rng.value = S.ti;
-      $("t-val").textContent = `${tname} = ${fmt(curT, 6)}`;
+      $("t-val").textContent = `${tname} = ${fmt(tShow, 6)}`;
     } else { PREVALL = null; PREVT = null; stopPlay(); }
     // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
     for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
@@ -1601,6 +1631,8 @@
     // a função do modelo que se aplica a um par (a do seu grupo, ou a de todos)
     const fOf = p => byG ? (GRm.get(p[2]).F.err ? null : GRm.get(p[2]).F.f) : (F.err ? null : F.f);
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
+    // (durante a transição entre dois instantes, os Resultados ficam os do instante de partida)
+    if (!TW) {
     rm.innerHTML = "";
     const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
     // (as medidas do ajuste — r, r² ou R² — vão primeiro, logo por baixo da equação; depois n, médias e desvios padrão)
@@ -1637,15 +1669,17 @@
     // desvios padrão (amostra, n − 1)
     const sdv = V => { const m = sum(V) / V.length; return V.length > 1 ? Math.sqrt(sum(V.map(v => (v - m) ** 2)) / (V.length - 1)) : NaN; };
     add("s_x", fmt(sdv(X), d)); add("s_y", fmt(sdv(Y), d));
+    }
     // estimativa (com um modelo por grupo, uma para cada grupo)
     const xe = num(S.xest), hasX = S.xest.trim() !== "" && isFinite(xe);
     const ests = !hasX ? [] : byG ? GR.filter(g => !g.F.err && isFinite(g.F.f(xe))).map(g => ({ y: g.F.f(xe), c: g.c, name: g.name }))
                                   : (!F.err && isFinite(F.f(xe)) ? [{ y: F.f(xe), c: null }] : []);
     $("xest").classList.toggle("bad", S.xest.trim() !== "" && !isFinite(xe));
-    if (!ests.length) $("yest").textContent = "";
+    if (TW) ;
+    else if (!ests.length) $("yest").textContent = "";
     else if (!byG) tex($("yest"), `\\hat{y} = ${tnum(ests[0].y, d)}`);
     else $("yest").innerHTML = ests.map(e => `<span class="gname" title="${esc(e.name)}">${swatch(e.c)}<span class="k"></span></span>`).join("");
-    if (byG && ests.length) $("yest").querySelectorAll(".gname .k").forEach((el, i) => tex(el, `\\hat{y} = ${tnum(ests[i].y, d)}`));
+    if (!TW && byG && ests.length) $("yest").querySelectorAll(".gname .k").forEach((el, i) => tex(el, `\\hat{y} = ${tnum(ests[i].y, d)}`));
 
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint"), bg = css("--bg");
     // gráfico de resíduos (opção «Resíduos», com um modelo): o quadro aparece antes de medir o gráfico principal
@@ -1706,7 +1740,7 @@
     marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p.id !== undefined ? `${p.id}\n` : "") + (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` +
       (SZ && p.s !== null && p.s !== undefined ? `\n${sname}: ${big(p.s)}` : "") + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
     // o instante, em grande, no fundo do gráfico
-    if (TM) marks.unshift(Plot.text([curT], { frameAnchor: "bottom-right", text: v => fmt(v, 6), dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W / 6)), fontWeight: 700, fill: faint, fillOpacity: 0.28 }));
+    if (TM) marks.unshift(Plot.text([tShow], { frameAnchor: "bottom-right", text: v => fmt(v, 6), dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W / 6)), fontWeight: 700, fill: faint, fillOpacity: 0.28 }));
     LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my,
              xe: !byG && ests.length ? xe : null, groups: GR, gname, byG, xeG: byG && ests.length ? xe : null,
              tl: TM ? `${tname} = ${fmt(curT, 6)}` : null };
@@ -1780,7 +1814,7 @@
     // tabela dos dados (se estiver aberta) e seleção com o rato: a seleção, o retângulo e o botão direito funcionam também sem a tabela
     {
       if (!S.dat) $("dat").innerHTML = "";
-      else {
+      else if (!TW) {   // (durante a transição, a tabela fica a do instante de partida: as linhas têm os mesmos índices)
       // só os dados (sem ŷ nem resíduos, a pedido do utilizador)
       // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
       const T = parseTable(ta.value), MAXR = 500;
@@ -1838,6 +1872,7 @@
         if (TM && idname) for (const i of SEL) {
           const q = all[i], col = GALL ? GALL[gIdx.get(q[2])].c : c1;
           const path = ALL.filter(p => p.id === q.id && p.t <= curT).sort((u, v) => u.t - v.t);
+          if (TW) path.push(q);   // (a meio da transição, o rasto vai até à posição de agora)
           if (path.length > 1) {
             const pl = document.createElementNS(NS, "polyline");
             pl.setAttribute("points", path.map(p => `${sx.apply(p[0])},${sy.apply(p[1])}`).join(" "));
