@@ -83,7 +83,15 @@
   .plots.uni { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   .plots.uni.tab { grid-template-columns: 1fr minmax(15rem, 22rem); }
   .plots.uni.tab .box { grid-column: 1; }
-  .plots.uni.tab .table { grid-column: 2; grid-row: 1 / span 2; }
+  .side { display: none; }
+  .plots.uni.tab .side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: auto; }
+  .side .frame { flex: none; }
+  /* caule e folhas: só texto, discreto */
+  #stem { font-family: var(--mono); font-size: 0.92rem; line-height: 1.5; overflow-x: auto; }
+  #stem .r { display: flex; white-space: nowrap; }
+  #stem .s { min-width: 2.6ch; text-align: right; font-weight: 600; padding-right: 0.5ch; border-right: 1.5px solid var(--ink); margin-right: 0.6ch; }
+  #stem .l { color: var(--c1); letter-spacing: 0.08ch; }
+  #stem .k { font-family: var(--font); font-style: italic; font-size: 0.78rem; color: var(--faint); margin-top: 0.35rem; white-space: normal; }
   .frame { border: 1.2px solid var(--line); border-radius: 9px; padding: 0.4rem 0.6rem; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .frame h3 { margin: 0 0 0.2rem; font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
   .frame h3 span { font-weight: 400; color: var(--faint); font-style: italic; font-size: 0.78rem; }
@@ -104,7 +112,7 @@
   table.freq tfoot td { font-weight: 700; border-top: 1.5px solid var(--line); }
   @media (max-width: 760px) {
     .plots.uni.tab { grid-template-columns: 1fr; }
-    .plots.uni.tab .table { grid-column: 1; grid-row: auto; }
+    .plots.uni.tab .side { grid-column: 1; grid-row: auto; }
   }
   [hidden] { display: none !important; }
 </style>
@@ -137,7 +145,6 @@
         <button class="b small" data-g="hist" aria-pressed="true">Histograma</button>
         <button class="b small" data-g="bars" aria-pressed="false">Diagrama de barras</button>
         <button class="b small" data-g="dots" aria-pressed="false">Diagrama de pontos</button>
-        <button class="b small" data-g="stem" aria-pressed="false">Caule e folhas</button>
       </div>
     </div>
     <div class="row" id="hist-opts">
@@ -148,9 +155,6 @@
       <input class="inp" id="h" type="text" inputmode="decimal" aria-label="Amplitude das classes" style="width:4.2rem">
       <span class="lbl">início</span>
       <input class="inp" id="a0" type="text" inputmode="decimal" aria-label="Início da primeira classe" style="width:4.2rem">
-    </div>
-    <div class="row" id="stem-opts">
-      <label class="chk" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos (folhas 0–4 e 5–9)</label>
     </div>
     <div class="row" id="freq-row">
       <span class="lbl">Frequência</span>
@@ -163,6 +167,7 @@
       <label class="chk"><input type="checkbox" id="sh-box" checked> Diagrama de extremos e quartis</label>
       <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
       <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
+      <label class="chk"><input type="checkbox" id="sh-stem"> Caule e folhas</label>
     </div>
   </div>
   <div class="card uni-only" style="--bar-c: var(--c3)">
@@ -210,7 +215,12 @@
     <span id="out-hint"></span>
     <label class="chk out" title="Outliers: valores abaixo de Q₁ − 1,5 × AIQ ou acima de Q₃ + 1,5 × AIQ"><input type="checkbox" id="sh-out"> Outliers</label>
     <button class="b small exp" data-fig="fig-box" data-t="png" title="Descarregar a imagem (PNG)">⤓ PNG</button><button class="b small exp" data-fig="fig-box" data-t="svg" title="Descarregar a imagem vetorial (SVG)">⤓ SVG</button></span></h3><div class="fig" id="fig-box"></div></div>
-  <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
+  <div class="side" id="side">
+    <div class="frame table" id="tab-frame" hidden><h3><b>Tabela de frequências</b></h3><div id="tab"></div></div>
+    <div class="frame stem" id="stem-frame" hidden><h3><b>Caule e folhas</b><span class="hr">
+      <label class="chk out" title="Cada caule em duas linhas: folhas de 0 a 4 e de 5 a 9"><input type="checkbox" id="stem-split"> Caules divididos</label></span></h3>
+      <div id="stem"></div></div>
+  </div>
 </div>
 
 <script>
@@ -234,7 +244,7 @@
   const KEY = "apps-mat-estatistica";
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
-    box: true, mean: false, tab: false, out: false, split: false, dec: 2,
+    box: true, mean: false, tab: false, stem: false, out: false, split: false, dec: 2,
     model: "lin", curve: true, res: false, cg: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
@@ -474,7 +484,7 @@
   });
   segBind("g", "graph"); segBind("f", "freq"); segBind("r", "model");
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
-  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
+  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
@@ -502,9 +512,9 @@
   const plotStyle = () => ({ background: "transparent", color: css("--ink"), fontFamily: css("--font"), fontSize: "13px", overflow: "visible" });
   const decTick = d => fmt(d, 6);
 
-  // ---------- diagrama de caule e folhas (desenhado como SVG, para se poder exportar e entrar no relatório) ----------
+  // ---------- diagrama de caule e folhas (texto, num cartão à direita do gráfico) ----------
   // unidade das folhas u = 10^p: a menor que dá no máximo 15 caules (os algarismos abaixo de u são truncados)
-  function stemLeaf(st, W, H) {
+  function stemLeaf(st) {
     const xs = st.xs;
     const decs = Math.min(4, d3.max(xs, v => { const t = String(v).split(".")[1]; return t ? t.length : 0; }));
     let p = -decs;
@@ -512,64 +522,62 @@
     while (p < 8 && stemOf(st.max, 10 ** p) - stemOf(st.min, 10 ** p) + 1 > 15) p++;
     const u = 10 ** p;
     const leafOf = v => Math.floor(Math.abs(v) / u + 1e-9) % 10;
-    // chave de cada linha: caule (com o sinal, para distinguir −0 de 0) e, com caules divididos, a metade
-    const rows = new Map();
-    const keyOf = v => { const sgn = v < 0 ? -1 : 1, s0 = Math.abs(stemOf(v, u)), half = S.split ? (leafOf(v) >= 5 ? 1 : 0) : 0; return [sgn, s0, half]; };
+    // cada linha: caule (com o sinal, para distinguir −0 de 0) e, com caules divididos, a metade
+    const keyOf = v => [v < 0 ? -1 : 1, Math.abs(stemOf(v, u)), S.split ? (leafOf(v) >= 5 ? 1 : 0) : 0];
     const kStr = ([sg, s0, h]) => `${sg}|${s0}|${h}`;
-    const lo = keyOf(st.min), hi = keyOf(st.max);
-    // todas as linhas entre a primeira e a última (também as vazias), de cima (menores) para baixo
-    const seq = [];
     // ordem numérica das linhas (nos caules negativos, a metade das folhas 5–9 é a de valores menores)
     const val = ([sg, s0, h]) => sg > 0 ? s0 * 10 + (h ? 5 : 0) : -(s0 * 10 + (h ? 9.5 : 4.5)) - 0.1;
-    const all = [];
-    for (let sg of [-1, 1]) for (let s0 = 0; s0 <= Math.max(lo[1], hi[1]) + 1; s0++) for (let h = 0; h < (S.split ? 2 : 1); h++) all.push([sg, s0, h]);
+    const lo = keyOf(st.min), hi = keyOf(st.max), all = [];
+    for (const sg of [-1, 1]) for (let s0 = 0; s0 <= Math.max(lo[1], hi[1]) + 1; s0++) for (let h = 0; h < (S.split ? 2 : 1); h++) all.push([sg, s0, h]);
     all.sort((a, b) => val(a) - val(b));
     const iLo = all.findIndex(k => kStr(k) === kStr(lo)), iHi = all.findIndex(k => kStr(k) === kStr(hi));
-    for (let i = iLo; i <= iHi; i++) { seq.push(all[i]); rows.set(kStr(all[i]), []); }
+    const rows = new Map(), seq = all.slice(iLo, iHi + 1);   // também as linhas vazias
+    seq.forEach(k => rows.set(kStr(k), []));
     xs.forEach(v => rows.get(kStr(keyOf(v))).push(leafOf(v)));
-    for (const [k, a] of rows) if (k.startsWith("-1")) a.sort((x, y) => y - x); else a.sort((x, y) => x - y);
+    for (const [k, a] of rows) a.sort((x, y) => k.startsWith("-1") ? y - x : x - y);
     const stemTxt = ([sg, s0]) => (sg < 0 ? "−" : "") + String(s0);
-    // tamanho da letra: que caibam as linhas na altura e a linha mais comprida na largura
-    const maxLeaves = d3.max([...rows.values()], a => a.length) || 1, stemW = d3.max(seq, k => stemTxt(k).length);
-    const n = seq.length + 2;
-    const fsz = Math.max(9, Math.min(26, (H - 20) / (n * 1.45), (W - 40) / ((stemW + 3 + maxLeaves * 1.6) * 0.62)));
-    const lh = fsz * 1.45, cw = fsz * 0.62;
-    const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-    svg.setAttribute("style", `color:${css("--ink")}`);
-    const ink = css("--ink"), c1 = css("--c1");
-    const x0 = 20 + stemW * cw, top = 14 + fsz;
-    const t = (x, y, str, anchor, fill, weight = 400) => { const e = document.createElementNS(NS, "text"); e.setAttribute("x", x); e.setAttribute("y", y); e.setAttribute("text-anchor", anchor); e.setAttribute("fill", fill); e.setAttribute("font-size", fsz); e.setAttribute("font-weight", weight); e.setAttribute("font-family", "IBM Plex Mono, ui-monospace, monospace"); e.textContent = str; svg.appendChild(e); return e; };
-    seq.forEach((k, i) => {
-      const y = top + i * lh;
-      t(x0, y, stemTxt(k), "end", ink, 700);
-      t(x0 + cw * 1.6, y, rows.get(kStr(k)).join(" "), "start", c1);
-    });
-    const ln = document.createElementNS(NS, "line");
-    ln.setAttribute("x1", x0 + cw * 0.8); ln.setAttribute("x2", x0 + cw * 0.8); ln.setAttribute("y1", top - fsz); ln.setAttribute("y2", top + (seq.length - 1) * lh + fsz * 0.35);
-    ln.setAttribute("stroke", ink); ln.setAttribute("stroke-width", 1.5); svg.appendChild(ln);
-    // chave, com o maior valor da amostra
-    const v0 = xs[xs.length - 1], kk = keyOf(v0), shown = (Math.abs(stemOf(v0, u)) * 10 + leafOf(v0)) * u * (v0 < 0 ? -1 : 1);
-    const keyTxt = `Chave: ${stemTxt(kk)} | ${leafOf(v0)} representa ${fmt(shown, Math.max(0, -p))}`;
-    const kt = t(20, top + (seq.length + 0.6) * lh, keyTxt, "start", css("--faint"));
-    kt.setAttribute("font-family", css("--font")); kt.setAttribute("font-style", "italic"); kt.setAttribute("font-size", Math.min(fsz * 0.8, 15));
-    stemInfo = `${seq.length} ${S.split ? "linhas (caules divididos)" : "caules"} · ${keyTxt.replace("Chave: ", "chave ")}${xs.some(v => Math.abs(v / u - Math.round(v / u)) > 1e-9) ? " (algarismos seguintes truncados)" : ""}`;
-    return svg;
+    const v0 = xs[xs.length - 1], kk = keyOf(v0);   // a chave usa o maior valor
+    const shown = (Math.abs(stemOf(v0, u)) * 10 + leafOf(v0)) * u * (v0 < 0 ? -1 : 1);
+    return {
+      lines: seq.map(k => [stemTxt(k), rows.get(kStr(k)).join(" ")]),
+      key: `${stemTxt(kk)} | ${leafOf(v0)} representa ${fmt(shown, Math.max(0, -p))}`,
+      trunc: xs.some(v => Math.abs(v / u - Math.round(v / u)) > 1e-9),
+    };
   }
-  let stemInfo = "";
+  const stemHTML = SL => SL.lines.map(([a, b]) => `<div class="r"><span class="s">${a}</span><span class="l">${b}</span></div>`).join("") +
+    `<div class="k">Chave: ${SL.key}${SL.trunc ? " (os algarismos seguintes foram truncados)" : ""}</div>`;
+
+  // cabem as etiquetas destes valores no eixo? (largura estimada de cada etiqueta)
+  const labW = vs => d3.max(vs, v => fmt(v, 4).length) * 7.5 + 16;
+  const fits = (vs, W) => vs.length * labW(vs) <= W - 60;
+  // marcas «redondas» (d3.ticks), as mais que couberem
+  function niceTicks(dom, vs, W) {
+    const w = labW(vs);
+    for (let n = Math.max(2, Math.floor((W - 60) / w)); n >= 2; n--) {
+      const t = d3.ticks(dom[0], dom[1], n);
+      if (t.length * w <= W - 60) return t;
+    }
+    return d3.ticks(dom[0], dom[1], 2);
+  }
+  // só uma em cada m marcas, para caberem (mantém o início e o fim)
+  function thin(vs, W) {
+    let m = 1;
+    while (m < vs.length && Math.ceil(vs.length / m) * labW(vs) > W - 60) m++;
+    return vs.filter((v, i) => i % m === 0 || i === vs.length - 1 && (vs.length - 1) % m === 0);
+  }
 
   function renderUni(fromInputs) {
     const { name, xs, bad } = readUni(ta.value);
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : "";
     const plots = $("plots");
-    plots.className = "plots uni" + (S.tab ? " tab" : "");
+    plots.className = "plots uni" + (S.tab || S.stem ? " tab" : "");
     $("tab-frame").hidden = !S.tab;
+    $("stem-frame").hidden = !S.stem;
     $("box-frame").hidden = !S.box;
     $("hist-opts").style.display = S.graph === "hist" ? "" : "none";
-    $("freq-row").style.display = S.graph === "dots" || S.graph === "stem" ? "none" : "";   // (nestes, cada ponto/folha é uma observação)
-    $("stem-opts").style.display = S.graph === "stem" ? "" : "none";
+    $("freq-row").style.display = S.graph === "dots" ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
     if (xs.length < 1) { LAST = null; put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
-    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots" && S.graph !== "stem";
+    const st = uniStats(xs), d = S.dec, rel = S.freq === "rel" && S.graph !== "dots";
     const xlabel = name || "x";
 
     // medidas
@@ -610,7 +618,8 @@
       $("main-hint").textContent = C.out ? `${C.out} valor(es) fora das classes` : `${C.k} classes de amplitude ${fmt(C.h, 4)}`;
       let Fi = 0;
       tableRows = C.cl.map(c => { Fi += c.ni; return [`[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`, c.ni, c.ni / st.n, Fi, Fi / st.n]; });
-      var xdom = [C.a, C.a + C.k * C.h], ticks = C.cl.map(c => c.lo).concat([C.a + C.k * C.h]);
+      // marcas nos limites das classes; se não couberem todas, só uma em cada m
+      var xdom = [C.a, C.a + C.k * C.h], ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), W);
     } else {
       const data = st.counts.map(([v, ni]) => ({ v, ni, y: rel ? ni / st.n : ni }));
       maxY = d3.max(data, c => c.y);
@@ -624,7 +633,8 @@
       $("main-hint").textContent = `${data.length} valores diferentes`;
       let Fi = 0;
       tableRows = data.map(c => { Fi += c.ni; return [fmt(c.v, 4), c.ni, c.ni / st.n, Fi, Fi / st.n]; });
-      var xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = data.length <= 25 ? data.map(c => c.v) : undefined;
+      // marcas em todos os valores, se couberem; senão a escala escolhe marcas «redondas» (5, 10, 20, …)
+      var xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = fits(data.map(c => c.v), W) ? data.map(c => c.v) : niceTicks(xdom, data.map(c => c.v), W);
       if (S.graph === "dots") {
         // diagrama de pontos: um ponto por observação, empilhados por cima do seu valor
         marks.length = 0;
@@ -635,7 +645,8 @@
         dotTop = maxY + 0.5;
         const dots = data.flatMap(c => d3.range(1, c.ni + 1).map(k => ({ v: c.v, k })));
         marks.push(
-          Plot.dot(dots, { x: "v", y: "k", r, fill: c1, stroke: css("--bg"), strokeWidth: r > 4 ? 1.2 : 0.6 }),
+          // pontos vazios: só o contorno (a cheio de cor de fundo, para a grelha não passar por dentro)
+          Plot.dot(dots, { x: "v", y: "k", r, fill: css("--bg"), stroke: c1, strokeWidth: Math.max(1.6, Math.min(3, r * 0.28)) }),
           Plot.ruleY([0], { stroke: ink }),
         );
         $("main-title").textContent = "Diagrama de pontos";
@@ -662,11 +673,7 @@
            ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => S.graph !== "dots" || t <= maxY) },
       marks,
     });
-    if (S.graph === "stem") {
-      put($("fig-main"), stemLeaf(st, W, H));
-      $("main-title").textContent = "Diagrama de caule e folhas";
-      $("main-hint").textContent = stemInfo;
-    } else put($("fig-main"), main);
+    put($("fig-main"), main);
 
     // diagrama de extremos e quartis com os quartis acima (a mesma escala horizontal do gráfico principal)
     if (S.box) {
@@ -705,7 +712,9 @@
     }
 
     // tabela de frequências
-    LAST = { mode: "uni", name: xlabel, st, tableRows, graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
+    const SL = stemLeaf(st);
+    if (S.stem) $("stem").innerHTML = stemHTML(SL);
+    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
              fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) };
     if (S.tab) {
       const f4 = v => fmt(v, 4);
@@ -872,6 +881,7 @@
         R.tableRows.map(r => [r[0], r[1], f4(r[2]), r[3], f4(r[4])]),
         `<tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot>`);
       body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}.`);
+      if (S.stem) body += `<figure class="stem">${R.SL.lines.map(([a, b]) => `<div class="r"><span class="s">${a}</span><span class="l">${b}</span></div>`).join("")}<figcaption><b>Figura ${++fig}:</b> Diagrama de caule e folhas de <i>${esc(R.name)}</i>. Chave: ${R.SL.key}${R.SL.trunc ? " (algarismos seguintes truncados)" : ""}.</figcaption></figure>`;
       body += H2("Diagrama de extremos e quartis e outliers");
       const aiq = st.q3 - st.q1;
       body += KD(`Q_1 - 1{,}5\\times\\text{AIQ} = ${tnum(R.fLo, d)} \\qquad Q_3 + 1{,}5\\times\\text{AIQ} = ${tnum(R.fHi, d)}`);
@@ -933,6 +943,9 @@
   figure { margin: 0.45cm 0; break-inside: avoid; text-align: center; }
   figure svg { max-width: 100%; }
   figcaption { font-size: 10pt; margin-top: 0.15cm; }
+  figure.stem { text-align: left; display: table; margin-left: auto; margin-right: auto; font-size: 11pt; }
+  figure.stem .r { display: flex; } figure.stem .s { min-width: 2.4em; text-align: right; padding-right: 0.4em; border-right: 0.8px solid #000; margin-right: 0.5em; }
+  figure.stem .l { letter-spacing: 0.15em; } figure.stem figcaption { text-align: center; }
   .katex { font-size: 1.05em; } .katex-display { margin: 0.3cm 0; }
   @media print { .bar { display: none; } body { margin: 0; max-width: none; } }
 </style></head><body>
