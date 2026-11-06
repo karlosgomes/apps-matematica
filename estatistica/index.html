@@ -75,7 +75,8 @@
   .meas .k { color: var(--muted); }
   .meas .v { font-variant-numeric: tabular-nums; }
   .eq { font-size: 1.15rem; padding: 0.15rem 0; overflow: hidden; }
-  .eq .katex-html { white-space: nowrap; }   /* a equação numa só linha; o fitEq encolhe a letra até caber */
+  .eq .katex-html { white-space: nowrap; }
+  .eq.none { font-size: 0.88rem; color: var(--faint); font-style: italic; }   /* a equação numa só linha; o fitEq encolhe a letra até caber */
   .note { font-size: 0.75rem; color: var(--faint); font-style: italic; }
 
   /* gráficos */
@@ -91,6 +92,9 @@
   .plots.bi.tab #dat-frame { flex: 1; min-height: 0; overflow: auto; }
   /* tabela dos dados (duas variáveis): tudo centrado */
   #dat table.freq th, #dat table.freq td { text-align: center; }
+  table.freq tr.excl td { color: var(--faint); text-decoration: line-through; }
+  table.freq tr.excl td:first-child { text-decoration: none; }
+  #dat input.exc { accent-color: var(--c2); width: 0.95rem; height: 0.95rem; margin: 0; cursor: pointer; vertical-align: middle; }
   table.freq tr.hot td { background: color-mix(in srgb, var(--hot) 22%, transparent); }
   table.freq tbody tr { cursor: default; }
   /* caule e folhas: só texto, discreto */
@@ -172,10 +176,11 @@
       </div>
     </div>
     <div class="row">
-      <label class="chk"><input type="checkbox" id="sh-box" checked> Diagrama de extremos e quartis</label>
+      <label class="chk"><input type="checkbox" id="sh-box"> Diagrama de extremos e quartis</label>
       <label class="chk"><input type="checkbox" id="sh-mean"> Média e mediana</label>
       <label class="chk"><input type="checkbox" id="sh-tab"> Tabela de frequências</label>
       <label class="chk"><input type="checkbox" id="sh-stem"> Caule e folhas</label>
+      <label class="chk" title="Estimativa da densidade por núcleo gaussiano, sobreposta ao gráfico, na escala das frequências"><input type="checkbox" id="sh-dens"> Curva de densidade</label>
     </div>
   </div>
   <div class="card uni-only" style="--bar-c: var(--c3)">
@@ -189,7 +194,7 @@
   <div class="card bi-only" style="--bar-c: var(--hot)" hidden>
     <h2>Modelo de regressão</h2>
     <div class="seg" role="group" aria-label="Modelo">
-      <button class="b small" data-r="lin" aria-pressed="true">Linear</button>
+      <button class="b small" data-r="lin" aria-pressed="false">Linear</button>
       <button class="b small" data-r="quad" aria-pressed="false">Quadrático</button>
       <button class="b small" data-r="exp" aria-pressed="false">Exponencial</button>
       <button class="b small" data-r="log" aria-pressed="false">Logarítmico</button>
@@ -254,8 +259,8 @@
   const KEY = "apps-mat-estatistica";
   const S = {
     mode: "uni", graph: "hist", freq: "abs", kAuto: true, k: null, h: null, a0: null,
-    box: true, mean: false, tab: false, stem: false, out: false, split: false, dec: 2,
-    model: "lin", curve: true, res: false, cg: false, dat: true, dec2: 3, xest: "",
+    box: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
+    model: null, curve: true, res: false, cg: false, dat: false, dec2: 3, xest: "",
     data: { uni: null, bi: null },
   };
   const EXAMPLES = {
@@ -478,23 +483,29 @@
     const ex = $("examples"); ex.innerHTML = "";
     EXAMPLES[m].forEach(([name, txt]) => {
       const b = document.createElement("button"); b.className = "b small"; b.textContent = name;
-      b.onclick = () => { S.data[m] = ta.value = txt; save(); render(); };
+      b.onclick = () => { S.data[m] = ta.value = txt; EXCL.clear(); save(); render(); };
       ex.appendChild(b);
     });
     render();
   }
   $("m-uni").onclick = () => setMode("uni");
   $("m-bi").onclick = () => setMode("bi");
-  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; save(); render(); });
+  ta.addEventListener("input", () => { S.data[S.mode] = ta.value; EXCL.clear(); save(); render(); });
 
   const segBind = (attr, key) => document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
     S[key] = b.dataset[attr];
     document.querySelectorAll(`[data-${attr}]`).forEach(x => x.setAttribute("aria-pressed", x === b));
     render();
   });
-  segBind("g", "graph"); segBind("f", "freq"); segBind("r", "model");
+  segBind("g", "graph"); segBind("f", "freq");
+  // modelo de regressão: nenhum ao início; tocar no escolhido volta a nenhum
+  document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
+    S.model = S.model === b.dataset.r ? null : b.dataset.r;
+    document.querySelectorAll("[data-r]").forEach(x => x.setAttribute("aria-pressed", x.dataset.r === S.model));
+    render();
+  });
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
-  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
+  chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
   chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat");
   $("dec").onchange = e => { S.dec = +e.target.value; render(); };
   $("dec2").onchange = e => { S.dec2 = +e.target.value; render(); };
@@ -515,6 +526,7 @@
   $("xest").addEventListener("input", e => { S.xest = e.target.value; render(); });
 
   let LAST = null;   // resultados do último cálculo, usados pelo relatório
+  const EXCL = new Set();   // pares excluídos do ajuste (duas variáveis)
   // ---------- gráficos (Observable Plot) ----------
   let FIXED = null;   // [largura, altura] dos gráficos quando se desenham para o relatório
   const figSize = el => FIXED || [Math.max(260, el.clientWidth), Math.max(160, el.clientHeight)];
@@ -629,7 +641,7 @@
       let Fi = 0;
       tableRows = C.cl.map(c => { Fi += c.ni; return [`[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`, c.ni, c.ni / st.n, Fi, Fi / st.n]; });
       // marcas nos limites das classes; se não couberem todas, só uma em cada m
-      var xdom = [C.a, C.a + C.k * C.h], ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), W);
+      var binW = C.h, xdom = [C.a, C.a + C.k * C.h], ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), W);
     } else {
       const data = st.counts.map(([v, ni]) => ({ v, ni, y: rel ? ni / st.n : ni }));
       maxY = d3.max(data, c => c.y);
@@ -644,7 +656,7 @@
       let Fi = 0;
       tableRows = data.map(c => { Fi += c.ni; return [fmt(c.v, 4), c.ni, c.ni / st.n, Fi, Fi / st.n]; });
       // marcas em todos os valores, se couberem; senão a escala escolhe marcas «redondas» (5, 10, 20, …)
-      var xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = fits(data.map(c => c.v), W) ? data.map(c => c.v) : niceTicks(xdom, data.map(c => c.v), W);
+      var binW = gap, xdom = [st.min - gap * 0.6, st.max + gap * 0.6], ticks = fits(data.map(c => c.v), W) ? data.map(c => c.v) : niceTicks(xdom, data.map(c => c.v), W);
       if (S.graph === "dots") {
         // diagrama de pontos: um ponto por observação, empilhados por cima do seu valor
         marks.length = 0;
@@ -667,6 +679,21 @@
     if (S.box && S.out) {
       const padF = (Math.max(xdom[1], fHi) - Math.min(xdom[0], fLo)) * 0.03;
       xdom = [Math.min(xdom[0], fLo - padF), Math.max(xdom[1], fHi + padF)];
+    }
+    // curva de densidade: estimativa por núcleo gaussiano (largura de banda de Silverman), posta na escala das frequências
+    // (× n × amplitude das classes, ou × amplitude se forem relativas; nos diagramas de barras e de pontos, × n × espaço entre valores)
+    if (S.dens && st.n > 1 && st.s > 0) {
+      const sp = Math.min(st.s, (st.q3 - st.q1) / 1.34 || st.s), bw0 = 0.9 * sp * st.n ** -0.2;
+      const kde = x => sum(st.xs.map(v => Math.exp(-0.5 * ((x - v) / bw0) ** 2))) / (st.n * bw0 * Math.sqrt(2 * Math.PI));
+      const k = (rel ? 1 : st.n) * binW, N = 240;
+      const curve = d3.range(N + 1).map(i => { const x = xdom[0] + (xdom[1] - xdom[0]) * i / N; return { x, y: kde(x) * k }; });
+      // área por baixo da curva, ligeiramente colorida, e a curva por cima
+      // como no exemplo «overlapping density» do Observable Plot: área com opacidade 0,1 e a curva por cima
+      marks.push(Plot.areaY(curve, { x: "x", y: "y", fill: css("--pi"), fillOpacity: 0.1, curve: "natural" }),
+                 Plot.line(curve, { x: "x", y: "y", stroke: css("--pi"), strokeWidth: 2.2, curve: "natural" }));
+      const top = d3.max(curve, c => c.y);
+      maxY = Math.max(maxY, top);
+      if (S.graph === "dots") dotTop = Math.max(dotTop, top * 1.05);
     }
     if (S.mean) {
       marks.push(Plot.ruleX([st.m], { stroke: c2, strokeWidth: 2, strokeDasharray: "6 4" }),
@@ -735,7 +762,10 @@
   }
 
   function renderBi() {
-    const { nx, ny, pts, bad } = readBi(ta.value);
+    const { nx, ny, pts: all, bad } = readBi(ta.value);
+    // pares excluídos pelas caixas da tabela dos dados (índices em «all»); o ajuste e as medidas usam só os outros
+    for (const i of [...EXCL]) if (i >= all.length) EXCL.delete(i);
+    const pts = all.filter((p, i) => !EXCL.has(i)), out = all.filter((p, i) => EXCL.has(i));
     $("msg").textContent = bad.length ? `Linhas ignoradas (precisam de dois números): ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? "…" : ""}` : "";
     $("plots").className = "plots bi" + (S.dat ? " tab" : "");
     $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
@@ -744,12 +774,16 @@
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
     const eq = $("eq"), rm = $("rmeas");
-    if (pts.length < 2) { LAST = null; put($("fig-main"), null); eq.textContent = "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
-    const F = fit(S.model, pts, d);
+    if (pts.length < 2) { LAST = null; put($("fig-main"), null); if (S.dat) $("dat").innerHTML = ""; eq.textContent = all.length >= 2 ? "São precisos pelo menos dois pares incluídos." : "São precisos pelo menos dois pares."; rm.innerHTML = ""; $("rnote").textContent = ""; $("yest").textContent = ""; return; }
+    const F = S.model ? fit(S.model, pts, d) : { err: "Escolhe um modelo de regressão.", none: true };
     const X = pts.map(p => p[0]), Y = pts.map(p => p[1]), mx = sum(X) / X.length, my = sum(Y) / Y.length;
     rm.innerHTML = "";
     const add = (k, v) => { const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span"); a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); rm.appendChild(div); };
-    add("n", pts.length); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
+    add("n", pts.length + (out.length ? ` (${out.length} excl.)` : "")); add("\\bar{x}", fmt(mx, d)); add("\\bar{y}", fmt(my, d));
+    // desvios padrão (amostra, n − 1)
+    const sdv = V => { const m = sum(V) / V.length; return V.length > 1 ? Math.sqrt(sum(V.map(v => (v - m) ** 2)) / (V.length - 1)) : NaN; };
+    add("s_x", fmt(sdv(X), d)); add("s_y", fmt(sdv(Y), d));
+    eq.classList.toggle("none", !!F.none); eq.style.fontSize = "";
     if (F.err) { eq.textContent = F.err; $("rnote").textContent = ""; }
     else {
       tex(eq, F.eq); fitEq(eq);
@@ -766,7 +800,8 @@
 
     const ink = css("--ink"), c1 = css("--c1"), c2 = css("--c2"), hot = css("--hot"), faint = css("--faint");
     const [W, H] = figSize($("fig-main"));
-    let x0 = d3.min(X), x1 = d3.max(X);
+    // (a escala inclui os pares excluídos, que continuam no gráfico, esbatidos)
+    let x0 = d3.min(all, p => p[0]), x1 = d3.max(all, p => p[0]);
     const pad = (x1 - x0 || 1) * 0.08;
     let a = x0 - pad, b = x1 + pad;
     if (!F.err && F.xmin0 && a <= 0) a = Math.min(x0, 1e-3) * 0.5;
@@ -780,27 +815,32 @@
       if (S.res) marks.push(Plot.link(pts, { x1: p => p[0], x2: p => p[0], y1: p => p[1], y2: p => F.f(p[0]), stroke: hot, strokeWidth: 1.5, strokeDasharray: "4 3" }));
     }
     marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: c1, stroke: css("--bg"), strokeWidth: 1.5 }));
+    // excluídos: vazios e esbatidos, com uma cruz
+    if (out.length) marks.push(Plot.dot(out, { x: p => p[0], y: p => p[1], r: 5, fill: css("--bg"), stroke: faint, strokeWidth: 1.5 }),
+                               Plot.dot(out, { x: p => p[0], y: p => p[1], r: 3.5, symbol: "times", stroke: faint, strokeWidth: 1.4 }));
     if (S.cg) marks.push(Plot.dot([[mx, my]], { x: p => p[0], y: p => p[1], r: 7, symbol: "times", stroke: hot, strokeWidth: 3 }),
                          Plot.text([[mx, my]], { x: p => p[0], y: p => p[1], text: () => `(x̄, ȳ) = (${fmt(mx, d)}; ${fmt(my, d)})`, dx: 10, dy: -10, textAnchor: "start", fill: hot, fontWeight: 700 }));
     if (!F.err && isFinite(xe) && S.xest.trim() !== "" && isFinite(F.f(xe))) {
       marks.push(Plot.dot([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], r: 6, fill: hot }),
                  Plot.text([[xe, F.f(xe)]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: hot, fontWeight: 700, stroke: css("--bg"), strokeWidth: 4, paintOrder: "stroke" }));
     }
-    marks.push(Plot.tip(pts, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` })));
-    LAST = { mode: "bi", xl, yl, pts, F, model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
+    marks.push(Plot.tip(all, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
+    LAST = { mode: "bi", xl, yl, pts, F, excluded: all.map((p, i) => [i + 1, ...p]).filter((q, i) => EXCL.has(i)), model: S.model, mx, my, xe: !F.err && S.xest.trim() !== "" && isFinite(xe) && isFinite(F.f(xe)) ? xe : null };
     const chart = Plot.plot({
       width: W, height: H, marginLeft: 56, marginBottom: 42, marginTop: 22, style: plotStyle(),
       x: { domain: [a, b], label: xl, labelAnchor: "right", grid: true, tickFormat: decTick, labelArrow: "none" },
       y: { label: yl, grid: true, nice: true, zero: false, tickFormat: decTick, labelArrow: "none" },
-      marks: d3.min(Y) <= 0 && d3.max(Y) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
+      marks: d3.min(all, p => p[1]) <= 0 && d3.max(all, p => p[1]) >= 0 ? [Plot.ruleY([0], { stroke: faint }), ...marks] : marks,
     });
     put($("fig-main"), chart);
 
     // tabela dos dados, ligada ao gráfico: o ponto sob o ponteiro realça a sua linha, e a linha sob o ponteiro realça o ponto
     if (S.dat) {
       const okF = !F.err;
-      $("dat").innerHTML = `<table class="freq"><thead><tr><th>i</th><th>${esc(xl)}</th><th>${esc(yl)}</th>${okF ? "<th>ŷ</th><th>resíduo</th>" : ""}</tr></thead><tbody>` +
-        pts.map(([x, y], i) => `<tr data-i="${i}"><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>";
+      // a caixa da esquerda exclui o par do ajuste (e volta a incluí-lo ao tirar a marca)
+      $("dat").innerHTML = `<table class="freq"><thead><tr><th title="Marcar para excluir o par do ajuste">excl.</th><th>i</th><th>${esc(xl)}</th><th>${esc(yl)}</th>${okF ? "<th>ŷ</th><th>resíduo</th>" : ""}</tr></thead><tbody>` +
+        all.map(([x, y], i) => `<tr data-i="${i}"${EXCL.has(i) ? ' class="excl"' : ""}><td><input type="checkbox" class="exc" data-i="${i}"${EXCL.has(i) ? " checked" : ""} title="Excluir este par do ajuste"></td><td>${i + 1}</td><td>${fmt(x, 4)}</td><td>${fmt(y, 4)}</td>${okF ? `<td>${fmt(F.f(x), d)}</td><td>${fmt(y - F.f(x), d)}</td>` : ""}</tr>`).join("") + "</tbody></table>";
+      $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
       const rowsEl = [...$("dat").querySelectorAll("tbody tr")];
       const sx = chart.scale("x"), sy = chart.scale("y"), NS = "http://www.w3.org/2000/svg";
       const ring = document.createElementNS(NS, "circle");
@@ -810,9 +850,9 @@
         rowsEl.forEach((r, k) => r.classList.toggle("hot", k === i));
         if (i === null || i < 0) { ring.style.display = "none"; return; }
         if (from === "chart") rowsEl[i].scrollIntoView({ block: "nearest" });
-        ring.setAttribute("cx", sx.apply(pts[i][0])); ring.setAttribute("cy", sy.apply(pts[i][1])); ring.style.display = "";
+        ring.setAttribute("cx", sx.apply(all[i][0])); ring.setAttribute("cy", sy.apply(all[i][1])); ring.style.display = "";
       };
-      chart.addEventListener("input", () => mark(chart.value ? pts.indexOf(chart.value) : null, "chart"));
+      chart.addEventListener("input", () => mark(chart.value ? all.indexOf(chart.value) : null, "chart"));
       rowsEl.forEach((r, i) => { r.onmouseenter = () => mark(i, "table"); r.onmouseleave = () => mark(null); });
     }
   }
@@ -911,7 +951,7 @@
       body += TAB(R.graph === "hist" ? `Tabela de frequências (${esc(R.hint)})` : "Tabela de frequências", [R.graph === "hist" ? "Classe" : "Valor", K("n_i"), K("f_i"), K("N_i"), K("F_i")],
         R.tableRows.map(r => [r[0], r[1], f4(r[2]), r[3], f4(r[4])]),
         `<tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot>`);
-      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}.`);
+      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}${S.dens ? "; a roxo, a curva de densidade (estimativa por núcleo gaussiano)" : ""}.`);
       if (S.stem) body += `<figure class="stem">${R.SL.lines.map(([a, b]) => `<div class="r"><span class="s">${a}</span><span class="l">${b}</span></div>`).join("")}<figcaption><b>Figura ${++fig}:</b> Diagrama de caule e folhas de <i>${esc(R.name)}</i>. Chave: ${R.SL.key}${R.SL.trunc ? " (algarismos seguintes truncados)" : ""}.</figcaption></figure>`;
       body += H2("Diagrama de extremos e quartis e outliers");
       const aiq = st.q3 - st.q1;
@@ -923,7 +963,7 @@
       const sx = Math.sqrt(sum(X.map(x => (x - R.mx) ** 2)) / (P.length - 1)), sy = Math.sqrt(sum(Y.map(y => (y - R.my) ** 2)) / (P.length - 1));
       const r = linfit(X, Y).r;
       body += H2("Dados");
-      body += `<p>Variáveis: ${K("x")} = <i>${esc(R.xl)}</i> e ${K("y")} = <i>${esc(R.yl)}</i>, com ${K(`n = ${P.length}`)} pares.</p>`;
+      body += `<p>Variáveis: ${K("x")} = <i>${esc(R.xl)}</i> e ${K("y")} = <i>${esc(R.yl)}</i>, com ${K(`n = ${P.length}`)} pares${R.excluded.length ? ` usados no estudo (${R.excluded.length === 1 ? "foi excluído o par" : `foram excluídos ${R.excluded.length} pares:`} ${R.excluded.map(([i, x, y]) => `n.º ${i}, (${fmt(x, 4)}; ${fmt(y, 4)})`).join("; ")})` : ""}.</p>`;
       if (P.length <= 40) body += TAB("Dados", [K("i"), K("x_i"), K("y_i")], P.map((p, i) => [i + 1, fmt(p[0], 4), fmt(p[1], 4)]));
       body += H2("Resumo");
       body += TAB("Medidas de cada variável e correlação linear", ["", K("x"), K("y")], [
