@@ -35,7 +35,7 @@
 
   /* faixa de cima: título, modo (uma ou duas variáveis) e modo escuro */
   .top { display: flex; gap: 0.5rem; }
-  .band { flex: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.4rem 1rem;
+  .band { flex: 1; display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem 1rem;
           background: var(--band); border: 1.5px solid var(--line); border-radius: 8px; padding: 0.35rem 0.8rem; min-height: 2.6rem; }
   .band h1 { margin: 0; font-size: 1.25rem; }
   .seg { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; }
@@ -225,8 +225,9 @@
     <div class="seg" role="group" aria-label="Tipo de dados">
       <button class="b" id="m-uni" aria-pressed="true">Uma variável</button>
       <button class="b" id="m-bi" aria-pressed="false">Duas variáveis (regressão)</button>
-      <button class="b" id="report" title="Relatório com os dados, as medidas, as tabelas e os gráficos, pronto a guardar em PDF">📄 Relatório (PDF)</button>
     </div>
+    <!-- (a escolha do tipo de dados fica junto ao título, à esquerda; o relatório fica à direita) -->
+    <button class="b" id="report" style="margin-left: auto" title="Relatório com os dados, as medidas, as tabelas e os gráficos, pronto a guardar em PDF">📄 Relatório (PDF)</button>
   </div>
   <button class="b" id="theme" title="Modo claro / escuro">☾</button>
 </div>
