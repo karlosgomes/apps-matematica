@@ -65,7 +65,7 @@
   const STEP = { a: 0.1, k: 0.1, c: 0.1, dm: 1 };
   const YMAX = 8;   // eixo Oy fixo: [−8, 8] (com |k| + |a| > 8 a curva sai do referencial)
   // [t0, t1]: intervalo de t no gráfico (escrito nas caixas ou arrastando o gráfico na horizontal); −2π a 2π por omissão
-  const S = { fn: "cos", ...DEF, showT: false, showF: false, showA: false, showD: false, fac: false, showMM: false, showK: false, t0: -TAU, t1: TAU };   // abre em f(t) = cos t
+  const S = { fn: "cos", ...DEF, showT: false, showF: false, showA: false, showD: false, fac: false, showMM: false, showK: false, showB: false, t0: -TAU, t1: TAU };   // abre em f(t) = cos t
   const D = () => S.dm * PI / 12;
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -73,6 +73,7 @@
   // valores iniciais opcionais no endereço, p. ex. index.html#cos&a=2&k=-1&c=2&d=pi/2 (d também em decimal, em radianos)
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
     if (tok === "sin" || tok === "cos") S.fn = tok;
+    if (tok === "base") S.showB = true;
     let m = tok.match(/^([akc])=([-−]?\d+(?:[.,]\d+)?)$/);
     if (m) S[m[1]] = parseFloat(m[2].replace("−", "-").replace(",", "."));
     m = tok.replace(/π/g, "pi").match(/^d=([-−]?)(\d*(?:[.,]\d+)?)(pi)?(?:\/(\d+))?$/);
@@ -279,6 +280,7 @@
     range(L.range, fs);
     toggle(L.toggle, fs);
     themeBtn(L.graph, fs);
+    baseBtn(L.graph, fs);
     // nota de rodapé (ecrã deitado, em baixo na coluna da esquerda)
     if (L.land) {
       const w = L.graph.x - 2 * L.pad, txt = "Dica: onde o ponteiro passa a mão, um toque mostra mais.";
@@ -299,7 +301,7 @@
     const gx0 = g.x + ml, gx1 = g.x + g.w - mr, gy0 = g.y + mt, gy1 = g.y + g.h - mb;
     const gw = gx1 - gx0, gh = gy1 - gy0;
     const t0 = S.t0, t1 = S.t1, X = x => gx0 + (x - t0) / (t1 - t0) * gw;
-    L.G = { gx0, gx1, gy0, gy1, ppu: gw / (t1 - t0) };   // para arrastar o gráfico
+    L.G = { gx0, gx1, gy0, gy1, ppu: gw / (t1 - t0), ox: t0 <= 1e-9 && t1 >= -1e-9 ? X(0) : gx0 };   // para arrastar o gráfico
     const Y = y => gy0 + (YMAX - y) / (2 * YMAX) * gh;
     const unit = gh / (2 * YMAX);
     const fsm = fs * 0.78;
@@ -363,6 +365,18 @@
     }
     // linha média y = k (ao tocar em k na expressão)
     if (S.showK) line(gx0, Y(k), gx1, Y(k), C.k, 2.2, [9, 6]);
+
+    // função de base y = cos t (ou sin t), a tracejado, por baixo da curva (botão «y = cos t» no canto do gráfico)
+    const nb = Math.min(60000, Math.max(400, Math.round(gw * 2), Math.round((t1 - t0) / TAU * 60)));
+    if (S.showB) {
+      ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.6, fs * 0.09); ctx.setLineDash([0.5 * fs, 0.35 * fs]);
+      ctx.beginPath();
+      for (let i = 0; i <= nb; i++) {
+        const x = t0 + (t1 - t0) * i / nb, y = Y(Math[S.fn](x));
+        i ? ctx.lineTo(X(x), y) : ctx.moveTo(X(x), y);
+      }
+      ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
 
     // curva (com amostras suficientes para |c| grande)
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.2, fs * 0.14); ctx.lineJoin = "round"; ctx.lineCap = "round";
@@ -639,6 +653,21 @@
     ctx.fillText(dark ? "☀" : "☾", x + s / 2, y + s / 2 + 0.05 * fs);
     hits.push({ kind: "theme", rect: { x, y, w: s, h: s } });
   }
+  // botão «y = cos t» (ou «y = sin t»), no canto superior esquerdo do gráfico: liga/desliga a função de base a tracejado
+  // (se o eixo vertical estiver encostado à esquerda, passa para a direita do nome «y»)
+  function baseBtn(g, fs) {
+    const s = 1.45 * fs, col = C[S.fn], on = S.showB;
+    const y = g.y, el = tex("base", `y = \\${S.fn}\\, t`, 0, y + s / 2, fs * 0.9, on ? col : C.muted, 0, 0.5, false);
+    const sw = 1.6 * fs, w = 0.4 * fs + sw + 0.35 * fs + el.offsetWidth + 0.45 * fs;
+    const x = L.G.ox - g.x < w + 0.8 * fs ? L.G.ox + 2 * fs : g.x;
+    ctx.globalAlpha = on ? 0.14 : 1; rrect(x, y, w, s, 7, on ? col : C.btn); ctx.globalAlpha = 1;
+    rrect(x, y, w, s, 7, null, on ? col : C.line, on ? 2.5 : 1.5);
+    ctx.globalAlpha = on ? 1 : 0.6;
+    line(x + 0.4 * fs, y + s / 2, x + 0.4 * fs + sw, y + s / 2, col, Math.max(1.6, fs * 0.09), [0.4 * fs, 0.28 * fs]);
+    ctx.globalAlpha = 1;
+    el.style.left = x + 0.75 * fs + sw + "px";
+    hits.push({ kind: "base", rect: { x, y, w, h: s } });
+  }
   function toggle(b, fs) {
     const rw = b.h * 1.25, gap = 0.5 * fs, bw = (b.w - rw - 2 * gap) / 2;
     ["sin", "cos"].forEach((fn, i) => {
@@ -765,6 +794,7 @@
     if (!h) return;
     e.preventDefault();
     if (h.kind === "fn") { S.fn = h.fn; draw(); return; }
+    if (h.kind === "base") { S.showB = !S.showB; draw(); return; }
     if (h.kind === "fac") { S.fac = !S.fac; draw(); return; }
     if (h.kind === "mm") { S.showMM = !S.showMM; draw(); return; }
     if (h.kind === "mid") { S.showK = !S.showK; draw(); return; }
@@ -807,6 +837,7 @@
     else if (e.key === "f") toggleShow("F");
     else if (e.key === "a") toggleShow("A");
     else if (e.key === "d") toggleShow("D");
+    else if (e.key === "b") { S.showB = !S.showB; draw(); }
     else if (e.key === "0") { Object.assign(S, DEF); S.t0 = -TAU; S.t1 = TAU; draw(); }
   });
 
