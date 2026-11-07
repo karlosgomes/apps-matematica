@@ -546,6 +546,8 @@
       dot(Px, Py, 0.32 * fs, C.ink, C.bg);
       texAt("cP", "P", Px + cs * 0.95 * fs, Py - sn * 0.95 * fs, fs * 0.95, C.ink, 0.5, 0.5, true);
       if (S.sin && L.side) dot(gx0, Y(sn), 0.18 * fs, C.sin);
+      // com Q e as curvas de base ligados: também o ponto (t, cos t) / (t, sin t) nessas curvas, a roxo (por baixo dos pontos de P)
+      if (S.base && S.ref) act.forEach(k => dot(X(S.t), Y(Math[k](S.t)), 0.3 * fs, C.ref, C.bg));
       act.forEach(k => dot(X(S.t), Y(k === "sin" ? sn : cs), 0.3 * fs, C[k], C.bg));
 
       // valores atuais, à direita do título do gráfico (só se couberem)
