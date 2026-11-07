@@ -1655,6 +1655,7 @@
     $("tab-frame").hidden = true; $("box-frame").hidden = true; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
     $("byg-lbl").hidden = !groups;
     $("main-title").textContent = "Diagrama de dispersão";
+    groupChips(null);   // (os botões dos grupos são só de uma variável; aqui é a legenda que esconde e mostra os grupos)
     $("main-hint").textContent = S.dat ? "" : "arrasta para selecionar pontos; botão direito para os excluir do ajuste";
     $("xname-est").textContent = (nx || "x") + " =";
     const xl = nx || "x", yl = ny || "y", d = S.dec2;
