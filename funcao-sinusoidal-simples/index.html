@@ -113,7 +113,7 @@
   // argumento ct + d
   function texArg() {
     let s = "";
-    if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + "t";
+    if (Math.abs(S.c) > 1e-12) s = Math.abs(S.c - 1) < 1e-12 ? "t" : Math.abs(S.c + 1) < 1e-12 ? "-t" : texNum(S.c) + " t";
     if (Math.abs(S.d) > 1e-12) s = s ? `${s} ${S.d < 0 ? "-" : "+"} ${texNum(Math.abs(S.d))}` : texNum(S.d);
     return s || "0";
   }
