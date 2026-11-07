@@ -392,6 +392,8 @@
       src: "234 automóveis (1999 e 2008): displ = cilindrada (L), hwy e cty = milhas por galão em estrada e em cidade; conjunto mpg do ggplot2 (Tidyverse), dados da EPA" },
     { id: "chickweight", name: "Crescimento de pintos (ChickWeight)", file: "chickweight.csv", uni: { v: "weight" }, bi: { x: "Time", y: "weight", g: "Diet" },
       src: "ChickWeight (Crowder e Hand, 1990): peso (g) de 50 pintos, do nascimento aos 21 dias, com 4 dietas diferentes; Chick = número do pinto, Time = dias; conjunto ChickWeight do R" },
+    { id: "pumpkin", name: "Sementes de abóbora", file: "pumpkin-seeds.csv", uni: { v: "Aspect_Ration", g: "Class" }, bi: { x: "Area", y: "Perimeter", g: "Class" },
+      src: "Sementes de abóbora de duas variedades turcas (Çerçevelik e Ürgüp Sivrisi), 2500 sementes medidas em imagens (área e eixos em píxeis; Aspect_Ration = eixo maior ÷ eixo menor): Koklu, Sarigil e Ozbek (2021), Genetic Resources and Crop Evolution 68(7), 2713–2726, muratkoklu.com/datasets" },
     { id: "gapminder", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp", g: "continent", t: "year", s: "pop", log: true },
       src: "Gapminder: esperança de vida, população e PIB por habitante de 142 países, de 5 em 5 anos (1952–2007); pacote gapminder do R (Jenny Bryan), CC0, dados de gapminder.org" },
     { id: "co2", name: "CO₂ e PIB por país (Our World in Data)", file: "co2-pib.csv", uni: { v: "co2_per_capita" }, bi: { x: "gdp_per_capita", y: "co2_per_capita", g: "continent", t: "year", s: "population", log: true, logy: true },
@@ -486,7 +488,8 @@
   // tempo (duas variáveis): coluna numérica com 3 a 200 valores diferentes, cada um repetido em várias linhas (p. ex. o ano no gapminder)
   // (os valores do tempo: os números da coluna ou, com datas, os milissegundos)
   const tvals = c => c.dvals || c.vals;
-  const timeCols = T => T._tc || (T._tc = T.cols.filter(c => c.numeric || c.dvals).filter(c => { const u = new Set(tvals(c).filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
+  // (colunas numéricas só com inteiros — anos, dias, meses numerados —, para não aparecerem medidas com poucos valores, como a Solidity das sementes)
+  const timeCols = T => T._tc || (T._tc = T.cols.filter(c => c.dvals || (c.numeric && c.vals.every(v => v === null || isNaN(v) || Number.isInteger(v)))).filter(c => { const u = new Set(tvals(c).filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
   // escrever um instante: com datas, dia/mês/ano ou mês/ano
   const tFmt = c => !c || !c.dvals ? (v => fmt(v, 6)) : c.date === "month"
     ? (v => { const d = new Date(v); return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; })
