@@ -378,27 +378,45 @@
   };
   // conjuntos de dados clássicos: ficheiros CSV em dados/, carregados quando se escolhem; colunas escolhidas à partida
   const DATASETS = [
-    { id: "penguins", name: "Pinguins de Palmer", file: "penguins.csv", uni: { v: "bill_length_mm" }, bi: { x: "bill_length_mm", y: "bill_depth_mm" },
+    { id: "penguins", cat: "cla", name: "Pinguins de Palmer", file: "penguins.csv", uni: { v: "bill_length_mm" }, bi: { x: "bill_length_mm", y: "bill_depth_mm" },
       src: "Pinguins de Palmer (Horst, Hill e Gorman, pacote palmerpenguins do R; também no TidyTuesday de 2020), domínio público (CC0)" },
-    { id: "iris", name: "Íris (Fisher)", file: "iris.csv", uni: { v: "Petal.Length" }, bi: { x: "Petal.Length", y: "Petal.Width" },
+    { id: "iris", cat: "cla", name: "Íris (Fisher)", file: "iris.csv", uni: { v: "Petal.Length" }, bi: { x: "Petal.Length", y: "Petal.Width" },
       src: "Íris de Fisher e Anderson (1935), conjunto iris do R" },
-    { id: "faithful", name: "Géiser Old Faithful", file: "faithful.csv", uni: { v: "waiting" }, bi: { x: "eruptions", y: "waiting" },
+    { id: "faithful", cat: "cla", name: "Géiser Old Faithful", file: "faithful.csv", uni: { v: "waiting" }, bi: { x: "eruptions", y: "waiting" },
       src: "Géiser Old Faithful (Yellowstone): duração das erupções e espera até à seguinte, em minutos; conjunto faithful do R" },
-    { id: "anscombe", name: "Quarteto de Anscombe", file: "anscombe.csv", uni: { v: "y", g: "conjunto" }, bi: { x: "x", y: "y", g: "conjunto" },
+    { id: "anscombe", cat: "arm", name: "Quarteto de Anscombe", file: "anscombe.csv", uni: { v: "y", g: "conjunto" }, bi: { x: "x", y: "y", g: "conjunto" },
       src: "Quarteto de Anscombe (1973): quatro conjuntos com as mesmas médias, desvios padrão e reta de regressão, mas muito diferentes no gráfico; conjunto anscombe do R" },
-    { id: "mtcars", name: "Automóveis (mtcars)", file: "mtcars.csv", uni: { v: "mpg" }, bi: { x: "wt", y: "mpg" },
+    { id: "mtcars", cat: "cla", name: "Automóveis (mtcars)", file: "mtcars.csv", uni: { v: "mpg" }, bi: { x: "wt", y: "mpg" },
       src: "32 automóveis da revista Motor Trend (1974): mpg = milhas por galão, wt = peso (milhares de libras), cyl = cilindros; conjunto mtcars do R" },
-    { id: "mpg", name: "Consumo de combustível (mpg)", file: "mpg.csv", uni: { v: "hwy" }, bi: { x: "displ", y: "hwy" },
+    { id: "mpg", cat: "cla", name: "Consumo de combustível (mpg)", file: "mpg.csv", uni: { v: "hwy" }, bi: { x: "displ", y: "hwy" },
       src: "234 automóveis (1999 e 2008): displ = cilindrada (L), hwy e cty = milhas por galão em estrada e em cidade; conjunto mpg do ggplot2 (Tidyverse), dados da EPA" },
-    { id: "chickweight", name: "Crescimento de pintos (ChickWeight)", file: "chickweight.csv", uni: { v: "weight" }, bi: { x: "Time", y: "weight", g: "Diet" },
+    { id: "chickweight", cat: "cla", name: "Crescimento de pintos (ChickWeight)", file: "chickweight.csv", uni: { v: "weight" }, bi: { x: "Time", y: "weight", g: "Diet" },
       src: "ChickWeight (Crowder e Hand, 1990): peso (g) de 50 pintos, do nascimento aos 21 dias, com 4 dietas diferentes; Chick = número do pinto, Time = dias; conjunto ChickWeight do R" },
-    { id: "pumpkin", name: "Sementes de abóbora", file: "pumpkin-seeds.csv", uni: { v: "Aspect_Ration", g: "Class" }, bi: { x: "Area", y: "Perimeter", g: "Class" },
+    { id: "pumpkin", cat: "cla", name: "Sementes de abóbora", file: "pumpkin-seeds.csv", uni: { v: "Aspect_Ration", g: "Class" }, bi: { x: "Area", y: "Perimeter", g: "Class" },
       src: "Sementes de abóbora de duas variedades turcas (Çerçevelik e Ürgüp Sivrisi), 2500 sementes medidas em imagens (área e eixos em píxeis; Aspect_Ration = eixo maior ÷ eixo menor): Koklu, Sarigil e Ozbek (2021), Genetic Resources and Crop Evolution 68(7), 2713–2726, muratkoklu.com/datasets" },
-    { id: "gapminder", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp", g: "continent", t: "year", s: "pop", log: true },
+    { id: "temperaturas", cat: "nlin", name: "Temperaturas de 8 cidades (2000–2012)", file: "temperaturas.csv", uni: { v: "tmax", g: "hemisferio" }, bi: { x: "mes_do_ano", y: "tmax", g: "cidade", model: "sin", byG: true },
+      src: "Médias mensais das temperaturas máximas e mínimas diárias (°C) de 8 cidades, de janeiro de 2000 a outubro de 2012 (mes = 1 em jan. 2000, contado seguido; mes_do_ano de 1 a 12); tutiempo.net e JMA (Tóquio), via iNZight (Universidade de Auckland)" },
+    { id: "cerebros", cat: "nlin", name: "Cérebros de mamíferos", file: "cerebros.csv", uni: { v: "gestacao_dias" }, bi: { x: "corpo_kg", y: "cerebro_g", log: true, logy: true, model: "pow" },
+      src: "Massa do cérebro (g) e do corpo (kg), gestação (dias) e tamanho médio da ninhada de 96 espécies de mamíferos; Ramsey e Schafer, The Statistical Sleuth, via iNZight (Universidade de Auckland)" },
+    { id: "derrames", cat: "nlin", name: "Derrames de petroleiros (1970–2011)", file: "derrames.csv", uni: { v: "derrames_mais_700t" }, bi: { x: "anos_desde_1970", y: "derrames_mais_700t", model: "exp" },
+      src: "Número de derrames de petroleiros por ano (anos_desde_1970 = ano − 1970, para o modelo exponencial ter coeficientes legíveis) (de 7 a 700 toneladas e de mais de 700 t), petróleo derramado (t), produção e consumo mundiais de petróleo e emissões de CO₂ (milhões de t); ITOPF e BP Statistical Review, via iNZight (Universidade de Auckland)" },
+    { id: "fumadores", cat: "arm", name: "Crianças fumadoras (capacidade pulmonar)", file: "fumadores.csv", uni: { v: "capacidade_L", g: "fumador" }, bi: { x: "altura_cm", y: "capacidade_L", g: "fumador" },
+      src: "654 crianças e jovens de 3 a 19 anos (Boston, anos 70): capacidade_L = volume de ar expirado no 1.º segundo (FEV, litros); Tager et al. (1983), via Rosner, Fundamentals of Biostatistics, e iNZight (Universidade de Auckland)" },
+    { id: "sat", cat: "arm", name: "Despesa na educação e SAT (EUA, 1994–95)", file: "sat.csv", uni: { v: "sat" }, bi: { x: "despesa_por_aluno", y: "sat" },
+      src: "50 estados dos EUA: despesa por aluno e salário médio dos professores (milhares de dólares), alunos por professor, percentagem de alunos que fazem o exame SAT e resultados médios; Guber (1999), Journal of Statistics Education, conjunto SAT do pacote mosaicData do R" },
+    { id: "davis", cat: "arm", name: "Peso e altura (Davis)", file: "davis.csv", uni: { v: "peso_kg", g: "sexo" }, bi: { x: "altura_cm", y: "peso_kg", g: "sexo" },
+      src: "200 pessoas que praticam exercício físico: peso e altura medidos e declarados por elas; há um erro de registo de propósito por corrigir; Davis (1990), conjunto Davis do pacote carData do R" },
+    { id: "veiculos", cat: "arm", name: "Esperança de vida e automóveis (EUA)", file: "esperanca-veiculos.csv", uni: { v: "esperanca_vida" }, bi: { x: "veiculos_milhoes", y: "esperanca_vida", model: "lin" },
+      src: "Esperança de vida à nascença e veículos registados (milhões) nos EUA, de 1970 a 2009; Lock, Lock, Lock, Lock e Lock, Statistics: Unlocking the Power of Data (conjunto LifeExpectancyVehicles)" },
+    { id: "tabaco", cat: "tempo", name: "Preço e consumo de tabaco (EUA, 1963–1992)", file: "tabaco.csv", uni: { v: "vendas_macos" }, bi: { x: "preco_real", y: "vendas_macos", g: "regiao", t: "ano", s: "populacao" },
+      src: "46 estados dos EUA, de 1963 a 1992: preço real de um maço (cêntimos de 1983), maços vendidos por pessoa (14 ou mais anos), rendimento real por pessoa e população; Baltagi, Econometric Analysis of Panel Data, conjunto Cigar do pacote Ecdat do R" },
+    { id: "gapminder", cat: "tempo", name: "Gapminder", file: "gapminder.csv", uni: { v: "lifeExp" }, bi: { x: "gdpPercap", y: "lifeExp", g: "continent", t: "year", s: "pop", log: true },
       src: "Gapminder: esperança de vida, população e PIB por habitante de 142 países, de 5 em 5 anos (1952–2007); pacote gapminder do R (Jenny Bryan), CC0, dados de gapminder.org" },
-    { id: "co2", name: "CO₂ e PIB por país (Our World in Data)", file: "co2-pib.csv", uni: { v: "co2_per_capita" }, bi: { x: "gdp_per_capita", y: "co2_per_capita", g: "continent", t: "year", s: "population", log: true, logy: true },
+    { id: "co2", cat: "tempo", name: "CO₂ e PIB por país (Our World in Data)", file: "co2-pib.csv", uni: { v: "co2_per_capita" }, bi: { x: "gdp_per_capita", y: "co2_per_capita", g: "continent", t: "year", s: "population", log: true, logy: true },
       src: "Our World in Data (CC BY 4.0): emissões de CO₂ de combustíveis fósseis e indústria por habitante (toneladas; Global Carbon Budget 2025), PIB por habitante (dólares internacionais de 2011; Maddison Project Database 2023) e população, de 5 em 5 anos (1950–2020)" },
   ];
+  // grupos do menu dos conjuntos de dados
+  const DSCATS = [["cla", "Conjuntos clássicos"], ["nlin", "Modelos não lineares"], ["arm", "Paradoxos e armadilhas"], ["tempo", "Ao longo do tempo"]];
   const EXAMPLES = {
     uni: [
       ["Teste", "Classificações de um teste\n12 14 9 16 11 13 15 8 17 12\n10 14 13 18 11 9 15 12 16 14\n7 13 19 11 14"],
@@ -489,7 +507,10 @@
   // (os valores do tempo: os números da coluna ou, com datas, os milissegundos)
   const tvals = c => c.dvals || c.vals;
   // (colunas numéricas só com inteiros — anos, dias, meses numerados —, para não aparecerem medidas com poucos valores, como a Solidity das sementes)
-  const timeCols = T => T._tc || (T._tc = T.cols.filter(c => c.dvals || (c.numeric && c.vals.every(v => v === null || isNaN(v) || Number.isInteger(v)))).filter(c => { const u = new Set(tvals(c).filter(v => v !== null && !isNaN(v))); return u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n; }));
+  const timeCols = T => T._tc || (T._tc = T.cols.filter(c => c.dvals || (c.numeric && c.vals.every(v => v === null || isNaN(v) || Number.isInteger(v)))).filter(c => { const u = new Set(tvals(c).filter(v => v !== null && !isNaN(v))); if (!(u.size >= 3 && u.size <= 200 && u.size * 2 <= T.n)) return false;
+    // (e cada instante com um número parecido de linhas, como num painel: o menos frequente com pelo menos metade do mais frequente)
+    const cnt = d3.rollup(tvals(c).filter(v => v !== null && !isNaN(v)), v => v.length, v => v), ns = [...cnt.values()];
+    return d3.min(ns) * 2 >= d3.max(ns); }));
   // escrever um instante: com datas, dia/mês/ano ou mês/ano
   const tFmt = c => !c || !c.dvals ? (v => fmt(v, 6)) : c.date === "month"
     ? (v => { const d = new Date(v); return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; })
@@ -512,6 +533,7 @@
     return c ? (idOk(T, tc, c) ? c : null) : idCol(T, tc);
   };
   const timeCol = T => (S.col.t && timeCols(T).find(c => c.name === S.col.t)) || null;
+  const labelCol = T => T._lc !== undefined ? T._lc : (T._lc = T.cols.find(c => !c.numeric && !c.dvals && c.missing === 0 && new Set(c.raw).size === T.n) || null);
   const sizeCol = T => (S.col.s && numCols(T).find(c => c.name === S.col.s)) || null;
   // identificação de cada caso ao longo do tempo (p. ex. o país): a primeira coluna de texto que não se repete em nenhum instante
   function idCol(T, tc) {
@@ -592,6 +614,8 @@
     if (T) {
       const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), gc = groupCol(T), pts = [];
       const tc = timeCol(T), ic = tc ? idChoice(T, tc) : null, sc = sizeCol(T), tv = tc ? tvals(tc) : null;
+      // sem tempo, um nome para a dica de cada ponto: a primeira coluna de texto sem repetições (p. ex. a espécie, o estado)
+      const lc = tc ? null : labelCol(T);
       let lost = 0, noG = 0;
       // com grupos, cada par leva o seu grupo em terceiro lugar: [x, y, grupo]
       cx.vals.forEach((x, i) => {
@@ -603,6 +627,7 @@
           // instante, identificação (p. ex. o país) e tamanho
           if (tc) { p.t = tv[i]; if (ic) p.id = ic.raw[i]; }
           if (sc) p.s = sc.vals[i];
+          if (lc) p.lab = lc.raw[i];
           pts.push(p);
         }
       });
@@ -795,7 +820,7 @@
     // menu pendente: exemplos simples deste modo e conjuntos de dados clássicos (os mesmos nos dois modos)
     const ex = $("ex-sel");
     ex.innerHTML = `<option value="">Exemplos e conjuntos de dados…</option><optgroup label="Exemplos">${EXAMPLES[m].map(([name], i) => `<option value="e${i}">${name}</option>`).join("")}</optgroup>` +
-      `<optgroup label="Conjuntos de dados clássicos">${DATASETS.map(d => `<option value="d:${d.id}">${d.name}</option>`).join("")}</optgroup>`;
+      DSCATS.map(([c, lab]) => `<optgroup label="${lab}">${DATASETS.filter(d => d.cat === c).map(d => `<option value="d:${d.id}">${d.name}</option>`).join("")}</optgroup>`).join("");
     ex.value = S.picked[m] || "";
     showSrc();
     render();
@@ -819,6 +844,8 @@
         S.data.uni = S.data.bi = ta.value = txt;
         S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null, t: d.bi.t || null, s: d.bi.s || null, id: null };
         S.logx = !!d.bi.log; S.logy = !!d.bi.logy; S.ti = 0; stopPlay();
+        // modelo e «um modelo por grupo» sugeridos pelo conjunto (p. ex. sinusoidal nas temperaturas); sem sugestão, nenhum
+        S.model = d.bi.model || null; $("r-sel").value = S.model || ""; S.byG = !!d.bi.byG; $("sh-byg").checked = S.byG;
         S.picked.uni = S.picked.bi = v;
       } catch (err) { $("msg").textContent = "Não foi possível carregar o conjunto de dados (é preciso abrir a app a partir do site)."; return; }
     }
@@ -1790,7 +1817,7 @@
                  Plot.text([[xe, e.y]], { x: p => p[0], y: p => p[1], text: p => `(${fmt(p[0], d)}; ${fmt(p[1], d)})`, dx: xe > (a + b) / 2 ? -9 : 9, dy: 14, textAnchor: xe > (a + b) / 2 ? "end" : "start", fill: e.c || hot, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
     });
     const big = v => v.toLocaleString("pt-PT", { maximumFractionDigits: 2 });
-    marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p.id !== undefined ? `${p.id}\n` : "") + (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` +
+    marks.push(Plot.tip(vis, Plot.pointer({ x: p => p[0], y: p => p[1], title: p => (p.id !== undefined ? `${p.id}\n` : p.lab !== undefined ? `${p.lab}\n` : "") + (p[2] !== undefined ? `${p[2]}\n` : "") + `(${fmt(p[0], 4)}; ${fmt(p[1], 4)})` +
       (SZ && p.s !== null && p.s !== undefined ? `\n${sname}: ${big(p.s)}` : "") + (out.includes(p) ? "\nexcluído do ajuste" : "") })));
     // o instante, em grande, no fundo do gráfico
     if (TM) { const lab = tfmt(tShow); marks.unshift(Plot.text([lab], { frameAnchor: "bottom-right", text: v => v, dx: -8, dy: -4, fontSize: Math.round(Math.min(H / 4, W * 0.4 / (0.62 * lab.length))), fontWeight: 700, fill: faint, fillOpacity: 0.28 })); }
