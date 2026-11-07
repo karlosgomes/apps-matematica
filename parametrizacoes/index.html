@@ -601,6 +601,19 @@
     } else {
       const src = `${X_()}(t) = ${tex(P.X)}, \\qquad ${Y_()}(t) = ${tex(P.Y)}`;
       el = texAt("leg", src, b.x + 0.5 * fs, b.y + b.h / 2, fs * 1.05, C.ink, 0, 0.5, false);   // encostado à esquerda
+      // com Q: as coordenadas de Q a roxo, por baixo da caixa de Q (ou a seguir às de P, se a caixa estiver por cima da de P)
+      if (S.showQ && Q && Q.X && Q.Y) {
+        const qx = Math.max(L.qexpr.x + 0.3 * fs, b.x + 0.5 * fs + el.offsetWidth + 2 * fs), n = Q.name;
+        const qsrc = `x_{${n}}(t) = ${tex(Q.X)}, \\qquad y_{${n}}(t) = ${tex(Q.Y)}`;
+        const eq = texAt("legq", qsrc, qx, b.y + b.h / 2, fs * 1.05, C.q, 0, 0.5, false);
+        // (ecrã estreito: se tivesse de encolher muito, não se mostra — as coordenadas de Q estão na caixa dele)
+        if ((b.x + b.w - qx - 0.4 * fs) / eq.offsetWidth >= 0.7) {
+          fit(eq, b.x + b.w - qx - 0.4 * fs, b.h);
+          fit(el, qx - b.x - 1.5 * fs, b.h);
+          return;
+        }
+        eq.style.display = "none";
+      }
     }
     fit(el, b.w - 0.6 * fs, b.h);
   }
@@ -778,6 +791,51 @@
     }
     return best;
   }
+  // ponto de referência para a seta do desfasamento: um máximo do gráfico F (à altura dele), o primeiro a contar da
+  // esquerda com z e z + h dentro do intervalo; em y(t)/x(t) (assíntotas, sem máximos) ou sem máximos, um zero (troca de
+  // sinal, sem ser num salto de assíntota); null se nada servir
+  function shiftRef(F, h, sc) {
+    const a = S.a, b = S.b, ins = t => t >= a - 1e-6 && t <= b + 1e-6;
+    if (F.key !== "r" && F.key !== "rq") {
+      // procura também um pouco fora do intervalo, para apanhar os máximos nas pontas (cos t em t = 0)
+      const M = 1200, e = (b - a) * 0.02, lo = a - e, T = k => lo + (b - a + 2 * e) * k / M, v = [];
+      for (let k = 0; k <= M; k++) v.push(F.f(T(k)));
+      const cands = [];
+      for (let k = 1; k < M; k++) {
+        const [f0, f1, f2] = [v[k - 1], v[k], v[k + 1]];
+        if (!isFinite(f0) || !isFinite(f1) || !isFinite(f2) || Math.abs(f1 - f0) > 0.2 * sc || Math.abs(f2 - f1) > 0.2 * sc) continue;
+        if (!(f1 >= f0 && f1 > f2)) continue;
+        // afinar o máximo (secção dourada entre os vizinhos)
+        let x0 = T(k - 1), x1 = T(k + 1);
+        for (let i = 0; i < 60; i++) { const m1 = x0 + (x1 - x0) * 0.382, m2 = x0 + (x1 - x0) * 0.618; if (F.f(m1) < F.f(m2)) x0 = m1; else x1 = m2; }
+        const z = (x0 + x1) / 2;
+        if (ins(z)) cands.push({ t: Math.min(b, Math.max(a, z)), y: F.f(z) });
+      }
+      if (cands.length) {
+        const top = Math.max(...cands.map(c => c.y));
+        // (de preferência um máximo no interior do intervalo, longe do eixo vertical e dos pontos de t = a)
+        const ok = cands.filter(c => c.y >= top - 0.02 * sc && ins(c.t + h)), edge = c => c.t - a < 1e-4 * (b - a) || b - c.t < 1e-4 * (b - a);
+        if (ok.length) return ok.find(c => !edge(c) && !edge({ t: c.t + h })) || ok[0];
+      }
+    }
+    const M = 1200, T = k => a + (b - a) * k / M;
+    let prev = F.f(a);
+    for (let k = 1; k <= M; k++) {
+      const t1 = T(k), cur = F.f(t1);
+      if (isFinite(prev) && isFinite(cur) && Math.abs(cur - prev) < 0.2 * sc) {
+        let z = null;
+        if (prev === 0) z = T(k - 1);
+        else if (prev * cur < 0) {
+          let lo = T(k - 1), hi = t1, flo = prev;
+          for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2, fm = F.f(m); if (flo * fm <= 0) hi = m; else { lo = m; flo = fm; } }
+          z = (lo + hi) / 2;
+        }
+        if (z !== null && ins(z + h)) return { t: z, y: 0 };
+      }
+      prev = cur;
+    }
+    return null;
+  }
   // arrastar: h acompanha o ponteiro, de passo em passo (π/12 com o eixo em π); salta para onde coincidir com outro gráfico
   function dragShift(dr, x) {
     const raw = dr.h0 + GG.VAL(x) - dr.t0, span = S.b - S.a;
@@ -851,6 +909,8 @@
       ["xq", sq && S.showXQ, Q.fx, C.q, "x_Q"], ["yq", sq && S.showYQ, Q.fy, C.q, "y_Q"], ["rq", sq && S.showR, t => Q.fy(t) / Q.fx(t), C.q, "\\tfrac{y_Q}{x_Q}"],
     ].filter(f => f[1]).map(([key, , f, col, name]) => ({ key, f, col, name }));
     GG = { TX, VY, VAL, gx0, gx1, gy0, gy1, v0, v1, fulls, fs };
+    const shTags = [];   // nomes do atraso/adiantamento (fora do recorte)
+    let nArr = 0;
     for (const F of fulls) {
       const h = SH[F.key];
       if (!h) continue;
@@ -858,6 +918,19 @@
       ctx.strokeStyle = F.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.85;
       polyCols(k => TX(ts(k)), k => VY(F.f(ts(k) - h)), 0, M, null, jump);
       ctx.globalAlpha = 1;
+      // seta do atraso (h > 0) ou adiantamento (h < 0): de um máximo do gráfico original ao mesmo máximo da cópia, z → z + h
+      // (em y(t)/x(t), entre zeros), com tracejados até ao eixo t nas pontas; várias setas empilham-se para baixo
+      const z = shiftRef(F, h, v1 - v0);
+      if (z === null) continue;
+      const yA = VY(z.y) + nArr * 1.5 * fs, xa = TX(z.t), xb = TX(z.t + h), u = Math.sign(xb - xa), hs = Math.min(0.5 * fs, Math.abs(xb - xa) * 0.45);
+      nArr++;
+      if (Math.abs(yA - hz) > 2) { line(xa, yA, xa, hz, F.col, 1.2, [4, 4]); line(xb, yA, xb, hz, F.col, 1.2, [4, 4]); }
+      dot(xa, yA, 0.2 * fs, C.bg); ctx.lineWidth = 2; ctx.strokeStyle = F.col; ctx.beginPath(); ctx.arc(xa, yA, 0.2 * fs, 0, 2 * PI); ctx.stroke();
+      line(xa + u * 0.2 * fs, yA, xb - u * hs * 0.8, yA, F.col, 3);
+      tri(xb - u * hs, yA, u, 0, hs, F.col);
+      const k = Math.round(Math.abs(h) / (PI / 12)), exact = piAxis && k && Math.abs(Math.abs(h) - k * PI / 12) < 1e-6;
+      const val = exact ? piTex(k, 12, "\\tfrac") : (Math.abs(Math.abs(h) * 1000 - Math.round(Math.abs(h) * 1000)) < 1e-6 ? "" : "\\approx ") + fmt(Math.abs(h), 3);
+      shTags.push(["sh" + F.key, `\\text{${h > 0 ? "atraso" : "adiantamento"}: } ${val}`, (xa + xb) / 2, yA - 0.3 * fs, F.col]);
     }
     // Q primeiro (mais fino), para P ficar por cima
     const iq = idx(S.t, QV);
@@ -873,6 +946,12 @@
     }
     ctx.lineJoin = ctx.lineCap = "butt";
     ctx.restore();
+    for (const [id, src, x, y, col] of shTags) {
+      const el = texAt(id, src, x, y, fs * 0.8, col, 0.5, 1);
+      const r = el.getBoundingClientRect();
+      if (r.right > gx1) el.style.left = parseFloat(el.style.left) - (r.right - gx1) + "px";
+      if (r.left < gx0) el.style.left = parseFloat(el.style.left) + (gx0 - r.left) + "px";
+    }
     // pontos à frente das curvas, cada um com o nome da sua função ao lado (x_P, y_P, …; x_Q, y_Q, … a roxo)
     const tags = [], pn = ["x_P", "y_P", "y_P/x_P"];
     series.forEach(([on, , f, col], k) => {
