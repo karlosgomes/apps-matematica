@@ -61,13 +61,14 @@
   const g = 9.8;
   const S = {
     pos: "vertical",               // montagem: vertical (suspensa) ou horizontal (sem atrito)
+    ref: "teto", Hc: 1,          // na vertical, d mede-se a partir do teto ou do solo (Hc = altura do teto ao solo, m)
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1,
     win: 10,                       // janela de tempo do gráfico (s)
     dir: "down",                   // eixo d do gráfico: para baixo (como a mola) ou para cima (habitual)
     scale: 1,                      // escala de d: 0–1, 0–2 ou 0–4 m
     graph: false, mid: false, law: false, phys: false,   // o que se mostra (tudo escondido ao início)
-    keep: false, traces: [],       // traços guardados: { pos, m, k, L, x0, v0, t, c }
+    keep: false, traces: [],       // traços guardados: { pos, ref, Hc, m, k, L, x0, v0, t, c }
   };
   const LIM = { m: [0.1, 2, 0.05], k: [10, 100, 1], L: [0.2, 1, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
   const NCORES = 5, MAXTRACOS = 8;
@@ -87,14 +88,17 @@
   };
 
   // ---------- física: x(t) = x₀ cos ωt + (v₀/ω) sin ωt = A cos(ωt + φ) ----------
+  // x₀ e v₀ medem-se no sentido em que d cresce (para baixo a partir do teto; para cima a partir do solo)
+  const isSolo = P => P.pos === "vertical" && P.ref === "solo";
   function model(P = S) {
     const w = Math.sqrt(P.k / P.m);
     // posição de equilíbrio: na vertical o peso estica a mola mg/k; na horizontal (sem atrito) não
-    const D = P.L + (P.pos === "vertical" ? P.m * g / P.k : 0);
+    const Dt = P.L + (P.pos === "vertical" ? P.m * g / P.k : 0);   // distância do teto (ou de O) ao equilíbrio
+    const D = isSolo(P) ? P.Hc - Dt : Dt;
     const A = Math.hypot(P.x0, P.v0 / w);
     let phi = Math.atan2(-P.v0 / w, P.x0);
     if (phi < -Math.PI + 1e-9) phi = Math.PI;    // φ ∈ ]−π, π]
-    return { w, D, A, phi, T: TAU / w };
+    return { w, D, Dt, A, phi, T: TAU / w };
   }
   const dOf = (M, t) => M.D + M.A * Math.cos(M.w * t + M.phi);
   const vOf = (M, t) => -M.A * M.w * Math.sin(M.w * t + M.phi);
@@ -109,8 +113,8 @@
   // (ao arrastar um cursor só o primeiro passo guarda, porque depois t = 0)
   function saveTrace() {
     if (!S.keep || S.t <= 0) return;
-    const { pos, m, k, L, x0, v0, t } = S;
-    S.traces.push({ pos, m, k, L, x0, v0, t, c: nextColor++ % NCORES });
+    const { pos, ref, Hc, m, k, L, x0, v0, t } = S;
+    S.traces.push({ pos, ref, Hc, m, k, L, x0, v0, t, c: nextColor++ % NCORES });
     if (S.traces.length > MAXTRACOS) S.traces.shift();
   }
   const setParam = key => v => {
@@ -128,6 +132,18 @@
     history.replaceState(null, "", p === "horizontal" ? "#horizontal" : location.pathname + location.search);
     draw();
   }
+  // trocar a referência de d (teto ↔ solo) não muda o movimento: x₀ e v₀ trocam de sinal
+  // e o tempo continua; os traços guardados passam para a nova referência
+  function setRef(r) {
+    if (r === S.ref) return;
+    S.ref = r; S.x0 = -S.x0; S.v0 = -S.v0;
+    S.traces.forEach(tr => { if (tr.pos === "vertical" && tr.ref !== r) { tr.ref = r; tr.Hc = S.Hc; tr.x0 = -tr.x0; tr.v0 = -tr.v0; } });
+    // se a esfera deixar de caber, a escala passa à menor que chega
+    const M = model();
+    if (M.D + M.A + 0.03 > S.scale) S.scale = [1, 2, 4].find(v => M.D + M.A + 0.03 <= v) || 4;
+    draw();
+  }
+  const setH = x => { S.Hc = clamp(x, 0.5, 4); S.traces.forEach(tr => { if (isSolo(tr)) tr.Hc = S.Hc; }); };
   function toggleRun() { S.running = !S.running; go(); }
   function restart() { S.running = false; S.t = 0; draw(); }
   // fim do cursor do tempo: a janela; se o tempo passar do fim, alarga-se de janela em janela
@@ -173,6 +189,7 @@
   }
   makeInput("tin", "Tempo t em segundos", () => S.t, setTime, 0.01, 2);
   makeInput("win", "Janela de tempo do gráfico, em segundos (0,5 a 600)", () => S.win, setWin, 1, 2);
+  makeInput("hin", "Altura do teto ao solo, em metros (0,5 a 4)", () => S.Hc, setH, 0.01, 2);
   let usedInp = new Set();
   function place(id, r, px) {
     const { el, get, dec } = INP[id];
@@ -188,7 +205,7 @@
   // ao alto: a mola e o gráfico em cima e os controlos por baixo
   const ROW = 1.6, LEG = 1.9;
   let CP = 0.55, GAP = 0.75, RG = 0.4;
-  const CARDS = [["mont", 1], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 3]];
+  const CARDS = [["mont", 2], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 3]];
   const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
   function layout() {
     let fs = clamp(Math.min(W, H) / 26, 12, 21);
@@ -379,6 +396,18 @@
     const c = card(b, C.muted, fs), rh = ROW * fs, y = rowY(c, 0, fs);
     const lx = c.x + text("Montagem", c.x, y + rh / 2 + 1, fs * 0.8, C.muted) + 0.7 * fs;
     seg(lx, y, c.x + c.w - lx, rh, fs, [["vertical", "↕ Vertical"], ["horizontal", "↔ Horizontal"]], S.pos, "pos", C.muted, fs * 0.85);
+    // 2.ª linha: na vertical, a partir de onde se mede d (teto ou solo) e, a partir do solo, a altura do teto
+    const y2 = rowY(c, 1, fs), px = fs * 0.8;
+    if (S.pos !== "vertical") { text("Na horizontal, d mede-se a partir de O.", c.x, y2 + rh / 2 + 1, px, C.faint, "left", FONT, 400, "italic"); return; }
+    const l2 = c.x + text("d desde", c.x, y2 + rh / 2 + 1, px, C.muted) + 0.5 * fs;
+    const solo = S.ref === "solo", iw = 3.2 * fs, hw = solo ? tw("H", px) + iw + tw("m", px) + 1.3 * fs : 0;
+    seg(l2, y2, c.x + c.w - l2 - hw, rh, fs, [["teto", "o teto"], ["solo", "o solo"]], S.ref, "ref", C.muted, fs * 0.8);
+    if (solo) {
+      const ux = c.x + c.w - tw("m", px), ix = ux - 0.3 * fs - iw;
+      texAt("hl", "H", ix - 0.3 * fs, y2 + rh / 2, fs * 0.9, C.muted, 1, 0.5);
+      place("hin", { x: ix, y: y2 + (rh - 1.3 * fs) / 2, w: iw, h: 1.3 * fs }, px);
+      text("m", c.x + c.w, y2 + rh / 2 + 1, px, C.muted, "right");
+    }
   }
   function cardTempo(b, fs) {
     const c = card(b, C.hot, fs), rh = ROW * fs, bh = 1.25 * fs;
@@ -438,7 +467,7 @@
     place("win", { x: lx, y: y + (rh - 1.3 * fs) / 2, w: iw, h: 1.3 * fs }, fs * 0.8);
     let x = lx + iw + 0.3 * fs;
     x += text("s", x, y + rh / 2 + 1, px, C.muted) + 0.9 * fs;
-    if (S.pos === "vertical") {
+    if (S.pos === "vertical" && S.ref !== "solo") {
       x += text("Eixo d", x, y + rh / 2 + 1, px, C.muted) + 0.5 * fs;
       seg(x, y, c.x + c.w - x, rh, fs, [["down", "↓ mola"], ["up", "↑ habitual"]], S.dir, "dir", C.muted, fs * 0.75);
     }
@@ -461,7 +490,7 @@
     rrect(b.x, b.y, b.w, b.h, 8, null, C.phys, 1.2);
     const vert = S.pos === "vertical";
     const l1 = `\\omega = \\sqrt{\\tfrac{k}{m}} = ${texNum(mod.w, 2)}\\ \\text{rad/s}\\qquad T = \\tfrac{2\\pi}{\\omega} = ${texNum(mod.T, 2)}\\ \\text{s}\\qquad f = \\tfrac{1}{T} = ${texNum(1 / mod.T, 2)}\\ \\text{Hz}`;
-    const l2 = `D = ${vert ? "L_0 + \\tfrac{mg}{k}" : "L_0"} = ${texNum(mod.D, 3)}\\ \\text{m}\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}`;
+    const l2 = `D = ${isSolo(S) ? "H - \\left(L_0 + \\tfrac{mg}{k}\\right)" : vert ? "L_0 + \\tfrac{mg}{k}" : "L_0"} = ${texNum(mod.D, 3)}\\ \\text{m}\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}`;
     const e1 = texAt("ph1", l1, b.x + b.w / 2, b.y + b.h * 0.27, fs * 0.8, C.phys);
     const e2 = texAt("ph2", l2, b.x + b.w / 2, b.y + b.h * 0.72, fs * 0.8, C.phys);
     const k = Math.min(1, (b.w - fs) / Math.max(e1.offsetWidth, e2.offsetWidth));
@@ -483,37 +512,46 @@
     // escala vertical comum à cena (vertical) e ao gráfico: de iy0 (d = 0) a iy1 (d = top)
     const iy0 = gr.y + 2.0 * fs, iy1 = gr.y + gr.h - 1.6 * fs;
     const Ys = dd => iy0 + (dd / top) * (iy1 - iy0);
-    const down = vert && S.dir === "down";
+    const solo = isSolo(S);
+    const down = vert && !solo && S.dir === "down";
     const Yg = down ? Ys : dd => iy1 - (dd / top) * (iy1 - iy0);
+    // na cena vertical: a partir do teto, d cresce para baixo (Ys); a partir do solo, para cima (Yg)
+    const Yc = solo ? Yg : Ys, ceilD = solo ? S.Hc : 0;
 
     // ---- cena ----
     const scTitle = vert ? "Mola suspensa" : "Mola na horizontal (sem atrito)";
     frame_(sc, scTitle, fs, vert ? "Mola" : "Mola (horizontal)");
     let ballX = 0, ballY = 0;
     if (vert) {
-      const cx = sc.x + sc.w * 0.42, yb = Ys(dNow), amp = 0.6 * fs;
+      const cx = sc.x + sc.w * 0.42, yb = Yc(dNow), amp = 0.6 * fs, yC = Yc(ceilD);
       // (se a esfera sair do referencial, o desenho fica cortado pela moldura)
       ctx.save(); ctx.beginPath(); ctx.roundRect(sc.x, sc.y, sc.w, sc.h, 9); ctx.clip();
       // teto tracejado
-      line(sc.x + 0.5 * fs, iy0, sc.x + sc.w - 0.5 * fs, iy0, C.ceil, 3);
-      for (let x = sc.x + 0.7 * fs; x < sc.x + sc.w - 0.9 * fs; x += 0.6 * fs) line(x, iy0, x + 0.5 * fs, iy0 - 0.55 * fs, C.ceil, 1.2);
-      if (S.mid) dashed(sc.x + 0.4 * fs, Ys(mod.D), sc.x + sc.w, Ys(mod.D), C.eq, 1.4);
-      springV(cx, iy0, Math.max(iy0 + 8, yb - R), amp, fs);
+      line(sc.x + 0.5 * fs, yC, sc.x + sc.w - 0.5 * fs, yC, C.ceil, 3);
+      for (let x = sc.x + 0.7 * fs; x < sc.x + sc.w - 0.9 * fs; x += 0.6 * fs) line(x, yC, x + 0.5 * fs, yC - 0.55 * fs, C.ceil, 1.2);
+      // solo (só quando d se mede a partir dele)
+      if (solo) {
+        line(sc.x + 0.5 * fs, iy1, sc.x + sc.w - 0.5 * fs, iy1, C.ceil, 3);
+        for (let x = sc.x + 0.7 * fs; x < sc.x + sc.w - 0.9 * fs; x += 0.6 * fs) line(x + 0.5 * fs, iy1, x, iy1 + 0.55 * fs, C.ceil, 1.2);
+      }
+      if (S.mid) dashed(sc.x + 0.4 * fs, Yc(mod.D), sc.x + sc.w, Yc(mod.D), C.eq, 1.4);
+      springV(cx, yC, Math.max(yC + 8, yb - R), amp, fs);
       ball(cx, yb, R);
-      // cota d
-      const qx = cx + amp + 1.1 * fs;
-      line(qx, iy0 + 2, qx, yb, C.muted, 1.2);
+      // cota d (do teto ou do solo ao centro da esfera)
+      const qx = cx + amp + 1.1 * fs, q0 = solo ? iy1 - 2 : iy0 + 2;
+      line(qx, q0, qx, yb, C.muted, 1.2);
       line(qx - 4, yb, qx + 4, yb, C.muted, 1.2);
       ctx.restore();
-      texAt("cd", "d", qx + 0.25 * fs, (iy0 + Math.min(yb, iy1)) / 2, fs * 0.85, C.muted, 0, 0.5, true);
+      const qm = solo ? (iy1 + Math.max(yb, iy0)) / 2 : (iy0 + Math.min(yb, iy1)) / 2;
+      texAt("cd", "d", qx + 0.25 * fs, qm, fs * 0.85, C.muted, 0, 0.5, true);
       ballX = cx; ballY = yb;
     } else {
       sceneH(sc, fs, mod, dNow, R, top);
     }
 
     // ---- gráfico ----
-    const cap = vert ? "d — distância do teto ao centro da esfera (m)" : "d — distância de O ao centro da esfera P (m)";
-    const tW = frame_(gr, cap, fs, vert ? "d — distância do teto à esfera" : "d — distância de O a P");
+    const cap = solo ? "d — distância do solo ao centro da esfera (m)" : vert ? "d — distância do teto ao centro da esfera (m)" : "d — distância de O ao centro da esfera P (m)";
+    const tW = frame_(gr, cap, fs, solo ? "d — distância do solo à esfera" : vert ? "d — distância do teto à esfera" : "d — distância de O a P");
     const now = texAt("now", `t = ${texNum(S.t, 2)}\\ \\text{s}\\quad d = ${texNum(dNow, 3)}\\ \\text{m}\\quad v = ${texNum(vOf(mod, S.t), 2)}\\ \\text{m/s}`,
       gr.x + gr.w - 0.6 * fs, gr.y + 0.75 * fs, fs * 0.75, C.hot, 1, 0.5, true);
     if (now.offsetWidth > gr.w - tW - 1.2 * fs) {
@@ -573,13 +611,15 @@
       ctx.restore();
       // ponto atual e ligação à esfera
       const ppx = X(S.t), ppy = Yg(dNow);
-      if (down) dashed(ballX + R + 2, ballY, ppx, ppy, C.ball, 1);
+      if (down || solo) dashed(ballX + R + 2, ballY, ppx, ppy, C.ball, 1);
       ctx.beginPath(); ctx.arc(ppx, ppy, 0.3 * fs, 0, TAU); ctx.fillStyle = C.curve; ctx.fill();
     }
 
     // avisos
     const warns = [];
-    if (mod.D - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
+    if (mod.Dt - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
+    if (solo && mod.D - mod.A <= 0.02) warns.push("⚠ A esfera bateria no solo: aumenta a altura H do teto.");
+    // (a partir do solo, o teto pode ficar fora do referencial: a mola sai pela moldura)
     if (mod.D + mod.A + 0.03 > S.scale) warns.push("⚠ A esfera sai do referencial: escolhe uma escala maior.");
     warns.forEach((w, i) => {
       const wpx = Math.min(fs * 0.72, fs * 0.72 * (GW - fs) / tw(w, fs * 0.72, FONT, 700));
@@ -654,6 +694,7 @@
     if (h.kind === "speed") { S.speed = h.v; draw(); return; }
     if (h.kind === "scale") { S.scale = h.v; draw(); return; }
     if (h.kind === "dir") { S.dir = h.v; draw(); return; }
+    if (h.kind === "ref") { setRef(h.v); return; }
     if (["graph", "mid", "law", "phys", "keep"].includes(h.kind)) { toggle(h.kind); return; }
     if (h.kind === "clear") { S.traces = []; nextColor = 0; draw(); return; }
     if (h.kind === "slide") {
@@ -686,21 +727,26 @@
     else if (e.key === "e") toggle("law");
     else if (e.key === "f") toggle("phys");
     else if (e.key === "v") setPos(S.pos === "vertical" ? "horizontal" : "vertical");
+    else if (e.key === "s" && S.pos === "vertical") setRef(S.ref === "solo" ? "teto" : "solo");
     else return;
     e.preventDefault();
   });
 
   // endereço com condições iniciais: #horizontal&m=1&k=88.83&L=0.6&x0=0.08&v0=0&w=2 (w = janela de tempo)
+  // na vertical, «solo» mede d a partir do solo e H = altura do teto; escala = 1, 2 ou 4 (m)
   // (ponto ou vírgula decimal; os valores ficam dentro dos limites dos cursores)
   (() => {
     const parts = location.hash.slice(1).split("&");
     if (parts[0] === "horizontal") S.pos = "horizontal";
+    if (parts.includes("solo")) S.ref = "solo";
     for (const kv of parts) {
       const [key, val] = kv.split("=");
       if (val === undefined) continue;
       const x = parseFloat(decodeURIComponent(val).replace(",", "."));
       if (!isFinite(x)) continue;
       if (key === "w") { setWin(x); continue; }
+      if (key === "H") { setH(x); continue; }
+      if (key === "escala" && [1, 2, 4].includes(x)) { S.scale = x; continue; }
       if (key in LIM) S[key] = clamp(x, LIM[key][0], LIM[key][1]);   // (sem arredondar ao passo do cursor)
     }
   })();
