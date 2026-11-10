@@ -23,6 +23,9 @@
          background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
   .inp:focus { border-color: var(--focus); }
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  #fx { text-align: left; font-family: "Atkinson Hyperlegible", system-ui, sans-serif; }
+  #fx::placeholder { color: var(--line); opacity: 1; }
+  select.inp { text-align: left; padding: 0 0.1em; cursor: pointer; }
   /* janela da tabela com ruído (por cima do canvas) */
   /* no ecrã deitado fica por cima dos controlos (à esquerda); ao alto, em baixo — o gráfico fica à vista */
   #tab { position: fixed; z-index: 3; left: 0.8rem; top: 0.8rem; width: min(25rem, calc(100vw - 1.6rem)); max-height: calc(100vh - 1.6rem); overflow: auto;
@@ -120,7 +123,7 @@
     keep: false, traces: [],       // traços guardados: { pos, ref, Hc, m, k, L, x0, v0, t, c }
   };
   // limites dos cursores; x₀ e v₀ acompanham a escala (x₀ até ± escala, v₀ até ± 2,5 × escala)
-  const LIM = { m: [0.1, 2, 0.05], k: [1, 100, 1], L: [0.2, 1, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
+  const LIM = { m: [0.1, 2, 0.05], k: [1, 100, 1], L: [0.2, 3, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
   const lim = key => key === "x0" ? [-S.scale, S.scale, 0.01] : key === "v0" ? [-2.5 * S.scale, 2.5 * S.scale, 0.05] : LIM[key];
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
@@ -263,10 +266,188 @@
     usedInp.add(id);
   }
 
+  // ---------- função escrita pelo utilizador: d(t) = D + A cos(ωt + φ) (ou com sin) ----------
+  // analisador pequeno: números (vírgula ou ponto), π/pi, t, + − * / ^, parênteses, multiplicação implícita, sin/sen/cos
+  function fxParse(src) {
+    let s = src.replace(/^\s*[dx]\s*\(\s*t\s*\)\s*=/i, "").replace(/[−–]/g, "-").replace(/[·×]/g, "*").replace(/\s+/g, "");
+    s = s.replace(/(\d),(\d)/g, "$1.$2");
+    const tk = [], re = /(\d+\.?\d*|\.\d+)|(pi|π)|(sin|sen|cos)|(t)|([-+*/^()])/gy;
+    let m, i = 0;
+    while (i < s.length) {
+      re.lastIndex = i; m = re.exec(s);
+      if (!m) throw new Error(`Não percebi «${s.slice(i, i + 6)}».`);
+      tk.push(m[1] ? { k: "n", v: parseFloat(m[1]) } : m[2] ? { k: "n", v: Math.PI } : m[3] ? { k: "f", v: m[3] === "sen" ? "sin" : m[3] } : m[4] ? { k: "t" } : { k: m[5] });
+      i = re.lastIndex;
+    }
+    if (!tk.length) throw new Error("Escreve uma função.");
+    let p = 0;
+    const peek = () => tk[p], eat = k => { if (!tk[p] || tk[p].k !== k) throw new Error(k === ")" ? "Falta fechar um parêntese." : "Expressão incompleta."); return tk[p++]; };
+    const starts = q => q && (q.k === "n" || q.k === "t" || q.k === "f" || q.k === "(");
+    function expr() { let a = term(); while (peek() && (peek().k === "+" || peek().k === "-")) { const o = tk[p++].k, b = term(); a = { k: o, a, b }; } return a; }
+    function term() {
+      let a = unary();
+      for (;;) {
+        const q = peek();
+        if (q && (q.k === "*" || q.k === "/")) { p++; const b = unary(); a = { k: q.k, a, b }; }
+        else if (starts(q)) { const b = power(); a = { k: "*", a, b }; }     // multiplicação implícita: 2cos(…), πt, 2(…)
+        else return a;
+      }
+    }
+    function unary() { const q = peek(); if (q && (q.k === "-" || q.k === "+")) { p++; const a = unary(); return q.k === "-" ? { k: "neg", a } : a; } return power(); }
+    function power() { const a = atom(); if (peek() && peek().k === "^") { p++; return { k: "^", a, b: unary() }; } return a; }
+    function atom() {
+      const q = tk[p++];
+      if (!q) throw new Error("Expressão incompleta.");
+      if (q.k === "n") return { k: "n", v: q.v };
+      if (q.k === "t") return { k: "t" };
+      if (q.k === "(") { const a = expr(); eat(")"); return a; }
+      if (q.k === "f") {
+        // sin(…) ou sin 2t (sem parênteses: até ao fim do produto)
+        let a; if (peek() && peek().k === "(") { p++; a = expr(); eat(")"); } else a = term();
+        return { k: "fn", f: q.v, a };
+      }
+      throw new Error("Expressão mal escrita.");
+    }
+    const ast = expr();
+    if (p < tk.length) throw new Error(tk[p].k === ")" ? "Há um parêntese a mais." : "Expressão mal escrita.");
+    return ast;
+  }
+  // avalia; se U estiver definido, o nó trigonométrico vale U (para ver se a função é afim nesse nó)
+  function fxEval(n, t, U) {
+    switch (n.k) {
+      case "n": return n.v; case "t": return t; case "neg": return -fxEval(n.a, t, U);
+      case "+": return fxEval(n.a, t, U) + fxEval(n.b, t, U); case "-": return fxEval(n.a, t, U) - fxEval(n.b, t, U);
+      case "*": return fxEval(n.a, t, U) * fxEval(n.b, t, U); case "/": return fxEval(n.a, t, U) / fxEval(n.b, t, U);
+      case "^": return Math.pow(fxEval(n.a, t, U), fxEval(n.b, t, U));
+      case "fn": if (U !== undefined) return U; { const v = fxEval(n.a, t); return n.f === "sin" ? Math.sin(v) : Math.cos(v); }
+    }
+  }
+  // D, A, ω, φ de f(t) = D + A cos(ωt + φ), com A > 0, ω > 0, φ ∈ ]−π, π]
+  function fxIdentify(src) {
+    const ast = fxParse(src), trig = [];
+    (function walk(n) { if (!n) return; if (n.k === "fn") { trig.push(n); walk(n.a); return; } walk(n.a); walk(n.b); })(ast);
+    if (!trig.length) throw new Error("Não tem seno nem cosseno.");
+    if (trig.length > 1) throw new Error("Só pode ter um seno ou um cosseno.");
+    const fn = trig[0], near = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+    // argumento afim em t: ωt + c
+    const c = fxEval(fn.a, 0), w = fxEval(fn.a, 1) - c;
+    for (const t of [-1.7, 0.37, 2.9]) if (!near(fxEval(fn.a, t), w * t + c)) throw new Error("O argumento do seno/cosseno tem de ser da forma ωt + φ.");
+    if (Math.abs(w) < 1e-12) throw new Error("O argumento não depende de t: a função é constante.");
+    // f afim no nó trigonométrico e sem t fora dele: f = D + A·u
+    const D = fxEval(ast, 0.31, 0), A = fxEval(ast, 0.31, 1) - D;
+    for (const [t, u] of [[1.9, 0], [-2.3, 1], [0.7, 0.5], [3.1, -0.8]]) if (!near(fxEval(ast, t, u), D + A * u)) throw new Error("Não é da forma D + A cos(ωt + φ).");
+    if (![D, A, w, c].every(isFinite)) throw new Error("Há uma conta impossível (p. ex. divisão por 0).");
+    if (Math.abs(A) < 1e-12) throw new Error("A amplitude é 0: a função é constante.");
+    let om = w, ph = c - (fn.f === "sin" ? Math.PI / 2 : 0), Am = A;
+    if (om < 0) { om = -om; ph = -ph; }
+    if (Am < 0) { Am = -Am; ph += Math.PI; }
+    ph = ph - TAU * Math.ceil((ph - Math.PI) / TAU - 1e-12);   // ]−π, π]
+    if (ph <= -Math.PI + 1e-12) ph += TAU;
+    return { D, A: Am, w: om, phi: Math.abs(ph) < 1e-12 ? 0 : ph };
+  }
+  // valor exato quando é racional (denominador até 24) ou racional × π; senão decimal
+  function exTex(x) {
+    const frac = (r, suf) => {
+      for (let q = 1; q <= 24; q++) {
+        const pn = Math.round(r * q);
+        if (Math.abs(r * q - pn) < 1e-9) {
+          if (pn === 0) return "0";
+          const sg = pn < 0 ? "-" : "", a = Math.abs(pn);
+          if (q === 1) return sg + (suf && a === 1 ? "" : a) + suf;
+          return `${sg}\\frac{${suf && a === 1 ? "" : a}${suf}}{${q}}`;
+        }
+      }
+      return null;
+    };
+    const inv = frac(x * Math.PI, "");   // racional ÷ π (p. ex. f = 1/π)
+    const invT = inv && inv !== "0" ? (inv.includes("frac") ? inv.replace(/\\frac\{(\d*)\}\{(\d+)\}/, "\\frac{$1}{$2\\pi}") : `\\frac{${inv.replace("-", "")}}{\\pi}`.replace(/^/, inv.startsWith("-") ? "-" : "")) : null;
+    return frac(x, "") || frac(x / Math.PI, "\\pi") || invT || texNum(x, 3, true);
+  }
+  const FX = { el: null, unit: null, fb: "", note: "", bad: false, sig: "" };
+  const paramSig = () => JSON.stringify([S.pos, S.ref, S.href, S.m, S.k, S.L, S.x0, S.v0, S.Hc]);
+  // põe a montagem a fazer d(t) = D + A cos(ωt + φ) (D e A em metros); devolve as notas das mudanças
+  function fxApply(F, u) {
+    const D = F.D * u, A = F.A * u, w = F.w, notes = [];
+    if (w < Math.sqrt(1 / 2) - 1e-9 || w > Math.sqrt(1000) + 1e-9) throw new Error(`ω = ${fmt(w, 2)} rad/s fica fora do que a app consegue (de 0,71 a 31,6 rad/s).`);
+    if (Math.abs(D) + A > 4) throw new Error(`Valores até ${fmt(Math.abs(D) + A, 2, true)} m não cabem (máx. 4 m): vê a unidade.`);
+    const m = w * w > 100 ? 100 / (w * w) : w * w < 1 ? 1 / (w * w) : 1, k = m * w * w, sag = g / (w * w);
+    saveTrace();
+    S.m = +m.toFixed(6); S.k = +k.toFixed(6);
+    if (S.pos === "vertical") {
+      if (S.ref === "teto") {
+        const L0 = D - sag;
+        if (L0 >= LIM.L[0] - 1e-9 && L0 <= LIM.L[1]) S.L = +L0.toFixed(6);
+        else { S.ref = "solo"; notes.push(`passei a medir a partir do solo (do teto, D ≥ ${fmt(sag + 0.2, 2)} m)`); }
+      }
+      if (S.ref === "solo") {
+        let H = D + S.L + sag;
+        if (H > 4) { S.L = 0.2; H = D + 0.2 + sag; }
+        if (H <= 4 && D - A > 0) S.Hc = +H.toFixed(6);
+        else {
+          S.pos = "horizontal"; S.href = Math.abs(D) < 1e-9 ? "reta" : "parede";
+          notes.push(D - A <= 0 ? "passei para a horizontal (a esfera passaria abaixo do solo)" : `passei para a horizontal (na vertical, o peso esticaria a mola ${fmt(sag, 2)} m)`);
+        }
+      }
+    }
+    if (S.pos === "horizontal") {
+      if (S.href === "reta" && Math.abs(D) > 1e-9) { S.href = "parede"; notes.push("passei a medir d desde a parede (na reta, a linha média é 0)"); }
+      else if (S.href === "parede" && Math.abs(D) < 1e-9) { S.href = "reta"; notes.push("com D = 0, passei para a reta numérica"); }
+      if (S.href === "parede") {
+        if (D < LIM.L[0] - 1e-9 || D > LIM.L[1] + 1e-9) throw new Error(`Na horizontal, D (comprimento natural da mola) tem de estar entre ${fmt(LIM.L[0], 1)} e ${fmt(LIM.L[1], 0)} m${D > LIM.L[1] ? " (vê a unidade)" : ""}.`);
+        S.L = +D.toFixed(6);
+      }
+    }
+    S.x0 = +(A * Math.cos(F.phi)).toFixed(9); S.v0 = +(-A * w * Math.sin(F.phi)).toFixed(9);
+    const M = model(), top = M.D + M.A + (isReta(S) ? -0.005 : 0.03);
+    const sc = [1, 2, 4].find(v => top <= v);
+    if (!sc) notes.push("não cabe na escala de 0 a 4 m (vê a unidade)");
+    S.scale = sc || 4;
+    const T = TAU / w; S.win = clamp(+(4 * T).toPrecision(2), 0.5, 600);
+    S.t = 0; S.running = false;
+    if (TAB.open) { TAB.a = 0; TAB.b = S.win; TAB.h = +niceH(T, S.win).toPrecision(6); tabFields(); }
+    return notes;
+  }
+  function fxRun() {
+    const src = FX.el.value.trim();
+    if (!src) { FX.fb = ""; FX.note = ""; FX.bad = false; FX.el.classList.remove("bad"); draw(); return; }
+    // se a função não servir, a montagem fica como estava
+    const keep = ["pos", "ref", "href", "m", "k", "L", "x0", "v0", "Hc", "scale", "win", "t", "running"].map(k => [k, S[k]]), nTr = S.traces.length;
+    try {
+      const F = fxIdentify(src), u = +FX.unit.value, un = ({ 1: "m", 0.1: "dm", 0.01: "cm" })[u];
+      const notes = fxApply(F, u), T = TAU / F.w;
+      FX.fb = `D = ${exTex(F.D)},\\ A = ${exTex(F.A)}\\ (\\text{${un}}),\\ \\omega = ${exTex(F.w)},\\ \\varphi = ${exTex(F.phi)}\\;\\Rightarrow\\; T = ${exTex(T)}\\ \\text{s},\\ f = ${exTex(1 / T)}\\ \\text{Hz}`;
+      FX.note = notes.length ? "⚠ " + notes.join("; ") + "." : "";
+      FX.bad = false; FX.el.classList.remove("bad"); FX.sig = paramSig();
+    } catch (e) {
+      keep.forEach(([k, v]) => S[k] = v); S.traces.length = Math.min(S.traces.length, nTr);
+      FX.fb = "⚠ " + e.message; FX.note = ""; FX.bad = true; FX.el.classList.add("bad");
+    }
+    draw();
+  }
+  (function fxMake() {
+    const el = document.createElement("input");
+    el.className = "inp"; el.id = "fx"; el.type = "text"; el.autocomplete = "off"; el.spellcheck = false;
+    el.setAttribute("aria-label", "Função sinusoidal, por exemplo 5 + 2cos(πt + π/3)");
+    document.body.appendChild(el);
+    el.addEventListener("keydown", e => { if (e.key === "Enter") { fxRun(); el.blur(); } else if (e.key === "Escape") el.blur(); });
+    el.addEventListener("change", fxRun);
+    const sel = document.createElement("select");
+    sel.className = "inp"; sel.id = "fxu"; sel.setAttribute("aria-label", "Unidade da função");
+    sel.innerHTML = '<option value="1">m</option><option value="0.1">dm</option><option value="0.01">cm</option>';
+    sel.title = "Unidade de D e de A na função escrita";
+    sel.addEventListener("change", () => { if (FX.el.value.trim()) fxRun(); });
+    document.body.appendChild(sel);
+    FX.el = el; FX.unit = sel;
+  })();
+  function placeEl(el, r, px) {
+    el.style.display = ""; el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px"; el.style.fontSize = px + "px";
+  }
+
   // ---------- disposição ----------
   // ecrã deitado: controlos numa coluna à esquerda, a mola e o gráfico à direita;
   // ao alto: a mola e o gráfico em cima e os controlos por baixo
   const ROW = 1.6, LEG = 1.9;
+  const legH = () => LEG + (FX.fb ? 1.35 : 0) + (FX.note ? 1.0 : 0);   // com a linha do que se leu da função escrita
   let CP = 0.55, GAP = 0.75, RG = 0.4;
   const CARDS = [["mont", 2], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 4]];
   const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
@@ -289,7 +470,7 @@
     if (land) {
       const cw = clamp(W * 0.3, 19 * fs, 23 * fs), x = pad;
       let y = pad;
-      L.legend = { x, y, w: cw, h: LEG * fs }; y += LEG * fs + 0.8 * fs;
+      L.legend = { x, y, w: cw, h: legH() * fs }; y += legH() * fs + 0.8 * fs;
       CARDS.forEach(([k]) => { L.cards[k] = { x, y, w: cw, h: hOf(k) }; y += hOf(k) + gap; });
       const gx = x + cw + 1.2 * fs;
       area = { x: gx, y: pad, w: W - pad - gx, h: H - 2 * pad };
@@ -299,7 +480,7 @@
       const col = nc === 2 ? [["mont", "tempo", "ver"], ["mola", "ci", "graf"]] : [CARDS.map(c => c[0]), []];
       const ctrlH = Math.max(...col.map(cs => cs.reduce((s, k) => s + hOf(k) + gap, 0))) - gap;
       let y = pad;
-      L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + 0.4 * fs;
+      L.legend = { x: pad, y, w, h: legH() * fs }; y += legH() * fs + 0.4 * fs;
       const gh = H - pad - ctrlH - 0.6 * fs - y;
       area = { x: pad, y, w, h: gh };
       const y0 = y + gh + 0.6 * fs;
@@ -415,6 +596,7 @@
   }
   const go = () => { last = 0; draw(); };
   function paint() {
+    if (FX.sig && FX.sig !== paramSig()) { FX.sig = ""; FX.fb = ""; FX.note = ""; FX.bad = false; if (document.activeElement !== FX.el) FX.el.value = ""; }
     L = layout(); hits = []; used = new Set(); usedInp = new Set();
     const { fs } = L, mod = model();
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
@@ -440,12 +622,26 @@
     }
   }
 
-  // em cima: a forma geral da função e o botão do modo escuro
+  // em cima: campo para escrever a função (com a forma geral como exemplo), unidade e o botão do modo escuro;
+  // por baixo, depois de Enter, o que se leu (D, A, ω, φ, T, f) e as mudanças feitas à montagem
   function legend(b, fs) {
-    const bw = b.h * 1.3, w = b.w - bw - 0.4 * fs;
+    const h1 = LEG * fs, bw = h1 * 1.3, w = b.w - bw - 0.4 * fs;
     rrect(b.x, b.y, w, b.h, 8, C.band, C.line, 1.5);
-    fit(texAt("legend", isReta(S) ? "x(t) = A\\cos(\\omega t + \\varphi)" : "d(t) = D + A\\cos(\\omega t + \\varphi)", b.x + w / 2, b.y + b.h / 2, fs * 1.2, C.ink), w - 0.8 * fs, b.h);
-    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+    const lab = texAt("fxl", `${VAR()}(t) =`, b.x + 0.5 * fs, b.y + h1 / 2, fs * 1.05, C.ink, 0, 0.5);
+    const lw = lab.offsetWidth, uw = 3.3 * fs, ih = 1.4 * fs;
+    const ix = b.x + 0.5 * fs + lw + 0.35 * fs, iw = Math.max(4 * fs, b.x + w - 0.4 * fs - uw - 0.3 * fs - ix);
+    placeEl(FX.el, { x: ix, y: b.y + (h1 - ih) / 2, w: iw, h: ih }, fs * 0.85);
+    placeEl(FX.unit, { x: ix + iw + 0.3 * fs, y: b.y + (h1 - ih) / 2, w: uw, h: ih }, fs * 0.8);
+    FX.el.placeholder = isReta(S) ? "A cos(ωt + φ), p. ex. 4cos(π/3 t + π/6)" : "D + A cos(ωt + φ), p. ex. 5 + 2cos(πt + π/3)";
+    if (FX.fb) {
+      const y2 = b.y + h1 + 0.75 * fs;
+      line(b.x + 0.5 * fs, b.y + h1 - 0.05 * fs, b.x + w - 0.5 * fs, b.y + h1 - 0.05 * fs, C.grid, 1);
+      const plain = (str, y, px, col, wt) => text(str, b.x + 0.5 * fs, y, Math.min(px, px * (w - fs) / tw(str, px, FONT, wt)), col, "left", FONT, wt);
+      if (FX.bad) plain(FX.fb, y2, fs * 0.78, C.curve, 700);
+      else fit(texAt("fxfb", FX.fb, b.x + 0.5 * fs, y2 - 0.05 * fs, fs * 0.82, C.phys, 0, 0.5), w - fs, 1.4 * fs);
+      if (FX.note) plain(FX.note, y2 + 0.95 * fs, fs * 0.72, C.hot, 700);
+    }
+    button(b.x + b.w - bw, b.y, bw, h1, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
   }
   function card(b, col, fs) {
     rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
@@ -959,7 +1155,7 @@
   // g gráfico, l linha média, e expressão, f grandezas, v troca a montagem
   window.addEventListener("keydown", e => {
     if (TAB.open && e.key === "Escape") { closeTab(); e.preventDefault(); return; }
-    if (document.activeElement && (document.activeElement.classList.contains("inp") || document.activeElement.closest("#tab"))) return;
+    if (document.activeElement && (document.activeElement.classList.contains("inp") || document.activeElement.closest("#tab") || document.activeElement.tagName === "SELECT")) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") toggleRun();
     else if (e.key === "r") restart();
@@ -995,6 +1191,10 @@
       if (key === "escala" && [1, 2, 4].includes(x)) { S.scale = x; continue; }
       if (key in LIM) { const [a, b] = lim(key); S[key] = clamp(x, a, b); }   // (sem arredondar ao passo do cursor)
     }
+    // #f=5+2cos(pi*t+pi/3)&u=dm: escreve a função no campo e aplica-a (depois da montagem: vertical/solo/horizontal/reta)
+    const fv = parts.find(kv => kv.startsWith("f=")), uv = parts.find(kv => kv.startsWith("u="));
+    if (uv) { const u = { m: "1", dm: "0.1", cm: "0.01" }[decodeURIComponent(uv.slice(2))]; if (u) FX.unit.value = u; }
+    if (fv) { FX.el.value = decodeURIComponent(fv.slice(2)); fxRun(); }
   })();
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
