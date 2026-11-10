@@ -2265,8 +2265,21 @@ ${body}
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render());
   if (document.fonts) document.fonts.ready.then(() => render());
 
-  // endereço: #bi abre as duas variáveis
-  setMode(location.hash.includes("bi") ? "bi" : "uni");
+  // endereço: #bi abre as duas variáveis; &dados=<base64 UTF-8> põe esses dados no modo escolhido
+  // e &modelo=sin (lin, quad, exp, log, pow) escolhe o modelo — usado pela app do oscilador harmónico
+  {
+    const h = location.hash, md = h.includes("bi") ? "bi" : "uni";
+    const dm = h.match(/[#&]dados=([^&]*)/), mm = h.match(/[#&]modelo=([a-z]+)/);
+    if (dm) {
+      try {
+        S.data[md] = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(dm[1])), c => c.charCodeAt(0)));
+        S.picked[md] = ""; save();
+      } catch (e) {}
+      if (mm && md === "bi" && [...$("r-sel").options].some(o => o.value === mm[1])) { S.model = mm[1]; $("r-sel").value = mm[1]; }
+      history.replaceState(null, "", location.pathname + (md === "bi" ? "#bi" : ""));
+    }
+    setMode(md);
+  }
 })();
 </script>
 </body>

@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
-  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  :root { --btn: #eef2f6; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --btn: #212b36; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
@@ -23,10 +23,58 @@
          background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
   .inp:focus { border-color: var(--focus); }
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  /* janela da tabela com ruído (por cima do canvas) */
+  /* no ecrã deitado fica por cima dos controlos (à esquerda); ao alto, em baixo — o gráfico fica à vista */
+  #tab { position: fixed; z-index: 3; left: 0.8rem; top: 0.8rem; width: min(25rem, calc(100vw - 1.6rem)); max-height: calc(100vh - 1.6rem); overflow: auto;
+         box-sizing: border-box; padding: 0.7rem 0.9rem 0.8rem; background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px;
+         box-shadow: 0 6px 24px rgba(0,0,0,0.18); font: 15px/1.35 "Atkinson Hyperlegible", system-ui, sans-serif; }
+  #tab[hidden] { display: none; }
+  @media (max-aspect-ratio: 11/10), (max-width: 639px) { #tab { top: auto; bottom: 0.8rem; max-height: 56vh; } #tab textarea { height: 7rem; } }
+  #tab .th { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.05em; }
+  #tab .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.8rem; margin: 0.35rem 0; }
+  #tab label { display: inline-flex; align-items: center; gap: 0.3rem; }
+  #tab input, #tab select { font: 14px "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.15rem 0.3rem; }
+  #tab input { width: 4.2em; text-align: right; }
+  #tab input:focus, #tab select:focus { outline: none; border-color: var(--focus); }
+  #tab input.bad { border-color: var(--bad); background: var(--badbg); }
+  #tab button { font: 700 14px "Atkinson Hyperlegible", system-ui, sans-serif; color: var(--ink); background: var(--btn); border: 2px solid var(--line); border-radius: 8px; padding: 0.25rem 0.6rem; cursor: pointer; }
+  #tab button:hover { border-color: var(--focus); }
+  #tab .x { padding: 0 0.5rem; font-size: 18px; line-height: 1.3; }
+  #tab textarea { width: 100%; box-sizing: border-box; height: 11rem; margin-top: 0.3rem; resize: vertical; font: 13px/1.35 "IBM Plex Mono", ui-monospace, monospace;
+                  color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.3rem 0.4rem; }
+  #tab .note { font-size: 13px; opacity: 0.8; margin: 0.2rem 0; }
+  #tab .msg { min-height: 1.2em; font-size: 13px; color: var(--focus); font-weight: 700; }
 </style>
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
+<div id="tab" role="dialog" aria-label="Tabela com ruído" hidden>
+  <div class="th"><span id="tab-title">Tabela t × d com ruído</span><button class="x" id="tab-x" title="Fechar (Esc)">×</button></div>
+  <div class="row">
+    <label>t de <input id="tab-a" inputmode="decimal"> a <input id="tab-b" inputmode="decimal"> s</label>
+  </div>
+  <div class="row">
+    <label>Passo <input id="tab-h" inputmode="decimal"> s</label> <span id="tab-n" class="note"></span>
+    <label>Ruído <input id="tab-r" inputmode="decimal"> % de A</label>
+  </div>
+  <div class="row">
+    <label>Unidade de <span id="tab-v">d</span> <select id="tab-u"><option value="1">m</option><option value="10">dm</option><option value="100">cm</option></select></label>
+    <label>Casas decimais <select id="tab-dec"><option>0</option><option>1</option><option selected>2</option><option>3</option></select></label>
+  </div>
+  <div class="row">
+    <label>Semente <input id="tab-s" inputmode="numeric"></label>
+    <button id="tab-new" title="Outra semente: outro ruído">🎲 Outro ruído</button>
+  </div>
+  <div class="note">Com a mesma semente, todos obtêm a mesma tabela. Os pontos aparecem no gráfico enquanto esta janela estiver aberta.</div>
+  <textarea id="tab-out" readonly aria-label="Tabela"></textarea>
+  <div class="row">
+    <button id="tab-copy" title="Copia com tabulações e vírgula decimal (cola na folha de cálculo ou na app Estatística)">Copiar</button>
+    <button id="tab-csv" title="Ficheiro CSV com «;» e vírgula decimal">⤓ CSV</button>
+    <button id="tab-est" title="Abre a app Estatística, em duas variáveis, com a regressão sinusoidal">Estatística ↗</button>
+    <button id="tab-folha" title="Abre a Folha de cálculo com a tabela numa folha nova">Folha de cálculo ↗</button>
+  </div>
+  <div class="msg" id="tab-msg"></div>
+</div>
 <canvas id="cv" aria-label="Oscilador harmónico: esfera presa a uma mola, na vertical ou na horizontal, e o gráfico da distância d ao longo do tempo"></canvas>
 <script>
 (() => {
@@ -220,7 +268,7 @@
   // ao alto: a mola e o gráfico em cima e os controlos por baixo
   const ROW = 1.6, LEG = 1.9;
   let CP = 0.55, GAP = 0.75, RG = 0.4;
-  const CARDS = [["mont", 2], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 3]];
+  const CARDS = [["mont", 2], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 4]];
   const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
   function layout() {
     let fs = clamp(Math.min(W, H) / 26, 12, 21);
@@ -382,6 +430,14 @@
     panels(fs, mod);
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
     for (const id in INP) if (!usedInp.has(id)) INP[id].el.style.display = "none";
+    // a tabela acompanha as mudanças dos parâmetros
+    if (TAB.open) {
+      const txt = tabText("\t", true), out = document.getElementById("tab-out");
+      if (out.value !== txt) out.value = txt;
+      document.getElementById("tab-title").textContent = `Tabela t × ${VAR()} com ruído`;
+      document.getElementById("tab-v").textContent = VAR();
+      document.getElementById("tab-n").textContent = `(${tabN()} pontos)`;
+    }
   }
 
   // em cima: a forma geral da função e o botão do modo escuro
@@ -501,6 +557,8 @@
       const t = `Apagar (${S.traces.length})`, w = tw(t, fs * 0.8, FONT, 700) + 1.2 * fs;
       button(Math.max(ex + 0.6 * fs, c.x + c.w - w), y + (rh - bh) / 2, w, bh, t, false, "clear", {}, C.muted, fs * 0.8);
     }
+    y = rowY(c, 3, fs);
+    button(c.x, y + (rh - bh) / 2, c.w, bh, "⤓ Tabela com ruído (para a regressão)…", TAB.open, "table", {}, C.muted, fs * 0.8);
   }
 
   // expressão de d(t) com os valores atuais
@@ -648,6 +706,18 @@
       ctx.beginPath(); ctx.arc(ppx, ppy, 0.3 * fs, 0, TAU); ctx.fillStyle = C.curve; ctx.fill();
     }
 
+    // pontos da tabela com ruído (enquanto a janela está aberta)
+    if (TAB.open) {
+      const pts = tabRows();
+      ctx.save(); ctx.beginPath(); ctx.rect(gx0 - 4, iy0 - 6, GW + 8, iy1 - iy0 + 12); ctx.clip();
+      pts.forEach(([t, v]) => {
+        if (t < tA - 1e-9 || t > tB + 1e-9) return;
+        ctx.beginPath(); ctx.arc(X(t), Yg(v / TAB.u), 0.24 * fs, 0, TAU);
+        ctx.fillStyle = C.bg; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.phys; ctx.stroke();
+      });
+      ctx.restore();
+    }
+
     // avisos
     const warns = [];
     if (!reta && mod.Dt - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
@@ -754,6 +824,96 @@
     texAt("rd", "x", (Xs(0) + xb) / 2, qy - 0.15 * fs, fs * 0.85, C.muted, 0.5, 1, true);
   }
 
+  // ---------- tabela tempo × distância com ruído ----------
+  // pontos igualmente espaçados de a a b; ruído gaussiano com desvio padrão = r % da amplitude
+  // (gerador com semente: a mesma semente dá a mesma tabela a todos); valores na unidade escolhida
+  const TAB = { open: false, a: 0, b: 10, h: 0.5, r: 5, u: 1, dec: 2, seed: 1 };   // h = passo do tempo
+  const tabN = () => Math.floor((TAB.b - TAB.a) / TAB.h + 1e-9) + 1;
+  function rng(seed) {   // mulberry32
+    let a = seed >>> 0;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function tabRows() {
+    const M = model(), R = rng(TAB.seed), sd = (TAB.r / 100) * (M.A > 1e-9 ? M.A : 0.1);
+    const gauss = () => { const u = 1 - R(), v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
+    const rows = [], n = tabN(), k = 10 ** TAB.dec, kt = 1e6;
+    for (let i = 0; i < n; i++) {
+      const t = Math.round((TAB.a + i * TAB.h) * kt) / kt;
+      const v = (dOf(M, t) + sd * gauss()) * TAB.u;
+      rows.push([t, Math.round(v * k) / k]);
+    }
+    return rows;
+  }
+  const $t = id => document.getElementById(id);
+  const tabUnit = () => ({ 1: "m", 10: "dm", 100: "cm" })[TAB.u];
+  const tabHead = () => ["t (s)", `${VAR()} (${tabUnit()})`];
+  const tDec = () => Math.max(...tabRows().map(([t]) => (String(t).split(".")[1] || "").length), 0);
+  function tabText(sep, comma) {
+    const rows = tabRows(), td = tDec();
+    const f = (x, d) => { const s = x.toFixed(d); return comma ? s.replace(".", ",") : s; };
+    return [tabHead().join(sep), ...rows.map(([t, v]) => f(t, td) + sep + f(v, TAB.dec))].join("\n");
+  }
+  const tabRefresh = () => draw();   // (o paint atualiza a tabela)
+  function tabFields() {
+    const set = (id, v) => { const el = $t(id); if (document.activeElement !== el) { el.value = String(v).replace(".", ","); el.classList.remove("bad"); } };
+    set("tab-a", TAB.a); set("tab-b", TAB.b); set("tab-h", TAB.h); set("tab-r", TAB.r); set("tab-s", TAB.seed);
+    $t("tab-u").value = String(TAB.u); $t("tab-dec").value = String(TAB.dec);
+  }
+  // passo inicial: o maior 1, 2, 2,5 ou 5 × 10ⁿ que dá pelo menos 6 pontos por período (e no máximo 500 pontos)
+  function niceH(T, span) {
+    let h = Math.max(T / 6, span / 499);
+    const p = 10 ** Math.floor(Math.log10(h)), m = h / p;
+    const c = [1, 2, 2.5, 5, 10].filter(v => v <= m + 1e-9).pop();
+    h = c * p;
+    return span / h > 499 ? [1, 2, 2.5, 5, 10].map(v => v * p).find(v => span / v <= 499) : h;
+  }
+  function openTab() {
+    TAB.open = true; TAB.a = 0; TAB.b = S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
+    if (!$t("tab").hidden) return;
+    $t("tab").hidden = false; $t("tab-msg").textContent = "";
+    tabFields(); tabRefresh();
+  }
+  function closeTab() { TAB.open = false; $t("tab").hidden = true; draw(); }
+  // caixas: [id, chave, validação]
+  [["tab-a", "a", x => x >= 0 && x < TAB.b && (TAB.b - x) / TAB.h < 500], ["tab-b", "b", x => x > TAB.a && x <= 600 && (x - TAB.a) / TAB.h < 500],
+   ["tab-h", "h", x => x > 0 && (TAB.b - TAB.a) / x < 500],
+   ["tab-r", "r", x => x >= 0 && x <= 100], ["tab-s", "seed", x => Number.isInteger(x) && x >= 0]].forEach(([id, key, ok]) => {
+    const el = $t(id);
+    el.addEventListener("input", () => {
+      const x = parseNum(el.value);
+      if (isFinite(x) && ok(x)) { el.classList.remove("bad"); TAB[key] = x; tabRefresh(); } else el.classList.add("bad");
+    });
+    el.addEventListener("blur", tabFields);
+    el.addEventListener("keydown", e => { if (e.key === "Enter") el.blur(); });
+  });
+  $t("tab-u").onchange = e => { TAB.u = +e.target.value; tabRefresh(); };
+  $t("tab-dec").onchange = e => { TAB.dec = +e.target.value; tabRefresh(); };
+  $t("tab-new").onclick = () => { TAB.seed = 1 + Math.floor(Math.random() * 9999); tabFields(); tabRefresh(); };
+  $t("tab-x").onclick = closeTab;
+  const tabMsg = m => { $t("tab-msg").textContent = m; clearTimeout(tabMsg.t); tabMsg.t = setTimeout(() => $t("tab-msg").textContent = "", 4000); };
+  $t("tab-copy").onclick = async () => {
+    const txt = tabText("\t", true);
+    try { await navigator.clipboard.writeText(txt); tabMsg("Tabela copiada: cola-a na folha de cálculo ou na app Estatística."); }
+    catch (e) { const ta = $t("tab-out"); ta.focus(); ta.select(); tabMsg("Seleciona a tabela e copia com Ctrl+C."); }
+  };
+  $t("tab-csv").onclick = () => {
+    const blob = new Blob(["\ufeff" + tabText(";", true) + "\n"], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `oscilador-t-${VAR()}-semente-${TAB.seed}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const b64 = str => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+  $t("tab-est").onclick = () => {
+    window.open(`../estatistica/#bi&modelo=sin&dados=${encodeURIComponent(b64(tabText("\t", true)))}`, "_blank");
+  };
+  $t("tab-folha").onclick = () => {
+    const rows = tabRows(), td = tDec(), cel = {}, [h1, h2] = tabHead();
+    cel.A1 = h1; cel.B1 = h2;
+    rows.forEach(([t, v], i) => { cel["A" + (i + 2)] = t.toFixed(td); cel["B" + (i + 2)] = v.toFixed(TAB.dec); });
+    const f = { celulas: cel, larguras: {}, grafico: null };
+    window.open(`../folha-de-calculo/#folha=${encodeURIComponent(b64(JSON.stringify(f)))}&nome=${encodeURIComponent("oscilador semente " + TAB.seed)}`, "_blank");
+  };
+
   // ---------- toque e rato ----------
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
@@ -773,6 +933,7 @@
     if (h.kind === "dir") { S.dir = h.v; draw(); return; }
     if (h.kind === "ref") { setRef(h.v); return; }
     if (h.kind === "href") { setHref(h.v); return; }
+    if (h.kind === "table") { TAB.open ? closeTab() : openTab(); return; }
     if (["graph", "mid", "law", "phys", "keep"].includes(h.kind)) { toggle(h.kind); return; }
     if (h.kind === "clear") { S.traces = []; nextColor = 0; draw(); return; }
     if (h.kind === "slide") {
@@ -795,7 +956,8 @@
   // teclado (fora das caixas): espaço liga/para o tempo, r recomeça, ←/→ mexem no tempo (Shift ×10),
   // g gráfico, l linha média, e expressão, f grandezas, v troca a montagem
   window.addEventListener("keydown", e => {
-    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
+    if (TAB.open && e.key === "Escape") { closeTab(); e.preventDefault(); return; }
+    if (document.activeElement && (document.activeElement.classList.contains("inp") || document.activeElement.closest("#tab"))) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") toggleRun();
     else if (e.key === "r") restart();
@@ -806,6 +968,7 @@
     else if (e.key === "f") toggle("phys");
     else if (e.key === "v") setPos(S.pos === "vertical" ? "horizontal" : "vertical");
     else if (e.key === "s") toggleRef();
+    else if (e.key === "t") TAB.open ? closeTab() : openTab();
     else return;
     e.preventDefault();
   });
