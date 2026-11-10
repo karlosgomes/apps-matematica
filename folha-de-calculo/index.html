@@ -656,10 +656,18 @@
     const th = e.target.closest("th");
     if (th) {                                                         // cabeçalhos: coluna, linha ou tudo
       if (editando) confirmar(0, 0);
-      if (th.dataset.c !== undefined) { ancora = { r: 0, c: +th.dataset.c }; foco = { r: NR - 1, c: +th.dataset.c }; }
-      else if (th.dataset.r !== undefined) { ancora = { r: +th.dataset.r, c: 0 }; foco = { r: +th.dataset.r, c: NC - 1 }; }
+      // Shift + clique alarga desde a coluna (ou linha) da âncora; arrastar pelos cabeçalhos seleciona várias
+      if (th.dataset.c !== undefined) {
+        const c = +th.dataset.c;
+        if (e.shiftKey) ancora = { r: 0, c: ancora.c }; else ancora = { r: 0, c };
+        foco = { r: NR - 1, c }; arrasto = "col";
+      } else if (th.dataset.r !== undefined) {
+        const r = +th.dataset.r;
+        if (e.shiftKey) ancora = { r: ancora.r, c: 0 }; else ancora = { r, c: 0 };
+        foco = { r, c: NC - 1 }; arrasto = "lin";
+      }
       else { ancora = { r: 0, c: 0 }; foco = { r: NR - 1, c: NC - 1 }; }
-      selecionar(false); e.preventDefault(); return;
+      selecionar(false); caixa.focus({ preventScroll: true }); e.preventDefault(); return;
     }
     const p = celula(e.target); if (!p) return;
     if (editando && aceitaRef()) {                                    // a escrever uma fórmula: o clique escreve a referência
@@ -673,6 +681,12 @@
   });
   caixa.addEventListener("mouseover", e => {
     if (!arrasto || typeof arrasto === "object") return;
+    if (arrasto === "col" || arrasto === "lin") {                     // arrastar pelos cabeçalhos (ou pelas células)
+      const t = e.target.closest && e.target.closest("th, td"); if (!t) return;
+      if (arrasto === "col" && t.dataset.c !== undefined) { foco = { r: NR - 1, c: +t.dataset.c }; selecionar(false); }
+      if (arrasto === "lin" && t.dataset.r !== undefined) { foco = { r: +t.dataset.r, c: NC - 1 }; selecionar(false); }
+      return;
+    }
     const p = celula(e.target); if (!p) return;
     if (arrasto === "sel") { foco = p; selecionar(false); }
     else if (arrasto === "ref") escreverRef({ r0: Math.min(refAncora.r, p.r), r1: Math.max(refAncora.r, p.r), c0: Math.min(refAncora.c, p.c), c1: Math.max(refAncora.c, p.c) });

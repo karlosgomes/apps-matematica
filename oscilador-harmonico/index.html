@@ -70,7 +70,7 @@
   <div class="row">
     <button id="tab-copy" title="Copia com tabulações e vírgula decimal (cola na folha de cálculo ou na app Estatística)">Copiar</button>
     <button id="tab-csv" title="Ficheiro CSV com «;» e vírgula decimal">⤓ CSV</button>
-    <button id="tab-est" title="Abre a app Estatística, em duas variáveis, com a regressão sinusoidal">Estatística ↗</button>
+    <button id="tab-est" title="Abre a app Estatística, em duas variáveis, com a nuvem de pontos">Estatística ↗</button>
     <button id="tab-folha" title="Abre a Folha de cálculo com a tabela numa folha nova">Folha de cálculo ↗</button>
   </div>
   <div class="msg" id="tab-msg"></div>
@@ -904,7 +904,7 @@
   };
   const b64 = str => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
   $t("tab-est").onclick = () => {
-    window.open(`../estatistica/#bi&modelo=sin&dados=${encodeURIComponent(b64(tabText("\t", true)))}`, "_blank");
+    window.open(`../estatistica/#bi&dados=${encodeURIComponent(b64(tabText("\t", true)))}`, "_blank");
   };
   $t("tab-folha").onclick = () => {
     const rows = tabRows(), td = tDec(), cel = {}, [h1, h2] = tabHead();
