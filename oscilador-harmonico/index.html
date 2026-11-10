@@ -868,8 +868,9 @@
     return span / h > 499 ? [1, 2, 2.5, 5, 10].map(v => v * p).find(v => span / v <= 499) : h;
   }
   function openTab() {
-    // ao abrir: de 0 até ao instante a que o tempo chegou (ou a janela, se o tempo ainda não andou); depois edita-se à vontade
-    TAB.open = true; TAB.a = 0; TAB.b = S.t >= 0.05 ? Math.round(S.t * 100) / 100 : S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
+    // ao abrir: com o gráfico à vista, de 0 até ao instante a que o tempo chegou; sem gráfico (ou com t ≈ 0), a janela toda
+    // (pedido do utilizador); depois edita-se à vontade
+    TAB.open = true; TAB.a = 0; TAB.b = S.graph && S.t >= 0.05 ? Math.round(S.t * 100) / 100 : S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
     if (!$t("tab").hidden) return;
     $t("tab").hidden = false; $t("tab-msg").textContent = "";
     tabFields(); tabRefresh();
