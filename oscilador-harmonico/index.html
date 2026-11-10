@@ -861,14 +861,15 @@
   }
   // passo inicial: o maior 1, 2, 2,5 ou 5 × 10ⁿ que dá pelo menos 6 pontos por período (e no máximo 500 pontos)
   function niceH(T, span) {
-    let h = Math.max(T / 6, span / 499);
+    let h = Math.max(Math.min(T / 6, span / 4), span / 499);   // (pelo menos 5 pontos)
     const p = 10 ** Math.floor(Math.log10(h)), m = h / p;
     const c = [1, 2, 2.5, 5, 10].filter(v => v <= m + 1e-9).pop();
     h = c * p;
     return span / h > 499 ? [1, 2, 2.5, 5, 10].map(v => v * p).find(v => span / v <= 499) : h;
   }
   function openTab() {
-    TAB.open = true; TAB.a = 0; TAB.b = S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
+    // ao abrir: de 0 até ao instante a que o tempo chegou (ou a janela, se o tempo ainda não andou); depois edita-se à vontade
+    TAB.open = true; TAB.a = 0; TAB.b = S.t >= 0.05 ? Math.round(S.t * 100) / 100 : S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
     if (!$t("tab").hidden) return;
     $t("tab").hidden = false; $t("tab-msg").textContent = "";
     tabFields(); tabRefresh();
