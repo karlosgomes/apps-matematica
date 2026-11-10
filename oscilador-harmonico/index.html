@@ -61,7 +61,8 @@
   const g = 9.8;
   const S = {
     pos: "vertical",               // montagem: vertical (suspensa) ou horizontal (sem atrito)
-    ref: "teto", Hc: 1,          // na vertical, d mede-se a partir do teto ou do solo (Hc = altura do teto ao solo, m)
+    ref: "teto", Hc: 1,
+    href: "parede",                // na horizontal: d a partir da parede O, ou x na reta numérica (origem no equilíbrio)          // na vertical, d mede-se a partir do teto ou do solo (Hc = altura do teto ao solo, m)
     m: 0.5, k: 20, L: 0.4, x0: 0.15, v0: 0,
     t: 0, running: false, speed: 1,
     win: 10,                       // janela de tempo do gráfico (s)
@@ -70,7 +71,9 @@
     graph: false, mid: false, law: false, phys: false,   // o que se mostra (tudo escondido ao início)
     keep: false, traces: [],       // traços guardados: { pos, ref, Hc, m, k, L, x0, v0, t, c }
   };
-  const LIM = { m: [0.1, 2, 0.05], k: [10, 100, 1], L: [0.2, 1, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
+  // limites dos cursores; x₀ e v₀ acompanham a escala (x₀ até ± escala, v₀ até ± 2,5 × escala)
+  const LIM = { m: [0.1, 2, 0.05], k: [1, 100, 1], L: [0.2, 1, 0.05], x0: [-0.3, 0.3, 0.01], v0: [-1, 1, 0.05] };
+  const lim = key => key === "x0" ? [-S.scale, S.scale, 0.01] : key === "v0" ? [-2.5 * S.scale, 2.5 * S.scale, 0.05] : LIM[key];
   const NCORES = 5, MAXTRACOS = 8;
   let nextColor = 0;
 
@@ -90,11 +93,12 @@
   // ---------- física: x(t) = x₀ cos ωt + (v₀/ω) sin ωt = A cos(ωt + φ) ----------
   // x₀ e v₀ medem-se no sentido em que d cresce (para baixo a partir do teto; para cima a partir do solo)
   const isSolo = P => P.pos === "vertical" && P.ref === "solo";
+  const isReta = P => P.pos === "horizontal" && P.href === "reta";
   function model(P = S) {
     const w = Math.sqrt(P.k / P.m);
     // posição de equilíbrio: na vertical o peso estica a mola mg/k; na horizontal (sem atrito) não
     const Dt = P.L + (P.pos === "vertical" ? P.m * g / P.k : 0);   // distância do teto (ou de O) ao equilíbrio
-    const D = isSolo(P) ? P.Hc - Dt : Dt;
+    const D = isSolo(P) ? P.Hc - Dt : isReta(P) ? 0 : Dt;
     const A = Math.hypot(P.x0, P.v0 / w);
     let phi = Math.atan2(-P.v0 / w, P.x0);
     if (phi < -Math.PI + 1e-9) phi = Math.PI;    // φ ∈ ]−π, π]
@@ -113,12 +117,12 @@
   // (ao arrastar um cursor só o primeiro passo guarda, porque depois t = 0)
   function saveTrace() {
     if (!S.keep || S.t <= 0) return;
-    const { pos, ref, Hc, m, k, L, x0, v0, t } = S;
-    S.traces.push({ pos, ref, Hc, m, k, L, x0, v0, t, c: nextColor++ % NCORES });
+    const { pos, ref, Hc, href, m, k, L, x0, v0, t } = S;
+    S.traces.push({ pos, ref, Hc, href, m, k, L, x0, v0, t, c: nextColor++ % NCORES });
     if (S.traces.length > MAXTRACOS) S.traces.shift();
   }
   const setParam = key => v => {
-    const [lo, hi, st] = LIM[key];
+    const [lo, hi, st] = lim(key);
     v = clamp(Math.round(v / st) * st, lo, hi);
     v = +v.toFixed(4);
     if (v === S[key]) return;
@@ -143,6 +147,17 @@
     if (M.D + M.A + 0.03 > S.scale) S.scale = [1, 2, 4].find(v => M.D + M.A + 0.03 <= v) || 4;
     draw();
   }
+  // na horizontal: d desde a parede ↔ x na reta numérica (x = d − L₀); o movimento é o mesmo
+  function setHref(r) {
+    if (r === S.href) return;
+    S.href = r;
+    S.traces.forEach(tr => { if (tr.pos === "horizontal") tr.href = r; });
+    const M = model();
+    if (M.D + M.A + 0.03 > S.scale) S.scale = [1, 2, 4].find(v => M.D + M.A + 0.03 <= v) || 4;
+    draw();
+  }
+  const toggleRef = () => S.pos === "vertical" ? setRef(S.ref === "solo" ? "teto" : "solo") : setHref(S.href === "reta" ? "parede" : "reta");
+  const VAR = () => isReta(S) ? "x" : "d";
   const setH = x => { S.Hc = clamp(x, 0.5, 4); S.traces.forEach(tr => { if (isSolo(tr)) tr.Hc = S.Hc; }); };
   function toggleRun() { S.running = !S.running; go(); }
   function restart() { S.running = false; S.t = 0; draw(); }
@@ -373,7 +388,7 @@
   function legend(b, fs) {
     const bw = b.h * 1.3, w = b.w - bw - 0.4 * fs;
     rrect(b.x, b.y, w, b.h, 8, C.band, C.line, 1.5);
-    fit(texAt("legend", "d(t) = D + A\\cos(\\omega t + \\varphi)", b.x + w / 2, b.y + b.h / 2, fs * 1.2, C.ink), w - 0.8 * fs, b.h);
+    fit(texAt("legend", isReta(S) ? "x(t) = A\\cos(\\omega t + \\varphi)" : "d(t) = D + A\\cos(\\omega t + \\varphi)", b.x + w / 2, b.y + b.h / 2, fs * 1.2, C.ink), w - 0.8 * fs, b.h);
     button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
   }
   function card(b, col, fs) {
@@ -398,7 +413,11 @@
     seg(lx, y, c.x + c.w - lx, rh, fs, [["vertical", "↕ Vertical"], ["horizontal", "↔ Horizontal"]], S.pos, "pos", C.muted, fs * 0.85);
     // 2.ª linha: na vertical, a partir de onde se mede d (teto ou solo) e, a partir do solo, a altura do teto
     const y2 = rowY(c, 1, fs), px = fs * 0.8;
-    if (S.pos !== "vertical") { text("Na horizontal, d mede-se a partir de O.", c.x, y2 + rh / 2 + 1, px, C.faint, "left", FONT, 400, "italic"); return; }
+    if (S.pos !== "vertical") {
+      const l3 = c.x + text("Medir", c.x, y2 + rh / 2 + 1, px, C.muted) + 0.5 * fs;
+      seg(l3, y2, c.x + c.w - l3, rh, fs, [["parede", "d desde a parede"], ["reta", "x na reta"]], S.href, "href", C.muted, fs * 0.8);
+      return;
+    }
     const l2 = c.x + text("d desde", c.x, y2 + rh / 2 + 1, px, C.muted) + 0.5 * fs;
     const solo = S.ref === "solo", iw = 3.2 * fs, hw = solo ? tw("H", px) + iw + tw("m", px) + 1.3 * fs : 0;
     seg(l2, y2, c.x + c.w - l2 - hw, rh, fs, [["teto", "o teto"], ["solo", "o solo"]], S.ref, "ref", C.muted, fs * 0.8);
@@ -429,27 +448,31 @@
   function cardVer(b, fs) {
     const c = card(b, C.curve, fs), rh = ROW * fs, bs = 0.8 * fs, px = fs * 0.8, half = c.w * 0.52;
     let y = rowY(c, 0, fs);
-    cbox(c.x, y, rh, bs, px, S.graph, "Gráfico de d(t)", { kind: "graph" }, C.curve);
+    cbox(c.x, y, rh, bs, px, S.graph, `Gráfico de ${VAR()}(t)`, { kind: "graph" }, C.curve);
     cbox(c.x + half, y, rh, bs, px, S.mid, "Linha média", { kind: "mid" }, C.eq);
     y = rowY(c, 1, fs);
-    cbox(c.x, y, rh, bs, px, S.law, "Expressão de d(t)", { kind: "law" }, C.ink);
+    cbox(c.x, y, rh, bs, px, S.law, `Expressão de ${VAR()}(t)`, { kind: "law" }, C.ink);
     cbox(c.x + half, y, rh, bs, px, S.phys, "Grandezas", { kind: "phys" }, C.phys);
   }
   // linha de um parâmetro: nome (KaTeX), cursor, valor e unidade
-  function paramRow(c, i, fs, key, tex, unit, col, dec, ticks) {
-    const rh = ROW * fs, y = rowY(c, i, fs), [lo, hi] = LIM[key];
-    texAt("pl-" + key, tex, c.x + 0.1 * fs, y + rh / 2, fs * 0.95, C.muted, 0, 0.5);
+  // off: linha esbatida e sem toque (L₀ não conta na reta numérica)
+  function paramRow(c, i, fs, key, tex, unit, col, dec, ticks, off = false) {
+    const rh = ROW * fs, y = rowY(c, i, fs), [lo, hi] = lim(key);
+    texAt("pl-" + key, tex, c.x + 0.1 * fs, y + rh / 2, fs * 0.95, off ? C.faint : C.muted, 0, 0.5);
     const vw = tw("−0,30", fs * 0.85, MONO, 600), uw = tw("N/m", fs * 0.75) + 0.3 * fs;
     const lx = c.x + 2.4 * fs, rx = c.x + c.w - uw - vw - 1 * fs;
+    if (off) ctx.globalAlpha = 0.35;
     slider(lx, y, rx - lx, rh, lo, hi, S[key], col, fs, setParam(key), ticks);
+    if (off) hits.pop();
     text(fmt(S[key], dec), c.x + c.w - uw, y + rh / 2 + 1, fs * 0.85, C.ink, "right", MONO, 600);
     text(unit, c.x + c.w, y + rh / 2 + 1, fs * 0.75, C.muted, "right");
+    ctx.globalAlpha = 1;
   }
   function cardMola(b, fs) {
     const c = card(b, C.spring, fs);
     paramRow(c, 0, fs, "m", "m", "kg", C.ball, 2);
-    paramRow(c, 1, fs, "k", "k", "N/m", C.spring, 0);
-    paramRow(c, 2, fs, "L", "L_0", "m", C.spring, 2);
+    paramRow(c, 1, fs, "k", "k", "N/m", C.spring, S.k < 10 && Math.abs(S.k - Math.round(S.k)) > 1e-9 ? 2 : 0);
+    paramRow(c, 2, fs, "L", "L_0", "m", C.spring, 2, [], isReta(S));
   }
   function cardCI(b, fs) {
     const c = card(b, C.ball, fs);
@@ -459,8 +482,9 @@
   function cardGraf(b, fs) {
     const c = card(b, C.faint, fs), rh = ROW * fs, bh = 1.25 * fs, px = fs * 0.8;
     let y = rowY(c, 0, fs);
-    let lx = c.x + text("Escala de d", c.x, y + rh / 2 + 1, px, C.muted) + 0.7 * fs;
-    seg(lx, y, c.x + c.w - lx, rh, fs, [[1, "0–1 m"], [2, "0–2 m"], [4, "0–4 m"]], S.scale, "scale", C.muted, fs * 0.8);
+    let lx = c.x + text(`Escala de ${VAR()}`, c.x, y + rh / 2 + 1, px, C.muted) + 0.7 * fs;
+    const pm = isReta(S);
+    seg(lx, y, c.x + c.w - lx, rh, fs, [[1, pm ? "±1 m" : "0–1 m"], [2, pm ? "±2 m" : "0–2 m"], [4, pm ? "±4 m" : "0–4 m"]], S.scale, "scale", C.muted, fs * 0.8);
     y = rowY(c, 1, fs);
     lx = c.x + text("Janela", c.x, y + rh / 2 + 1, px, C.muted) + 0.5 * fs;
     const iw = 3.2 * fs;
@@ -482,7 +506,8 @@
   // expressão de d(t) com os valores atuais
   function lawStrip(b, fs, mod) {
     const fase = Math.abs(mod.phi) < 0.005 ? "" : ` ${mod.phi < 0 ? "-" : "+"} ${texNum(Math.abs(mod.phi), 2)}`;
-    const src = `d(t) = ${texNum(mod.D, 3)}` + (mod.A < 1e-9 ? "" : ` + ${texNum(mod.A, 3)}\\cos\\left(${texNum(mod.w, 2)}\\,t${fase}\\right)`);
+    const cosP = `${texNum(mod.A, 3)}\\cos\\left(${texNum(mod.w, 2)}\\,t${fase}\\right)`;
+    const src = isReta(S) ? `x(t) = ${mod.A < 1e-9 ? "0" : cosP}` : `d(t) = ${texNum(mod.D, 3)}` + (mod.A < 1e-9 ? "" : ` + ${cosP}`);
     fit(texAt("law", src, b.x + b.w / 2, b.y + b.h / 2 - 0.1 * fs, fs * 1.35, C.ink), b.w - fs, b.h);
   }
   // grandezas: ω, T, f, D, A, φ
@@ -490,7 +515,7 @@
     rrect(b.x, b.y, b.w, b.h, 8, null, C.phys, 1.2);
     const vert = S.pos === "vertical";
     const l1 = `\\omega = \\sqrt{\\tfrac{k}{m}} = ${texNum(mod.w, 2)}\\ \\text{rad/s}\\qquad T = \\tfrac{2\\pi}{\\omega} = ${texNum(mod.T, 2)}\\ \\text{s}\\qquad f = \\tfrac{1}{T} = ${texNum(1 / mod.T, 2)}\\ \\text{Hz}`;
-    const l2 = `D = ${isSolo(S) ? "H - \\left(L_0 + \\tfrac{mg}{k}\\right)" : vert ? "L_0 + \\tfrac{mg}{k}" : "L_0"} = ${texNum(mod.D, 3)}\\ \\text{m}\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}`;
+    const l2 = isReta(S) ? `x = d - L_0\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}` : `D = ${isSolo(S) ? "H - \\left(L_0 + \\tfrac{mg}{k}\\right)" : vert ? "L_0 + \\tfrac{mg}{k}" : "L_0"} = ${texNum(mod.D, 3)}\\ \\text{m}\\qquad A = \\sqrt{x_0^2 + \\left(\\tfrac{v_0}{\\omega}\\right)^2} = ${texNum(mod.A, 3)}\\ \\text{m}\\qquad \\varphi = ${texNum(mod.phi, 2)}\\ \\text{rad}`;
     const e1 = texAt("ph1", l1, b.x + b.w / 2, b.y + b.h * 0.27, fs * 0.8, C.phys);
     const e2 = texAt("ph2", l2, b.x + b.w / 2, b.y + b.h * 0.72, fs * 0.8, C.phys);
     const k = Math.min(1, (b.w - fs) / Math.max(e1.offsetWidth, e2.offsetWidth));
@@ -514,13 +539,15 @@
     const Ys = dd => iy0 + (dd / top) * (iy1 - iy0);
     const solo = isSolo(S);
     const down = vert && !solo && S.dir === "down";
-    const Yg = down ? Ys : dd => iy1 - (dd / top) * (iy1 - iy0);
+    const reta = isReta(S), lo = reta ? -top : 0, V = reta ? "x" : "d";
+    // na reta numérica o gráfico vai de −top a top, com o eixo t a meio
+    const Yg = down ? Ys : reta ? xx => (iy0 + iy1) / 2 - (xx / top) * (iy1 - iy0) / 2 : dd => iy1 - (dd / top) * (iy1 - iy0);
     // na cena vertical: a partir do teto, d cresce para baixo (Ys); a partir do solo, para cima (Yg)
     const Yc = solo ? Yg : Ys, ceilD = solo ? S.Hc : 0;
 
     // ---- cena ----
-    const scTitle = vert ? "Mola suspensa" : "Mola na horizontal (sem atrito)";
-    frame_(sc, scTitle, fs, vert ? "Mola" : "Mola (horizontal)");
+    const scTitle = vert ? "Mola suspensa" : reta ? "Mola na horizontal (sem atrito) — reta numérica com a origem no equilíbrio" : "Mola na horizontal (sem atrito)";
+    frame_(sc, scTitle, fs, vert ? "Mola" : reta ? "Mola na horizontal — reta numérica" : "Mola (horizontal)");
     let ballX = 0, ballY = 0;
     if (vert) {
       const cx = sc.x + sc.w * 0.42, yb = Yc(dNow), amp = 0.6 * fs, yC = Yc(ceilD);
@@ -545,14 +572,16 @@
       const qm = solo ? (iy1 + Math.max(yb, iy0)) / 2 : (iy0 + Math.min(yb, iy1)) / 2;
       texAt("cd", "d", qx + 0.25 * fs, qm, fs * 0.85, C.muted, 0, 0.5, true);
       ballX = cx; ballY = yb;
+    } else if (reta) {
+      sceneR(sc, fs, dNow, R, top);
     } else {
       sceneH(sc, fs, mod, dNow, R, top);
     }
 
     // ---- gráfico ----
-    const cap = solo ? "d — distância do solo ao centro da esfera (m)" : vert ? "d — distância do teto ao centro da esfera (m)" : "d — distância de O ao centro da esfera P (m)";
-    const tW = frame_(gr, cap, fs, solo ? "d — distância do solo à esfera" : vert ? "d — distância do teto à esfera" : "d — distância de O a P");
-    const now = texAt("now", `t = ${texNum(S.t, 2)}\\ \\text{s}\\quad d = ${texNum(dNow, 3)}\\ \\text{m}\\quad v = ${texNum(vOf(mod, S.t), 2)}\\ \\text{m/s}`,
+    const cap = reta ? "x — abcissa do centro da esfera P na reta (m)" : solo ? "d — distância do solo ao centro da esfera (m)" : vert ? "d — distância do teto ao centro da esfera (m)" : "d — distância de O ao centro da esfera P (m)";
+    const tW = frame_(gr, cap, fs, reta ? "x — abcissa de P" : solo ? "d — distância do solo à esfera" : vert ? "d — distância do teto à esfera" : "d — distância de O a P");
+    const now = texAt("now", `t = ${texNum(S.t, 2)}\\ \\text{s}\\quad ${V} = ${texNum(dNow, 3)}\\ \\text{m}\\quad v = ${texNum(vOf(mod, S.t), 2)}\\ \\text{m/s}`,
       gr.x + gr.w - 0.6 * fs, gr.y + 0.75 * fs, fs * 0.75, C.hot, 1, 0.5, true);
     if (now.offsetWidth > gr.w - tW - 1.2 * fs) {
       now._src = null;
@@ -569,13 +598,14 @@
     for (let t = Math.ceil(tA / sx - 1e-9) * sx; t <= tB + 1e-9; t += sx, n++) {
       line(X(t), iy0, X(t), iy1, C.grid, 1);
       if (down && t < 1e-9) continue;   // (a seta do eixo d está aí)
-      texAt("gt" + n, texNum(+t.toFixed(6), sx < 0.1 ? 2 : sx < 1 ? 1 : 0, true), X(t), iy1 + 0.3 * fs, px, C.muted, 0.5, 0);
+      if (reta && t < 1e-9) continue;   // (na reta, o 0 do eixo vertical já está aí)
+      texAt("gt" + n, texNum(+t.toFixed(6), sx < 0.1 ? 2 : sx < 1 ? 1 : 0, true), X(t), (reta ? Yg(0) : iy1) + 0.3 * fs, px, C.muted, 0.5, 0, reta);
     }
-    const sy = niceStep(top, (iy1 - iy0) < 14 * fs ? 5 : 10);
+    const sy = niceStep(top - lo, (iy1 - iy0) < 14 * fs ? 5 : 10);
     n = 0;
-    for (let y = 0; y <= top + 1e-9; y += sy, n++) {
+    for (let y = lo; y <= top + 1e-9; y += sy, n++) {
       line(gx0, Yg(y), gx1, Yg(y), C.grid, 1);
-      texAt("gy" + n, texNum(+y.toFixed(6), sy < 0.1 ? 2 : 1), gx0 - 0.4 * fs, Yg(y), px, C.muted, 1, 0.5);
+      texAt("gy" + n, texNum(+y.toFixed(6), sy < 0.1 ? 2 : sy < 1 ? 1 : 0), gx0 - 0.4 * fs, Yg(y), px, C.muted, 1, 0.5);
     }
     // eixos: o eixo t passa em d = 0
     line(gx0, Yg(0), gx1 + 0.3 * fs, Yg(0), C.axis, 1.5);
@@ -583,12 +613,12 @@
     line(gx0, iy0 - (down ? 0 : 0.3 * fs), gx0, iy1 + (down ? 0.3 * fs : 0), C.axis, 1.5);
     if (down) tri(gx0, iy1 + 0.5 * fs, 0, 1, 0.35 * fs, C.axis); else tri(gx0, iy0 - 0.5 * fs, 0, -1, 0.35 * fs, C.axis);
     texAt("axt", "t\\ (\\text{s})", gx1 - 0.2 * fs, Yg(0) + (down ? 0.35 * fs : -0.35 * fs), fs * 0.8, C.ink, 1, down ? 0 : 1, true);
-    texAt("axd", "d\\ (\\text{m})", gx0 + 0.4 * fs, down ? iy1 - 0.4 * fs : iy0 + 0.4 * fs, fs * 0.8, C.ink, 0, 0.5, true);
+    texAt("axd", `${V}\\ (\\text{m})`, gx0 + 0.4 * fs, down ? iy1 - 0.4 * fs : iy0 + 0.4 * fs, fs * 0.8, C.ink, 0, 0.5, true);
 
     // linha média (equilíbrio)
-    if (S.mid) {
+    if (S.mid && !reta) {   // (na reta, a linha média é o próprio eixo t)
       dashed(gx0, Yg(mod.D), gx1, Yg(mod.D), C.eq, 1.4);
-      texAt("eqt", `\\text{linha média}\\ \\ d = ${texNum(mod.D, 3)}`, gx1 - 0.2 * fs, Yg(mod.D) - 0.2 * fs, fs * 0.7, C.eq, 1, 1, true);
+      texAt("eqt", `\\text{linha média}\\ \\ ${V} = ${texNum(mod.D, 3)}`, gx1 - 0.2 * fs, Yg(mod.D) - 0.2 * fs, fs * 0.7, C.eq, 1, 1, true);
     }
 
     // traços: os guardados (até ao instante em que pararam) e o atual
@@ -617,10 +647,10 @@
 
     // avisos
     const warns = [];
-    if (mod.Dt - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
+    if (!reta && mod.Dt - mod.A <= 0.08) warns.push(`⚠ Com estes valores a mola ficaria quase toda comprimida: a esfera bateria ${vert ? "no teto" : "na parede"}. Diminui x₀ ou v₀.`);
     if (solo && mod.D - mod.A <= 0.02) warns.push("⚠ A esfera bateria no solo: aumenta a altura H do teto.");
     // (a partir do solo, o teto pode ficar fora do referencial: a mola sai pela moldura)
-    if (mod.D + mod.A + 0.03 > S.scale) warns.push("⚠ A esfera sai do referencial: escolhe uma escala maior.");
+    if (mod.D + mod.A + (reta ? -0.005 : 0.03) > S.scale) warns.push("⚠ A esfera sai do referencial: escolhe uma escala maior.");
     warns.forEach((w, i) => {
       const wpx = Math.min(fs * 0.72, fs * 0.72 * (GW - fs) / tw(w, fs * 0.72, FONT, 700));
       const yy = (down ? iy0 + 1.2 * fs : iy1 - 1.4 * fs) + (down ? 1 : -1) * i * 1.1 * fs;
@@ -677,6 +707,50 @@
     texAt("hd", "d", (xs0 + xb) / 2, qy - 0.15 * fs, fs * 0.85, C.muted, 0.5, 1, true);
   }
 
+  // reta numérica: origem O no equilíbrio, marcas de −top a top; a parede fica à esquerda de −top
+  // (o comprimento natural da mola não conta: a mola vai da parede à esfera)
+  function sceneR(b, fs, xNow, R, top) {
+    const xw = b.x + 1.2 * fs, xl = xw + R + 1.8 * fs, xr = b.x + b.w - Math.max(1.6 * fs, R + 0.6 * fs);
+    const Xs = v => xl + ((v + top) / (2 * top)) * (xr - xl);
+    const floorY = b.y + b.h - 1.9 * fs, cy = floorY - R - 2;
+    // chão = reta numérica, com seta
+    line(xw, floorY, xr + 0.5 * fs, floorY, C.ceil, 3);
+    tri(xr + 0.8 * fs, floorY, 1, 0, 0.35 * fs, C.ceil);
+    texAt("rx", "x", xr + 0.9 * fs, floorY - 0.2 * fs, fs * 0.8, C.muted, 0.5, 1);
+    // parede
+    line(xw, floorY + 2, xw, Math.max(b.y + 1.6 * fs, cy - R - 1.4 * fs), C.ceil, 4);
+    for (let y = floorY - 0.2 * fs; y > Math.max(b.y + 1.7 * fs, cy - R - 1.3 * fs); y -= 0.55 * fs) line(xw, y, xw - 0.5 * fs, y - 0.45 * fs, C.ceil, 1.2);
+    // marcas
+    const st = niceStep(2 * top, (xr - xl) < 30 * fs ? 8 : 16);
+    let n = 0;
+    for (let v = Math.ceil(-top / st - 1e-9) * st; v <= top + 1e-9; v += st, n++) {
+      const z = Math.abs(v) < 1e-9;
+      line(Xs(v), floorY - (z ? 0.3 : 0) * fs, Xs(v), floorY + 0.5 * fs, z ? C.ink : C.muted, z ? 1.6 : 1);
+      texAt("rr" + n, texNum(+v.toFixed(6), st < 0.1 ? 2 : st < 1 ? 1 : 0, true), Xs(v), floorY + 0.6 * fs, fs * 0.6, z ? C.ink : C.muted, 0.5, 0);
+    }
+    if (S.mid) dashed(Xs(0), cy - R - 1.1 * fs, Xs(0), floorY, C.eq, 1.4);
+    texAt("rO", "O", Xs(0) - 0.25 * fs, floorY - 0.15 * fs, fs * 0.85, C.ink, 1, 1, true);
+    // mola presa na parede
+    const xb = Xs(xNow), xs0 = xw, xs1 = Math.max(xs0 + 8, xb - R);
+    const lead = Math.min(0.7 * fs, (xs1 - xs0) * 0.12), coils = 16, amp = 0.5 * fs, span = (xs1 - lead) - (xs0 + lead);
+    ctx.strokeStyle = C.spring; ctx.lineWidth = Math.max(1.8, 0.12 * fs); ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(xs0, cy); ctx.lineTo(xs0 + lead, cy);
+    for (let i = 0; i < coils * 2; i++) ctx.lineTo(xs0 + lead + span * (i + 0.5) / (coils * 2), cy + (i % 2 ? -amp : amp));
+    ctx.lineTo(xs1 - lead, cy); ctx.lineTo(xs1, cy); ctx.stroke();
+    ball(xb, cy, R);
+    ctx.beginPath(); ctx.arc(xb, cy, 0.14 * fs, 0, TAU); ctx.fillStyle = C.bg; ctx.fill();
+    texAt("rP", "P", xb + R * 0.6, cy - R * 0.6, fs * 0.9, C.ink, 0, 1);
+    // projeção de P na reta e cota x (de O ao centro de P)
+    dashed(xb, cy, xb, floorY, C.ball, 1);
+    ctx.beginPath(); ctx.arc(xb, floorY, 0.18 * fs, 0, TAU); ctx.fillStyle = C.ball; ctx.fill();
+    const qy = cy - R - 0.7 * fs;
+    if (Math.abs(xb - Xs(0)) > 6) {
+      line(Xs(0), qy, xb, qy, C.muted, 1.2);
+      line(Xs(0), qy - 4, Xs(0), qy + 4, C.muted, 1.2); line(xb, qy - 4, xb, qy + 4, C.muted, 1.2);
+    }
+    texAt("rd", "x", (Xs(0) + xb) / 2, qy - 0.15 * fs, fs * 0.85, C.muted, 0.5, 1, true);
+  }
+
   // ---------- toque e rato ----------
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   const hitAt = (x, y) => hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
@@ -695,6 +769,7 @@
     if (h.kind === "scale") { S.scale = h.v; draw(); return; }
     if (h.kind === "dir") { S.dir = h.v; draw(); return; }
     if (h.kind === "ref") { setRef(h.v); return; }
+    if (h.kind === "href") { setHref(h.v); return; }
     if (["graph", "mid", "law", "phys", "keep"].includes(h.kind)) { toggle(h.kind); return; }
     if (h.kind === "clear") { S.traces = []; nextColor = 0; draw(); return; }
     if (h.kind === "slide") {
@@ -727,7 +802,7 @@
     else if (e.key === "e") toggle("law");
     else if (e.key === "f") toggle("phys");
     else if (e.key === "v") setPos(S.pos === "vertical" ? "horizontal" : "vertical");
-    else if (e.key === "s" && S.pos === "vertical") setRef(S.ref === "solo" ? "teto" : "solo");
+    else if (e.key === "s") toggleRef();
     else return;
     e.preventDefault();
   });
@@ -739,6 +814,9 @@
     const parts = location.hash.slice(1).split("&");
     if (parts[0] === "horizontal") S.pos = "horizontal";
     if (parts.includes("solo")) S.ref = "solo";
+    if (parts.includes("reta")) { S.pos = "horizontal"; S.href = "reta"; }
+    // a escala primeiro, porque os limites de x₀ e v₀ dependem dela
+    for (const kv of parts) { const [key, val] = kv.split("="); if (key === "escala" && [1, 2, 4].includes(+val)) S.scale = +val; }
     for (const kv of parts) {
       const [key, val] = kv.split("=");
       if (val === undefined) continue;
@@ -747,7 +825,7 @@
       if (key === "w") { setWin(x); continue; }
       if (key === "H") { setH(x); continue; }
       if (key === "escala" && [1, 2, 4].includes(x)) { S.scale = x; continue; }
-      if (key in LIM) S[key] = clamp(x, LIM[key][0], LIM[key][1]);   // (sem arredondar ao passo do cursor)
+      if (key in LIM) { const [a, b] = lim(key); S[key] = clamp(x, a, b); }   // (sem arredondar ao passo do cursor)
     }
   })();
   window.addEventListener("resize", resize);
