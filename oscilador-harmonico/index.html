@@ -621,6 +621,9 @@
       texAt("eqt", `\\text{linha média}\\ \\ ${V} = ${texNum(mod.D, 3)}`, gx1 - 0.2 * fs, Yg(mod.D) - 0.2 * fs, fs * 0.7, C.eq, 1, 1, true);
     }
 
+    // reta vertical a tracejado no instante atual (a laranja, a cor do tempo)
+    line(X(S.t), iy0 - 0.2 * fs, X(S.t), iy1 + 0.2 * fs, C.hot, 1.4, [6, 5]);
+
     // traços: os guardados (até ao instante em que pararam) e o atual
     if (S.graph) {
       ctx.save(); ctx.beginPath(); ctx.rect(gx0, iy0 - 2, GW, iy1 - iy0 + 4); ctx.clip();
