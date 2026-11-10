@@ -878,7 +878,7 @@
     const R = rng(), f = folha();
     const novo = R.r0 !== R.r1 || R.c0 !== R.c1 ? txtRng(R) : (f.grafico && f.grafico.intervalo);
     if (!novo) { aviso("Selecione primeiro os dados, por exemplo A1:B13 (clicar e arrastar)."); return; }
-    f.grafico = { tipo: b.dataset.tipo, intervalo: novo, reta: f.grafico ? !!f.grafico.reta : b.dataset.tipo === "dispersao" };
+    f.grafico = { tipo: b.dataset.tipo, intervalo: novo, reta: f.grafico ? !!f.grafico.reta : false };   // a reta de regressão liga-se à mão (pedido do utilizador)
     if (!exemplo()) guardar();
     desenharGrafico(true); caixa.focus({ preventScroll: true });
   });
