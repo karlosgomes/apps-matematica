@@ -81,7 +81,7 @@
   .barra button:hover { background: var(--panel); }
   #estado { flex: 1; }
   #estado.ok { color: var(--ok); } #estado.erro { color: var(--err); }
-  #saida { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; font: 15px/1.5 "IBM Plex Mono", ui-monospace, monospace;
+  #saida { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; font: var(--letra-s, 15px)/1.5 "IBM Plex Mono", ui-monospace, monospace;
            white-space: pre-wrap; word-break: break-word; }
   #saida .err { color: var(--err); }
   #saida .info { color: var(--muted); font-style: italic; }
@@ -135,7 +135,7 @@
   <div id="editor-caixa"><textarea id="codigo"></textarea></div>
   <div id="divisor" role="separator" aria-orientation="vertical" aria-label="Arrastar para mudar a largura do código e da saída" tabindex="0" title="Arrastar para mudar as larguras (duplo clique: metade/metade)"></div>
   <div id="saida-caixa">
-    <div class="barra"><span id="estado">A carregar o Python (só demora da primeira vez)…</span><button id="limpar">Limpar</button></div>
+    <div class="barra"><span id="estado">A carregar o Python (só demora da primeira vez)…</span><button id="saida-menos" title="Letra da saída mais pequena">A−</button><button id="saida-mais" title="Letra da saída maior; duplo clique num dos dois volta ao tamanho normal">A+</button><button id="limpar">Limpar</button></div>
     <pre id="saida"></pre>
     <div id="aviso">Os programas ficam guardados automaticamente <b>neste navegador</b>. Para os levar para outro computador, use «Descarregar».</div>
   </div>
@@ -307,6 +307,23 @@ plt.show()
     $("letra-mais").onclick = () => aplicar(px + 1);
     ["letra-menos", "letra-mais"].forEach(id => $(id).addEventListener("dblclick", () => aplicar(NORMAL)));
     editor.addKeyMap({ "Ctrl-=": () => aplicar(px + 1), "Ctrl-+": () => aplicar(px + 1), "Ctrl--": () => aplicar(px - 1), "Ctrl-0": () => aplicar(NORMAL) });
+  }
+  // ---------- tamanho da letra da saída (A− / A+ na barra da saída; guardado em apps-mat-python-letra-saida) ----------
+  {
+    const CL = "apps-mat-python-letra-saida", MIN = 11, MAX = 32, NORMAL = 15;
+    let px = NORMAL;
+    try { const v = parseInt(localStorage.getItem(CL)); if (v >= MIN && v <= MAX) px = v; } catch (e) {}
+    const aplicar = (v, guardar = true) => {
+      px = Math.max(MIN, Math.min(MAX, v));
+      document.documentElement.style.setProperty("--letra-s", px + "px");
+      $("saida-menos").disabled = px <= MIN; $("saida-mais").disabled = px >= MAX;
+      $("saida-mais").title = `Letra da saída maior (${px} px); duplo clique volta ao normal`;
+      if (guardar) try { px === NORMAL ? localStorage.removeItem(CL) : localStorage.setItem(CL, String(px)); } catch (e) {}
+    };
+    aplicar(px, false);
+    $("saida-menos").onclick = () => aplicar(px - 1);
+    $("saida-mais").onclick = () => aplicar(px + 1);
+    ["saida-menos", "saida-mais"].forEach(id => $(id).addEventListener("dblclick", () => aplicar(NORMAL)));
   }
   // ---------- barra entre o código e a saída ----------
   // a largura do código guarda-se como fração da janela (apps-mat-python-divisor), para se adaptar a outros ecrãs
