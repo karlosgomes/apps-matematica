@@ -469,7 +469,7 @@
     { id: "temperaturas", cat: "nlin", name: "Temperaturas de 8 cidades (2000–2012)", file: "temperaturas.csv", uni: { v: "tmax", g: "hemisferio" }, bi: { x: "mes_do_ano", y: "tmax", g: "cidade", model: "sin", byG: true },
       src: "Médias mensais das temperaturas máximas e mínimas diárias (°C) de 8 cidades, de janeiro de 2000 a outubro de 2012 (mes = 1 em jan. 2000, contado seguido; mes_do_ano de 1 a 12); tutiempo.net e JMA (Tóquio), via iNZight (Universidade de Auckland)" },
     { id: "sfo", cat: "nlin", name: "Temperaturas em São Francisco (dados cíclicos)", file: "sfo-temperaturas.csv", uni: { v: "temperatura", g: "serie" }, bi: { x: "dia_do_ano", y: "temperatura", g: "serie", radial: true },
-      src: "Temperaturas diárias no Aeroporto Internacional de São Francisco, 1999–2018 (estação USW00023234), resumidas por dia do ano (sem 29 de fevereiro): máxima e mínima registadas e médias das máximas e das mínimas, em °C; NOAA, Global Historical Climatology Network – Daily (domínio público)" },
+      src: "Temperaturas diárias no Aeroporto Internacional de São Francisco, 1999–2018 (estação USW00023234), resumidas por dia do ano (sem 29 de fevereiro): máxima e mínima registadas, médias das máximas e das mínimas e média diária, estimada por (máxima + mínima)/2 de cada dia, em °C; NOAA, Global Historical Climatology Network – Daily (domínio público)" },
     { id: "cerebros", cat: "nlin", name: "Cérebros de mamíferos", file: "cerebros.csv", uni: { v: "gestacao_dias" }, bi: { x: "corpo_kg", y: "cerebro_g", log: true, logy: true, model: "pow" },
       src: "Massa do cérebro (g) e do corpo (kg), gestação (dias) e tamanho médio da ninhada de 96 espécies de mamíferos; Ramsey e Schafer, The Statistical Sleuth, via iNZight (Universidade de Auckland)" },
     { id: "derrames", cat: "nlin", name: "Derrames de petroleiros (1970–2011)", file: "derrames.csv", uni: { v: "derrames_mais_700t" }, bi: { x: "anos_desde_1970", y: "derrames_mais_700t", model: "exp" },
@@ -2054,12 +2054,16 @@
     mk.push(Plot.tip(tips, Plot.pointer({ x: d => d.xy[0], y: d => d.xy[1], title: d => (d.p[2] !== undefined ? `${d.p[2]}\n` : "") + `${xl} = ${fmt(d.p[0], 4)}\n${yl} = ${fmt(d.p[1], 4)}` })));
     const e = 1.22;
     const fig = Plot.plot({
-      width: W, height: H, margin: 8, marginTop: GR ? 34 : 12, style: plotStyle(),
+      width: W, height: H, margin: 8, marginTop: GR ? (GALL && legendW(GALL) > W - 24 ? 52 : 34) : 12, style: plotStyle(),
       x: { domain: asp >= 1 ? [-e * asp, e * asp] : [-e, e], axis: null }, y: { domain: asp >= 1 ? [-e, e] : [-e / asp, e / asp], axis: null },
       marks: mk,
     });
     // legenda clicável (como no diagrama de dispersão): clique esconde/mostra a série, duplo clique mostra só essa
-    if (GALL) svgLegend(fig, GALL, W - 12, 14, onPick);
+    // (se a legenda não couber numa linha, fica em duas)
+    if (GALL) {
+      if (legendW(GALL) <= W - 24) svgLegend(fig, GALL, W - 12, 14, onPick);
+      else { const h = Math.ceil(GALL.length / 2); svgLegend(fig, GALL.slice(0, h), W - 12, 14, onPick); svgLegend(fig, GALL.slice(h), W - 12, 34, onPick); }
+    }
     fig.hint = `uma volta = ${months ? "12 meses" : days ? "um ano" : "um período de " + fmt(P, 3)} (${xl}); distância ao centro: ${yl}, de ${fmt(y0, 2)} a ${fmt(y1, 2)}${repeated ? "; a linha passa pela média de cada " + xl : ""}`;
     return fig;
   }
