@@ -1102,40 +1102,26 @@
     let e1 = N.clone().cross(vec3(0, 0, 1));
     e1 = e1.lengthSq() < 1e-10 ? vec3(1, 0, 0) : e1.normalize();
     const e2 = N.clone().cross(e1).normalize();
-    // maior que antes (7 em vez de 5), porque a faixa exterior se esbate; os pontos dados ficam na parte nítida
-    let a = 7, b = 7;
+    let a = B3, b = B3;
     for (const p of pts) {
       const d = vec3(...p).sub(X0);
-      a = Math.max(a, (Math.abs(d.dot(e1)) + 1) / 0.65); b = Math.max(b, (Math.abs(d.dot(e2)) + 1) / 0.65);
+      a = Math.max(a, Math.abs(d.dot(e1)) + 1); b = Math.max(b, Math.abs(d.dot(e2)) + 1);
     }
     return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([i, j]) => X0.clone().add(e1.clone().multiplyScalar(i * a)).add(e2.clone().multiplyScalar(j * b)).toArray());
   }
-  // plano como retângulo (cantos P, de planeRect) com os lados esbatidos: malha N×N com a opacidade a cair
-  // até 0 na faixa exterior (35 % de cada lado), sem contorno — dá a sensação de um plano ilimitado
   function planeMesh(P, col, fade = 0) {
     if (!P) return null;
-    const N = 24, c = new T3.Color(col), pos = [], cols = [], idx = [];
-    const at = (u, v) => [0, 1, 2].map(k => ((1 + u) * (1 + v) * P[0][k] + (1 - u) * (1 + v) * P[1][k] + (1 - u) * (1 - v) * P[2][k] + (1 + u) * (1 - v) * P[3][k]) / 4);
-    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
-      const u = -1 + 2 * i / N, v = -1 + 2 * j / N, e = 1 - Math.max(Math.abs(u), Math.abs(v));
-      const t = clamp(e / 0.35, 0, 1), a = t * t * (3 - 2 * t);   // smoothstep
-      pos.push(...at(u, v)); cols.push(c.r, c.g, c.b, a);
-    }
-    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-      const k = i * (N + 1) + j;
-      idx.push(k, k + N + 1, k + 1, k + 1, k + N + 1, k + N + 2);
-    }
+    const g = new T3.Group();
+    const pos = [];
+    for (let i = 1; i < P.length - 1; i++) pos.push(...P[0], ...P[i], ...P[i + 1]);
     const geo = new T3.BufferGeometry();
     geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
-    geo.setAttribute("color", new T3.Float32BufferAttribute(cols, 4));
-    geo.setIndex(idx);
-    const mat = new T3.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3 + (0.04 - 0.3) * fade, side: T3.DoubleSide, depthWrite: false });
-    const mesh = new T3.Mesh(geo, mat);
+    const mesh = new T3.Mesh(geo, basic(col, 0.22 + (0.03 - 0.22) * fade));
     mesh.renderOrder = 2;
-    return mesh;
+    g.add(mesh);
+    g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.12 - 0.9) * fade));
+    return g;
   }
-  // ponto a 60 % do caminho do centro do retângulo até ao canto (para a etiqueta não ficar na zona esbatida)
-  const inward = (R, p) => { const c = [0, 1, 2].map(k => R.reduce((s_, q) => s_ + q[k], 0) / R.length); return c.map((v, k) => v + 0.6 * (p[k] - v)); };
   // segmento da reta A + k r dentro do cubo
   function clipLine(A, r) {
     let t0 = -1e9, t1 = 1e9;
@@ -1241,7 +1227,7 @@
       const Pn = P.map(v => v * (1 - ease(tN)));
       add(arrow3(Pn, Pn.map((v, i) => v + n[i]), C.al, 0.045)); lab("\\vec n", Pn.map((v, i) => v + n[i]), C.al, 1, 1);
       handle("n", Pn.map((v, i) => v + n[i]), C.al, Pn, 0.1);
-      lab("\\alpha", inward(rect, rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best)), C.al, 0, -1, 1);
+      lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
     }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
@@ -1267,7 +1253,7 @@
         const Rm = R.map(v => v * (1 - ease(tN)));
         add(arrow3(Rm, Rm.map((v, i) => v + m[i]), C.be, 0.045)); lab("\\vec m", Rm.map((v, i) => v + m[i]), C.be, 1, 1);
         handle("m", Rm.map((v, i) => v + m[i]), C.be, Rm, 0.1);
-        lab("\\beta", inward(rectB, rectB.reduce((best, p) => p[0] + p[1] > best[0] + best[1] ? p : best)), C.be, 0, -1, 1);
+        lab("\\beta", rectB.reduce((best, p) => p[0] + p[1] > best[0] + best[1] ? p : best), C.be, 0, -1, 1);
         // reta de interseção de α e β
         if (al) {
           const n = vnum(al.n), w = [n[1] * m[2] - n[2] * m[1], n[2] * m[0] - n[0] * m[2], n[0] * m[1] - n[1] * m[0]], ww = w[0] ** 2 + w[1] ** 2 + w[2] ** 2;
