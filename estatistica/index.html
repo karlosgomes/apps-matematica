@@ -277,13 +277,16 @@
     <h2>Gráfico</h2>
     <div class="row">
       <select class="inp sel" id="g-sel" aria-label="Tipo de gráfico">
-        <option value="hist" selected>Histograma</option>
+        <option value="hist" class="n-only" selected>Histograma</option>
         <option value="bars">Diagrama de barras</option>
-        <option value="dots">Diagrama de pontos</option>
-        <option value="swarm">Diagrama de enxame (beeswarm)</option>
-        <option value="box">Diagrama de extremos e quartis</option>
-        <option value="dens" id="g-dens" hidden disabled>Densidades sobrepostas (por grupo)</option>
+        <option value="dots" class="n-only">Diagrama de pontos</option>
+        <option value="swarm" class="n-only">Diagrama de enxame (beeswarm)</option>
+        <option value="box" class="n-only">Diagrama de extremos e quartis</option>
+        <option value="pie" class="q-only" hidden disabled>Gráfico circular</option>
+        <option value="donut" class="q-only" hidden disabled>Gráfico de anel</option>
+        <option value="dens" class="n-only" id="g-dens" hidden disabled>Densidades sobrepostas (por grupo)</option>
         <option value="stack" id="g-stack" hidden disabled>Barras empilhadas / agrupadas (por grupo)</option>
+        <option value="mosaic" class="q-only" id="g-mosaic" hidden disabled>Mosaico / Marimekko (por grupo)</option>
       </select>
     </div>
     <div class="row" id="hist-opts">
@@ -345,6 +348,7 @@
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
       <label class="chk" title="Liga os pontos pela ordem em que estão nos dados (com grupos, uma linha por grupo), com uma seta no fim; com a coluna do tempo, mostra o caminho de cada caso (p. ex. cada país) até ao instante mostrado"><input type="checkbox" id="sh-conn"> Ligar os pontos (por ordem)</label>
       <label class="chk" title="Curvas de nível da densidade dos pontos (estimativa por núcleo gaussiano a duas dimensões): mostram onde os pontos se concentram"><input type="checkbox" id="sh-cont"> Curvas de nível da densidade</label>
+      <label class="chk" title="Para dados cíclicos (meses, dias do ano): x dá a volta à circunferência (um período = uma volta) e y é a distância ao centro"><input type="checkbox" id="sh-radial"> Gráfico radial (dados cíclicos)</label>
       <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
     </div>
     <div class="row">
@@ -440,7 +444,7 @@
     box: false, violin: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
     col: { v: null, x: null, y: null, g: null, t: null, s: null, id: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = grupos, t = tempo, s = tamanho dos pontos
     logx: false, logy: false, ti: 0,   // escala logarítmica em x; índice do instante mostrado (com a coluna do tempo)
-    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, conn: false, cont: false, stack: "stacked", dec2: 3, xest: "",
+    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, conn: false, cont: false, radial: false, stack: "stacked", dec2: 3, xest: "",
     data: { uni: null, bi: null },
     picked: { uni: "", bi: "" },   // escolha no menu de exemplos («e0», «d:penguins», …)
   };
@@ -464,6 +468,8 @@
       src: "Sementes de abóbora de duas variedades turcas (Çerçevelik e Ürgüp Sivrisi), 2500 sementes medidas em imagens (área e eixos em píxeis; Aspect_Ration = eixo maior ÷ eixo menor): Koklu, Sarigil e Ozbek (2021), Genetic Resources and Crop Evolution 68(7), 2713–2726, muratkoklu.com/datasets" },
     { id: "temperaturas", cat: "nlin", name: "Temperaturas de 8 cidades (2000–2012)", file: "temperaturas.csv", uni: { v: "tmax", g: "hemisferio" }, bi: { x: "mes_do_ano", y: "tmax", g: "cidade", model: "sin", byG: true },
       src: "Médias mensais das temperaturas máximas e mínimas diárias (°C) de 8 cidades, de janeiro de 2000 a outubro de 2012 (mes = 1 em jan. 2000, contado seguido; mes_do_ano de 1 a 12); tutiempo.net e JMA (Tóquio), via iNZight (Universidade de Auckland)" },
+    { id: "sfo", cat: "nlin", name: "Temperaturas em São Francisco (dados cíclicos)", file: "sfo-temperaturas.csv", uni: { v: "temperatura", g: "serie" }, bi: { x: "dia_do_ano", y: "temperatura", g: "serie", radial: true },
+      src: "Temperaturas diárias no Aeroporto Internacional de São Francisco, 1999–2018 (estação USW00023234), resumidas por dia do ano (sem 29 de fevereiro): máxima e mínima registadas e médias das máximas e das mínimas, em °C; NOAA, Global Historical Climatology Network – Daily (domínio público)" },
     { id: "cerebros", cat: "nlin", name: "Cérebros de mamíferos", file: "cerebros.csv", uni: { v: "gestacao_dias" }, bi: { x: "corpo_kg", y: "cerebro_g", log: true, logy: true, model: "pow" },
       src: "Massa do cérebro (g) e do corpo (kg), gestação (dias) e tamanho médio da ninhada de 96 espécies de mamíferos; Ramsey e Schafer, The Statistical Sleuth, via iNZight (Universidade de Auckland)" },
     { id: "derrames", cat: "nlin", name: "Derrames de petroleiros (1970–2011)", file: "derrames.csv", uni: { v: "derrames_mais_700t" }, bi: { x: "anos_desde_1970", y: "derrames_mais_700t", model: "exp" },
@@ -490,6 +496,7 @@
       ["Teste", "Classificações de um teste\n12 14 9 16 11 13 15 8 17 12\n10 14 13 18 11 9 15 12 16 14\n7 13 19 11 14"],
       ["Alturas", "Altura (cm)\n158 162 170 165 172 168 175 160 166 171\n169 163 177 159 174 167 161 173 164 168\n181 156 170 166 163 176 169 171 165 160"],
       ["Irmãos", "Número de irmãos\n0 1 1 2 0 1 3 1 2 1\n0 2 1 1 4 0 1 2 1 0\n1 2 3 1 0"],
+      ["Transporte (qualitativa)", "Meio de transporte para a escola:\ncarro; autocarro; a pé; carro; autocarro; autocarro; a pé; bicicleta; carro; autocarro\nautocarro; a pé; carro; comboio; autocarro; carro; a pé; autocarro; bicicleta; carro\nautocarro; autocarro; a pé; carro; autocarro"],
     ],
     bi: [
       ["Horas de estudo", "Horas de estudo\tClassificação\n1\t8\n2\t9,5\n2\t11\n3\t10\n3\t12,5\n4\t12\n4\t13,5\n5\t14\n5\t15,5\n6\t15\n7\t17\n8\t18"],
@@ -551,7 +558,9 @@
           let lv = [...new Set(raw.filter(v => !MISSING.test(v)))];
           if (isNum) lv.sort((u, v) => num(u) - num(v));
           const col = { name: h || `coluna ${j + 1}`, vals, raw, levels: lv.length >= 2 && lv.length <= MAXG ? lv : null,
-                   missing: raw.length - present, numeric: isNum };
+                   missing: raw.length - present, numeric: isNum,
+                   // variável qualitativa: texto com 2 a 30 categorias (p. ex. espécie, ilha, sexo)
+                   cats: !isNum && lv.length >= 2 && lv.length <= 30 ? lv : null };
           // datas escritas como texto (2020-03-15, 2020-03, 15/03/2020): servem de coluna do tempo
           if (!isNum && present) {
             const dv = raw.map(v => MISSING.test(v) ? null : dateOf(v)), ok = dv.filter(v => v !== null && !isNaN(v)).length;
@@ -562,12 +571,15 @@
         });
         if (!T || cols.length > T.cols.length) T = { sep, cols, n: body.length };
       }
-      if (T && !T.cols.some(c => c.numeric)) T = null;
+      if (T && !T.cols.some(c => c.numeric || c.cats)) T = null;
     }
     TCACHE = { text, T };
     return T;
   }
   const numCols = T => T.cols.filter(c => c.numeric);
+  const qualCols = T => T.cols.filter(c => c.cats && !c.dvals);
+  // a variável escolhida (uma variável): numérica ou qualitativa
+  const varCol = T => T.cols.find(c => c.name === S.col.v && (c.numeric || (c.cats && !c.dvals))) || colOf(T, S.col.v) || qualCols(T)[0];
   const colOf = (T, name, k = 0) => { const nc = numCols(T); return nc.find(c => c.name === name) || nc[Math.min(k, nc.length - 1)]; };
   const groupCols = T => T.cols.filter(c => c.levels);
   const groupCol = T => (S.col.g && groupCols(T).find(c => c.name === S.col.g)) || null;
@@ -623,16 +635,18 @@
     const nc = numCols(T), miss = d3.sum(T.cols, c => c.missing);
     $("tinfo").textContent = `Tabela: ${T.n} linhas · ${T.cols.length} colunas (${nc.length} numéricas)${miss ? ` · ${miss} valores em falta` : ""}`;
     box.hidden = false;
-    const key = S.mode + "|" + S.col.t + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels).join(",");
+    const key = S.mode + "|" + S.col.t + "|" + T.cols.map(c => c.name + c.numeric + !!c.levels + !!c.cats).join(",");
     const tcs = S.mode === "bi" ? timeCols(T) : [];
     const gc = groupCols(T);
     // grupos: colunas com 2 a MAXG valores diferentes (texto, como a espécie, ou números, como o ano)
     const gsel = gc.length ? `<span class="pair"><span class="lbl" title="Coluna que divide os dados em grupos">Grupos</span><select class="inp" id="c-g"><option value="">(nenhum)</option>${gc.map(c => `<option${c.name === S.col.g ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "";
     const opts = sel => nc.map(c => `<option${c.name === sel ? " selected" : ""}>${esc(c.name)}</option>`).join("");
+    const vopts = sel => opts(sel) + (qualCols(T).length ? `<optgroup label="Qualitativas">${qualCols(T).map(c => `<option value="${esc(c.name)}"${c.name === sel ? " selected" : ""}>${esc(c.name)} (qualitativa)</option>`).join("")}</optgroup>` : "");
+    if (S.mode === "bi" && nc.length < 2) { box.innerHTML = '<span class="note">Em duas variáveis são precisas pelo menos duas colunas numéricas.</span>'; colsKey = ""; return; }
     if (key !== colsKey) {
       colsKey = key;
       box.innerHTML = S.mode === "uni"
-        ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${opts(colOf(T, S.col.v).name)}</select></span>${gsel}`
+        ? `<span class="pair"><span class="lbl">Variável</span><select class="inp" id="c-v">${vopts(varCol(T).name)}</select></span>${gsel}`
         : `<span class="pair"><span class="lbl">x</span><select class="inp" id="c-x">${opts(colOf(T, S.col.x, 0).name)}</select><label class="chk" title="Escala logarítmica no eixo x (só com valores de x positivos)"><input type="checkbox" id="c-log"${S.logx ? " checked" : ""}> log</label></span><span class="pair"><span class="lbl">y</span><select class="inp" id="c-y">${opts(colOf(T, S.col.y, 1).name)}</select><label class="chk" title="Escala logarítmica no eixo y (só com valores de y positivos)"><input type="checkbox" id="c-logy"${S.logy ? " checked" : ""}> log</label></span>${gsel}` +
           (tcs.length ? `<span class="pair"><span class="lbl" title="Coluna do tempo: o gráfico mostra um instante de cada vez, com ▶ para ver a evolução">Tempo</span><select class="inp" id="c-t"><option value="">(nenhum)</option>${tcs.map(c => `<option${c.name === S.col.t ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></span>` : "") +
           (tcs.length && timeCol(T) ? (() => { const tc = timeCol(T), auto = idCol(T, tc);
@@ -654,8 +668,22 @@
     const T = parseTable(text);
     colsUI(T);
     if (T) {
-      const c = colOf(T, S.col.v), gc = groupCol(T);
+      const c = varCol(T), gc = groupCol(T) && groupCol(T) !== c ? groupCol(T) : null;
       const miss = c.missing ? `${c.missing} valores em falta em «${c.name}» foram ignorados.` : "";
+      if (!c.numeric) {
+        // variável qualitativa: as categorias (ordem: da mais frequente para a menos frequente), com grupos se houver
+        const cats = c.raw.filter(v => !MISSING.test(v));
+        const levels = d3.rollups(cats, v => v.length, v => v).sort((a, b) => b[1] - a[1] || d3.ascending(a[0], b[0])).map(d => d[0]);
+        if (gc) {
+          const by = new Map(gc.levels.map(l => [l, []]));
+          let noG = 0;
+          c.raw.forEach((v, i) => { if (MISSING.test(v)) return; const g = gc.raw[i]; if (MISSING.test(g)) noG++; else by.get(g).push(v); });
+          const groups = [...by].filter(([, cs]) => cs.length).map(([name, cs]) => ({ name, cats: cs }));
+          const note = [miss, noG ? `${noG} valores sem «${gc.name}» ficaram de fora.` : ""].filter(Boolean).join(" ");
+          if (groups.length >= 2) return { qual: true, name: c.name, cats: groups.flatMap(g => g.cats), levels, xs: [], bad: [], note, groups, gname: gc.name };
+        }
+        return { qual: true, name: c.name, cats, levels, xs: [], bad: [], note: miss };
+      }
       if (gc) {
         // um conjunto de valores por grupo (pela ordem dos níveis); sem grupo, o valor fica de fora
         const by = new Map(gc.levels.map(l => [l, []]));
@@ -669,6 +697,18 @@
       return { name: c.name, xs, bad: [], note: miss };
     }
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    // lista de categorias (variável qualitativa): quase tudo texto; separadas por «;», «,» ou mudança de linha
+    // (ou por espaços, se não houver nenhum destes); o nome, se houver, é a primeira linha terminada em «:»
+    {
+      const L = lines.slice(), nm = L.length && /:$/.test(L[0]) ? L.shift().slice(0, -1).trim() : "";
+      const toks = L.join("\n").split(/[\s;]+/).filter(Boolean);
+      if (toks.length && toks.filter(t => isNaN(num(t))).length / toks.length >= 0.8) {
+        const rest = L.join("\n"), sep = /[;,\n]/.test(rest) ? /[;,\n]+/ : /\s+/;
+        const cats = rest.split(sep).map(t => t.trim()).filter(Boolean);
+        const levels = d3.rollups(cats, v => v.length, v => v).sort((a, b) => b[1] - a[1] || d3.ascending(a[0], b[0])).map(d => d[0]);
+        return { qual: true, name: nm, cats, levels, xs: [], bad: [] };
+      }
+    }
     let name = "", bad = [];
     if (lines.length && lines[0].split(/[\s;]+/).some(t => isNaN(num(t)))) name = lines.shift();
     const xs = [];
@@ -677,8 +717,9 @@
   }
   // duas variáveis: um par por linha (tabulação, «;» ou espaços entre x e y); a primeira linha pode ter os nomes
   function readBi(text) {
-    const T = parseTable(text);
+    let T = parseTable(text);
     colsUI(T);
+    if (T && numCols(T).length < 2) return { nx: "x", ny: "y", pts: [], bad: [], note: "São precisas duas colunas numéricas." };
     if (T) {
       const cx = colOf(T, S.col.x, 0), cy = colOf(T, S.col.y, 1), gc = groupCol(T), pts = [];
       const tc = timeCol(T), ic = tc ? idChoice(T, tc) : null, sc = sizeCol(T), tv = tc ? tvals(tc) : null;
@@ -913,7 +954,7 @@
         S.col = { v: d.uni.v, x: d.bi.x, y: d.bi.y, g: (m === "uni" ? d.uni.g : d.bi.g) || null, t: d.bi.t || null, s: d.bi.s || null, id: null };
         S.logx = !!d.bi.log; S.logy = !!d.bi.logy; S.ti = 0; stopPlay();
         // modelo e «um modelo por grupo» sugeridos pelo conjunto (p. ex. sinusoidal nas temperaturas); sem sugestão, nenhum
-        S.model = d.bi.model || null; $("r-sel").value = S.model || ""; S.byG = !!d.bi.byG; $("sh-byg").checked = S.byG;
+        S.model = d.bi.model || null; $("r-sel").value = S.model || ""; S.byG = !!d.bi.byG; $("sh-byg").checked = S.byG; S.radial = !!d.bi.radial; $("sh-radial").checked = S.radial;
         S.picked.uni = S.picked.bi = v;
       } catch (err) { $("msg").textContent = "Não foi possível carregar o conjunto de dados (é preciso abrir a app a partir do site)."; return; }
     }
@@ -961,7 +1002,7 @@
   $("r-sel").onchange = e => { S.model = e.target.value || null; render(); };
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("sh-vio", "violin"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
-  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG"); chkBind("sh-conn", "conn"); chkBind("sh-cont", "cont");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG"); chkBind("sh-conn", "conn"); chkBind("sh-cont", "cont"); chkBind("sh-radial", "radial");
   // abrir / fechar os cartões das medidas e dos resultados (estado guardado no navegador)
   // (começam sempre fechados — pedido do utilizador; abrir/fechar não fica guardado)
   const folded = { meas: true, res: true };
@@ -1098,18 +1139,19 @@
     $("sel-ex").hidden = $("sel-in").hidden = true;
     if (!T) {
       $("dat-hint").textContent = "";
+      const V = RU.qual ? RU.cats.map(esc) : RU.xs.map(v => fmt(v, 6));
       $("dat").innerHTML = `<table class="freq"><thead><tr><th>i</th><th>${esc(RU.name || "x")}</th></tr></thead><tbody>` +
-        RU.xs.slice(0, MAXR).map((v, i) => `<tr><td>${i + 1}</td><td>${fmt(v, 6)}</td></tr>`).join("") + "</tbody></table>" +
-        (RU.xs.length > MAXR ? `<p class="note">Só se mostram os primeiros ${MAXR} de ${RU.xs.length} valores.</p>` : "");
+        V.slice(0, MAXR).map((v, i) => `<tr><td>${i + 1}</td><td>${v}</td></tr>`).join("") + "</tbody></table>" +
+        (V.length > MAXR ? `<p class="note">Só se mostram os primeiros ${MAXR} de ${V.length} valores.</p>` : "");
       return;
     }
-    const cv = colOf(T, S.col.v), gc = RU.groups ? groupCol(T) : null, roles = { [cv.name]: "variável" };
+    const cv = varCol(T), gc = RU.groups ? groupCol(T) : null, roles = { [cv.name]: "variável" };
     if (gc) roles[gc.name] = "grupos";
     const gi = gc ? new Map(RU.groups.map((g, i) => [g.name, css(`--g${i % MAXG}`)])) : null;
     $("dat-hint").textContent = "";
     $("dat").innerHTML = `<table class="freq">${tableHead(T, roles, "<th>i</th>")}<tbody>` +
       d3.range(Math.min(T.n, MAXR)).map(r => {
-        const miss = cv.vals[r] === null || isNaN(cv.vals[r]) || (gc && MISSING.test(gc.raw[r])), hid = gc && HIDDEN.has(gc.raw[r]);
+        const miss = (cv.numeric ? cv.vals[r] === null || isNaN(cv.vals[r]) : MISSING.test(cv.raw[r])) || (gc && MISSING.test(gc.raw[r])), hid = gc && HIDDEN.has(gc.raw[r]);
         return `<tr${miss ? ' class="miss" title="Fica de fora (valor em falta)"' : hid ? ' class="miss" title="Grupo escondido"' : ""}><td>${r + 1}</td>${tableCells(T, r, roles, gi && (v => gi.get(v)))}</tr>`;
       }).join("") + "</tbody></table>" + (T.n > MAXR ? `<p class="note">Só se mostram as primeiras ${MAXR} de ${T.n} linhas.</p>` : "");
     bindHeads(T);
@@ -1239,10 +1281,17 @@
 
   function renderUni(fromInputs) {
     const RU = readUni(ta.value), { name, xs, bad, note } = RU;
+    // tipos de gráfico: os das variáveis quantitativas (n-only) ou qualitativas (q-only)
+    document.querySelectorAll("#g-sel .n-only").forEach(o => o.hidden = o.disabled = !!RU.qual);
+    document.querySelectorAll("#g-sel .q-only").forEach(o => o.hidden = o.disabled = !RU.qual);
+    $("g-mosaic").hidden = $("g-mosaic").disabled = !(RU.qual && RU.groups);
+    if (RU.qual ? !["bars", "pie", "donut", "stack", "mosaic"].includes(S.graph) : ["pie", "donut", "mosaic"].includes(S.graph)) { S.graph = RU.qual ? "bars" : "hist"; $("g-sel").value = S.graph; }
+    if (RU.qual) return renderQual(RU);
+    ["sh-box", "sh-mean", "sh-stem", "sh-dens"].forEach(id => $(id).closest("label").hidden = false);
     // «Densidades sobrepostas» só existe com grupos
     $("g-dens").hidden = $("g-dens").disabled = !RU.groups;
     $("g-stack").hidden = $("g-stack").disabled = !RU.groups;
-    if (!RU.groups && (S.graph === "dens" || S.graph === "stack")) { S.graph = "hist"; $("g-sel").value = "hist"; }
+    if (!RU.groups && (S.graph === "dens" || S.graph === "stack" || S.graph === "mosaic")) { S.graph = RU.qual ? "bars" : "hist"; $("g-sel").value = S.graph; }
     $("stack-row").style.display = S.graph === "stack" ? "" : "none";
     // «Diagrama de extremos e quartis» como tipo de gráfico: os cálculos são os do diagrama de barras, mas o gráfico de cima não se mostra
     const boxOnly = S.graph === "box", GT = boxOnly ? "bars" : S.graph, SBOX = S.box || boxOnly;
@@ -1456,6 +1505,187 @@
         tableRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${f4(r[2])}</td><td>${r[3]}</td><td>${f4(r[4])}</td></tr>`).join("") +
         `</tbody><tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot></table>`;
     }
+  }
+
+  // ---------- uma variável qualitativa: diagrama de barras, gráfico circular / de anel, barras por grupo, mosaico ----------
+  // (as cores das categorias seguem a ordem das categorias na amostra toda, da mais frequente para a menos frequente)
+  const PIE = { prev: null, key: "" };
+  function renderQual(RU) {
+    const { name, levels } = RU, xlabel = name || "categoria", pal = gColors();
+    // (paleta das categorias diferente da dos grupos, para não se confundirem)
+    const CPAL = d3.schemeTableau10, ccol = c => CPAL[levels.indexOf(c) % CPAL.length];
+    // grupos: botões para esconder/mostrar (como nas quantitativas); o circular junta os grupos à vista
+    let G = null;
+    if (RU.groups) {
+      const all = RU.groups.map((g, i) => ({ ...g, ci: i, c: pal[i % MAXG], hidden: HIDDEN.has(g.name) }));
+      if (all.every(g => g.hidden)) { HIDDEN.clear(); all.forEach(g => g.hidden = false); }
+      groupChips(all);
+      G = all.filter(g => !g.hidden);
+    } else groupChips(null);
+    $("g-stack").hidden = $("g-stack").disabled = !RU.groups;
+    if (!RU.groups && (S.graph === "stack" || S.graph === "mosaic")) { S.graph = "bars"; $("g-sel").value = "bars"; }
+    const GT = S.graph, cats = G ? G.flatMap(g => g.cats) : RU.cats, n = cats.length;
+    const plots = $("plots");
+    plots.className = "plots uni" + (S.tab || S.dat ? " tab" : "");
+    $("tab-frame").hidden = !S.tab; $("stem-frame").hidden = true; $("dat-frame").hidden = !S.dat;
+    uniTable(RU);
+    $("box-frame").hidden = true; $("res-frame").hidden = true; plots.classList.remove("lower", "boxonly");
+    ["sh-box", "sh-mean", "sh-stem", "sh-dens"].forEach(id => $(id).closest("label").hidden = true);
+    $("hist-opts").style.display = "none";
+    $("freq-row").style.display = GT === "bars" ? "" : "none";
+    $("stack-row").style.display = GT === "stack" ? "" : "none";
+    $("msg").textContent = RU.note || ""; $("msg").classList.add("info");
+    if (!n) { LAST = null; put($("fig-main"), null); $("meas").innerHTML = ""; return; }
+    // frequências (só as categorias com observações, pela ordem de «levels»)
+    const cnt = d3.rollup(cats, v => v.length, v => v);
+    const lv = levels.filter(c => cnt.get(c));
+    const freq = lv.map(c => ({ c, ni: cnt.get(c), fi: cnt.get(c) / n }));
+    const maxN = d3.max(freq, f => f.ni), modes = freq.filter(f => f.ni === maxN).map(f => f.c);
+    // medidas: n, número de categorias e moda
+    const meas = $("meas"); meas.className = "meas"; meas.innerHTML = "";
+    [["n", n], ["\\text{categorias}", lv.length], ["\\text{moda}", modes.length > 3 ? "várias" : modes.join("; ")]].forEach(([k, v]) => {
+      const div = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span");
+      a.className = "k"; b.className = "v"; tex(a, k); b.textContent = v; div.append(a, b); meas.appendChild(div);
+    });
+    const ink = css("--ink"), bg = css("--bg"), c1 = css("--c1"), bar = css("--bar");
+    const [W, H] = figSize($("fig-main"));
+    const pct = v => fmt(v * 100, 1) + " %";
+    let fig = null, hint = "";
+    // eixo com as categorias por ordem (posições 0, 1, 2, …): as barras desenham-se com x1/x2 numéricos
+    const catAxis = list => ({ domain: [-0.6, list.length - 0.4], ticks: d3.range(list.length), tickFormat: i => list[i] ?? "", label: xlabel, labelAnchor: "right", labelArrow: "none" });
+    if (GT === "bars") {
+      const rel = S.freq === "rel";
+      const data = freq.map((f, i) => ({ ...f, i, y: rel ? f.fi : f.ni }));
+      fig = Plot.plot({
+        width: W, height: H, marginLeft: 48, marginBottom: 46, marginTop: 26, style: plotStyle(),
+        x: catAxis(lv), y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, tickFormat: decTick, labelArrow: "none", domain: [0, (rel ? maxN / n : maxN) * 1.08], ...(rel ? {} : { ticks: d3.ticks(0, maxN, Math.max(2, Math.round(H / 45))).filter(Number.isInteger) }) },
+        marks: [
+          Plot.rect(data, { x1: d => d.i - 0.35, x2: d => d.i + 0.35, y1: 0, y2: "y", fill: bar, stroke: c1, strokeWidth: 1.2, title: d => `${d.c}\nnᵢ = ${d.ni}\nfᵢ = ${fmt(d.fi, 4)}` }),
+          Plot.text(data, { x: "i", y: "y", text: d => rel ? fmt(d.y, 3) : String(d.ni), dy: -8, fill: ink, fontWeight: 700 }),
+          Plot.ruleY([0], { stroke: ink }),
+        ],
+      });
+      $("main-title").textContent = "Diagrama de barras";
+      hint = `${lv.length} categorias${G ? " · todos os grupos à vista, juntos" : ""}`;
+    } else if (GT === "pie" || GT === "donut") {
+      fig = pieChart(freq, W, H, GT === "donut", ccol, n, G);
+      $("main-title").textContent = GT === "donut" ? "Gráfico de anel" : "Gráfico circular";
+      hint = G ? "clica num grupo para o tirar ou pôr; duplo clique: só esse grupo" : `${lv.length} categorias`;
+    } else if (GT === "stack") {
+      // barras empilhadas ↔ agrupadas (mesma transição das quantitativas): categorias no eixo, grupos nas cores
+      const u = STK.u, p1 = Math.min(1, u * 2), p2 = Math.max(0, u * 2 - 1), ng = G.length, rects = [];
+      let top = 1;
+      lv.forEach((c, j) => {
+        let cum = 0;
+        G.forEach((g, i) => {
+          const k = g.cats.filter(v => v === c).length, w = 0.8;
+          const sx1 = j - w / 2, gx1 = j - w / 2 + i * w / ng;
+          rects.push({ g: g.name, k, c, x1: sx1 + (gx1 - sx1) * p1, x2: sx1 + w + (gx1 + w / ng - sx1 - w) * p1, y1: cum * (1 - p2), y2: cum * (1 - p2) + k });
+          cum += k;
+        });
+        top = Math.max(top, cum);
+      });
+      const color = { domain: G.map(g => g.name), range: G.map(g => g.c) };
+      fig = Plot.plot({
+        width: W, height: H, marginLeft: 48, marginBottom: 46, marginTop: 26, style: plotStyle(), color,
+        x: catAxis(lv), y: { label: "frequência absoluta", grid: true, domain: [0, top * 1.08], tickFormat: decTick, labelArrow: "none", ticks: d3.ticks(0, top, Math.max(2, Math.round(H / 50))).filter(Number.isInteger) },
+        marks: [
+          Plot.rect(rects.filter(r => r.k > 0), { x1: "x1", x2: "x2", y1: "y1", y2: "y2", fill: "g", fillOpacity: 0.75, stroke: bg, strokeWidth: 0.8, title: r => `${r.g}\n${r.c}\nnᵢ = ${r.k}` }),
+          ...(u > 0.999 ? [Plot.text(rects.filter(r => r.k > 0), { x: r => (r.x1 + r.x2) / 2, y: "y2", text: r => String(r.k), dy: -7, fill: ink, fontSize: 10, fontWeight: 700 })] : []),
+          ...(u < 0.001 ? [Plot.text(freq.map((f, j) => ({ j, ni: f.ni })), { x: "j", y: "ni", text: d => String(d.ni), dy: -7, fill: ink, fontSize: 11, fontWeight: 700 })] : []),
+          Plot.ruleY([0], { stroke: ink }),
+        ],
+      });
+      $("main-title").textContent = u < 0.5 ? "Barras empilhadas por grupo" : "Barras agrupadas por grupo";
+      hint = (u < 0.5 ? "em cima de cada barra, o total" : "lado a lado, todos a partir do 0") + " · a mesma escala nos dois";
+    } else {
+      fig = mosaicChart(G, lv, W, H, ccol, n);
+      $("main-title").textContent = "Mosaico (Marimekko)";
+      hint = "largura: proporção de cada grupo; altura: proporção de cada categoria dentro do grupo";
+    }
+    put($("fig-main"), fig);
+    $("main-hint").textContent = hint;
+    // tabela de frequências (com grupos: nᵢ em cada grupo — tabela de contingência)
+    const gRows = G ? lv.map(c => [esc(c), ...G.map(g => g.cats.filter(v => v === c).length), cnt.get(c)]) : null;
+    if (S.tab) {
+      $("tab").innerHTML = G
+        ? `<table class="freq"><thead><tr><th>Categoria</th>${G.map(g => `<th style="color:${g.c}">${esc(g.name)}</th>`).join("")}<th>Total</th></tr></thead><tbody>` +
+          gRows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + `</tbody><tfoot><tr><td>Total</td>${G.map(g => `<td>${g.cats.length}</td>`).join("")}<td>${n}</td></tr></tfoot></table>`
+        : `<table class="freq"><thead><tr><th>Categoria</th><th>nᵢ</th><th>fᵢ</th><th>%</th></tr></thead><tbody>` +
+          freq.map(f => `<tr><td>${esc(f.c)}</td><td>${f.ni}</td><td>${fmt(f.fi, 4)}</td><td>${fmt(f.fi * 100, 1)}</td></tr>`).join("") +
+          `</tbody><tfoot><tr><td>Total</td><td>${n}</td><td>1</td><td>100</td></tr></tfoot></table>`;
+    }
+    LAST = { mode: "uni", qual: true, name: xlabel, n, freq, modes, graph: GT, title: $("main-title").textContent, hint,
+             groups: G, gname: RU.gname, gRows };
+  }
+  // gráfico circular ou de anel (D3); com grupos, a mudança de grupos à vista anima as fatias de um estado para o outro
+  function pieChart(freq, W, H, donut, ccol, n, G) {
+    const NS = "http://www.w3.org/2000/svg", ink = css("--ink"), bg = css("--bg");
+    const svg = d3.create("svg").attr("xmlns", NS).attr("width", W).attr("height", H).attr("viewBox", `0 0 ${W} ${H}`)
+      .style("font-family", css("--font")).style("font-size", "13px").style("color", ink);
+    const legW = Math.min(W * 0.4, 260), R = Math.max(40, Math.min((W - legW) / 2 - 24, H / 2 - 24)), cx = (W - legW) / 2, cy = H / 2;
+    const arcs = d3.pie().sort(null).value(d => d.ni)(freq);
+    const arc = d3.arc().innerRadius(donut ? R * 0.56 : 0).outerRadius(R);
+    const g = svg.append("g").attr("transform", `translate(${cx},${cy})`);
+    // transição: de onde estava cada fatia (PIE.prev) para o novo ângulo; categorias novas nascem com largura 0
+    const prev = PIE.prev, now = new Map(arcs.map(a => [a.data.c, a])), anim = !FIXED && prev && [...now].some(([c, a]) => !prev.has(c) || Math.abs(prev.get(c).startAngle - a.startAngle) > 1e-6 || Math.abs(prev.get(c).endAngle - a.endAngle) > 1e-6);
+    const start = a => { const p = prev && prev.get(a.data.c); return p ? { startAngle: p.startAngle, endAngle: p.endAngle } : { startAngle: a.startAngle, endAngle: a.startAngle }; };
+    const paths = g.selectAll("path").data(arcs).join("path").attr("fill", a => ccol(a.data.c)).attr("stroke", bg).attr("stroke-width", 1.5)
+      .attr("d", a => arc(anim ? start(a) : a));
+    paths.append("title").text(a => `${a.data.c}\nnᵢ = ${a.data.ni}\n${fmt(a.data.fi * 100, 1)} %`);
+    const labels = g.selectAll("text.pct").data(arcs.filter(a => a.endAngle - a.startAngle > 0.28)).join("text").attr("class", "pct")
+      .attr("text-anchor", "middle").attr("dy", "0.35em").attr("fill", "#fff").attr("font-weight", 700).attr("paint-order", "stroke").attr("stroke", "rgba(0,0,0,0.35)").attr("stroke-width", 2.5)
+      .attr("transform", a => `translate(${(donut ? d3.arc().innerRadius(R * 0.56).outerRadius(R) : d3.arc().innerRadius(R * 0.45).outerRadius(R * 0.85)).centroid(a)})`)
+      .text(a => fmt(a.data.fi * 100, a.data.fi < 0.1 ? 1 : 0) + " %");
+    if (anim) {
+      labels.attr("opacity", 0);
+      paths.transition().duration(750).ease(d3.easeCubicInOut).attrTween("d", function (a) { const i = d3.interpolate(start(a), a); return t => arc(i(t)); });
+      labels.transition().delay(600).duration(250).attr("opacity", 1);
+    }
+    if (donut) {
+      g.append("text").attr("text-anchor", "middle").attr("dy", "-0.2em").attr("font-size", Math.round(R * 0.15)).attr("font-weight", 700).attr("fill", ink).text(`n = ${n}`);
+      if (G) g.append("text").attr("text-anchor", "middle").attr("dy", "1.3em").attr("font-size", 12).attr("fill", css("--faint")).text(G.length === 1 ? G[0].name : `${G.length} grupos`);
+    }
+    // legenda à direita: cor, categoria, nᵢ e percentagem
+    const lg = svg.append("g").attr("transform", `translate(${W - legW + 10},${Math.max(16, cy - freq.length * 11)})`);
+    freq.forEach((f, i) => {
+      const r = lg.append("g").attr("transform", `translate(0,${i * 22})`);
+      r.append("rect").attr("width", 14).attr("height", 14).attr("y", -7).attr("rx", 3).attr("fill", ccol(f.c));
+      r.append("text").attr("x", 22).attr("dy", "0.35em").attr("fill", ink).text(`${f.c} — ${f.ni} (${fmt(f.fi * 100, 1)} %)`);
+    });
+    PIE.prev = new Map(arcs.map(a => [a.data.c, { startAngle: a.startAngle, endAngle: a.endAngle }]));
+    return svg.node();
+  }
+  // mosaico (Marimekko): uma coluna por grupo, com largura proporcional ao tamanho do grupo; dentro de cada coluna, as categorias
+  // com altura proporcional à proporção no grupo (probabilidade condicionada); à direita, a coluna «Todos» para comparar
+  // (se as colunas forem todas iguais à de «Todos», a categoria não depende do grupo)
+  function mosaicChart(G, lv, W, H, ccol, n) {
+    const ink = css("--ink"), bg = css("--bg"), gap = 0.012, allW = 0.13, rects = [], heads = [];
+    let x = 0;
+    const span = 1 - allW - 0.03 - gap * (G.length - 1);
+    const col = (label, cs, x1, x2, total) => {
+      let y = 0;
+      const k = d3.rollup(cs, v => v.length, v => v);
+      lv.forEach(c => { const p = (k.get(c) || 0) / cs.length; if (p > 0) rects.push({ x1, x2, y1: y, y2: y + p, c, p, g: label, k: k.get(c) || 0, nG: cs.length }); y += p; });
+      heads.push({ x: (x1 + x2) / 2, label, total });
+    };
+    G.forEach(g => { const w = span * g.cats.length / n; col(g.name, g.cats, x, x + w, g.cats.length); x += w + gap; });
+    const ax = 1 - allW;
+    col("Todos", G.flatMap(g => g.cats), ax, 1, n);
+    const fig = Plot.plot({
+      width: W, height: H, marginLeft: 48, marginBottom: 30, marginTop: 64, marginRight: 12, style: plotStyle(),
+      x: { domain: [0, 1], axis: null },
+      y: { domain: [0, 1], label: "proporção dentro do grupo", grid: false, tickFormat: v => fmt(v * 100, 0) + " %", labelArrow: "none", reverse: true },
+      marks: [
+        Plot.rect(rects, { x1: "x1", x2: "x2", y1: "y1", y2: "y2", fill: d => ccol(d.c), fillOpacity: d => d.g === "Todos" ? 0.6 : 0.9, stroke: bg, strokeWidth: 1.5,
+          title: d => `${d.g}: ${d.c}\n${d.k} de ${d.nG} (${fmt(d.p * 100, 1)} %)\nP(${d.c} | ${d.g}) ≈ ${fmt(d.p, 3)}` }),
+        Plot.text(rects.filter(d => (d.y2 - d.y1) * (H - 94) > 16 && (d.x2 - d.x1) * (W - 60) > 34), { x: d => (d.x1 + d.x2) / 2, y: d => (d.y1 + d.y2) / 2, text: d => fmt(d.p * 100, 0) + " %", fill: "#fff", fontWeight: 700, stroke: "rgba(0,0,0,0.35)", strokeWidth: 2.5, paintOrder: "stroke" }),
+        Plot.text(heads, { x: "x", y: 0, text: h => `${h.label}`, dy: -24, fill: ink, fontWeight: 700, lineAnchor: "bottom" }),
+        Plot.text(heads, { x: "x", y: 0, text: h => `n = ${h.total}`, dy: -8, fill: css("--faint"), fontSize: 11, lineAnchor: "bottom" }),
+      ],
+    });
+    svgLegend(fig, lv.map(c => ({ name: c, c: ccol(c) })), W - 12, 12);
+    return fig;
   }
 
   // ---------- uma variável, por grupos ----------
@@ -1775,6 +2005,63 @@
     };
     TWU = 0; render(); PLAY = requestAnimationFrame(step);
   }
+  // gráfico radial (dados cíclicos, p. ex. meses ou dias do ano): x dá a volta à circunferência (um período = uma volta, a começar
+  // em cima, no sentido dos ponteiros do relógio) e y é a distância ao centro; uma linha fechada por grupo, com a área ténue até ao
+  // centro (séries encaixadas, como máximas e mínimas, ficam em faixas); o modelo escolhido também se desenha à volta
+  const MESES = ["jan.", "fev.", "mar.", "abr.", "maio", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
+  function radialChart({ pts, GR, xl, yl, W, H, fits }) {
+    const ink = css("--ink"), bg = css("--bg"), grid = css("--grid2"), faint = css("--faint"), c1 = css("--c1");
+    const xs = [...new Set(pts.map(p => p[0]))].sort((a, b) => a - b);
+    const step = d3.min(d3.pairs(xs), ([a, b]) => b - a) || 1, xmin = xs[0];
+    // período: de 1 a 12 → 12 (meses); de 1 a 365/366 → dias do ano; senão, a amplitude dos x mais um passo
+    let P = xs[xs.length - 1] - xmin + step;
+    const months = Math.abs(P - 12) < 1e-9 && xmin >= 0.5 && xmin <= 1.5, days = (Math.abs(P - 365) < 1e-9 || Math.abs(P - 366) < 1e-9) && xmin >= 0.5 && xmin <= 1.5;
+    const ang = x => 2 * Math.PI * (x - xmin) / P;
+    const ys = pts.map(p => p[1]), [y0, y1] = d3.nice(d3.min(ys), d3.max(ys), 6), r0 = 0.18;
+    const rad = y => r0 + (1 - r0) * (y - y0) / (y1 - y0 || 1);
+    const XY = (x, y) => { const t = ang(x), r = rad(y); return [r * Math.sin(t), r * Math.cos(t)]; };
+    const asp = W / H, mk = [];
+    // grelha: circunferências nas marcas de y (com o valor) e raios nas marcas de x (com o nome)
+    const yt = d3.ticks(y0, y1, 6);
+    yt.forEach(v => { const r = rad(v); mk.push(Plot.line(d3.range(121).map(i => [r * Math.sin(i / 120 * 2 * Math.PI), r * Math.cos(i / 120 * 2 * Math.PI)]), { stroke: grid, strokeWidth: 1 })); });
+    mk.push(Plot.text(yt, { x: v => 0, y: v => rad(v), text: v => fmt(v, 2), dy: -6, fill: faint, fontSize: 11, stroke: bg, strokeWidth: 3, paintOrder: "stroke" }));
+    let xt;
+    if (months) xt = d3.range(12).map(k => ({ x: 1 + k, lab: MESES[k] }));
+    else if (days) { const start = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]; xt = start.map((s0, k) => ({ x: 1 + s0, lab: MESES[k] })); }
+    else xt = d3.ticks(xmin, xmin + P - step, 8).map(x => ({ x, lab: fmt(x, 3) }));
+    mk.push(Plot.link(xt, { x1: 0, y1: 0, x2: d => Math.sin(ang(d.x)), y2: d => Math.cos(ang(d.x)), stroke: grid, strokeWidth: 1 }),
+            Plot.text(xt, { x: d => 1.1 * Math.sin(ang(d.x)), y: d => 1.1 * Math.cos(ang(d.x)), text: "lab", fill: ink, fontSize: 12, fontWeight: 700 }));
+    // séries: uma por grupo (ou só uma), pela ordem de x, fechadas se cobrirem quase a volta toda
+    const sets = GR ? GR.map(g => ({ name: g.name, c: g.c, P: g.pts })) : [{ name: yl, c: c1, P: pts }];
+    // (com vários valores para o mesmo x — p. ex. o mesmo mês em vários anos —, a linha passa pela média de cada x e os pontos ficam ténues)
+    let repeated = false;
+    sets.forEach(sv => {
+      const byX = d3.rollups(sv.P, v => d3.mean(v, p => p[1]), p => p[0]).sort((a, b) => a[0] - b[0]);
+      const rep = byX.length < sv.P.length; repeated = repeated || rep;
+      const q = byX.map(([x, y]) => XY(x, y));
+      if (q.length < 2) return;
+      const closed = q.length > 2 && byX[byX.length - 1][0] - byX[0][0] >= P - 2 * step;
+      if (rep && sv.P.length <= 3000) mk.push(Plot.dot(sv.P.map(p => XY(p[0], p[1])), { x: d => d[0], y: d => d[1], r: 1.8, fill: sv.c, fillOpacity: 0.25 }));
+      mk.push(Plot.line(q, { x: d => d[0], y: d => d[1], fill: sv.c, fillOpacity: sets.length > 4 ? 0.025 : 0.07, stroke: sv.c, strokeWidth: 2, curve: closed ? "linear-closed" : "linear" }));
+      if (!rep && sv.P.length <= 120) mk.push(Plot.dot(q, { x: d => d[0], y: d => d[1], r: 3, fill: bg, stroke: sv.c, strokeWidth: 1.5 }));
+    });
+    // modelos (p. ex. o sinusoidal) à volta, a tracejado
+    fits.forEach(({ f, c }) => {
+      const cv = d3.range(361).map(i => { const x = xmin + P * i / 360, y = f(x); return isFinite(y) ? XY(x, Math.max(y0, Math.min(y1, y))) : null; }).filter(Boolean);
+      mk.push(Plot.line(cv, { x: d => d[0], y: d => d[1], stroke: c, strokeWidth: 2.2, strokeDasharray: "6 4" }));
+    });
+    const tips = pts.map(p => ({ p, xy: XY(p[0], p[1]) }));
+    mk.push(Plot.tip(tips, Plot.pointer({ x: d => d.xy[0], y: d => d.xy[1], title: d => (d.p[2] !== undefined ? `${d.p[2]}\n` : "") + `${xl} = ${fmt(d.p[0], 4)}\n${yl} = ${fmt(d.p[1], 4)}` })));
+    const e = 1.22;
+    const fig = Plot.plot({
+      width: W, height: H, margin: 8, marginTop: GR ? 34 : 12, style: plotStyle(),
+      x: { domain: asp >= 1 ? [-e * asp, e * asp] : [-e, e], axis: null }, y: { domain: asp >= 1 ? [-e, e] : [-e / asp, e / asp], axis: null },
+      marks: mk,
+    });
+    if (GR) svgLegend(fig, GR.map(g => ({ name: g.name, c: g.c })), W - 12, 14);
+    fig.hint = `uma volta = ${months ? "12 meses" : days ? "um ano" : "um período de " + fmt(P, 3)} (${xl}); distância ao centro: ${yl}, de ${fmt(y0, 2)} a ${fmt(y1, 2)}${repeated ? "; a linha passa pela média de cada " + xl : ""}`;
+    return fig;
+  }
   function renderBi() {
     const { nx, ny, pts: ALL, bad, note: note0, groups, gname, times, tname, idname, sname, tfmt, tdate, idbad } = readBi(ta.value);
     const note = [note0, idbad ? `«${idbad}» repete-se no mesmo instante: não serve de identificação.` : ""].filter(Boolean).join(" ");
@@ -2027,7 +2314,10 @@
     if (GALL) svgLegend(chart, GALL, W - mRight, legOne ? 11 : 30, FIXED ? null : (name, dbl) => groupClick(name, groups, dbl));
     if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
     const mainHint0 = $("main-hint").textContent;
-    put($("fig-main"), chart);
+    // gráfico radial (dados cíclicos): no lugar do diagrama de dispersão; sem seleção com o rato
+    const RAD = S.radial && pts.length > 2 ? radialChart({ pts, GR, xl, yl, W, H, fits: S.model && S.curve ? (byG ? GR.filter(g => !g.F.err).map(g => ({ f: g.F.f, c: g.c })) : (!F.err ? [{ f: F.f, c: c2 }] : [])) : [] }) : null;
+    put($("fig-main"), RAD || chart);
+    if (RAD) { $("main-title").textContent = "Gráfico radial"; $("main-hint").textContent = RAD.hint; }
 
     // gráfico de resíduos: eᵢ = yᵢ − ŷᵢ de cada par incluído, com a mesma escala horizontal do diagrama de dispersão
     if (showRes) {
@@ -2080,6 +2370,7 @@
       }
       $("dat").querySelectorAll("input.exc").forEach(cb => cb.onchange = () => { const i = +cb.dataset.i; if (cb.checked) EXCL.add(i); else EXCL.delete(i); render(); });
       }
+      if (RAD) return;   // (no gráfico radial não há seleção com o rato)
       // linhas indexadas pelo número do par (as linhas que ficam de fora não entram)
       const rowsEl = [];
       $("dat").querySelectorAll("tbody tr[data-i]").forEach(tr => { rowsEl[+tr.dataset.i] = tr; });
@@ -2294,7 +2585,18 @@
     const TAB = (cap, head, rows, foot = "") => `<table><caption><b>Tabela ${++tab}:</b> ${cap}</caption><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>${foot}</table>`;
     let body = "";
     if (String(info.intro || "").trim()) body += H2("Introdução") + rich(info.intro);
-    if (R.mode === "uni") {
+    if (R.qual) {
+      // variável qualitativa: frequências (ou tabela de contingência com os grupos), moda e o gráfico escolhido
+      body += H2("Dados");
+      body += `<p>Variável qualitativa em estudo: <i>${esc(R.name)}</i>, com ${K(`n = ${R.n}`)} observações em ${R.freq.length} categorias${R.groups ? `, divididas pelos grupos de <i>${esc(R.gname)}</i>` : ""}. Moda: ${esc(R.modes.join("; "))}.</p>`;
+      body += H2("Distribuição de frequências");
+      body += TAB("Tabela de frequências", ["Categoria", K("n_i"), K("f_i"), "%"], R.freq.map(f => [esc(f.c), f.ni, fmt(f.fi, 4), fmt(f.fi * 100, 1)]),
+        `<tfoot><tr><td>Total</td><td>${R.n}</td><td>1</td><td>100</td></tr></tfoot>`);
+      if (R.groups) body += TAB(`Tabela de contingência: frequências absolutas de <i>${esc(R.name)}</i> em cada grupo de <i>${esc(R.gname)}</i>`, ["Categoria", ...R.groups.map(g => esc(g.name)), "Total"], R.gRows,
+        `<tfoot><tr><td>Total</td>${R.groups.map(g => `<td>${g.cats.length}</td>`).join("")}<td>${R.n}</td></tr></tfoot>`);
+      const capQ = { bars: "Diagrama de barras", pie: "Gráfico circular", donut: "Gráfico de anel", stack: R.title, mosaic: "Mosaico (Marimekko)" }[R.graph] || R.title;
+      body += FIG(figs.main, `${esc(capQ)} de <i>${esc(R.name)}</i>${R.groups ? ` (grupos de <i>${esc(R.gname)}</i>)` : ""}${R.graph === "mosaic" ? ": a largura de cada coluna é proporcional ao tamanho do grupo e a altura de cada retângulo é a proporção da categoria dentro do grupo; a coluna «Todos» mostra a amostra toda" : ""}.`);
+    } else if (R.mode === "uni") {
       const st = R.st, d = S.dec, f = v => fmt(v, d), f4 = v => fmt(v, 4);
       body += H2("Dados");
       body += `<p>Variável em estudo: <i>${esc(R.name)}</i>. Foram registadas ${K(`n = ${st.n}`)} observações, que se apresentam ordenadas:</p>`;
@@ -2351,7 +2653,7 @@
       ]);
       body += KD(`r = \\frac{\\sum (x_i - \\bar{x})(y_i - \\bar{y})}{\\sqrt{\\sum (x_i - \\bar{x})^2 \\sum (y_i - \\bar{y})^2}} = ${tnum(r, d)}`);
       const NAMES = { lin: "Linear", quad: "Quadrático", exp: "Exponencial", log: "Logarítmico", pow: "Potência", sin: "Sinusoidal" };
-      body += FIG(figs.main, `Diagrama de dispersão de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${R.tl ? ` (${esc(R.tl)})` : ""}${R.groups ? `, com os grupos de <i>${esc(R.gname)}</i> em cores diferentes` : ""}${S.curve && (R.byG || !R.F.err) && R.model ? `, com ${R.byG ? "as curvas do modelo" : "a curva do modelo"} ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}` : ""}${S.mdens ? (R.groups ? "; nas margens, as curvas de densidade de cada variável em cada grupo" : "; nas margens, a roxo, as curvas de densidade de cada variável") : ""}.`);
+      body += FIG(figs.main, `${S.radial ? "Gráfico radial (uma volta = um período de <i>" + esc(R.xl) + "</i>; a distância ao centro é <i>" + esc(R.yl) + "</i>)" : "Diagrama de dispersão"} de <i>${esc(R.yl)}</i> em função de <i>${esc(R.xl)}</i>${R.tl ? ` (${esc(R.tl)})` : ""}${R.groups ? `, com os grupos de <i>${esc(R.gname)}</i> em cores diferentes` : ""}${S.curve && (R.byG || !R.F.err) && R.model ? `, com ${R.byG ? "as curvas do modelo" : "a curva do modelo"} ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}` : ""}${S.mdens ? (R.groups ? "; nas margens, as curvas de densidade de cada variável em cada grupo" : "; nas margens, a roxo, as curvas de densidade de cada variável") : ""}.`);
       body += H2("Modelos de regressão");
       const rows = Object.keys(NAMES).map(m => {
         const G = fit(m, P, d);

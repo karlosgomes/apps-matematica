@@ -1,0 +1,1461 @@
+dia_do_ano,temperatura,serie
+1,16.7,máxima registada
+2,16.7,máxima registada
+3,20.6,máxima registada
+4,18.9,máxima registada
+5,18.9,máxima registada
+6,18.9,máxima registada
+7,18.3,máxima registada
+8,18.3,máxima registada
+9,17.2,máxima registada
+10,17.2,máxima registada
+11,18.3,máxima registada
+12,21.1,máxima registada
+13,22.2,máxima registada
+14,22.2,máxima registada
+15,22.8,máxima registada
+16,22.8,máxima registada
+17,19.4,máxima registada
+18,19.4,máxima registada
+19,19.4,máxima registada
+20,18.9,máxima registada
+21,20.0,máxima registada
+22,19.4,máxima registada
+23,20.6,máxima registada
+24,17.8,máxima registada
+25,20.0,máxima registada
+26,18.9,máxima registada
+27,20.0,máxima registada
+28,18.9,máxima registada
+29,18.9,máxima registada
+30,17.8,máxima registada
+31,23.3,máxima registada
+32,22.8,máxima registada
+33,22.8,máxima registada
+34,24.4,máxima registada
+35,23.9,máxima registada
+36,22.8,máxima registada
+37,23.9,máxima registada
+38,22.2,máxima registada
+39,23.3,máxima registada
+40,23.3,máxima registada
+41,20.6,máxima registada
+42,19.4,máxima registada
+43,22.8,máxima registada
+44,20.6,máxima registada
+45,22.8,máxima registada
+46,23.9,máxima registada
+47,23.3,máxima registada
+48,22.8,máxima registada
+49,17.8,máxima registada
+50,17.8,máxima registada
+51,20.0,máxima registada
+52,20.6,máxima registada
+53,22.8,máxima registada
+54,21.1,máxima registada
+55,21.7,máxima registada
+56,21.1,máxima registada
+57,21.1,máxima registada
+58,23.3,máxima registada
+59,22.2,máxima registada
+60,21.7,máxima registada
+61,19.4,máxima registada
+62,20.6,máxima registada
+63,22.8,máxima registada
+64,20.0,máxima registada
+65,22.2,máxima registada
+66,23.3,máxima registada
+67,26.1,máxima registada
+68,23.9,máxima registada
+69,25.6,máxima registada
+70,28.3,máxima registada
+71,25.0,máxima registada
+72,25.0,máxima registada
+73,28.3,máxima registada
+74,27.2,máxima registada
+75,27.8,máxima registada
+76,27.8,máxima registada
+77,25.0,máxima registada
+78,25.6,máxima registada
+79,25.6,máxima registada
+80,22.8,máxima registada
+81,22.8,máxima registada
+82,21.7,máxima registada
+83,21.7,máxima registada
+84,22.2,máxima registada
+85,26.1,máxima registada
+86,22.8,máxima registada
+87,25.0,máxima registada
+88,27.2,máxima registada
+89,26.1,máxima registada
+90,26.7,máxima registada
+91,27.2,máxima registada
+92,29.4,máxima registada
+93,20.6,máxima registada
+94,23.3,máxima registada
+95,26.1,máxima registada
+96,30.0,máxima registada
+97,27.8,máxima registada
+98,25.6,máxima registada
+99,23.9,máxima registada
+100,26.7,máxima registada
+101,27.2,máxima registada
+102,28.9,máxima registada
+103,27.8,máxima registada
+104,26.1,máxima registada
+105,27.2,máxima registada
+106,27.2,máxima registada
+107,28.3,máxima registada
+108,27.8,máxima registada
+109,30.0,máxima registada
+110,32.8,máxima registada
+111,30.0,máxima registada
+112,28.3,máxima registada
+113,24.4,máxima registada
+114,27.2,máxima registada
+115,30.6,máxima registada
+116,32.2,máxima registada
+117,30.6,máxima registada
+118,25.0,máxima registada
+119,30.0,máxima registada
+120,32.2,máxima registada
+121,30.0,máxima registada
+122,31.7,máxima registada
+123,30.6,máxima registada
+124,28.9,máxima registada
+125,25.6,máxima registada
+126,28.9,máxima registada
+127,31.7,máxima registada
+128,30.0,máxima registada
+129,23.9,máxima registada
+130,28.9,máxima registada
+131,25.6,máxima registada
+132,28.9,máxima registada
+133,33.3,máxima registada
+134,32.8,máxima registada
+135,35.6,máxima registada
+136,33.3,máxima registada
+137,33.9,máxima registada
+138,24.4,máxima registada
+139,26.7,máxima registada
+140,30.6,máxima registada
+141,33.3,máxima registada
+142,27.2,máxima registada
+143,31.1,máxima registada
+144,25.6,máxima registada
+145,22.2,máxima registada
+146,22.8,máxima registada
+147,27.2,máxima registada
+148,28.9,máxima registada
+149,25.6,máxima registada
+150,35.0,máxima registada
+151,32.8,máxima registada
+152,25.0,máxima registada
+153,29.4,máxima registada
+154,30.6,máxima registada
+155,24.4,máxima registada
+156,30.0,máxima registada
+157,23.3,máxima registada
+158,27.8,máxima registada
+159,30.6,máxima registada
+160,28.9,máxima registada
+161,29.4,máxima registada
+162,26.7,máxima registada
+163,31.1,máxima registada
+164,33.3,máxima registada
+165,40.6,máxima registada
+166,28.3,máxima registada
+167,30.6,máxima registada
+168,25.0,máxima registada
+169,36.1,máxima registada
+170,32.8,máxima registada
+171,35.6,máxima registada
+172,32.8,máxima registada
+173,32.8,máxima registada
+174,25.0,máxima registada
+175,26.7,máxima registada
+176,33.9,máxima registada
+177,35.6,máxima registada
+178,36.1,máxima registada
+179,27.8,máxima registada
+180,28.9,máxima registada
+181,30.6,máxima registada
+182,26.7,máxima registada
+183,27.8,máxima registada
+184,30.6,máxima registada
+185,26.7,máxima registada
+186,25.6,máxima registada
+187,22.8,máxima registada
+188,27.2,máxima registada
+189,31.1,máxima registada
+190,32.2,máxima registada
+191,24.4,máxima registada
+192,30.0,máxima registada
+193,30.6,máxima registada
+194,30.6,máxima registada
+195,31.1,máxima registada
+196,29.4,máxima registada
+197,28.9,máxima registada
+198,28.9,máxima registada
+199,28.3,máxima registada
+200,31.1,máxima registada
+201,28.9,máxima registada
+202,28.3,máxima registada
+203,36.1,máxima registada
+204,31.7,máxima registada
+205,29.4,máxima registada
+206,32.2,máxima registada
+207,27.2,máxima registada
+208,27.2,máxima registada
+209,30.6,máxima registada
+210,27.2,máxima registada
+211,24.4,máxima registada
+212,26.1,máxima registada
+213,31.1,máxima registada
+214,27.2,máxima registada
+215,25.6,máxima registada
+216,24.4,máxima registada
+217,25.0,máxima registada
+218,25.0,máxima registada
+219,28.3,máxima registada
+220,31.7,máxima registada
+221,34.4,máxima registada
+222,30.6,máxima registada
+223,26.1,máxima registada
+224,28.9,máxima registada
+225,26.7,máxima registada
+226,23.9,máxima registada
+227,33.3,máxima registada
+228,32.2,máxima registada
+229,24.4,máxima registada
+230,25.6,máxima registada
+231,24.4,máxima registada
+232,25.0,máxima registada
+233,26.1,máxima registada
+234,32.2,máxima registada
+235,33.3,máxima registada
+236,37.2,máxima registada
+237,30.0,máxima registada
+238,27.2,máxima registada
+239,32.2,máxima registada
+240,35.0,máxima registada
+241,32.2,máxima registada
+242,30.6,máxima registada
+243,31.7,máxima registada
+244,40.0,máxima registada
+245,40.0,máxima registada
+246,31.1,máxima registada
+247,33.3,máxima registada
+248,34.4,máxima registada
+249,34.4,máxima registada
+250,32.8,máxima registada
+251,33.3,máxima registada
+252,32.8,máxima registada
+253,33.3,máxima registada
+254,31.7,máxima registada
+255,35.0,máxima registada
+256,34.4,máxima registada
+257,28.3,máxima registada
+258,28.3,máxima registada
+259,27.2,máxima registada
+260,32.8,máxima registada
+261,33.9,máxima registada
+262,33.9,máxima registada
+263,33.9,máxima registada
+264,35.0,máxima registada
+265,32.2,máxima registada
+266,29.4,máxima registada
+267,31.1,máxima registada
+268,34.4,máxima registada
+269,33.9,máxima registada
+270,35.6,máxima registada
+271,35.0,máxima registada
+272,32.2,máxima registada
+273,34.4,máxima registada
+274,32.8,máxima registada
+275,33.9,máxima registada
+276,35.0,máxima registada
+277,33.3,máxima registada
+278,30.6,máxima registada
+279,31.1,máxima registada
+280,31.1,máxima registada
+281,30.0,máxima registada
+282,27.2,máxima registada
+283,30.0,máxima registada
+284,31.1,máxima registada
+285,34.4,máxima registada
+286,33.3,máxima registada
+287,31.7,máxima registada
+288,27.8,máxima registada
+289,28.3,máxima registada
+290,30.0,máxima registada
+291,30.0,máxima registada
+292,25.6,máxima registada
+293,26.7,máxima registada
+294,27.2,máxima registada
+295,27.8,máxima registada
+296,28.3,máxima registada
+297,32.8,máxima registada
+298,30.6,máxima registada
+299,31.7,máxima registada
+300,30.0,máxima registada
+301,29.4,máxima registada
+302,26.7,máxima registada
+303,25.6,máxima registada
+304,24.4,máxima registada
+305,27.8,máxima registada
+306,26.7,máxima registada
+307,26.1,máxima registada
+308,25.0,máxima registada
+309,26.1,máxima registada
+310,25.6,máxima registada
+311,22.8,máxima registada
+312,23.9,máxima registada
+313,23.9,máxima registada
+314,22.8,máxima registada
+315,21.1,máxima registada
+316,21.1,máxima registada
+317,22.2,máxima registada
+318,25.6,máxima registada
+319,26.1,máxima registada
+320,22.8,máxima registada
+321,22.8,máxima registada
+322,22.8,máxima registada
+323,21.1,máxima registada
+324,20.6,máxima registada
+325,20.0,máxima registada
+326,20.6,máxima registada
+327,20.6,máxima registada
+328,20.6,máxima registada
+329,20.6,máxima registada
+330,21.1,máxima registada
+331,20.6,máxima registada
+332,18.9,máxima registada
+333,21.1,máxima registada
+334,18.3,máxima registada
+335,19.4,máxima registada
+336,21.7,máxima registada
+337,18.9,máxima registada
+338,19.4,máxima registada
+339,19.4,máxima registada
+340,19.4,máxima registada
+341,18.3,máxima registada
+342,20.0,máxima registada
+343,18.3,máxima registada
+344,18.9,máxima registada
+345,19.4,máxima registada
+346,18.3,máxima registada
+347,16.7,máxima registada
+348,17.8,máxima registada
+349,17.2,máxima registada
+350,18.3,máxima registada
+351,17.2,máxima registada
+352,17.2,máxima registada
+353,20.0,máxima registada
+354,20.6,máxima registada
+355,20.0,máxima registada
+356,20.0,máxima registada
+357,20.0,máxima registada
+358,17.8,máxima registada
+359,17.2,máxima registada
+360,17.2,máxima registada
+361,16.7,máxima registada
+362,17.2,máxima registada
+363,20.0,máxima registada
+364,16.1,máxima registada
+365,16.1,máxima registada
+1,13.2,média das máximas
+2,12.9,média das máximas
+3,13.7,média das máximas
+4,13.6,média das máximas
+5,13.7,média das máximas
+6,12.9,média das máximas
+7,13.6,média das máximas
+8,14.0,média das máximas
+9,13.5,média das máximas
+10,13.7,média das máximas
+11,13.2,média das máximas
+12,13.6,média das máximas
+13,14.6,média das máximas
+14,13.6,média das máximas
+15,14.2,média das máximas
+16,14.0,média das máximas
+17,13.8,média das máximas
+18,14.7,média das máximas
+19,14.4,média das máximas
+20,14.2,média das máximas
+21,14.0,média das máximas
+22,14.1,média das máximas
+23,14.3,média das máximas
+24,13.8,média das máximas
+25,14.4,média das máximas
+26,13.7,média das máximas
+27,14.6,média das máximas
+28,14.2,média das máximas
+29,14.6,média das máximas
+30,14.6,média das máximas
+31,14.6,média das máximas
+32,15.1,média das máximas
+33,15.6,média das máximas
+34,15.7,média das máximas
+35,15.9,média das máximas
+36,15.9,média das máximas
+37,15.3,média das máximas
+38,15.8,média das máximas
+39,15.9,média das máximas
+40,16.3,média das máximas
+41,15.9,média das máximas
+42,15.3,média das máximas
+43,15.7,média das máximas
+44,15.6,média das máximas
+45,15.8,média das máximas
+46,15.9,média das máximas
+47,16.3,média das máximas
+48,15.4,média das máximas
+49,14.0,média das máximas
+50,13.9,média das máximas
+51,14.7,média das máximas
+52,15.5,média das máximas
+53,15.9,média das máximas
+54,14.6,média das máximas
+55,15.5,média das máximas
+56,15.1,média das máximas
+57,15.1,média das máximas
+58,15.7,média das máximas
+59,15.6,média das máximas
+60,15.9,média das máximas
+61,16.2,média das máximas
+62,15.9,média das máximas
+63,15.7,média das máximas
+64,16.0,média das máximas
+65,16.1,média das máximas
+66,16.1,média das máximas
+67,15.9,média das máximas
+68,16.9,média das máximas
+69,16.8,média das máximas
+70,17.9,média das máximas
+71,17.7,média das máximas
+72,17.5,média das máximas
+73,17.6,média das máximas
+74,17.9,média das máximas
+75,17.6,média das máximas
+76,17.1,média das máximas
+77,17.6,média das máximas
+78,17.9,média das máximas
+79,17.2,média das máximas
+80,17.2,média das máximas
+81,16.4,média das máximas
+82,16.6,média das máximas
+83,16.3,média das máximas
+84,16.0,média das máximas
+85,16.8,média das máximas
+86,17.1,média das máximas
+87,18.5,média das máximas
+88,18.1,média das máximas
+89,18.4,média das máximas
+90,17.9,média das máximas
+91,17.7,média das máximas
+92,17.6,média das máximas
+93,16.8,média das máximas
+94,16.4,média das máximas
+95,16.9,média das máximas
+96,17.4,média das máximas
+97,17.3,média das máximas
+98,16.6,média das máximas
+99,17.2,média das máximas
+100,17.4,média das máximas
+101,17.3,média das máximas
+102,17.7,média das máximas
+103,17.6,média das máximas
+104,17.0,média das máximas
+105,17.4,média das máximas
+106,18.6,média das máximas
+107,18.4,média das máximas
+108,18.4,média das máximas
+109,19.0,média das máximas
+110,19.1,média das máximas
+111,18.9,média das máximas
+112,19.1,média das máximas
+113,19.5,média das máximas
+114,18.5,média das máximas
+115,18.2,média das máximas
+116,18.4,média das máximas
+117,18.8,média das máximas
+118,17.9,média das máximas
+119,19.2,média das máximas
+120,20.4,média das máximas
+121,20.9,média das máximas
+122,20.0,média das máximas
+123,19.6,média das máximas
+124,19.6,média das máximas
+125,19.2,média das máximas
+126,19.2,média das máximas
+127,20.2,média das máximas
+128,19.8,média das máximas
+129,18.2,média das máximas
+130,18.7,média das máximas
+131,19.3,média das máximas
+132,19.0,média das máximas
+133,19.3,média das máximas
+134,19.7,média das máximas
+135,19.4,média das máximas
+136,19.3,média das máximas
+137,19.5,média das máximas
+138,19.2,média das máximas
+139,19.6,média das máximas
+140,20.7,média das máximas
+141,20.1,média das máximas
+142,19.3,média das máximas
+143,20.1,média das máximas
+144,19.0,média das máximas
+145,18.6,média das máximas
+146,19.0,média das máximas
+147,19.0,média das máximas
+148,20.0,média das máximas
+149,19.8,média das máximas
+150,19.8,média das máximas
+151,20.7,média das máximas
+152,20.4,média das máximas
+153,19.8,média das máximas
+154,20.1,média das máximas
+155,19.9,média das máximas
+156,20.8,média das máximas
+157,19.7,média das máximas
+158,20.0,média das máximas
+159,20.1,média das máximas
+160,20.7,média das máximas
+161,20.5,média das máximas
+162,20.7,média das máximas
+163,21.8,média das máximas
+164,22.5,média das máximas
+165,23.0,média das máximas
+166,20.5,média das máximas
+167,21.6,média das máximas
+168,21.7,média das máximas
+169,22.5,média das máximas
+170,22.2,média das máximas
+171,22.5,média das máximas
+172,22.2,média das máximas
+173,21.7,média das máximas
+174,20.4,média das máximas
+175,20.6,média das máximas
+176,22.0,média das máximas
+177,22.4,média das máximas
+178,23.4,média das máximas
+179,22.2,média das máximas
+180,21.8,média das máximas
+181,22.0,média das máximas
+182,21.5,média das máximas
+183,21.8,média das máximas
+184,22.3,média das máximas
+185,22.1,média das máximas
+186,20.4,média das máximas
+187,20.6,média das máximas
+188,21.8,média das máximas
+189,22.7,média das máximas
+190,22.0,média das máximas
+191,21.8,média das máximas
+192,22.1,média das máximas
+193,22.2,média das máximas
+194,22.1,média das máximas
+195,21.9,média das máximas
+196,21.9,média das máximas
+197,21.5,média das máximas
+198,21.9,média das máximas
+199,22.1,média das máximas
+200,21.9,média das máximas
+201,22.3,média das máximas
+202,21.9,média das máximas
+203,22.8,média das máximas
+204,22.4,média das máximas
+205,22.2,média das máximas
+206,21.9,média das máximas
+207,22.2,média das máximas
+208,21.8,média das máximas
+209,21.3,média das máximas
+210,21.3,média das máximas
+211,21.5,média das máximas
+212,21.1,média das máximas
+213,22.1,média das máximas
+214,21.7,média das máximas
+215,21.7,média das máximas
+216,21.0,média das máximas
+217,21.2,média das máximas
+218,21.2,média das máximas
+219,21.5,média das máximas
+220,21.9,média das máximas
+221,23.1,média das máximas
+222,22.9,média das máximas
+223,21.9,média das máximas
+224,22.2,média das máximas
+225,22.3,média das máximas
+226,20.8,média das máximas
+227,22.6,média das máximas
+228,22.5,média das máximas
+229,21.5,média das máximas
+230,21.3,média das máximas
+231,21.3,média das máximas
+232,21.5,média das máximas
+233,21.5,média das máximas
+234,22.4,média das máximas
+235,22.6,média das máximas
+236,22.9,média das máximas
+237,22.8,média das máximas
+238,22.9,média das máximas
+239,24.6,média das máximas
+240,24.4,média das máximas
+241,22.9,média das máximas
+242,22.7,média das máximas
+243,23.1,média das máximas
+244,24.5,média das máximas
+245,25.1,média das máximas
+246,22.9,média das máximas
+247,22.2,média das máximas
+248,24.2,média das máximas
+249,24.9,média das máximas
+250,24.3,média das máximas
+251,22.4,média das máximas
+252,22.5,média das máximas
+253,24.6,média das máximas
+254,23.8,média das máximas
+255,22.0,média das máximas
+256,21.9,média das máximas
+257,21.0,média das máximas
+258,20.9,média das máximas
+259,21.1,média das máximas
+260,22.4,média das máximas
+261,24.6,média das máximas
+262,24.6,média das máximas
+263,24.6,média das máximas
+264,23.0,média das máximas
+265,22.5,média das máximas
+266,23.2,média das máximas
+267,23.9,média das máximas
+268,24.1,média das máximas
+269,24.8,média das máximas
+270,23.7,média das máximas
+271,22.9,média das máximas
+272,22.2,média das máximas
+273,23.3,média das máximas
+274,22.5,média das máximas
+275,22.7,média das máximas
+276,21.6,média das máximas
+277,21.2,média das máximas
+278,22.2,média das máximas
+279,22.9,média das máximas
+280,22.9,média das máximas
+281,23.6,média das máximas
+282,22.3,média das máximas
+283,21.4,média das máximas
+284,21.3,média das máximas
+285,23.4,média das máximas
+286,25.1,média das máximas
+287,23.2,média das máximas
+288,22.3,média das máximas
+289,22.5,média das máximas
+290,23.0,média das máximas
+291,20.6,média das máximas
+292,21.0,média das máximas
+293,20.3,média das máximas
+294,20.9,média das máximas
+295,21.0,média das máximas
+296,21.2,média das máximas
+297,21.7,média das máximas
+298,22.1,média das máximas
+299,20.7,média das máximas
+300,20.3,média das máximas
+301,20.5,média das máximas
+302,19.3,média das máximas
+303,19.1,média das máximas
+304,19.8,média das máximas
+305,20.3,média das máximas
+306,19.8,média das máximas
+307,19.7,média das máximas
+308,18.8,média das máximas
+309,18.9,média das máximas
+310,19.0,média das máximas
+311,19.2,média das máximas
+312,18.2,média das máximas
+313,18.0,média das máximas
+314,17.4,média das máximas
+315,17.6,média das máximas
+316,18.1,média das máximas
+317,18.5,média das máximas
+318,18.7,média das máximas
+319,18.3,média das máximas
+320,17.4,média das máximas
+321,17.5,média das máximas
+322,16.9,média das máximas
+323,16.5,média das máximas
+324,16.8,média das máximas
+325,16.5,média das máximas
+326,16.8,média das máximas
+327,16.3,média das máximas
+328,15.8,média das máximas
+329,15.9,média das máximas
+330,15.2,média das máximas
+331,15.0,média das máximas
+332,15.3,média das máximas
+333,15.6,média das máximas
+334,14.7,média das máximas
+335,15.2,média das máximas
+336,15.4,média das máximas
+337,14.9,média das máximas
+338,14.5,média das máximas
+339,15.0,média das máximas
+340,14.6,média das máximas
+341,14.0,média das máximas
+342,14.4,média das máximas
+343,14.9,média das máximas
+344,14.9,média das máximas
+345,14.2,média das máximas
+346,13.9,média das máximas
+347,13.9,média das máximas
+348,14.5,média das máximas
+349,13.8,média das máximas
+350,14.0,média das máximas
+351,13.9,média das máximas
+352,14.3,média das máximas
+353,14.2,média das máximas
+354,13.9,média das máximas
+355,14.8,média das máximas
+356,14.3,média das máximas
+357,13.8,média das máximas
+358,14.0,média das máximas
+359,13.1,média das máximas
+360,13.6,média das máximas
+361,13.1,média das máximas
+362,13.2,média das máximas
+363,13.6,média das máximas
+364,13.1,média das máximas
+365,12.7,média das máximas
+1,6.4,média das mínimas
+2,6.6,média das mínimas
+3,6.6,média das mínimas
+4,6.4,média das mínimas
+5,6.6,média das mínimas
+6,6.4,média das mínimas
+7,7.0,média das mínimas
+8,8.0,média das mínimas
+9,7.8,média das mínimas
+10,8.1,média das mínimas
+11,7.5,média das mínimas
+12,7.4,média das mínimas
+13,6.9,média das mínimas
+14,6.5,média das mínimas
+15,6.8,média das mínimas
+16,6.9,média das mínimas
+17,7.1,média das mínimas
+18,7.3,média das mínimas
+19,7.6,média das mínimas
+20,6.9,média das mínimas
+21,7.3,média das mínimas
+22,7.4,média das mínimas
+23,7.6,média das mínimas
+24,7.2,média das mínimas
+25,7.7,média das mínimas
+26,7.7,média das mínimas
+27,7.2,média das mínimas
+28,6.8,média das mínimas
+29,7.4,média das mínimas
+30,7.3,média das mínimas
+31,6.7,média das mínimas
+32,7.2,média das mínimas
+33,7.7,média das mínimas
+34,7.6,média das mínimas
+35,7.8,média das mínimas
+36,7.8,média das mínimas
+37,8.5,média das mínimas
+38,9.1,média das mínimas
+39,8.5,média das mínimas
+40,7.9,média das mínimas
+41,7.6,média das mínimas
+42,7.5,média das mínimas
+43,7.5,média das mínimas
+44,8.4,média das mínimas
+45,8.7,média das mínimas
+46,8.5,média das mínimas
+47,8.3,média das mínimas
+48,8.8,média das mínimas
+49,8.3,média das mínimas
+50,8.1,média das mínimas
+51,8.1,média das mínimas
+52,8.3,média das mínimas
+53,8.0,média das mínimas
+54,7.8,média das mínimas
+55,7.7,média das mínimas
+56,8.2,média das mínimas
+57,8.1,média das mínimas
+58,8.1,média das mínimas
+59,8.1,média das mínimas
+60,8.3,média das mínimas
+61,8.3,média das mínimas
+62,7.8,média das mínimas
+63,8.1,média das mínimas
+64,8.1,média das mínimas
+65,8.6,média das mínimas
+66,8.3,média das mínimas
+67,7.9,média das mínimas
+68,8.2,média das mínimas
+69,8.6,média das mínimas
+70,9.1,média das mínimas
+71,9.1,média das mínimas
+72,9.5,média das mínimas
+73,9.8,média das mínimas
+74,9.2,média das mínimas
+75,9.6,média das mínimas
+76,9.1,média das mínimas
+77,8.8,média das mínimas
+78,9.4,média das mínimas
+79,10.0,média das mínimas
+80,10.0,média das mínimas
+81,9.1,média das mínimas
+82,8.7,média das mínimas
+83,9.0,média das mínimas
+84,9.1,média das mínimas
+85,9.1,média das mínimas
+86,9.0,média das mínimas
+87,9.6,média das mínimas
+88,9.6,média das mínimas
+89,9.5,média das mínimas
+90,9.5,média das mínimas
+91,9.3,média das mínimas
+92,9.4,média das mínimas
+93,8.6,média das mínimas
+94,9.1,média das mínimas
+95,8.9,média das mínimas
+96,9.3,média das mínimas
+97,9.5,média das mínimas
+98,9.2,média das mínimas
+99,9.2,média das mínimas
+100,9.5,média das mínimas
+101,9.8,média das mínimas
+102,9.9,média das mínimas
+103,9.5,média das mínimas
+104,9.3,média das mínimas
+105,8.9,média das mínimas
+106,9.8,média das mínimas
+107,10.0,média das mínimas
+108,9.5,média das mínimas
+109,9.8,média das mínimas
+110,10.4,média das mínimas
+111,10.4,média das mínimas
+112,10.2,média das mínimas
+113,10.4,média das mínimas
+114,10.6,média das mínimas
+115,10.4,média das mínimas
+116,10.1,média das mínimas
+117,10.2,média das mínimas
+118,9.9,média das mínimas
+119,9.9,média das mínimas
+120,10.0,média das mínimas
+121,10.6,média das mínimas
+122,11.1,média das mínimas
+123,11.1,média das mínimas
+124,10.9,média das mínimas
+125,10.7,média das mínimas
+126,10.9,média das mínimas
+127,11.2,média das mínimas
+128,10.8,média das mínimas
+129,10.6,média das mínimas
+130,10.1,média das mínimas
+131,10.1,média das mínimas
+132,10.3,média das mínimas
+133,10.5,média das mínimas
+134,11.3,média das mínimas
+135,11.7,média das mínimas
+136,11.4,média das mínimas
+137,11.4,média das mínimas
+138,11.2,média das mínimas
+139,11.2,média das mínimas
+140,11.3,média das mínimas
+141,11.1,média das mínimas
+142,11.1,média das mínimas
+143,11.4,média das mínimas
+144,11.2,média das mínimas
+145,11.4,média das mínimas
+146,11.4,média das mínimas
+147,11.6,média das mínimas
+148,11.5,média das mínimas
+149,11.5,média das mínimas
+150,11.3,média das mínimas
+151,11.7,média das mínimas
+152,11.5,média das mínimas
+153,11.5,média das mínimas
+154,11.6,média das mínimas
+155,12.2,média das mínimas
+156,12.1,média das mínimas
+157,11.9,média das mínimas
+158,11.6,média das mínimas
+159,12.0,média das mínimas
+160,12.1,média das mínimas
+161,12.4,média das mínimas
+162,12.0,média das mínimas
+163,12.2,média das mínimas
+164,12.2,média das mínimas
+165,12.5,média das mínimas
+166,11.9,média das mínimas
+167,12.2,média das mínimas
+168,12.2,média das mínimas
+169,12.6,média das mínimas
+170,12.5,média das mínimas
+171,12.6,média das mínimas
+172,12.2,média das mínimas
+173,12.1,média das mínimas
+174,12.1,média das mínimas
+175,12.2,média das mínimas
+176,12.7,média das mínimas
+177,13.0,média das mínimas
+178,13.3,média das mínimas
+179,13.3,média das mínimas
+180,13.2,média das mínimas
+181,13.1,média das mínimas
+182,12.8,média das mínimas
+183,12.7,média das mínimas
+184,12.7,média das mínimas
+185,12.7,média das mínimas
+186,12.6,média das mínimas
+187,12.7,média das mínimas
+188,12.7,média das mínimas
+189,12.9,média das mínimas
+190,13.1,média das mínimas
+191,13.1,média das mínimas
+192,13.2,média das mínimas
+193,13.5,média das mínimas
+194,13.4,média das mínimas
+195,13.2,média das mínimas
+196,12.9,média das mínimas
+197,13.3,média das mínimas
+198,13.4,média das mínimas
+199,13.5,média das mínimas
+200,13.7,média das mínimas
+201,13.6,média das mínimas
+202,13.8,média das mínimas
+203,13.7,média das mínimas
+204,13.5,média das mínimas
+205,13.6,média das mínimas
+206,13.6,média das mínimas
+207,13.2,média das mínimas
+208,13.2,média das mínimas
+209,13.2,média das mínimas
+210,13.4,média das mínimas
+211,13.5,média das mínimas
+212,13.3,média das mínimas
+213,13.6,média das mínimas
+214,13.4,média das mínimas
+215,13.4,média das mínimas
+216,13.8,média das mínimas
+217,13.7,média das mínimas
+218,13.9,média das mínimas
+219,13.9,média das mínimas
+220,13.9,média das mínimas
+221,14.0,média das mínimas
+222,13.8,média das mínimas
+223,13.6,média das mínimas
+224,13.5,média das mínimas
+225,13.6,média das mínimas
+226,13.6,média das mínimas
+227,13.9,média das mínimas
+228,13.4,média das mínimas
+229,13.4,média das mínimas
+230,13.6,média das mínimas
+231,13.7,média das mínimas
+232,13.9,média das mínimas
+233,14.1,média das mínimas
+234,14.2,média das mínimas
+235,13.8,média das mínimas
+236,13.8,média das mínimas
+237,13.9,média das mínimas
+238,13.4,média das mínimas
+239,14.0,média das mínimas
+240,14.2,média das mínimas
+241,14.2,média das mínimas
+242,14.2,média das mínimas
+243,13.8,média das mínimas
+244,13.7,média das mínimas
+245,14.4,média das mínimas
+246,14.0,média das mínimas
+247,14.0,média das mínimas
+248,13.4,média das mínimas
+249,13.7,média das mínimas
+250,13.4,média das mínimas
+251,13.7,média das mínimas
+252,13.6,média das mínimas
+253,13.2,média das mínimas
+254,14.0,média das mínimas
+255,13.9,média das mínimas
+256,14.0,média das mínimas
+257,13.7,média das mínimas
+258,13.6,média das mínimas
+259,13.3,média das mínimas
+260,13.5,média das mínimas
+261,13.6,média das mínimas
+262,13.8,média das mínimas
+263,13.9,média das mínimas
+264,13.7,média das mínimas
+265,13.1,média das mínimas
+266,12.8,média das mínimas
+267,12.9,média das mínimas
+268,12.9,média das mínimas
+269,13.3,média das mínimas
+270,13.7,média das mínimas
+271,13.6,média das mínimas
+272,13.2,média das mínimas
+273,13.3,média das mínimas
+274,13.6,média das mínimas
+275,13.2,média das mínimas
+276,12.8,média das mínimas
+277,13.3,média das mínimas
+278,12.6,média das mínimas
+279,12.8,média das mínimas
+280,12.5,média das mínimas
+281,12.6,média das mínimas
+282,12.4,média das mínimas
+283,12.3,média das mínimas
+284,12.3,média das mínimas
+285,12.4,média das mínimas
+286,12.6,média das mínimas
+287,13.2,média das mínimas
+288,13.0,média das mínimas
+289,12.7,média das mínimas
+290,12.6,média das mínimas
+291,12.4,média das mínimas
+292,12.2,média das mínimas
+293,12.0,média das mínimas
+294,11.7,média das mínimas
+295,11.9,média das mínimas
+296,12.1,média das mínimas
+297,12.7,média das mínimas
+298,12.4,média das mínimas
+299,11.9,média das mínimas
+300,11.6,média das mínimas
+301,11.9,média das mínimas
+302,11.6,média das mínimas
+303,11.0,média das mínimas
+304,10.9,média das mínimas
+305,10.9,média das mínimas
+306,10.5,média das mínimas
+307,10.8,média das mínimas
+308,10.3,média das mínimas
+309,9.9,média das mínimas
+310,11.1,média das mínimas
+311,10.8,média das mínimas
+312,10.6,média das mínimas
+313,10.2,média das mínimas
+314,10.2,média das mínimas
+315,10.1,média das mínimas
+316,9.9,média das mínimas
+317,10.0,média das mínimas
+318,10.4,média das mínimas
+319,10.7,média das mínimas
+320,10.1,média das mínimas
+321,9.5,média das mínimas
+322,8.6,média das mínimas
+323,9.3,média das mínimas
+324,9.8,média das mínimas
+325,9.7,média das mínimas
+326,8.9,média das mínimas
+327,8.8,média das mínimas
+328,7.9,média das mínimas
+329,8.2,média das mínimas
+330,8.5,média das mínimas
+331,9.0,média das mínimas
+332,8.8,média das mínimas
+333,8.5,média das mínimas
+334,7.8,média das mínimas
+335,8.6,média das mínimas
+336,7.9,média das mínimas
+337,8.2,média das mínimas
+338,7.7,média das mínimas
+339,8.1,média das mínimas
+340,7.9,média das mínimas
+341,7.5,média das mínimas
+342,7.4,média das mínimas
+343,8.3,média das mínimas
+344,8.0,média das mínimas
+345,7.3,média das mínimas
+346,7.9,média das mínimas
+347,8.2,média das mínimas
+348,7.6,média das mínimas
+349,7.3,média das mínimas
+350,6.7,média das mínimas
+351,7.2,média das mínimas
+352,7.0,média das mínimas
+353,7.1,média das mínimas
+354,7.2,média das mínimas
+355,8.2,média das mínimas
+356,7.6,média das mínimas
+357,7.0,média das mínimas
+358,7.2,média das mínimas
+359,6.1,média das mínimas
+360,6.9,média das mínimas
+361,6.5,média das mínimas
+362,6.5,média das mínimas
+363,6.3,média das mínimas
+364,7.1,média das mínimas
+365,6.5,média das mínimas
+1,2.8,mínima registada
+2,2.8,mínima registada
+3,2.2,mínima registada
+4,0.6,mínima registada
+5,3.3,mínima registada
+6,2.8,mínima registada
+7,3.9,mínima registada
+8,3.9,mínima registada
+9,3.9,mínima registada
+10,2.2,mínima registada
+11,2.8,mínima registada
+12,2.8,mínima registada
+13,2.2,mínima registada
+14,0.0,mínima registada
+15,0.6,mínima registada
+16,0.6,mínima registada
+17,1.1,mínima registada
+18,0.6,mínima registada
+19,2.8,mínima registada
+20,3.3,mínima registada
+21,3.3,mínima registada
+22,3.9,mínima registada
+23,2.2,mínima registada
+24,2.2,mínima registada
+25,4.4,mínima registada
+26,4.4,mínima registada
+27,2.8,mínima registada
+28,3.3,mínima registada
+29,2.8,mínima registada
+30,1.7,mínima registada
+31,2.2,mínima registada
+32,3.3,mínima registada
+33,2.8,mínima registada
+34,3.9,mínima registada
+35,4.4,mínima registada
+36,3.3,mínima registada
+37,3.9,mínima registada
+38,5.0,mínima registada
+39,2.2,mínima registada
+40,2.8,mínima registada
+41,3.3,mínima registada
+42,4.4,mínima registada
+43,3.9,mínima registada
+44,3.3,mínima registada
+45,5.6,mínima registada
+46,5.0,mínima registada
+47,2.8,mínima registada
+48,5.0,mínima registada
+49,3.3,mínima registada
+50,4.4,mínima registada
+51,2.2,mínima registada
+52,3.9,mínima registada
+53,3.9,mínima registada
+54,3.9,mínima registada
+55,3.9,mínima registada
+56,3.9,mínima registada
+57,1.7,mínima registada
+58,2.2,mínima registada
+59,4.4,mínima registada
+60,3.9,mínima registada
+61,4.4,mínima registada
+62,5.6,mínima registada
+63,3.9,mínima registada
+64,4.4,mínima registada
+65,6.1,mínima registada
+66,5.0,mínima registada
+67,3.3,mínima registada
+68,4.4,mínima registada
+69,3.3,mínima registada
+70,2.8,mínima registada
+71,5.6,mínima registada
+72,3.3,mínima registada
+73,5.6,mínima registada
+74,6.7,mínima registada
+75,7.2,mínima registada
+76,5.6,mínima registada
+77,5.0,mínima registada
+78,5.0,mínima registada
+79,6.7,mínima registada
+80,6.1,mínima registada
+81,6.1,mínima registada
+82,5.0,mínima registada
+83,5.6,mínima registada
+84,6.7,mínima registada
+85,7.2,mínima registada
+86,6.1,mínima registada
+87,6.1,mínima registada
+88,6.7,mínima registada
+89,5.6,mínima registada
+90,5.0,mínima registada
+91,4.4,mínima registada
+92,5.0,mínima registada
+93,5.6,mínima registada
+94,5.0,mínima registada
+95,6.1,mínima registada
+96,6.1,mínima registada
+97,5.0,mínima registada
+98,5.0,mínima registada
+99,3.9,mínima registada
+100,6.7,mínima registada
+101,8.3,mínima registada
+102,5.6,mínima registada
+103,7.2,mínima registada
+104,6.7,mínima registada
+105,5.0,mínima registada
+106,6.7,mínima registada
+107,6.1,mínima registada
+108,6.7,mínima registada
+109,6.7,mínima registada
+110,5.6,mínima registada
+111,5.6,mínima registada
+112,8.3,mínima registada
+113,8.3,mínima registada
+114,6.7,mínima registada
+115,7.8,mínima registada
+116,7.8,mínima registada
+117,7.8,mínima registada
+118,7.2,mínima registada
+119,6.1,mínima registada
+120,7.8,mínima registada
+121,6.7,mínima registada
+122,8.9,mínima registada
+123,9.4,mínima registada
+124,8.3,mínima registada
+125,7.8,mínima registada
+126,8.3,mínima registada
+127,8.3,mínima registada
+128,7.2,mínima registada
+129,7.8,mínima registada
+130,7.8,mínima registada
+131,7.2,mínima registada
+132,8.3,mínima registada
+133,7.8,mínima registada
+134,7.8,mínima registada
+135,7.2,mínima registada
+136,8.3,mínima registada
+137,8.9,mínima registada
+138,8.9,mínima registada
+139,9.4,mínima registada
+140,9.4,mínima registada
+141,7.8,mínima registada
+142,8.9,mínima registada
+143,8.3,mínima registada
+144,9.4,mínima registada
+145,9.4,mínima registada
+146,9.4,mínima registada
+147,10.0,mínima registada
+148,10.0,mínima registada
+149,8.9,mínima registada
+150,10.0,mínima registada
+151,9.4,mínima registada
+152,10.0,mínima registada
+153,10.0,mínima registada
+154,8.9,mínima registada
+155,10.0,mínima registada
+156,9.4,mínima registada
+157,10.0,mínima registada
+158,8.3,mínima registada
+159,8.9,mínima registada
+160,8.9,mínima registada
+161,10.0,mínima registada
+162,10.0,mínima registada
+163,9.4,mínima registada
+164,10.0,mínima registada
+165,10.6,mínima registada
+166,10.0,mínima registada
+167,9.4,mínima registada
+168,9.4,mínima registada
+169,10.6,mínima registada
+170,10.6,mínima registada
+171,10.6,mínima registada
+172,10.6,mínima registada
+173,10.0,mínima registada
+174,10.0,mínima registada
+175,10.6,mínima registada
+176,10.0,mínima registada
+177,10.0,mínima registada
+178,10.6,mínima registada
+179,11.1,mínima registada
+180,11.1,mínima registada
+181,11.7,mínima registada
+182,11.7,mínima registada
+183,11.7,mínima registada
+184,11.1,mínima registada
+185,10.0,mínima registada
+186,11.1,mínima registada
+187,11.1,mínima registada
+188,11.1,mínima registada
+189,11.1,mínima registada
+190,10.6,mínima registada
+191,10.6,mínima registada
+192,11.1,mínima registada
+193,11.7,mínima registada
+194,11.1,mínima registada
+195,11.7,mínima registada
+196,11.7,mínima registada
+197,10.6,mínima registada
+198,11.1,mínima registada
+199,10.0,mínima registada
+200,11.7,mínima registada
+201,11.1,mínima registada
+202,11.7,mínima registada
+203,11.1,mínima registada
+204,11.7,mínima registada
+205,10.0,mínima registada
+206,11.7,mínima registada
+207,11.7,mínima registada
+208,11.1,mínima registada
+209,11.7,mínima registada
+210,11.1,mínima registada
+211,11.7,mínima registada
+212,11.1,mínima registada
+213,11.1,mínima registada
+214,11.1,mínima registada
+215,11.1,mínima registada
+216,11.7,mínima registada
+217,11.7,mínima registada
+218,10.0,mínima registada
+219,11.1,mínima registada
+220,11.7,mínima registada
+221,11.1,mínima registada
+222,11.1,mínima registada
+223,11.1,mínima registada
+224,11.7,mínima registada
+225,11.7,mínima registada
+226,12.2,mínima registada
+227,12.2,mínima registada
+228,11.7,mínima registada
+229,11.7,mínima registada
+230,11.1,mínima registada
+231,11.1,mínima registada
+232,11.1,mínima registada
+233,11.7,mínima registada
+234,12.2,mínima registada
+235,11.1,mínima registada
+236,11.7,mínima registada
+237,11.7,mínima registada
+238,11.7,mínima registada
+239,11.7,mínima registada
+240,11.7,mínima registada
+241,12.2,mínima registada
+242,11.1,mínima registada
+243,11.7,mínima registada
+244,10.6,mínima registada
+245,11.1,mínima registada
+246,11.1,mínima registada
+247,10.6,mínima registada
+248,10.0,mínima registada
+249,11.1,mínima registada
+250,11.1,mínima registada
+251,10.6,mínima registada
+252,11.1,mínima registada
+253,10.6,mínima registada
+254,11.1,mínima registada
+255,11.1,mínima registada
+256,11.7,mínima registada
+257,12.2,mínima registada
+258,11.7,mínima registada
+259,9.4,mínima registada
+260,11.1,mínima registada
+261,10.6,mínima registada
+262,10.6,mínima registada
+263,11.1,mínima registada
+264,11.1,mínima registada
+265,10.6,mínima registada
+266,10.0,mínima registada
+267,9.4,mínima registada
+268,10.0,mínima registada
+269,11.1,mínima registada
+270,10.6,mínima registada
+271,11.1,mínima registada
+272,10.0,mínima registada
+273,9.4,mínima registada
+274,11.1,mínima registada
+275,10.6,mínima registada
+276,10.0,mínima registada
+277,10.0,mínima registada
+278,8.3,mínima registada
+279,7.8,mínima registada
+280,8.3,mínima registada
+281,10.0,mínima registada
+282,9.4,mínima registada
+283,10.0,mínima registada
+284,9.4,mínima registada
+285,8.3,mínima registada
+286,10.0,mínima registada
+287,10.0,mínima registada
+288,10.6,mínima registada
+289,10.0,mínima registada
+290,9.4,mínima registada
+291,8.9,mínima registada
+292,8.3,mínima registada
+293,9.4,mínima registada
+294,8.9,mínima registada
+295,8.3,mínima registada
+296,9.4,mínima registada
+297,10.0,mínima registada
+298,8.3,mínima registada
+299,8.3,mínima registada
+300,8.3,mínima registada
+301,8.9,mínima registada
+302,8.3,mínima registada
+303,7.2,mínima registada
+304,6.1,mínima registada
+305,7.2,mínima registada
+306,7.2,mínima registada
+307,8.3,mínima registada
+308,6.7,mínima registada
+309,7.2,mínima registada
+310,7.8,mínima registada
+311,7.2,mínima registada
+312,6.1,mínima registada
+313,6.1,mínima registada
+314,6.7,mínima registada
+315,4.4,mínima registada
+316,4.4,mínima registada
+317,4.4,mínima registada
+318,4.4,mínima registada
+319,6.7,mínima registada
+320,6.7,mínima registada
+321,5.0,mínima registada
+322,3.9,mínima registada
+323,5.6,mínima registada
+324,4.4,mínima registada
+325,5.6,mínima registada
+326,3.9,mínima registada
+327,5.0,mínima registada
+328,3.3,mínima registada
+329,2.8,mínima registada
+330,2.8,mínima registada
+331,3.3,mínima registada
+332,5.6,mínima registada
+333,2.8,mínima registada
+334,2.8,mínima registada
+335,3.9,mínima registada
+336,3.3,mínima registada
+337,5.6,mínima registada
+338,2.2,mínima registada
+339,1.7,mínima registada
+340,2.8,mínima registada
+341,3.3,mínima registada
+342,0.6,mínima registada
+343,2.2,mínima registada
+344,1.1,mínima registada
+345,3.3,mínima registada
+346,3.3,mínima registada
+347,3.3,mínima registada
+348,3.3,mínima registada
+349,4.4,mínima registada
+350,3.3,mínima registada
+351,1.1,mínima registada
+352,1.7,mínima registada
+353,1.7,mínima registada
+354,2.2,mínima registada
+355,3.3,mínima registada
+356,1.7,mínima registada
+357,2.2,mínima registada
+358,2.2,mínima registada
+359,2.2,mínima registada
+360,3.9,mínima registada
+361,1.1,mínima registada
+362,3.3,mínima registada
+363,2.2,mínima registada
+364,3.3,mínima registada
+365,2.8,mínima registada
