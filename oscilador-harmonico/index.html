@@ -31,7 +31,7 @@
          box-shadow: 0 6px 24px rgba(0,0,0,0.18); font: 15px/1.35 "Atkinson Hyperlegible", system-ui, sans-serif; }
   .dlg[hidden] { display: none; }
   @media (max-aspect-ratio: 11/10), (max-width: 639px) { .dlg { top: auto; bottom: 0.8rem; max-height: 56vh; } .dlg textarea { height: 7rem; } }
-  .dlg .th { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.05em; }
+  .dlg .th { cursor: move; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.05em; }
   .dlg .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.8rem; margin: 0.35rem 0; }
   .dlg label { display: inline-flex; align-items: center; gap: 0.3rem; }
   .dlg input, .dlg select { font: 14px "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.15rem 0.3rem; }
@@ -1133,6 +1133,27 @@
     const f = { celulas: cel, larguras: {}, grafico: null };
     window.open(`../folha-de-calculo/#folha=${encodeURIComponent(b64(JSON.stringify(f)))}&nome=${encodeURIComponent("oscilador semente " + TAB.seed)}`, "_blank");
   };
+
+  // janelas (obter dados, escrever a função): arrastam-se pela barra do título; a posição fica até se recarregar
+  document.querySelectorAll(".dlg .th").forEach(th => {
+    const dlg = th.parentElement;
+    let d = null;
+    th.addEventListener("pointerdown", e => {
+      if (e.target.closest("button")) return;
+      const r = dlg.getBoundingClientRect();
+      d = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      th.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    th.addEventListener("pointermove", e => {
+      if (!d) return;
+      const r = dlg.getBoundingClientRect();
+      const x = clamp(e.clientX - d.dx, 0, window.innerWidth - Math.min(r.width, 120));
+      const y = clamp(e.clientY - d.dy, 0, window.innerHeight - 40);
+      Object.assign(dlg.style, { left: x + "px", top: y + "px", bottom: "auto", right: "auto" });
+    });
+    const end = () => { d = null; };
+    th.addEventListener("pointerup", end); th.addEventListener("pointercancel", end);
+  });
 
   // ---------- toque e rato ----------
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
