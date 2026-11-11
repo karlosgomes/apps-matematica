@@ -51,8 +51,14 @@
   #executar:hover:not(:disabled) { background: var(--hover); border-color: var(--hover); }
   #parar { background: #c62828; border-color: #c62828; font-weight: 700; padding: 5px 16px; }
   #parar:hover { background: #e53935; border-color: #e53935; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
-  #editor-caixa { min-width: 0; min-height: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--esq, 1fr)) 8px minmax(0, 1fr); }
+  #editor-caixa { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* barra vertical arrastável entre o código e a saída (duplo clique: metade/metade; setas com o foco) */
+  #divisor { cursor: col-resize; background: var(--panel); border-left: 1px solid var(--line); border-right: 1px solid var(--line); touch-action: none; position: relative; }
+  #divisor::after { content: ""; position: absolute; left: 2px; right: 2px; top: 50%; height: 36px; margin-top: -18px; border-radius: 2px;
+                    background: repeating-linear-gradient(to bottom, var(--muted) 0 2px, transparent 2px 5px); opacity: .5; }
+  #divisor:hover, #divisor.ativo, #divisor:focus-visible { background: var(--accent); outline: none; }
+  #divisor:hover::after, #divisor.ativo::after { opacity: .9; }
   .CodeMirror { flex: 1; height: auto; font: 15px/1.5 "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
                 background: var(--bg); color: var(--ink); }
   .CodeMirror-gutters { background: var(--panel); border-right: 1px solid var(--line); }
@@ -94,6 +100,7 @@
   #msg.ver { opacity: 1; }
   @media (max-width: 800px) {
     main { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 55%) 1fr; }
+    #divisor { display: none; }
     #editor-caixa { border-right: 0; border-bottom: 1px solid var(--line); }
     header { padding: 8px 12px; }
     select { max-width: 10em; }
@@ -122,6 +129,7 @@
 </header>
 <main>
   <div id="editor-caixa"><textarea id="codigo"></textarea></div>
+  <div id="divisor" role="separator" aria-orientation="vertical" aria-label="Arrastar para mudar a largura do código e da saída" tabindex="0" title="Arrastar para mudar as larguras (duplo clique: metade/metade)"></div>
   <div id="saida-caixa">
     <div class="barra"><span id="estado">A carregar o Python (só demora da primeira vez)…</span><button id="limpar">Limpar</button></div>
     <pre id="saida"></pre>
@@ -277,6 +285,34 @@ plt.show()
       "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
     },
   });
+  // ---------- barra entre o código e a saída ----------
+  // a largura do código guarda-se como fração da janela (apps-mat-python-divisor), para se adaptar a outros ecrãs
+  {
+    const div = $("divisor"), main = document.querySelector("main"), CH = "apps-mat-python-divisor";
+    const aplicar = f => {
+      const w = main.clientWidth, px = Math.max(200, Math.min(w - 208, f * w));
+      main.style.setProperty("--esq", px + "px"); editor.refresh();
+    };
+    let frac = null;
+    try { const v = parseFloat(localStorage.getItem(CH)); if (v > 0 && v < 1) frac = v; } catch (e) {}
+    if (frac) aplicar(frac);
+    const guardar = () => { try { frac === null ? localStorage.removeItem(CH) : localStorage.setItem(CH, String(frac)); } catch (e) {} };
+    let arr = null;
+    div.addEventListener("pointerdown", e => { arr = { x0: e.clientX, w0: $("editor-caixa").offsetWidth }; div.setPointerCapture(e.pointerId); div.classList.add("ativo"); e.preventDefault(); });
+    div.addEventListener("pointermove", e => {
+      if (!arr) return;
+      frac = (arr.w0 + e.clientX - arr.x0) / main.clientWidth; aplicar(frac);
+    });
+    const fim = () => { if (!arr) return; arr = null; div.classList.remove("ativo"); guardar(); };
+    div.addEventListener("pointerup", fim); div.addEventListener("pointercancel", fim);
+    div.addEventListener("dblclick", () => { frac = null; main.style.removeProperty("--esq"); editor.refresh(); guardar(); });
+    div.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      frac = ($("editor-caixa").offsetWidth + (e.key === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 100 : 20)) / main.clientWidth; aplicar(frac); guardar();
+    });
+    window.addEventListener("resize", () => { if (frac) aplicar(frac); });
+  }
   // ---------- autocompletar (Ctrl+Espaço) ----------
   // nomes do próprio programa + palavras do Python + funções mais usadas de math, numpy e matplotlib
   const PALAVRAS = ("False None True and as break continue def elif else for from global if import in is lambda not or pass return while " +
