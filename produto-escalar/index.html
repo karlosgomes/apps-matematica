@@ -1068,6 +1068,26 @@
     g.add(cone);
     return g;
   }
+  // eixo: a parte à vista a cheio e a parte tapada pelos planos a tracejado (desenhados depois da profundidade dos planos)
+  function axis3(a, b, col, r = 0.022) {
+    const g = new T3.Group();
+    const solid = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 1 });
+    const hidden = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthFunc: T3.GreaterDepth, depthWrite: false });
+    const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A), hl = 0.45;
+    const mid = Bv.clone().sub(u.clone().multiplyScalar(hl));
+    const s_ = rod(a, mid.toArray(), r, solid); if (s_) g.add(s_);
+    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), solid);
+    cone.position.copy(mid.clone().add(u.clone().multiplyScalar(hl / 2)));
+    cone.quaternion.setFromUnitVectors(vec3(0, 1, 0), u);
+    g.add(cone);
+    // tracejado: traços de 0,22 com intervalos de 0,16
+    for (let t = 0; t < len - hl; t += 0.38) {
+      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22, len - hl)));
+      const d = rod(p0.toArray(), p1.toArray(), r, hidden); if (d) g.add(d);
+    }
+    g.traverse(o => { o.renderOrder = 3; });
+    return g;
+  }
   function ball(p, col, r = 0.13) {
     const m = new T3.Mesh(new T3.SphereGeometry(r, 16, 12), basic(col));
     m.position.set(...p);
@@ -1121,6 +1141,11 @@
     const mesh = new T3.Mesh(geo, basic(col, op0 + (0.03 - op0) * fade));
     mesh.renderOrder = 2;
     g.add(mesh);
+    // só profundidade (sem cor), depois do preenchimento dos planos: serve para os eixos saberem onde estão tapados
+    const dmat = new T3.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, side: T3.DoubleSide });
+    const depth = new T3.Mesh(geo, dmat);
+    depth.renderOrder = 2.5;
+    if (fade < 0.5) g.add(depth);   // com os planos quase transparentes («n, m → O») os eixos voltam a cheio
     g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.12 - 0.9) * fade));
     return g;
   }
@@ -1190,7 +1215,7 @@
     const lab = (src, p, col, ux = 1, uy = 1, px = 0.85) => LAB3.push({ src, p, col, ux, uy, px });
     // eixos, marcas, quadrícula de xOy, esbatidos
     const ax = C.axis, E = B3 + 1;
-    add(arrow3([-B3, 0, 0], [E, 0, 0], ax, 0.022)); add(arrow3([0, -B3, 0], [0, E, 0], ax, 0.022)); add(arrow3([0, 0, -B3], [0, 0, E], ax, 0.022));
+    add(axis3([-B3, 0, 0], [E, 0, 0], ax)); add(axis3([0, -B3, 0], [0, E, 0], ax)); add(axis3([0, 0, -B3], [0, 0, E], ax));
     lab("x", [E + 0.35, 0, 0], C.axis, 0, 0, 0.9); lab("y", [0, E + 0.35, 0], C.axis, 0, 0, 0.9); lab("z", [0, 0, E + 0.35], C.axis, 0, 0, 0.9);
     lab("O", [0, 0, 0], C.muted, -1, -1, 0.7);
     const tk = [];
@@ -1215,21 +1240,23 @@
           const pos = [];
           for (let i = 1; i < sp.length - 1; i++) pos.push(...sp[0], ...sp[i], ...sp[i + 1]);
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
-          const mesh = new T3.Mesh(geo, basic(C.rr, 0.5)); mesh.renderOrder = 3; add(mesh);
+          const smat = basic(C.rr, 0.5); smat.polygonOffset = true; smat.polygonOffsetFactor = -2; smat.polygonOffsetUnits = -2;   // à frente do plano α (é coplanar)
+          const mesh = new T3.Mesh(geo, smat); mesh.renderOrder = 3; add(mesh);
           add(rodLoop(sp, C.rr));
         }
       }
     }
-    if (al && S.eA) {
+    // P e n aparecem com o plano α e também com o cubo (é α que corta o cubo); o plano só com «Plano α»
+    if (al) {
       const n = vnum(al.n), P = vnum(al.P), h = -fval(al.d);
       const rect = planeRect(n, h, [P]);
-      add(planeMesh(rect, C.al, ease(tN)));
+      if (S.eA) add(planeMesh(rect, C.al, ease(tN)));
       handle("P", P, C.al); lab("P", P, C.al, -1, 1);
       // origem do vetor n: em P, ou a deslizar até O (botão «n, m → O»)
       const Pn = P.map(v => v * (1 - ease(tN)));
       add(arrow3(Pn, Pn.map((v, i) => v + n[i]), C.al, 0.045)); lab("\\vec n", Pn.map((v, i) => v + n[i]), C.al, 1, 1);
       handle("n", Pn.map((v, i) => v + n[i]), C.al, Pn, 0.1);
-      lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
+      if (S.eA) lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
     }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
