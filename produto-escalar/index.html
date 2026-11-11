@@ -63,7 +63,7 @@
   // estado: modo «vet» (vetores u e v com origem em O) ou «retas» (r por A e B, s por C e D)
   const INI = { u: [3, 1], v: [1, 2], A: [0, 1], B: [2, 2], C: [1, 4], D: [3, -2] };
   const S = { mode: "vet", ...JSON.parse(JSON.stringify(INI)),
-              ang: false, proj: false, int: true, s: false, incl: true, dir: false, dirO: false, angR: false,
+              ang: false, proj: false, int: true, s: false, incl: true, dir: false, dO: false, angR: false,
               z: 1, vx: 0, vy: 0,
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {} };   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
@@ -213,6 +213,20 @@
       }
       G.push(g);
     }
+    // «r, s → O»: os vetores diretores normalizados e o ângulo deles
+    if (S.dO) {
+      const lines_ = S.s ? [r, lineInfo(S.C, S.D, "s", C.v)] : [r], g = [];
+      for (const o of lines_) {
+        const n2 = Math.round((o.dx ** 2 + o.dy ** 2) * 100) / 100, v = clr(o.col, `\\vec ${o.nm}`);
+        g.push(`\\frac{${v}}{\\|${v}\\|} = \\frac{${pt([o.dx, o.dy])}}{${sqrtTex(n2)}}`, { cont: true, t: `\\quad \\left\\|\\frac{${v}}{\\|${v}\\|}\\right\\| = 1` });
+      }
+      if (S.s) {
+        const s_ = lines_[1], rv = U("\\vec r"), sv = V("\\vec s"), d = Math.round((r.dx * s_.dx + r.dy * s_.dy) * 100) / 100;
+        const nr = r.dx ** 2 + r.dy ** 2, ns = s_.dx ** 2 + s_.dy ** 2, c = clamp(d / Math.sqrt(nr * ns), -1, 1);
+        g.push(`\\cos\\theta = \\frac{${rv}}{\\|${rv}\\|}\\cdot\\frac{${sv}}{\\|${sv}\\|} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
+      }
+      G.push(g);
+    }
     return G;
   }
 
@@ -286,7 +300,7 @@
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], ["Coordenadas inteiras", "int"]]
-      : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withDir ? [["Diretores na origem", "dirO"]] : []), ...(withS ? [["Ângulo das retas", "angR"]] : []), ["Coordenadas inteiras", "int"]];
+      : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withS ? [["Ângulo das retas", "angR"]] : []), ["Coordenadas inteiras", "int"]];
   }
   function controls(fs, mode, withS, withDir) {
     const out = [], bh = 1.3 * fs, bf = fs * 0.8;
@@ -297,6 +311,8 @@
     out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
     out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1 });
     // modo Espaço: levar os vetores normais à origem (e esbater os planos)
+    // modo Retas: levar os vetores diretores à origem (esbatendo as retas) e depois normalizá-los
+    if (mode === "retas" || (mode === undefined && S.mode === "retas")) out.push({ t: "btn", txt: "r, s → O", on: S.dO, kind: "dirO", w: bw("r, s → O"), h: bh, f: bf });
     if (mode === "esp" || (mode === undefined && S.mode === "esp")) out.push({ t: "btn", txt: "n, m → O", on: S.nO, kind: "normO", w: bw("n, m → O"), h: bh, f: bf });
     const bs = 0.66 * fs, cf = 0.72 * fs;
     ctx.font = `${cf}px ${CBFONT}`;
@@ -654,6 +670,8 @@
   // reta infinita (recortada pela figura) e ponto onde corta o eixo Ox
   function retas(fs) {
     const { X, Y } = F;
+    const e1 = ease(clamp(tD, 0, 1)), eA = clamp((tD - 1) / 0.25, 0, 1), eN = ease(clamp((tD - 1.25) / 0.75, 0, 1));
+    const fadeL = 1 - 0.85 * e1;   // as retas (e o que é delas) esbatem-se com «r, s → O»
     const r = lineInfo(S.A, S.B, "r", C.u), s = S.s ? lineInfo(S.C, S.D, "s", C.v) : null;
     const list = s ? [[r, "A", "B"], [s, "C", "D"]] : [[r, "A", "B"]];
     // o que as etiquetas dos pontos não devem tapar (os pontos, os ângulos e as outras etiquetas) e as retas
@@ -662,14 +680,16 @@
     for (const [o] of list) { const n = Math.hypot(o.dx, o.dy); LN.push({ x: X(o.P[0]), y: Y(o.P[1]), ex: o.dx / n, ey: -o.dy / n }); }
     for (const [o] of list) {
       const n = Math.hypot(o.dx, o.dy), ex = o.dx / n, ey = o.dy / n, big = 400;
+      ctx.globalAlpha = fadeL;
       line(X(o.P[0] - big * ex), Y(o.P[1] - big * ey), X(o.P[0] + big * ex), Y(o.P[1] + big * ey), o.col, 2.6);
+      ctx.globalAlpha = 1;
       // nome da reta, perto da borda
       const tEnd = Math.min(...[ex ? ((ex > 0 ? F.x1 : F.x0) - o.P[0]) / ex : Infinity, ey ? ((ey > 0 ? F.y1 : F.y0) - o.P[1]) / ey : Infinity]) - 1.4;
       const lx = o.P[0] + tEnd * ex, ly = o.P[1] + tEnd * ey, side = -ey * -lx + ex * -ly >= 0 ? 1 : -1;   // do lado do centro da figura
       add(labelAt("n" + o.nm, clr(o.col, o.nm), X(lx), Y(ly), -ey * side, ex * side, fs, o.col, 1));
     }
     // inclinação: ângulo do semieixo positivo Ox para a reta, a partir do ponto em que a reta corta Ox
-    if (S.incl) for (const [o] of list) {
+    if (S.incl && e1 < 0.6) for (const [o] of list) {
       if (o.horiz) continue;
       const ix = o.vert ? o.P[0] : -o.b / o.m;
       if (ix < F.x0 + 0.5 / S.z || ix > F.x1 - 0.5 / S.z || F.y0 > 0 || F.y1 < 0) continue;
@@ -682,7 +702,7 @@
       add(texAt("al" + o.nm, clr(o.col, `\\alpha_${o.nm}`), X(ix) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.9, o.col));
     }
     // ângulo das duas retas (o agudo, ou reto), no ponto de interseção
-    if (s && S.angR) {
+    if (s && S.angR && e1 < 0.6) {
       const cross = r.dx * s.dy - r.dy * s.dx;
       if (Math.abs(cross) > EPS) {
         const t = ((s.P[0] - r.P[0]) * s.dy - (s.P[1] - r.P[1]) * s.dx) / cross;
@@ -702,17 +722,56 @@
         }
       }
     }
-    // vetores diretores AB e CD
-    // (com «Diretores na origem», AB e CD ficam esbatidos na reta e o mesmo vetor aparece com origem em O)
-    if (S.dir) for (const [o] of list) {
-      const n = Math.hypot(o.dx, o.dy);
-      ctx.globalAlpha = S.dirO ? 0.35 : 1;
-      arrow(X(o.P[0]), Y(o.P[1]), X(o.Q[0]), Y(o.Q[1]), o.col, fs, 4.5);
-      ctx.globalAlpha = 1;
-      if (!S.dirO) add(labelAt("dv" + o.nm, clr(o.col, `\\vec ${o.nm}`), X((o.P[0] + o.Q[0]) / 2), Y((o.P[1] + o.Q[1]) / 2), -o.dy / n, o.dx / n, fs, o.col, 0.95));
-      else {
-        arrow(X(0), Y(0), X(o.dx), Y(o.dy), o.col, fs, 4.5);
-        add(labelAt("dv" + o.nm, clr(o.col, `\\vec ${o.nm} = ${pt([o.dx, o.dy])}`), X(o.dx), Y(o.dy), o.dx / n, o.dy / n, fs, o.col, 0.85));
+    // vetores diretores AB e CD; com «r, s → O» deslizam até à origem (e1), aparece o ângulo deles (eA)
+    // e são normalizados (eN: o comprimento passa a 1, com a circunferência de raio 1 esbatida)
+    if (S.dir) {
+      if (eN > 0) {
+        ctx.globalAlpha = 0.6 * eN;
+        ctx.beginPath(); ctx.arc(X(0), Y(0), F.k, 0, TAU); ctx.setLineDash([5, 5]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+      const cur = [];
+      for (const [o] of list) {
+        const n = Math.hypot(o.dx, o.dy), Lf = 1 + (1 / n - 1) * eN;
+        const sx = o.P[0] * (1 - e1), sy = o.P[1] * (1 - e1), vx = o.dx * Lf, vy = o.dy * Lf;
+        cur.push({ o, sx, sy, vx, vy, n });
+        arrow(X(sx), Y(sy), X(sx + vx), Y(sy + vy), o.col, fs, 4.5);
+      }
+      // ângulo dos dois vetores (pode ser obtuso), na origem, na cor do sinal de r·s
+      if (s && eA > 0) {
+        const a0 = Math.atan2(r.dy, r.dx), a1 = Math.atan2(s.dy, s.dx), da = angNorm(a1 - a0), dp = Math.round((r.dx * s.dx + r.dy * s.dy) * 100) / 100;
+        const col = sgnCol(dp), lenPx = Math.min(...cur.map(c => Math.hypot(c.vx, c.vy))) * F.k;
+        const rad = clamp(0.55 * lenPx, 0.9 * fs, 2.2 * fs);
+        ctx.globalAlpha = eA;
+        if (Math.abs(dp) < EPS) rightMark(X(0), Y(0), 0.6 * fs, a0, a1, col);
+        else sector(X(0), Y(0), rad, a0, Math.abs(Math.abs(da) - PI) < 1e-9 ? PI : da, col);
+        ctx.globalAlpha = 1;
+        if (eA > 0.5) {
+          const am = a0 + da / 2, rr = Math.abs(dp) < EPS ? 1.3 * fs : rad + 0.7 * fs;
+          add(texAt("thD", clr(col, "\\theta"), X(0) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.95, col));
+        }
+      }
+      for (const c of cur) {
+        const { o, sx, sy, vx, vy, n } = c, nm = o.nm;
+        if (e1 < 0.5) add(labelAt("dv" + nm, clr(o.col, `\\vec ${nm}`), X(sx + vx / 2), Y(sy + vy / 2), -o.dy / n, o.dx / n, fs, o.col, 0.95));
+        else {
+          let src = `\\vec ${nm} = ${pt([o.dx, o.dy])}`;
+          if (eN > 0.5) {
+            const n2 = o.dx ** 2 + o.dy ** 2, ex = isInt(o.dx) && isInt(o.dy);
+            // v/√n2 simplificado: √n2 = k√m, e v/k reduzido
+            const co = v => {
+              if (!ex) return apx(v / n);
+              if (v === 0) return "0";
+              let k = 1, m = Math.round(n2);
+              for (let f = 2; f * f <= m; f++) while (m % (f * f) === 0) { m /= f * f; k *= f; }
+              const g = gcd(Math.abs(v), k), p = Math.abs(v) / g, q = k / g;
+              const den = m === 1 ? (q === 1 ? "" : `${q}`) : `${q === 1 ? "" : q}\\sqrt{${m}}`;
+              return `${v < 0 ? "-" : ""}${den ? `\\tfrac{${p}}{${den}}` : p}`;
+            };
+            src = `\\tfrac{\\vec ${nm}}{\\|\\vec ${nm}\\|} = ${ex ? `(${co(o.dx)},\\ ${co(o.dy)})` : `(${co(o.dx)};\\ ${co(o.dy)})`}`;
+          }
+          add(labelAt("dv" + nm, clr(o.col, src), X(vx), Y(vy), vx, vy, fs, o.col, 0.85));
+        }
       }
     }
     // pontos
@@ -926,6 +985,21 @@
   let HAND = [], hover3 = null, drag3 = null;
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
+  // «r, s → O» (modo Retas): tD de 0 a 2 — até 1 os vetores diretores deslizam para a origem e as retas esbatem-se;
+  // de 1 a 1,25 aparece o ângulo dos vetores; de 1,25 a 2 os vetores são normalizados (ficam com norma 1)
+  let tD = 0, animD = 0;
+  function animDir() {
+    if (animD) return;
+    let last = performance.now();
+    const step = now => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const goal = S.dO ? 2 : 0;
+      tD = goal > tD ? Math.min(goal, tD + dt / 1.1) : Math.max(goal, tD - dt / 1.1);
+      draw();
+      animD = tD !== goal ? requestAnimationFrame(step) : 0;
+    };
+    animD = requestAnimationFrame(step);
+  }
   function animNorm() {
     if (animN) return;
     let last = performance.now();
@@ -1336,6 +1410,7 @@
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; mcache.clear(); draw(); return true; }
     if (h.kind === "zoom") { zoomAt(h.v, F.fcx, F.fcy); return true; }
     if (h.kind === "zoom1") { S.z = 1; S.vx = S.vy = 0; draw(); return true; }
+    if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
     if (h.kind === "view3") { if (ctl) ctl.reset(); draw(); return true; }
     if (h.kind === "dolly") {
@@ -1476,7 +1551,7 @@
     else if (k === "i" && !vet) tog("incl");
     else if (k === "s" && !vet) tog("s");
     else if (k === "d" && !vet) tog("dir");
-    else if (k === "o" && !vet && S.dir) tog("dirO");
+    else if (k === "o" && !vet) { act({ kind: "dirO" }); return; }
     else if (k === "c") tog("int");
     else if (k === "+" || k === "=") return zoomAt(1.25, F.fcx, F.fcy);
     else if (k === "-") return zoomAt(0.8, F.fcx, F.fcy);
@@ -1494,7 +1569,7 @@
     else if (tok === "angulo") { S.ang = true; S.angR = true; }
     else if (tok === "projecao") S.proj = true;
     else if (tok === "diretores") S.dir = true;
-    else if (tok === "origem") S.dir = S.dirO = true;
+    else if (tok === "origem") { S.dir = S.dO = true; tD = 2; }
   });
 
   window.addEventListener("resize", resize);
