@@ -47,7 +47,10 @@
   /* janela do relatório: autor, escola, introdução e conclusões */
   #rep-dlg { width: min(40rem, calc(100vw - 1.5rem)); max-height: calc(100vh - 1.5rem); padding: 1rem 1.2rem; border: 1.5px solid var(--line); border-radius: 12px;
              background: var(--bg); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
-  #rep-dlg::backdrop { background: rgba(0,0,0,0.35); }
+  /* janela não modal (o teclado matemático do MathLive fica no body e tem de aparecer por cima): fundo próprio */
+  #rep-dlg { position: fixed; inset: 0; margin: auto; z-index: 60; height: fit-content; overflow: auto; }
+  #rep-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,0.35); }
+  #rep-back[hidden] { display: none; }
   #rep-dlg h2 { margin: 0 0 0.3rem; font-size: 1.15rem; }
   .rep-note { margin: 0 0 0.7rem; font-size: 0.85rem; color: var(--faint); }
   .rep-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.7rem; align-items: center; }
@@ -56,6 +59,14 @@
   #rep-dlg input.short { max-width: 8rem; } #rep-dlg input.short2 { max-width: 14rem; }
   #rep-dlg textarea { resize: vertical; min-height: 5.5rem; }
   .rep-ta { display: block; margin: 0.75rem 0 0.25rem; }
+  .rep-tools { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+  .rep-mf { margin-top: 0.4rem; padding: 0.5rem; border: 2px solid var(--focus); border-radius: 8px; background: var(--band); }
+  .rep-mf math-field { display: block; width: 100%; font-size: 1.3rem; padding: 0.2rem 0.4rem; border: 1.5px solid var(--line); border-radius: 6px;
+                       background: var(--bg); color: var(--ink); --caret-color: var(--focus); --selection-background-color: rgba(239,108,0,0.2); }
+  .rep-mf .row2 { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; font-size: 0.82rem; color: var(--faint); }
+  .rep-prev { margin-top: 0.4rem; padding: 0.35rem 0.6rem; border: 1px dashed var(--line); border-radius: 7px; font-size: 0.95rem; }
+  .rep-prev::before { content: "Pré-visualização"; display: block; font-size: 0.75rem; color: var(--faint); font-weight: 700; margin-bottom: 0.1rem; }
+  .rep-prev p { margin: 0.2rem 0; }
   .rep-btns { display: flex; gap: 0.5rem; margin-top: 0.9rem; align-items: center; }
   button.b:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   #cols select.inp { max-width: 11rem; }
@@ -363,7 +374,8 @@
   </div>
 </div>
 
-<dialog id="rep-dlg" aria-labelledby="rep-h">
+<div id="rep-back" hidden></div>
+<dialog id="rep-dlg" aria-labelledby="rep-h" aria-modal="true">
   <form method="dialog" id="rep-form">
     <h2 id="rep-h">Relatório (PDF)</h2>
     <p class="rep-note">Os campos vazios não aparecem no relatório. Ficam guardados só neste browser (o botão «Limpar» apaga-os).</p>
@@ -375,9 +387,15 @@
       <label for="rep-date">Data</label><input id="rep-date" autocomplete="off" class="short2">
     </div>
     <label class="rep-ta" for="rep-intro">Introdução</label>
-    <textarea id="rep-intro" rows="5" placeholder="O que se estuda, de onde vêm os dados e o que se quer saber. Uma linha em branco separa parágrafos; fórmulas entre $…$, p. ex. $\bar{x}$."></textarea>
+    <textarea id="rep-intro" rows="5" placeholder="O que se estuda, de onde vêm os dados e o que se quer saber. Uma linha em branco separa parágrafos."></textarea>
+    <div class="rep-tools"><button class="b small" type="button" data-mf="intro" title="Escrever uma fórmula com o editor (e o teclado matemático) e inseri-la onde está o cursor">√x Inserir fórmula</button></div>
+    <div class="rep-mf" id="rep-mf-intro" hidden></div>
+    <div class="rep-prev" id="rep-prev-intro" hidden></div>
     <label class="rep-ta" for="rep-concl">Conclusões</label>
-    <textarea id="rep-concl" rows="5" placeholder="O que os resultados mostram, p. ex. $r \approx 0{,}87$: correlação positiva forte."></textarea>
+    <textarea id="rep-concl" rows="5" placeholder="O que os resultados mostram e o que se conclui."></textarea>
+    <div class="rep-tools"><button class="b small" type="button" data-mf="concl" title="Escrever uma fórmula com o editor (e o teclado matemático) e inseri-la onde está o cursor">√x Inserir fórmula</button></div>
+    <div class="rep-mf" id="rep-mf-concl" hidden></div>
+    <div class="rep-prev" id="rep-prev-concl" hidden></div>
     <div class="rep-btns">
       <button class="b" type="button" id="rep-clear" title="Apagar o autor, a escola, a turma e os textos">Limpar</button>
       <span style="flex: 1"></span>
@@ -990,7 +1008,7 @@
   $("t-play").onclick = togglePlay;
   $("t-rng").oninput = e => { stopPlay(); S.ti = +e.target.value; render(); };
   document.addEventListener("keydown", e => {
-    if (e.key === " " && !$("tbar").hidden && !e.target.closest("textarea, input:not([type=range]), select, button")) { e.preventDefault(); togglePlay(); }
+    if (e.key === " " && !$("tbar").hidden && !e.target.closest("textarea, input:not([type=range]), select, button, math-field, dialog")) { e.preventDefault(); togglePlay(); }
   });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { const open = !ctx.hidden; ctx.hidden = true; if (!open && SEL.size) { SEL.clear(); render(); } } });
   // excluir do ajuste / voltar a incluir os pares selecionados (botões no título da tabela e menu do botão direito)
@@ -2313,14 +2331,77 @@ ${body}
     $("rep-title").value = o.title && o.for === autoTitle() ? o.title : autoTitle();
     $("rep-author").value = o.author || ""; $("rep-school").value = o.school || ""; $("rep-class").value = o.cls || "";
     $("rep-date").value = todayStr(); $("rep-intro").value = o.intro || ""; $("rep-concl").value = o.concl || "";
-    $("rep-dlg").showModal();
+    ["intro", "concl"].forEach(k => { repPrev(k); $("rep-mf-" + k).hidden = true; });
+    $("rep-dlg").show(); $("rep-back").hidden = false; $("rep-title").focus();
   };
   ["title", "author", "school", "class", "intro", "concl"].forEach(k => $("rep-" + k).addEventListener("input", repSave));
+  // pré-visualização da introdução e das conclusões (o texto já formatado, com as fórmulas)
+  const repPrev = k => { const v = $("rep-" + k).value, el = $("rep-prev-" + k); el.hidden = !v.trim(); if (v.trim()) el.innerHTML = rich(v); };
+  ["intro", "concl"].forEach(k => $("rep-" + k).addEventListener("input", () => repPrev(k)));
+  // editor de fórmulas (MathLive, MIT, jsDelivr; carregado só ao primeiro uso): escreve-se a fórmula como se vê,
+  // com o teclado matemático no ecrã, e «Inserir» põe-na em LaTeX, entre $…$, onde estava o cursor
+  const MLURL = "https://cdn.jsdelivr.net/npm/mathlive@0.111.4/mathlive.min.js";
+  let mlReady = null;
+  const loadML = () => mlReady || (mlReady = new Promise((ok, bad) => {
+    const sc = document.createElement("script"); sc.src = MLURL;
+    sc.onload = () => {
+      try { MathfieldElement.decimalSeparator = ","; } catch (e) {}
+      // com o teclado no ecrã, a janela sobe para ficar por cima dele e o editor fica à vista
+      try {
+        window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
+          const h = window.mathVirtualKeyboard.visible ? window.mathVirtualKeyboard.boundingRect.height : 0, dl = $("rep-dlg");
+          dl.style.bottom = h ? h + "px" : ""; dl.style.maxHeight = h ? `calc(100vh - ${h}px - 0.75rem)` : "";
+          const f = dl.querySelector(".rep-mf:not([hidden])"); if (f && h) setTimeout(() => f.scrollIntoView({ block: "nearest" }), 50);
+        });
+      } catch (e) {}
+      ok();
+    };
+    sc.onerror = () => { mlReady = null; bad(new Error("sem ligação")); };
+    document.head.appendChild(sc);
+  }));
+  async function openMF(k) {
+    const box = $("rep-mf-" + k), ta = $("rep-" + k);
+    const other = k === "intro" ? "concl" : "intro";
+    $("rep-mf-" + other).hidden = true;
+    if (!box.hidden) { box.hidden = true; return; }
+    const pos = [ta.selectionStart ?? ta.value.length, ta.selectionEnd ?? ta.value.length];
+    box.hidden = false; box.innerHTML = '<div class="row2">A carregar o editor de fórmulas…</div>';
+    try { await loadML(); } catch (e) { box.innerHTML = '<div class="row2">Não foi possível carregar o editor (é preciso Internet). Podes escrever a fórmula entre $…$ em LaTeX.</div>'; return; }
+    box.innerHTML = `<math-field id="mf-${k}" math-virtual-keyboard-policy="auto"></math-field>
+      <div class="row2"><span>Escreve como vês: <b>/</b> faz uma fração, <b>^</b> um expoente; o teclado ⌨ tem √, x̄, ≈, letras gregas…</span>
+      <span style="flex:1"></span><button class="b small" type="button" data-mfx="cancel">Cancelar</button><button class="b small primary" type="button" data-mfx="ok">Inserir</button></div>`;
+    const mf = $("mf-" + k);
+    setTimeout(() => mf.focus(), 50);
+    const done = ins => {
+      const tex = ins ? mf.value.trim() : "";
+      try { window.mathVirtualKeyboard.hide(); } catch (e) {}
+      box.hidden = true; box.innerHTML = "";
+      if (tex) {
+        const v = ta.value, a = v.slice(0, pos[0]), b = v.slice(pos[1]);
+        const piece = (a && !/\s$/.test(a) ? " " : "") + "$" + tex + "$" + (b && !/^[\s.,;:!?)]/.test(b) ? " " : "");
+        ta.value = a + piece + b;
+        const c = (a + piece).length; ta.focus(); ta.setSelectionRange(c, c);
+        ta.dispatchEvent(new Event("input"));
+      } else ta.focus();
+    };
+    box.querySelector('[data-mfx="ok"]').onclick = () => done(true);
+    box.querySelector('[data-mfx="cancel"]').onclick = () => done(false);
+    mf.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); done(true); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); }
+    });
+  }
+  document.querySelectorAll("[data-mf]").forEach(b => b.onclick = () => openMF(b.dataset.mf));
+  // fechar a janela (não modal): Esc fora do editor de fórmulas, Cancelar, clicar no fundo; ao fechar, o fundo some
+  $("rep-dlg").addEventListener("close", () => { $("rep-back").hidden = true; try { window.mathVirtualKeyboard.hide(); } catch (e) {} });
+  $("rep-dlg").addEventListener("keydown", e => { if (e.key === "Escape" && document.activeElement.tagName !== "MATH-FIELD") { e.preventDefault(); $("rep-dlg").close(); } });
+  $("rep-back").onclick = () => $("rep-dlg").close();
   $("rep-cancel").onclick = () => $("rep-dlg").close();
   $("rep-clear").onclick = () => {
     ["author", "school", "class", "intro", "concl"].forEach(k => $("rep-" + k).value = "");
     $("rep-title").value = autoTitle(); $("rep-date").value = todayStr();
     try { localStorage.removeItem(REPKEY); } catch (e) {}
+    ["intro", "concl"].forEach(k => repPrev(k));
   };
   $("rep-form").addEventListener("submit", e => {
     e.preventDefault();
