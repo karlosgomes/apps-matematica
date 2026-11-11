@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Produto escalar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<!-- Three.js (só para o modo Espaço; carregado quando se entra nele) -->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/" } }</script>
+<style>
+  :root { --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  /* campos das coordenadas no modo Espaço */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.45em; border: 2px solid var(--line); border-radius: 8px;
+         background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
+  .inp.bad { border-color: var(--bad) !important; background: var(--badbg); }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+</style>
+</head>
+<body>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Produto escalar de dois vetores no plano; declive, inclinação e ângulo de duas retas"></canvas>
+<script>
+(() => {
+  // Pensada para smartphone e projeção: controlos desenhados no canvas, texto matemático em KaTeX por cima; tema claro ou escuro
+  const PI = Math.PI, TAU = 2 * PI;
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    u: "#1565c0", v: "#7b1fa2", pos: "#2e7d32", neg: "#d32f2f", zero: "#ef6c00",
+    al: "#1565c0", be: "#7b1fa2", rr: "#e65100", qq: "#2e7d32",
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    u: "#64a8ff", v: "#d09cff", pos: "#5cc26a", neg: "#ff6b6b", zero: "#ffa040",
+    al: "#64a8ff", be: "#d09cff", rr: "#ffa040", qq: "#5cc26a",
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const CBFONT = '"KaTeX_Main", "Times New Roman", serif';
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // estado: modo «vet» (vetores u e v com origem em O) ou «retas» (r por A e B, s por C e D)
+  const INI = { u: [3, 1], v: [1, 2], A: [0, 1], B: [2, 2], C: [1, 4], D: [3, -2] };
+  const S = { mode: "vet", ...JSON.parse(JSON.stringify(INI)),
+              ang: false, proj: false, int: true, s: false, incl: true, dir: false, dirO: false, angR: false,
+              z: 1, vx: 0, vy: 0,
+              eQ: false, eR: false, eB: false, eUV: false, vert: {} };   // modo Espaço: o que se mostra além do plano α   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+
+  // ---------- números em LaTeX ----------
+  const EPS = 1e-9;
+  const r1 = v => Math.round(v * 10) / 10;                       // coordenadas: inteiras ou com uma casa decimal
+  const ten = v => Math.round(v * 10);                            // em décimas (inteiro)
+  const isInt = v => Math.abs(v - Math.round(v)) < EPS;
+  // decimal com vírgula (até d casas, sem zeros à direita)
+  const fmt = (v, d = 2) => { if (Math.abs(v) < 0.5 * 10 ** -d) v = 0; return (+v.toFixed(d)).toString().replace(".", "{,}"); };
+  const num = v => fmt(v, 2);
+  const apx = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d).replace(".", "{,}");   // valor aproximado (casas fixas)
+  const par = v => v < 0 ? `(${num(v)})` : num(v);
+  const sq = v => `${par(v)}^2`;
+  const gcd = (a, b) => b ? gcd(b, a % b) : Math.abs(a);
+  const clr = (c, s) => `\\textcolor{${c}}{${s}}`;
+  const U = s => clr(C.u, s), V = s => clr(C.v, s);
+  const sgnCol = d => d > EPS ? C.pos : d < -EPS ? C.neg : C.zero;
+  // √n simplificado (n inteiro: k√m); n decimal fica dentro da raiz
+  function sqrtTex(n) {
+    n = Math.round(n * 100) / 100;
+    if (!isInt(n)) return `\\sqrt{${num(n)}}`;
+    n = Math.round(n);
+    if (n === 0) return "0";
+    let k = 1, m = n;
+    for (let f = 2; f * f <= m; f++) while (m % (f * f) === 0) { m /= f * f; k *= f; }
+    if (m === 1) return `${k}`;
+    return `${k > 1 ? k : ""}\\sqrt{${m}}`;
+  }
+  // fração p/q (inteiros) irredutível
+  function frac(p, q) {
+    if (q < 0) { p = -p; q = -q; }
+    const g = gcd(p, q) || 1; p /= g; q /= g;
+    if (q === 1) return `${p}`;
+    return `${p < 0 ? "-" : ""}\\frac{${Math.abs(p)}}{${q}}`;
+  }
+  const fracPar = (p, q) => p * q < 0 && Math.abs(q / gcd(p, q)) !== 1 ? `\\left(${frac(p, q)}\\right)` : p * q < 0 ? `(${frac(p, q)})` : frac(p, q);
+  // ângulo em graus: «=» se for exato (inteiro), senão «≈» com uma casa
+  const degTex = (a, sym) => { const g = a * 180 / PI; return isInt(Math.round(g * 1e6) / 1e6) ? `${sym} = ${Math.round(g)}^\\circ` : `${sym} \\approx ${apx(g, 1)}^\\circ`; };
+  const cosTex = c => Math.abs(c * 2 - Math.round(c * 2)) < 1e-9 ? `= ${num(c)}` : `\\approx ${apx(c, 2)}`;
+  const pt = (p) => `(${num(p[0])}${p.every(isInt) ? ",\\," : ";\\,"}${num(p[1])})`;
+
+  // ---------- texto da faixa de cima (grupos de afirmações; cada grupo começa numa linha nova) ----------
+  // cada peça é uma string, ou {t, cont: true} para continuar a anterior sem grande espaço
+  const UU = () => U("\\vec u"), VV = () => V("\\vec v");
+  function vecPieces() {
+    const [u1, u2] = S.u, [v1, v2] = S.v;
+    const d = Math.round((u1 * v1 + u2 * v2) * 100) / 100, sc = sgnCol(d);
+    const nu = u1 * u1 + u2 * u2, nv = v1 * v1 + v2 * v2;
+    const G = [[
+      `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")}`,
+      { cont: true, t: `= ${U(par(u1))}\\times${V(par(v1))} + ${U(par(u2))}\\times${V(par(v2))} = ${clr(sc, num(d))}` },
+    ]];
+    if (S.ang) {
+      const g = [
+        `\\|${UU()}\\| = \\sqrt{${sq(u1)} + ${sq(u2)}} = ${sqrtTex(nu)}`,
+        `\\|${VV()}\\| = \\sqrt{${sq(v1)} + ${sq(v2)}} = ${sqrtTex(nv)}`,
+      ];
+      if (nu < EPS || nv < EPS) g.push(`\\text{com um vetor nulo, o ângulo } \\theta \\text{ não está definido}`);
+      else {
+        const c = clamp(d / Math.sqrt(nu * nv), -1, 1), th = Math.acos(c);
+        g.push(`${UU()}\\cdot${VV()} = \\|${UU()}\\|\\,\\|${VV()}\\|\\cos\\theta`);
+        g.push(`\\cos\\theta = \\frac{${clr(sc, num(d))}}{${sqrtTex(nu)}\\times${sqrtTex(nv)}} ${cosTex(c)}`);
+        g.push({ cont: true, sep: 1, t: degTex(th, "\\theta") });
+        const what = Math.abs(c - 1) < 1e-12 ? "\\text{os vetores têm a mesma direção e o mesmo sentido}"
+                   : Math.abs(c + 1) < 1e-12 ? "\\text{os vetores têm sentidos opostos}"
+                   : d > EPS ? "\\theta\\ \\text{é agudo}" : d < -EPS ? "\\theta\\ \\text{é obtuso}" : "\\theta\\ \\text{é reto}\\ (" + UU() + "\\perp" + VV() + ")";
+        g.push(`${UU()}\\cdot${VV()} ${d > EPS ? ">" : d < -EPS ? "<" : "="} 0 \\;\\Rightarrow\\; ${clr(sc, what)}`);
+      }
+      G.push(g);
+    }
+    if (S.proj && nu > EPS) {
+      const OH = "\\|\\overrightarrow{OH}\\|";
+      if (Math.abs(d) < EPS) G.push([`H = O \\;\\Rightarrow\\; ${UU()}\\cdot${VV()} = 0`]);
+      else G.push([
+        `${UU()}\\cdot${VV()} = ${clr(sc, d < 0 ? "-" : "")}\\|${UU()}\\|\\times${OH}`,
+        { cont: true, t: `\\approx ${clr(sc, d < 0 ? "-" : "")}${apx(Math.sqrt(nu))}\\times${apx(Math.abs(d) / Math.sqrt(nu))}` },
+        `\\overrightarrow{OH}\\ \\text{e}\\ ${UU()}\\ \\text{têm ${d > 0 ? "o mesmo sentido" : "sentidos opostos"}}`,
+      ]);
+    }
+    return G;
+  }
+
+  // reta por P e Q (coordenadas em décimas → frações exatas)
+  function lineInfo(P, Q, nm, col) {
+    const DX = ten(Q[0]) - ten(P[0]), DY = ten(Q[1]) - ten(P[1]);
+    const vert = DX === 0, horiz = DY === 0;
+    let a = Math.atan2(DY, DX); if (a < 0) a += PI; if (a >= PI - 1e-12) a = 0;
+    const o = { P, Q, nm, col, DX, DY, dx: DX / 10, dy: DY / 10, vert, horiz, alpha: vert ? PI / 2 : a };
+    if (!vert) {
+      o.m = DY / DX; o.mT = frac(DY, DX); o.mP = fracPar(DY, DX);
+      const bp = ten(P[1]) * DX - DY * ten(P[0]), bq = 10 * DX;   // b = y_P − m x_P
+      const g = gcd(DY, DX) || 1, p = DY / g, q = DX / g;
+      const mx = DY === 0 ? "" : q * Math.sign(q) === 1 ? (p * Math.sign(q) === 1 ? "x" : p * Math.sign(q) === -1 ? "-x" : `${p * Math.sign(q)}x`) : `${frac(DY, DX)}x`;
+      const bs = bp * bq;
+      const bT = mx === "" ? frac(bp, bq) : bs > 0 ? `+ ${frac(Math.abs(bp), Math.abs(bq))}` : bs < 0 ? `- ${frac(Math.abs(bp), Math.abs(bq))}` : "";
+      o.eq = `y = ${mx} ${bT}`;
+      o.b = bp / bq;
+    } else o.eq = `x = ${num(P[0])}`;
+    return o;
+  }
+  function lineGroup(o, n1, n2) {
+    const nm = clr(o.col, o.nm), sub = s => `${s}_${o.nm}`, vec = clr(o.col, `\\vec ${o.nm}`);
+    const g = [`${nm}:\\ ${o.eq}`];
+    if (S.dir) g.push(`${vec} = \\overrightarrow{${n1}${n2}} = (${num(o.dx)}${isInt(o.dx) && isInt(o.dy) ? ",\\," : ";\\,"}${num(o.dy)})`);
+    if (o.vert) g.push(`${sub("m")}\\ \\text{não está definido (reta vertical)}`);
+    else {
+      const f = `\\frac{${num(o.dy)}}{${num(o.dx)}}`;
+      g.push(S.dir && f !== o.mT ? `${sub("m")} = ${f} = ${o.mT}` : `${sub("m")} = ${o.mT}`);
+    }
+    if (S.incl) {
+      if (o.vert) g.push(`${sub("\\alpha")} = 90^\\circ`);
+      else g.push(`\\tan ${sub("\\alpha")} = ${sub("m")} = ${o.mT}`, { cont: true, t: `\\;\\Rightarrow\\; ${degTex(o.alpha, sub("\\alpha"))}` });
+    }
+    return g;
+  }
+  // posição relativa (lista de peças da faixa)
+  function relation(r, s) {
+    const cross = r.DX * s.DY - r.DY * s.DX, dot = r.DX * s.DX + r.DY * s.DY;
+    const so = t => ({ cont: true, t: `\\Rightarrow\\; ${t}` });
+    if (cross === 0) {
+      const same = (ten(s.P[0]) - ten(r.P[0])) * r.DY - (ten(s.P[1]) - ten(r.P[1])) * r.DX === 0;
+      const end = same ? `r\\ \\text{e}\\ s\\ \\text{são coincidentes}` : `r \\parallel s\\ (\\text{estritamente paralelas})`;
+      return r.vert ? [end] : [`m_r = m_s = ${r.mT}`, so(end)];
+    }
+    if (dot === 0) {
+      if (r.vert || s.vert) return [`r \\perp s\\ (\\text{uma vertical e a outra horizontal})`];
+      return [`m_r\\times m_s = ${r.mP}\\times${s.mP} = -1`, so(`r \\perp s`)];
+    }
+    const conc = [so(`r\\ \\text{e}\\ s\\ \\text{são concorrentes}`), { cont: true, t: `\\text{(não perpendiculares)}` }];
+    if (r.vert || s.vert) return [`${r.vert ? "r" : "s"}\\ \\text{é vertical e}\\ ${r.vert ? "s" : "r"}\\ \\text{não é horizontal}`, ...conc];
+    return [`m_r \\ne m_s,\\ \\ m_r\\times m_s \\ne -1`, ...conc];
+  }
+  function retasPieces() {
+    const r = lineInfo(S.A, S.B, "r", C.u), G = [lineGroup(r, "A", "B")];
+    if (S.s) {
+      const s = lineInfo(S.C, S.D, "s", C.v);
+      G.push(lineGroup(s, "C", "D"));
+      const g = relation(r, s);
+      if (S.angR) {
+        const d = Math.round((r.dx * s.dx + r.dy * s.dy) * 100) / 100, nr = r.dx ** 2 + r.dy ** 2, ns = s.dx ** 2 + s.dy ** 2;
+        const c = clamp(Math.abs(d) / Math.sqrt(nr * ns), 0, 1);
+        const rv = U("\\vec r"), sv = V("\\vec s");
+        g.push(`${rv}\\cdot${sv} = ${U(par(r.dx))}\\times${V(par(s.dx))} + ${U(par(r.dy))}\\times${V(par(s.dy))} = ${num(d)}`);
+        g.push(`\\cos\\theta = \\frac{|${rv}\\cdot${sv}|}{\\|${rv}\\|\\,\\|${sv}\\|} = \\frac{${num(Math.abs(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`);
+        g.push({ cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
+      }
+      G.push(g);
+    }
+    return G;
+  }
+
+  // ---------- canvas e camada de LaTeX ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, L = null, hits = [];
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  const KX = { throwOnError: false, strict: false };
+  const layer = document.getElementById("tex");
+  const pool = new Map();
+  let used = new Set();
+  function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = true) {
+    let el = pool.get(id);
+    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (el._src !== src) {
+      el._src = src;
+      if (window.katex) katex.render(src, el, KX);
+      else el.textContent = src;
+    }
+    el.className = halo ? "tx halo" : "tx";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    used.add(id);
+    return el;
+  }
+  function fit(el, w, h = Infinity) {
+    const k = Math.min(w / el.offsetWidth, h / el.offsetHeight);
+    if (k < 1) el.style.fontSize = parseFloat(el.style.fontSize) * k + "px";
+  }
+  // largura de uma peça em LaTeX (para partir a faixa em linhas)
+  const meas = document.createElement("span");
+  meas.className = "tx"; meas.style.visibility = "hidden"; meas.style.left = "-9999px";
+  layer.appendChild(meas);
+  const mcache = new Map();
+  function measure(src, px) {
+    const k = px + "|" + src;
+    if (mcache.has(k)) return mcache.get(k);
+    if (mcache.size > 3000) mcache.clear();
+    meas.style.fontSize = px + "px";
+    if (window.katex) katex.render(src, meas, KX); else meas.textContent = src;
+    const w = meas.offsetWidth;
+    mcache.set(k, w);
+    return w;
+  }
+  // grupos → linhas (cada grupo começa numa linha nova; as peças juntam-se enquanto couberem)
+  function pack(G, avail, px) {
+    const lines = [];
+    for (const g of G) {
+      let cur = "", cw = 0;
+      for (const p of g) {
+        const cont = typeof p === "object", t = cont ? p.t : p, pw = measure(t, px);
+        const sepT = cont ? (p.sep ? "\\quad " : "\\;") : "\\qquad ", sep = cur ? (cont ? (p.sep ? 1 : 0.3) : 2) * px : 0;
+        if (cur && cw + sep + pw > avail) { lines.push(cur); cur = t; cw = pw; }
+        else { cur = cur ? cur + sepT + t : t; cw += sep + pw; }
+      }
+      if (cur) lines.push(cur);
+    }
+    return lines;
+  }
+
+  // ---------- controlos de baixo ----------
+  const VEC = "⃗", plain = t => t.split(VEC).join("");
+  function boxItems(mode = S.mode, withS = S.s, withDir = S.dir) {
+    if (mode === "esp") return [["Ponto Q e distância a α", "eQ"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"]];
+    return mode === "vet"
+      ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], ["Coordenadas inteiras", "int"]]
+      : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withDir ? [["Diretores na origem", "dirO"]] : []), ...(withS ? [["Ângulo das retas", "angR"]] : []), ["Coordenadas inteiras", "int"]];
+  }
+  function controls(fs, mode, withS, withDir) {
+    const out = [], bh = 1.3 * fs, bf = fs * 0.8;
+    ctx.font = `700 ${bf}px ${FONT}`;
+    const bw = t => ctx.measureText(t).width + 1.3 * fs;
+    out.push({ t: "btn", txt: "Vetores", on: S.mode === "vet", kind: "mode", v: "vet", w: bw("Vetores"), h: bh, f: bf, join: true });
+    out.push({ t: "btn", txt: "Retas", on: S.mode === "retas", kind: "mode", v: "retas", w: bw("Retas"), h: bh, f: bf, join: true });
+    out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
+    out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1 });
+    const bs = 0.66 * fs, cf = 0.72 * fs;
+    ctx.font = `${cf}px ${CBFONT}`;
+    for (const [txt, k] of boxItems(mode, withS, withDir)) out.push({ t: "box", txt, k, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width, f: cf, bs });
+    return out;
+  }
+
+  // ---------- disposição ----------
+  // A figura não muda de tamanho com as opções (o referencial fica fixo): ecrã deitado → texto e controlos numa coluna
+  // à esquerda e a figura à direita; ao alto → texto em cima (altura reservada), figura no meio, controlos em baixo.
+  // O número de linhas dos controlos é o maior dos dois modos; o texto encolhe se não couber no espaço reservado.
+  function rowsOf(items, w, fs) {
+    const rows = [[]];
+    let x = 0;
+    for (const it of items) {
+      const r = rows[rows.length - 1], sp = r.length ? (it.t === "btn" && r[r.length - 1].join ? 0.25 : 1.0) * fs : 0;
+      if (r.length && x + sp + it.w > w) { rows.push([it]); x = it.w; }
+      else { r.push(it); x += sp + it.w; }
+    }
+    return rows;
+  }
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 24, 14, 26);
+    const pad = Math.round(fs * 0.6), gap = 0.5 * fs;
+    const land = W > H * 1.15 && W >= 700;
+    const L = { fs, pad, gap, land };
+    const cw = land ? clamp(W * 0.36, 300, 540) : W - 2 * pad;
+    const rows = rowsOf(controls(fs), cw, fs);
+    const nRows = Math.max(rows.length, rowsOf(controls(fs, "retas", true, true), cw, fs).length, rowsOf(controls(fs, "vet"), cw, fs).length, rowsOf(controls(fs, "esp"), cw, fs).length);
+    const rh = 1.7 * fs;
+    L.rows = rows; L.rh = rh; L.rowX = pad;
+    L.rowY = H - pad - nRows * rh;
+    // espaço do texto
+    const tx = { x: pad, y: pad, w: cw, h: land ? L.rowY - gap - pad : Math.round(H * (S.mode === "esp" ? 0.36 : 0.3)) };
+    if (land) L.frame = { x: pad + cw + 1.2 * fs, y: pad, w: W - 2 * pad - cw - 1.2 * fs, h: H - 2 * pad };
+    else L.frame = { x: pad, y: pad + tx.h + gap, w: W - 2 * pad, h: Math.max(4 * fs, L.rowY - gap - (pad + tx.h + gap)) };
+    // modo Espaço: os campos das coordenadas no topo da coluna do texto
+    if (S.mode === "esp") {
+      const il = inputsLayout(tx, fs);
+      L.inp = { ...il, x0: tx.x, y0: tx.y };
+      const used_ = il.rows.length * il.rh + 0.3 * fs;
+      tx.y += used_; tx.h -= used_;
+    } else L.inp = null;
+    const G = S.mode === "vet" ? vecPieces() : S.mode === "retas" ? retasPieces() : espPieces();
+    let px = fs * 0.95, lines, lhs, tot;
+    for (let it = 0; it < 8; it++) {
+      lines = pack(G, tx.w - 1.0 * fs, px);
+      lhs = lines.map(l => (l.includes("\\frac") ? 2.45 : 1.65) * px);
+      tot = lhs.reduce((a, b) => a + b, 0) + 0.5 * fs;
+      if (tot <= tx.h) break;
+      px *= 0.9;
+    }
+    L.band = { x: tx.x, y: tx.y, w: tx.w, h: Math.min(tx.h, Math.max(2 * fs, tot)), lines, lhs, px };
+    // ao alto, a figura desenha-se também no espaço que o texto deixar livre (sem mudar a escala nem a origem)
+    if (land) L.fig = L.frame;
+    else { const top = L.band.y + L.band.h + gap; L.fig = { ...L.frame, y: top, h: L.frame.y + L.frame.h - top }; }
+    // ☾/☀ no canto de cima à direita da figura
+    L.theme = { x: L.fig.x + L.fig.w - 2.2 * fs, y: L.fig.y, w: 2.2 * fs, h: 1.8 * fs };
+    return L;
+  }
+
+  // ---------- desenho ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // vetor de (x0, y0) até (x1, y1), acabado em arpão duplo
+  function arrow(x0, y0, x1, y1, c, fs, lw = 3) {
+    const d = Math.hypot(x1 - x0, y1 - y0), s = 0.75 * fs;
+    ctx.lineCap = "round";
+    if (d < 1.2 * s) { line(x0, y0, x1, y1, c, lw); ctx.lineCap = "butt"; return; }
+    const ux = (x1 - x0) / d, uy = (y1 - y0) / d;
+    line(x0, y0, x1 - ux * s * 0.7, y1 - uy * s * 0.7, c, lw);
+    ctx.lineJoin = "round"; ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ux * s + uy * 0.42 * s, y1 - uy * s - ux * 0.42 * s);
+    ctx.lineTo(x1 - ux * s * 0.75, y1 - uy * s * 0.75);
+    ctx.lineTo(x1 - ux * s - uy * 0.42 * s, y1 - uy * s + ux * 0.42 * s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+  }
+  function dot(x, y, r, fill, ring = 2.5) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = fill; ctx.fill();
+    if (ring) { ctx.lineWidth = ring; ctx.strokeStyle = C.bg; ctx.stroke(); }
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  const alpha = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, "0");
+  // setor de ângulo: de a0 a a0 + da (radianos, sentido matemático), no ecrã com y para baixo
+  function sector(x, y, r, a0, da, col) {
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.arc(x, y, r, -a0, -(a0 + da), da > 0);
+    ctx.closePath(); ctx.fillStyle = alpha(col, 0.18); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, -a0, -(a0 + da), da > 0);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  // marca de ângulo reto entre as direções a0 e a1 (a1 = a0 ± 90°)
+  function rightMark(x, y, s, a0, a1, col) {
+    const e1 = [Math.cos(a0), -Math.sin(a0)], e2 = [Math.cos(a1), -Math.sin(a1)];
+    ctx.beginPath(); ctx.moveTo(x + s * e1[0], y + s * e1[1]);
+    ctx.lineTo(x + s * (e1[0] + e2[0]), y + s * (e1[1] + e2[1]));
+    ctx.lineTo(x + s * e2[0], y + s * e2[1]);
+    ctx.lineTo(x, y); ctx.closePath();
+    ctx.fillStyle = alpha(col, 0.18); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + s * e1[0], y + s * e1[1]);
+    ctx.lineTo(x + s * (e1[0] + e2[0]), y + s * (e1[1] + e2[1]));
+    ctx.lineTo(x + s * e2[0], y + s * e2[1]);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  const angNorm = a => { while (a <= -PI) a += TAU; while (a > PI) a -= TAU; return a; };
+
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+  function paint() {
+    L = layout(); hits = []; used = new Set();
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    band(L.band, fs);
+    inputs(fs);
+    if (S.mode === "esp") {
+      // a figura 3D está num canvas por baixo: aqui fica transparente
+      ctx.clearRect(L.fig.x, L.fig.y, L.fig.w, L.fig.h);
+      figure3(L.fig, fs);
+      button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 1.1);
+      // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
+      const zy = L.theme.y + L.theme.h + 0.35 * fs, zh = 1.6 * fs;
+      button(L.theme.x, zy, L.theme.w, zh, "+", false, "dolly", { v: 0.8 }, fs * 1.1);
+      button(L.theme.x, zy + zh + 0.25 * fs, L.theme.w, zh, "−", false, "dolly", { v: 1.25 }, fs * 1.1);
+      button(L.theme.x, zy + 2 * (zh + 0.25 * fs), L.theme.w, zh, "⌂", false, "view3", {}, fs);
+      bottom(fs);
+      for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+      return;
+    }
+    hide3();
+    figure(L.fig, L.frame, fs);
+    button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 1.1);
+    // zoom: + e − por baixo do ☾/☀; «1:1» volta à vista inicial (só aparece fora dela)
+    const zx = L.theme.x, zw = L.theme.w, zh = 1.6 * fs, zy = L.theme.y + L.theme.h + 0.35 * fs;
+    button(zx, zy, zw, zh, "+", false, "zoom", { v: 1.25 }, fs * 1.1);
+    button(zx, zy + zh + 0.25 * fs, zw, zh, "−", false, "zoom", { v: 0.8 }, fs * 1.1);
+    if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 2 * (zh + 0.25 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.7);
+    bottom(fs);
+    for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
+  }
+
+  function band(b, fs) {
+    rrect(b.x, b.y, b.w, b.h, 8, C.band, C.line, 1.5);
+    let y = b.y + 0.25 * fs;
+    b.lines.forEach((l, i) => {
+      const el = texAt("band" + i, l, b.x + 0.5 * fs, y + b.lhs[i] / 2, b.px, C.ink, 0, 0.5, false);
+      fit(el, b.w - fs);
+      y += b.lhs[i];
+    });
+  }
+
+  function button(x, y, w, h, txt, on, kind, extra = {}, f = 16) {
+    rrect(x, y, w, h, 8, on ? C.muted : C.btn, on ? C.muted : C.line, 2);
+    ctx.font = `700 ${f}px ${FONT}`; ctx.fillStyle = on ? C.on : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(txt, x + w / 2, y + h / 2 + 1);
+    hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  // texto com VEC antes de uma letra: seta por cima dessa letra
+  function vecText(t, x, y) {
+    const parts = t.split(VEC);
+    let cx = x;
+    parts.forEach((part, i) => {
+      if (i) {
+        const word = part.split(" ")[0], w = ctx.measureText(word).width, f = parseFloat(ctx.font);
+        const ay = y - 0.62 * f, hs = 0.2 * f;
+        ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = Math.max(1, 0.07 * f); ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(cx + 0.05 * f, ay); ctx.lineTo(cx + w - 0.02 * f, ay);
+        ctx.moveTo(cx + w - hs, ay - 0.6 * hs); ctx.lineTo(cx + w - 0.02 * f, ay); ctx.lineTo(cx + w - hs, ay + 0.6 * hs);
+        ctx.stroke(); ctx.lineCap = "butt";
+      }
+      ctx.fillText(part, cx, y);
+      cx += ctx.measureText(part).width;
+    });
+  }
+  function cbox(x, y0, h, it, fs) {
+    const bs = it.bs, y = y0 + (h - bs) / 2, on = S[it.k];
+    rrect(x, y, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, y + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, y + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, y + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    ctx.font = `${it.f}px ${CBFONT}`; ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    vecText(it.txt, x + bs + 0.35 * fs, y0 + h / 2 + 1);
+    hits.push({ kind: "box", k: it.k, rect: { x, y: y0, w: it.w, h } });
+  }
+  function bottom(fs) {
+    L.rows.forEach((row, i) => {
+      const y = L.rowY + i * L.rh;
+      let x = L.rowX;
+      row.forEach((it, j) => {
+        if (j) x += it.t === "btn" && row[j - 1].join ? 0.25 * fs : 1.0 * fs;
+        if (it.t === "btn") button(x, y + (L.rh - it.h) / 2, it.w, it.h, it.txt, it.on, it.kind, { v: it.v }, it.f);
+        else cbox(x, y, L.rh, it, fs);
+        x += it.w;
+      });
+    });
+  }
+
+  // ---------- figura: referencial o.n. fixo, com a mesma escala nos dois eixos ----------
+  let F = null;   // conversões da figura atual
+  // fr: retângulo fixo que define a escala e a origem (não muda com o texto); f: onde se desenha (pode ir mais acima, até ao texto)
+  const ZMIN = 0.25, ZMAX = 6;
+  const NICE = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20];
+  function figure(f, fr, fs) {
+    const k0 = Math.min(fr.w, fr.h) / 11.6;         // zoom 1: pelo menos de −5,5 a 5,5 na direção mais curta
+    const k = k0 * S.z, fcx = fr.x + fr.w / 2, fcy = fr.y + fr.h / 2;
+    const cx = fcx - S.vx * k, cy = fcy + S.vy * k;
+    const X = x => cx + x * k, Y = y => cy - y * k;
+    const x0 = (f.x - cx) / k, x1 = (f.x + f.w - cx) / k, y0 = (cy - f.y - f.h) / k, y1 = (cy - f.y) / k;
+    // onde se podem pôr os pontos: o retângulo fixo, visto com o zoom atual
+    const px0 = (fr.x - cx) / k, px1 = (fr.x + fr.w - cx) / k, py0 = (cy - fr.y - fr.h) / k, py1 = (cy - fr.y) / k;
+    F = { k, k0, cx, cy, fcx, fcy, X, Y, x0, x1, y0, y1, px0, px1, py0, py1, f };
+    const g = NICE.find(v => v * k >= 0.8 * fs && (!S.int || v >= 1)) ?? 20, st = NICE.find(v => v * k >= 1.5 * fs && v >= g) ?? 20;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(f.x, f.y, f.w, f.h); ctx.clip();
+    // quadrícula (os eixos por cima)
+    for (let i = Math.ceil(x0 / g); i * g <= x1; i++) if (i) line(X(i * g), f.y, X(i * g), f.y + f.h, C.grid, 1);
+    for (let j = Math.ceil(y0 / g); j * g <= y1; j++) if (j) line(f.x, Y(j * g), f.x + f.w, Y(j * g), C.grid, 1);
+    line(X(0), f.y, X(0), f.y + f.h, C.axis, 1.6);
+    line(f.x, Y(0), f.x + f.w, Y(0), C.axis, 1.6);
+    ctx.restore();
+    // setas e nomes dos eixos (só se o eixo estiver à vista), marcas
+    const s = 0.45 * fs, xin = cx > f.x && cx < f.x + f.w, yin = cy > f.y && cy < f.y + f.h;
+    ctx.fillStyle = C.axis;
+    if (yin) {
+      ctx.beginPath(); ctx.moveTo(f.x + f.w, cy); ctx.lineTo(f.x + f.w - s * 1.4, cy - s * 0.6); ctx.lineTo(f.x + f.w - s * 1.4, cy + s * 0.6); ctx.fill();
+      texAt("ax", "x", f.x + f.w - 0.3 * fs, cy + 0.35 * fs, fs * 0.85, C.axis, 1, 0);
+    }
+    if (xin) {
+      ctx.beginPath(); ctx.moveTo(cx, f.y); ctx.lineTo(cx - s * 0.6, f.y + s * 1.4); ctx.lineTo(cx + s * 0.6, f.y + s * 1.4); ctx.fill();
+      texAt("ay", "y", cx - 0.4 * fs, f.y + 0.1 * fs, fs * 0.85, C.axis, 1, 0);
+    }
+    if (xin && yin) texAt("aO", "O", cx - 0.25 * fs, cy + 0.2 * fs, fs * 0.7, C.muted, 1, 0);
+    // números dos eixos: junto do eixo, ou na borda se o eixo estiver fora de vista
+    const ly = clamp(cy, f.y, f.y + f.h - 1.2 * fs), lx = clamp(cx, f.x + 2.2 * fs, f.x + f.w);
+    for (let i = Math.ceil(x0 / st); i * st < x1 - 0.6 * st; i++) if (i && i * st > x0 + 0.3 * st) {
+      const v = i * st;
+      line(X(v), ly - 0.15 * fs, X(v), ly + 0.15 * fs, C.axis, 1.4);
+      texAt("tx" + i, fmt(v, 1), X(v), ly + 0.25 * fs, fs * 0.6, C.muted, 0.5, 0);
+    }
+    for (let j = Math.ceil(y0 / st); j * st < y1 - 0.6 * st; j++) if (j && j * st > y0 + 0.3 * st) {
+      const v = j * st;
+      line(lx - 0.15 * fs, Y(v), lx + 0.15 * fs, Y(v), C.axis, 1.4);
+      texAt("ty" + j, fmt(v, 1), lx - 0.3 * fs, Y(v), fs * 0.6, C.muted, 1, 0.5);
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(f.x, f.y, f.w, f.h); ctx.clip();
+    if (S.mode === "vet") vectors(fs); else retas(fs);
+    ctx.restore();
+  }
+
+  // etiqueta junto de um ponto, afastada na direção (ux, uy) (no sentido matemático)
+  function labelAt(id, src, x, y, ux, uy, fs, col, px = 0.85) {
+    const n = Math.hypot(ux, uy) || 1; ux /= n; uy /= n;
+    const ax = 0.5 - 0.5 * ux, ay = 0.5 + 0.5 * uy;
+    const el = texAt(id, src, x + ux * 0.75 * fs, y - uy * 0.75 * fs, fs * px, col, ax, ay);
+    // sem sair da figura
+    const w = el.offsetWidth, h = el.offsetHeight, f = F.f;
+    const l = clamp(x + ux * 0.75 * fs - ax * w, f.x + 2, f.x + f.w - w - 2), t = clamp(y - uy * 0.75 * fs - ay * h, f.y + 2, f.y + f.h - h - 2);
+    el.style.left = l + "px"; el.style.top = t + "px"; el.style.transform = "none";
+    return el;
+  }
+  // etiquetas que não se tapam: experimenta 16 direções à volta do ponto, a começar pela preferida (ux, uy),
+  // e fica com a primeira que não cai em cima de nada em OB (retângulos ocupados) nem atravessa uma reta de LN
+  const rectOf = el => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+  const overlap = (a, b, m = 2) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
+  function crosses(R, ln) {
+    let pos = 0, neg = 0;
+    for (const [x, y] of [[R.x, R.y], [R.x + R.w, R.y], [R.x, R.y + R.h], [R.x + R.w, R.y + R.h]]) {
+      const d = (x - ln.x) * -ln.ey + (y - ln.y) * ln.ex;
+      if (d > 0) pos++; else neg++;
+    }
+    return pos && neg;
+  }
+  function placeLabel(id, src, x, y, ux, uy, fs, col, px, OB, LN) {
+    OB.forEach(o => { o.self = Math.abs(o.x + o.w / 2 - x) < 1 && Math.abs(o.y + o.h / 2 - y) < 1 && o.dot; });
+    const el = texAt(id, src, x, y, fs * px, col, 0, 0);
+    el.style.transform = "none";
+    const w = el.offsetWidth, h = el.offsetHeight, f = F.f, d = 0.7 * fs, a0 = Math.atan2(uy, ux);
+    let best = null;
+    for (let i = 0; i < 16; i++) {
+      const a = a0 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * PI / 8, cx = Math.cos(a), cy = Math.sin(a);
+      // encostada ao ponto pelo lado (ou canto) dessa direção
+      const ax = cx > 0.38 ? 0 : cx < -0.38 ? 1 : 0.5, ay = cy > 0.38 ? 1 : cy < -0.38 ? 0 : 0.5;
+      const l = clamp(x + cx * d - ax * w, f.x + 2, f.x + f.w - w - 2), t = clamp(y - cy * d - ay * h, f.y + 2, f.y + f.h - h - 2);
+      const Rr = { x: l, y: t, w, h };
+      let score = i * 0.01;
+      for (const o of OB) if (!o.self && overlap(Rr, o)) score += 10;
+      for (const ln of LN) if (crosses(Rr, ln)) score += 1;
+      if (!best || score < best.score) best = { score, Rr };
+      if (score < 1) break;
+    }
+    el.style.left = best.Rr.x + "px"; el.style.top = best.Rr.y + "px";
+    OB.forEach(o => { o.self = false; });
+    OB.push(best.Rr);
+    return el;
+  }
+
+  function vectors(fs) {
+    const { X, Y } = F, [u1, u2] = S.u, [v1, v2] = S.v;
+    const ox = X(0), oy = Y(0);
+    const nu = Math.hypot(u1, u2), nv = Math.hypot(v1, v2), d = u1 * v1 + u2 * v2, sc = sgnCol(Math.round(d * 100) / 100);
+    // projeção de v sobre a reta de u
+    if (S.proj && nu > EPS) {
+      const t = d / (nu * nu), hx = t * u1, hy = t * u2;
+      const ex = u1 / nu, ey = u2 / nu, big = 400;
+      line(X(-big * ex), Y(-big * ey), X(big * ex), Y(big * ey), alpha(C.u, 0.45), 1.5, [6, 6]);
+      line(X(v1), Y(v2), X(hx), Y(hy), C.muted, 1.8, [5, 5]);
+      if (Math.hypot(v1 - hx, v2 - hy) > 0.3 && Math.abs(t) * nu > 0.3) {
+        const a0 = Math.atan2(v2 - hy, v1 - hx), a1 = Math.atan2(-hy, -hx);
+        rightMark(X(hx), Y(hy), 0.55 * fs, a0, a1, C.muted);
+      }
+      if (Math.abs(d) > EPS) {
+        ctx.globalAlpha = 0.9;
+        line(ox, oy, X(hx), Y(hy), sc, 0.42 * fs);
+        ctx.globalAlpha = 1;
+      }
+      dot(X(hx), Y(hy), 0.28 * fs, C.muted, 2);
+      labelAt("H", "H", X(hx), Y(hy), -(v1 - hx) || -ey, -(v2 - hy) || ex, fs, C.muted);
+    }
+    // ângulo θ
+    if (S.ang && nu > EPS && nv > EPS) {
+      const a0 = Math.atan2(u2, u1), a1 = Math.atan2(v2, v1);
+      let da = angNorm(a1 - a0);
+      const c = d / (nu * nv);
+      const r = clamp(0.4 * Math.min(nu, nv) * F.k, 1.3 * fs, 3 * fs);
+      if (Math.abs(Math.round(d * 100) / 100) < EPS) rightMark(ox, oy, 0.7 * fs, a0, a1, C.zero);
+      else {
+        if (Math.abs(Math.abs(da) - PI) < 1e-9) da = PI;
+        sector(ox, oy, r, a0, da, sc);
+      }
+      const am = a0 + da / 2, rr = Math.abs(Math.round(d * 100) / 100) < EPS ? 1.6 * fs : r + 0.9 * fs;
+      texAt("th", `\\theta`, ox + Math.cos(am) * rr, oy - Math.sin(am) * rr, fs * 0.95, sc);
+      void c;
+    }
+    for (const [key, col, nm] of [["u", C.u, "u"], ["v", C.v, "v"]]) {
+      const [a, b] = S[key], x = X(a), y = Y(b);
+      if (Math.hypot(a, b) > EPS) arrow(ox, oy, x, y, col, fs); else dot(x, y, 0.32 * fs, col, 2);
+      const n = Math.hypot(a, b);
+      labelAt("l" + key, clr(col, `\\vec ${nm} = ${pt(S[key])}`), x, y, n > EPS ? a / n : (key === "u" ? 1 : -1), n > EPS ? b / n : 0.4, fs, col);
+      hits.push({ kind: "pt", key, x, y, r: 1.3 * fs });
+    }
+  }
+
+  // reta infinita (recortada pela figura) e ponto onde corta o eixo Ox
+  function retas(fs) {
+    const { X, Y } = F;
+    const r = lineInfo(S.A, S.B, "r", C.u), s = S.s ? lineInfo(S.C, S.D, "s", C.v) : null;
+    const list = s ? [[r, "A", "B"], [s, "C", "D"]] : [[r, "A", "B"]];
+    // o que as etiquetas dos pontos não devem tapar (os pontos, os ângulos e as outras etiquetas) e as retas
+    const OB = [], LN = [], add = el => { if (el) OB.push(rectOf(el)); };
+    for (const [o] of list) for (const p of [o.P, o.Q]) OB.push({ x: X(p[0]) - 0.4 * fs, y: Y(p[1]) - 0.4 * fs, w: 0.8 * fs, h: 0.8 * fs, dot: true });
+    for (const [o] of list) { const n = Math.hypot(o.dx, o.dy); LN.push({ x: X(o.P[0]), y: Y(o.P[1]), ex: o.dx / n, ey: -o.dy / n }); }
+    for (const [o] of list) {
+      const n = Math.hypot(o.dx, o.dy), ex = o.dx / n, ey = o.dy / n, big = 400;
+      line(X(o.P[0] - big * ex), Y(o.P[1] - big * ey), X(o.P[0] + big * ex), Y(o.P[1] + big * ey), o.col, 2.6);
+      // nome da reta, perto da borda
+      const tEnd = Math.min(...[ex ? ((ex > 0 ? F.x1 : F.x0) - o.P[0]) / ex : Infinity, ey ? ((ey > 0 ? F.y1 : F.y0) - o.P[1]) / ey : Infinity]) - 1.4;
+      const lx = o.P[0] + tEnd * ex, ly = o.P[1] + tEnd * ey, side = -ey * -lx + ex * -ly >= 0 ? 1 : -1;   // do lado do centro da figura
+      add(labelAt("n" + o.nm, clr(o.col, o.nm), X(lx), Y(ly), -ey * side, ex * side, fs, o.col, 1));
+    }
+    // inclinação: ângulo do semieixo positivo Ox para a reta, a partir do ponto em que a reta corta Ox
+    if (S.incl) for (const [o] of list) {
+      if (o.horiz) continue;
+      const ix = o.vert ? o.P[0] : -o.b / o.m;
+      if (ix < F.x0 + 0.5 / S.z || ix > F.x1 - 0.5 / S.z || F.y0 > 0 || F.y1 < 0) continue;
+      const R = 1.5 * fs;
+      line(X(ix), Y(0), X(ix) + R * 1.5, Y(0), o.col, 3.5);
+      if (o.vert) rightMark(X(ix), Y(0), 0.6 * fs, 0, PI / 2, o.col);
+      else sector(X(ix), Y(0), R, 0, o.alpha, o.col);
+      OB.push({ x: X(ix) - (o.alpha > PI / 2 ? R : 0), y: Y(0) - R, w: o.alpha > PI / 2 ? 2.5 * R : 1.5 * R, h: R });
+      const am = o.alpha / 2, rr = R + 0.9 * fs;
+      add(texAt("al" + o.nm, clr(o.col, `\\alpha_${o.nm}`), X(ix) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.9, o.col));
+    }
+    // ângulo das duas retas (o agudo, ou reto), no ponto de interseção
+    if (s && S.angR) {
+      const cross = r.dx * s.dy - r.dy * s.dx;
+      if (Math.abs(cross) > EPS) {
+        const t = ((s.P[0] - r.P[0]) * s.dy - (s.P[1] - r.P[1]) * s.dx) / cross;
+        const px = r.P[0] + t * r.dx, py = r.P[1] + t * r.dy;
+        if (px > F.x0 && px < F.x1 && py > F.y0 && py < F.y1) {
+          let a0 = Math.atan2(r.dy, r.dx), sdx = s.dx, sdy = s.dy;
+          const dp = r.dx * s.dx + r.dy * s.dy;
+          if (dp < 0) { sdx = -sdx; sdy = -sdy; }
+          const a1 = Math.atan2(sdy, sdx), da = angNorm(a1 - a0);
+          if (Math.abs(dp) < EPS) rightMark(X(px), Y(py), 0.7 * fs, a0, a1, C.pos);
+          else sector(X(px), Y(py), 2 * fs, a0, da, C.pos);
+          const am = a0 + da / 2, rr = Math.abs(dp) < EPS ? 1.6 * fs : 2.9 * fs;
+          add(texAt("thR", clr(C.pos, "\\theta"), X(px) + Math.cos(am) * rr, Y(py) - Math.sin(am) * rr, fs * 0.95, C.pos));
+          { const q = Math.abs(dp) < EPS ? 0.9 * fs : 2 * fs, mx = X(px) + Math.cos(am) * q * 0.55, my = Y(py) - Math.sin(am) * q * 0.55;
+            OB.push({ x: mx - q * 0.45, y: my - q * 0.45, w: q * 0.9, h: q * 0.9 }); }
+          dot(X(px), Y(py), 0.2 * fs, C.ink, 1.5);
+        }
+      }
+    }
+    // vetores diretores AB e CD
+    // (com «Diretores na origem», AB e CD ficam esbatidos na reta e o mesmo vetor aparece com origem em O)
+    if (S.dir) for (const [o] of list) {
+      const n = Math.hypot(o.dx, o.dy);
+      ctx.globalAlpha = S.dirO ? 0.35 : 1;
+      arrow(X(o.P[0]), Y(o.P[1]), X(o.Q[0]), Y(o.Q[1]), o.col, fs, 4.5);
+      ctx.globalAlpha = 1;
+      if (!S.dirO) add(labelAt("dv" + o.nm, clr(o.col, `\\vec ${o.nm}`), X((o.P[0] + o.Q[0]) / 2), Y((o.P[1] + o.Q[1]) / 2), -o.dy / n, o.dx / n, fs, o.col, 0.95));
+      else {
+        arrow(X(0), Y(0), X(o.dx), Y(o.dy), o.col, fs, 4.5);
+        add(labelAt("dv" + o.nm, clr(o.col, `\\vec ${o.nm} = ${pt([o.dx, o.dy])}`), X(o.dx), Y(o.dy), o.dx / n, o.dy / n, fs, o.col, 0.85));
+      }
+    }
+    // pontos
+    for (const [o, n1, n2] of list) for (const [key, nm, p, q] of [[n1, n1, o.P, o.Q], [n2, n2, o.Q, o.P]]) {
+      const x = X(p[0]), y = Y(p[1]);
+      dot(x, y, 0.32 * fs, o.col, 2);
+      const n = Math.hypot(p[0] - q[0], p[1] - q[1]);
+      placeLabel("p" + key, clr(o.col, `${nm}${pt(p)}`), x, y, (p[0] - q[0]) / n * 0.7 - (p[1] - q[1]) / n * 0.7, (p[1] - q[1]) / n * 0.7 + (p[0] - q[0]) / n * 0.7, fs, o.col, 0.75, OB, LN);
+      hits.push({ kind: "pt", key, x, y, r: 1.3 * fs });
+    }
+  }
+
+  // =====================================================================
+  // ---------- modo Espaço (3D com Three.js, carregado só quando é preciso) ----------
+  // Plano α por um ponto P e um vetor normal n; opções: ponto Q e distância a α, reta r (ponto A, vetor diretor r),
+  // plano β (ponto R, vetor normal m), vetores u e v (produto escalar no espaço). Contas exatas em frações.
+
+  // frações [p, q] (q > 0, irredutível)
+  const Fr = (p, q = 1) => { if (q < 0) { p = -p; q = -q; } const g = gcd(p, q) || 1; return [p / g, q / g]; };
+  const fadd = (a, b) => Fr(a[0] * b[1] + b[0] * a[1], a[1] * b[1]);
+  const fsub = (a, b) => Fr(a[0] * b[1] - b[0] * a[1], a[1] * b[1]);
+  const fmul = (a, b) => Fr(a[0] * b[0], a[1] * b[1]);
+  const fdiv = (a, b) => Fr(a[0] * b[1], a[1] * b[0]);
+  const fneg = a => [-a[0], a[1]];
+  const fval = a => a[0] / a[1];
+  const fz = a => a[0] === 0;
+  const fT = a => frac(a[0], a[1]);
+  const fP = a => a[0] < 0 ? (a[1] === 1 ? `(${fT(a)})` : `\\left(${fT(a)}\\right)`) : fT(a);
+  const dot3 = (a, b) => fadd(fadd(fmul(a[0], b[0]), fmul(a[1], b[1])), fmul(a[2], b[2]));
+  const cross3 = (a, b) => [fsub(fmul(a[1], b[2]), fmul(a[2], b[1])), fsub(fmul(a[2], b[0]), fmul(a[0], b[2])), fsub(fmul(a[0], b[1]), fmul(a[1], b[0]))];
+  const isNull = a => a.every(fz);
+  const vnum = a => a.map(fval);
+  const p3T = a => `(${a.map(fT).join(",\\ ")})`;
+  // número escrito pelo utilizador: inteiro, decimal (ponto, ou vírgula se as coordenadas estiverem separadas por «;») ou fração a/b
+  function parseNum(s) {
+    s = s.trim().replace("−", "-");
+    let m = s.match(/^(-?\d+)\/(\d+)$/);
+    if (m) return +m[2] ? Fr(+m[1], +m[2]) : null;
+    m = s.match(/^(-?)(\d*)(?:\.(\d+))?$/);
+    if (!m || (!m[2] && !m[3])) return null;
+    const dec = m[3] || "", q = 10 ** dec.length;
+    return Fr((m[1] ? -1 : 1) * (+(m[2] || 0) * q + +(dec || 0)), q);
+  }
+  function parseVec(s) {
+    s = s.trim().replace(/^\(|\)$/g, "");
+    const parts = s.includes(";") ? s.split(";").map(t => t.replace(",", ".")) : s.split(",");
+    if (parts.length !== 3) return null;
+    const v = parts.map(parseNum);
+    return v.every(Boolean) && v.every(a => Math.abs(fval(a)) <= 1000) ? v : null;
+  }
+  // a x + b y + c z + d (= 0)
+  function linTex(co, vars = ["x", "y", "z"]) {
+    let out = "";
+    co.forEach((c, i) => {
+      if (fz(c)) return;
+      const neg = c[0] < 0, a = [Math.abs(c[0]), c[1]], one = a[0] === 1 && a[1] === 1, v = vars[i] || "";
+      const body = v ? (one ? v : fT(a) + v) : fT(a);
+      out += out ? (neg ? " - " : " + ") + body : (neg ? "-" : "") + body;
+    });
+    return out || "0";
+  }
+  // campos de texto (coordenadas): [chave, rótulo LaTeX, valor inicial, grupo]
+  const FIELDS = [
+    ["P", "P", "(2, 1, 1)", "al"], ["n", "\\vec n", "(1, -1, 2)", "al"],
+    ["Q", "Q", "(3, 3, 4)", "q"],
+    ["A3", "A", "(1, 0, 3)", "r"], ["r3", "\\vec r", "(1, 1, 1)", "r"],
+    ["R", "R", "(0, 0, 1)", "be"], ["m", "\\vec m", "(0, 0, 1)", "be"],
+    ["u3", "\\vec u", "(2, 1, 2)", "uv"], ["v3", "\\vec v", "(0, 3, 4)", "uv"],
+  ];
+  const GCOL = { al: () => C.al, q: () => C.qq, r: () => C.rr, be: () => C.be, uv: () => C.u, v3: () => C.v };
+  const ESP = {};   // texto de cada campo
+  const INP = {};   // elementos <input>
+  for (const [k, , d] of FIELDS) {
+    ESP[k] = d;
+    const el = document.createElement("input");
+    el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off"; el.value = d;
+    el.setAttribute("aria-label", "Coordenadas de " + k);
+    el.style.display = "none";
+    el.addEventListener("input", () => { ESP[k] = el.value; draw(); });
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    document.body.appendChild(el);
+    INP[k] = el;
+  }
+  const groupOn = g => g === "al" || (g === "q" && S.eQ) || (g === "r" && S.eR) || (g === "be" && S.eB) || (g === "uv" && S.eUV);
+  // valores lidos (ou null se o campo estiver mal escrito)
+  function espVals() {
+    const o = {};
+    for (const [k] of FIELDS) o[k] = parseVec(ESP[k]);
+    return o;
+  }
+  // o que se sabe do plano α (e de β): a, b, c, d e o vetor normal
+  function planeOf(Pt, nv) {
+    if (!Pt || !nv || isNull(nv)) return null;
+    const d = fneg(dot3(nv, Pt));
+    return { n: nv, P: Pt, d, co: [...nv, d] };
+  }
+  const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
+  function espPieces() {
+    const V3 = espVals(), G = [];
+    const al = planeOf(V3.P, V3.n), aC = C.al, A_ = clr(aC, "\\alpha");
+    if (!V3.P || !V3.n) G.push([`\\text{Escreve as três coordenadas de } P \\text{ e de } \\vec n\\text{, p. ex. } (2, 1, 1)`]);
+    else if (!al) G.push([`\\vec n \\ne \\vec 0\\text{: um vetor normal não pode ser nulo}`]);
+    else {
+      // n · PX = 0  ⇔  a(x − x0) + b(y − y0) + c(z − z0) = 0
+      const term = (c, v, p) => {
+        if (fz(c)) return null;
+        const inner = fz(p) ? v : `(${v} ${p[0] < 0 ? "+" : "-"} ${fT([Math.abs(p[0]), p[1]])})`;
+        const neg = c[0] < 0, a = [Math.abs(c[0]), c[1]], one = a[0] === 1 && a[1] === 1;
+        return { neg, t: (one ? "" : fT(a)) + inner };
+      };
+      const ts = [term(al.n[0], "x", V3.P[0]), term(al.n[1], "y", V3.P[1]), term(al.n[2], "z", V3.P[2])].filter(Boolean);
+      const expd = ts.map((t, i) => (i ? (t.neg ? " - " : " + ") : (t.neg ? "-" : "")) + t.t).join("");
+      G.push([
+        `${clr(aC, "\\vec n")}\\cdot\\overrightarrow{PX} = 0`,
+        { cont: true, t: `\\Leftrightarrow\\; ${expd} = 0` },
+        `${A_}:\\ ${linTex(al.co)} = 0`,
+      ]);
+    }
+    if (S.eQ) {
+      const Q = V3.Q;
+      if (!Q) G.push([`\\text{Escreve as coordenadas de } Q`]);
+      else if (al) {
+        const num_ = fadd(dot3(al.n, Q), al.d), nn = dot3(al.n, al.n), cq = C.qq;
+        const sub = `${al.n.map((c, i) => `${fP(c)}\\times${fP(Q[i])}`).join(" + ")}${fz(al.d) ? "" : (al.d[0] < 0 ? " - " + fT(fneg(al.d)) : " + " + fT(al.d))}`;
+        const den = `\\sqrt{${al.n.map(c => `${fP(c)}^2`).join(" + ")}}`;
+        const nnT = nn[1] === 1 ? sqrtTex(nn[0]) : `\\sqrt{${fT(nn)}}`;
+        if (fz(num_)) G.push([`${clr(cq, "Q")} \\in ${A_} \\;\\Rightarrow\\; d(${clr(cq, "Q")}, ${A_}) = 0`]);
+        else {
+          const lam = fdiv(num_, nn), Hh = Q.map((q, i) => fsub(q, fmul(lam, al.n[i])));
+          const dist = Math.abs(fval(num_)) / Math.sqrt(fval(nn));
+          G.push([
+            `d(${clr(cq, "Q")}, ${A_}) = \\frac{|a q_1 + b q_2 + c q_3 + d|}{\\sqrt{a^2 + b^2 + c^2}}`,
+            { cont: true, t: `= \\frac{|${sub}|}{${den}}` },
+            { cont: true, t: `= \\frac{${fT([Math.abs(num_[0]), num_[1]])}}{${nnT}} ${isInt(Math.round(dist * 1e9) / 1e9) ? "=" : "\\approx"} ${isInt(Math.round(dist * 1e9) / 1e9) ? Math.round(dist) : apx(dist)}` },
+            `${clr(cq, "H")}${p3T(Hh)}\\ \\text{(pé da perpendicular)}`,
+          ]);
+        }
+      }
+    }
+    if (S.eR) {
+      const A = V3.A3, r = V3.r3, rc = C.rr, R_ = clr(rc, "r");
+      if (!A || !r) G.push([`\\text{Escreve as coordenadas de } A \\text{ e de } \\vec r`]);
+      else if (isNull(r)) G.push([`\\vec r \\ne \\vec 0\\text{: um vetor diretor não pode ser nulo}`]);
+      else {
+        const g = [`${R_}:\\ (x, y, z) = ${p3T(A)} + k${p3T(r)},\\ k \\in \\mathbb{R}`];
+        if (al) {
+          const dn = dot3(r, al.n), rv = clr(rc, "\\vec r"), nv = clr(aC, "\\vec n");
+          const prod = `${rv}\\cdot${nv} = ${r.map((c, i) => `${fP(c)}\\times${fP(al.n[i])}`).join(" + ")} = ${fT(dn)}`;
+          if (isNull(cross3(r, al.n))) g.push(`${rv} \\parallel ${nv} \\;\\Rightarrow\\; ${R_} \\perp ${A_}`);
+          else if (fz(dn)) g.push(prod, { cont: true, t: onPlane(al, A) ? `\\;\\Rightarrow\\; ${R_} \\subset ${A_}\\ \\text{(contida no plano)}` : `\\;\\Rightarrow\\; ${R_} \\parallel ${A_}\\ \\text{(estritamente paralela)}` });
+          else g.push(prod, { cont: true, t: `\\ne 0 \\;\\Rightarrow\\; ${R_}\\ \\text{interseta}\\ ${A_}` });
+          if (!fz(dn)) {
+            const t = fneg(fdiv(fadd(dot3(al.n, A), al.d), dn)), I = A.map((a, i) => fadd(a, fmul(t, r[i])));
+            g.push(`${R_} \\cap ${A_} = \\{${clr(rc, "I")}\\},\\ ${clr(rc, "I")}${p3T(I)}`);
+          }
+        }
+        G.push(g);
+      }
+    }
+    if (S.eB) {
+      const be = planeOf(V3.R, V3.m), bC = C.be, B_ = clr(bC, "\\beta");
+      if (!V3.R || !V3.m) G.push([`\\text{Escreve as coordenadas de } R \\text{ e de } \\vec m`]);
+      else if (!be) G.push([`\\vec m \\ne \\vec 0\\text{: um vetor normal não pode ser nulo}`]);
+      else {
+        const g = [`${B_}:\\ ${linTex(be.co)} = 0`];
+        if (al) {
+          const nv = clr(aC, "\\vec n"), mv = clr(bC, "\\vec m"), dn = dot3(al.n, be.n);
+          if (isNull(cross3(al.n, be.n))) g.push(onPlane(al, be.P) ? `${nv} \\parallel ${mv}\\ \\text{e}\\ R \\in ${A_} \\;\\Rightarrow\\; ${A_}\\ \\text{e}\\ ${B_}\\ \\text{são coincidentes}` : `${nv} \\parallel ${mv}\\ \\text{e}\\ R \\notin ${A_} \\;\\Rightarrow\\; ${A_} \\parallel ${B_}\\ \\text{(estritamente paralelos)}`);
+          else {
+            g.push(`${nv}\\cdot${mv} = ${al.n.map((c, i) => `${fP(c)}\\times${fP(be.n[i])}`).join(" + ")} = ${fT(dn)}`);
+            g.push({ cont: true, t: fz(dn) ? `\\;\\Rightarrow\\; ${A_} \\perp ${B_}` : `\\ne 0 \\;\\Rightarrow\\; ${A_}\\ \\text{e}\\ ${B_}\\ \\text{concorrentes, não perpendiculares}` });
+          }
+        }
+        G.push(g);
+      }
+    }
+    if (S.eUV) {
+      const u = V3.u3, v = V3.v3;
+      if (!u || !v) G.push([`\\text{Escreve as coordenadas de } \\vec u \\text{ e de } \\vec v`]);
+      else {
+        const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v));
+        const nT = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
+        const g = [
+          `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
+          { cont: true, t: `= ${u.map((c, i) => `${U(fP(c))}\\times${V(fP(v[i]))}`).join(" + ")} = ${clr(sc, fT(d))}` },
+          `\\|${UU()}\\| = \\sqrt{${u.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(u)}`,
+          `\\|${VV()}\\| = \\sqrt{${v.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(v)}`,
+        ];
+        if (nu > 0 && nv > 0) {
+          const c = clamp(dv / Math.sqrt(nu * nv), -1, 1);
+          g.push(`\\cos\\theta = \\frac{${clr(sc, fT(d))}}{${nT(u)}\\times${nT(v)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
+          g.push(`${clr(sc, dv > 0 ? "\\theta\\ \\text{é agudo}" : dv < 0 ? "\\theta\\ \\text{é obtuso}" : "\\theta\\ \\text{é reto}\\ (" + UU() + "\\perp" + VV() + ")")}`);
+        }
+        G.push(g);
+      }
+    }
+    return G;
+  }
+
+  // ---------- desenho 3D ----------
+  const B3 = 5;   // os planos e as retas ficam recortados no cubo [−5, 5]³ (que não se desenha)
+  let T3 = null, OC = null, loading3 = false, err3 = null;
+  let R3 = null, cam = null, ctl = null, scene = null, glc = null, built = "";
+  let HAND = [], hover3 = null, drag3 = null;   // pegas, a que está debaixo do cursor e a que se arrasta
+  function load3() {
+    if (loading3) return;
+    loading3 = true;
+    Promise.all([import("three"), import("three/addons/controls/OrbitControls.js")])
+      .then(([t, oc]) => { T3 = t; OC = oc.OrbitControls; draw(); })
+      .catch(e => { err3 = String(e && e.message || e); draw(); });
+  }
+  function init3() {
+    glc = document.createElement("canvas");
+    glc.style.cssText = "position:fixed;display:block;left:0;top:0";
+    glc.setAttribute("aria-label", "Figura no espaço: arrastar para rodar, roda do rato ou pinça para o zoom");
+    document.body.insertBefore(glc, cv);   // por baixo do canvas dos controlos (que fica transparente sobre a figura)
+    R3 = new T3.WebGLRenderer({ canvas: glc, antialias: true });
+    scene = new T3.Scene();
+    cam = new T3.PerspectiveCamera(35, 1, 0.5, 500);   // vista em perspetiva
+    cam.up.set(0, 0, 1);
+    cam.position.set(14, 9, 8).multiplyScalar(1.3);
+    cam.lookAt(0, 0, 0);
+    ctl = new OC(cam, cv);
+    ctl.minDistance = 8; ctl.maxDistance = 90;
+    ctl.addEventListener("change", draw);
+    ctl.saveState();
+  }
+  const vec3 = (x, y, z) => new T3.Vector3(x, y, z);
+  function basic(col, op = 1) {
+    return new T3.MeshBasicMaterial({ color: col, transparent: op < 1, opacity: op, side: T3.DoubleSide, depthWrite: op >= 1 });
+  }
+  // cilindro de a para b (raio r)
+  function rod(a, b, r, mat) {
+    const A = vec3(...a), Bv = vec3(...b), d = Bv.clone().sub(A), len = d.length();
+    if (len < 1e-6) return null;
+    const m = new T3.Mesh(new T3.CylinderGeometry(r, r, len, 12), mat);
+    m.position.copy(A.clone().add(Bv).multiplyScalar(0.5));
+    m.quaternion.setFromUnitVectors(vec3(0, 1, 0), d.normalize());
+    return m;
+  }
+  function arrow3(a, b, col, r = 0.05) {
+    const g = new T3.Group(), mat = basic(col);
+    const A = vec3(...a), Bv = vec3(...b), d = Bv.clone().sub(A), len = d.length();
+    if (len < 1e-6) { g.add(ball(a, col, 0.12)); return g; }
+    const hl = Math.min(0.45, len * 0.45), u = d.clone().normalize();
+    const mid = Bv.clone().sub(u.clone().multiplyScalar(hl));
+    const s = rod(a, mid.toArray(), r, mat); if (s) g.add(s);
+    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), mat);
+    cone.position.copy(mid.clone().add(u.clone().multiplyScalar(hl / 2)));
+    cone.quaternion.setFromUnitVectors(vec3(0, 1, 0), u);
+    g.add(cone);
+    return g;
+  }
+  function ball(p, col, r = 0.13) {
+    const m = new T3.Mesh(new T3.SphereGeometry(r, 16, 12), basic(col));
+    m.position.set(...p);
+    return m;
+  }
+  function lines(segs, col, op = 1, dashed = false) {
+    const g = new T3.BufferGeometry().setFromPoints(segs.flat().map(p => vec3(...p)));
+    const mat = dashed ? new T3.LineDashedMaterial({ color: col, dashSize: 0.18, gapSize: 0.12, transparent: op < 1, opacity: op })
+                       : new T3.LineBasicMaterial({ color: col, transparent: op < 1, opacity: op });
+    const L_ = new T3.LineSegments(g, mat);
+    if (dashed) L_.computeLineDistances();
+    return L_;
+  }
+  // polígono do plano n·X = h dentro do cubo
+  function planePoly(n, h) {
+    const c = [-B3, B3], pts = [];
+    const E = [];
+    for (const a of c) for (const b of c) { E.push([[-B3, a, b], [B3, a, b]], [[a, -B3, b], [a, B3, b]], [[a, b, -B3], [a, b, B3]]); }
+    const f = p => n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - h;
+    for (const [p, q] of E) {
+      const fp = f(p), fq = f(q);
+      if (fp === fq) { if (Math.abs(fp) < 1e-9) pts.push(p, q); continue; }
+      const t = fp / (fp - fq);
+      if (t >= -1e-9 && t <= 1 + 1e-9) pts.push(p.map((v, i) => v + t * (q[i] - v)));
+    }
+    const uniq = [];
+    for (const p of pts) if (!uniq.some(q => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 1e-6)) uniq.push(p);
+    if (uniq.length < 3) return null;
+    const cen = [0, 1, 2].map(i => uniq.reduce((s, p) => s + p[i], 0) / uniq.length);
+    const N = vec3(...n).normalize(), e1 = (Math.abs(N.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0)).cross(N).normalize(), e2 = N.clone().cross(e1);
+    uniq.sort((p, q) => {
+      const a = vec3(p[0] - cen[0], p[1] - cen[1], p[2] - cen[2]), b = vec3(q[0] - cen[0], q[1] - cen[1], q[2] - cen[2]);
+      return Math.atan2(a.dot(e2), a.dot(e1)) - Math.atan2(b.dot(e2), b.dot(e1));
+    });
+    return uniq;
+  }
+  // retângulo do plano n·X = h: centrado no ponto do plano mais próximo de O, lados horizontal e de maior declive
+  // (num plano horizontal, paralelos a Ox e Oy), com pelo menos 10 × 10 e grande que chegue para os pontos dados
+  function planeRect(n, h, pts = []) {
+    const N = vec3(...n), nn = N.lengthSq();
+    const X0 = N.clone().multiplyScalar(h / nn);
+    N.normalize();
+    let e1 = N.clone().cross(vec3(0, 0, 1));
+    e1 = e1.lengthSq() < 1e-10 ? vec3(1, 0, 0) : e1.normalize();
+    const e2 = N.clone().cross(e1).normalize();
+    let a = B3, b = B3;
+    for (const p of pts) {
+      const d = vec3(...p).sub(X0);
+      a = Math.max(a, Math.abs(d.dot(e1)) + 1); b = Math.max(b, Math.abs(d.dot(e2)) + 1);
+    }
+    return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([i, j]) => X0.clone().add(e1.clone().multiplyScalar(i * a)).add(e2.clone().multiplyScalar(j * b)).toArray());
+  }
+  function planeMesh(P, col) {
+    if (!P) return null;
+    const g = new T3.Group();
+    const pos = [];
+    for (let i = 1; i < P.length - 1; i++) pos.push(...P[0], ...P[i], ...P[i + 1]);
+    const geo = new T3.BufferGeometry();
+    geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
+    const mesh = new T3.Mesh(geo, basic(col, 0.22));
+    mesh.renderOrder = 2;
+    g.add(mesh);
+    g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9));
+    return g;
+  }
+  // segmento da reta A + k r dentro do cubo
+  function clipLine(A, r) {
+    let t0 = -1e9, t1 = 1e9;
+    for (let i = 0; i < 3; i++) {
+      if (Math.abs(r[i]) < 1e-12) { if (Math.abs(A[i]) > B3) return null; continue; }
+      let a = (-B3 - A[i]) / r[i], b = (B3 - A[i]) / r[i];
+      if (a > b) [a, b] = [b, a];
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    }
+    if (t0 >= t1) return null;
+    return [A.map((v, i) => v + t0 * r[i]), A.map((v, i) => v + t1 * r[i])];
+  }
+  // etiquetas 3D (posição no ecrã, recalculada a cada desenho)
+  let LAB3 = [];
+  function build3() {
+    while (scene.children.length) {
+      const o = scene.children.pop();
+      o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) x.material.dispose(); });
+    }
+    LAB3 = []; HAND = [];
+    const add = o => { if (o) scene.add(o); return o; };
+    // pegas arrastáveis: pontos (P, Q, A, R) e pontas dos vetores (n, r, m, u, v); base = origem do vetor
+    const handle = (key, p, col, base = null, r = 0.13) => {
+      const m = add(ball(p, col, r));
+      HAND.push({ key, p, base, mesh: m, r });
+      if (S.vert[key]) lab("\\updownarrow", p, col, 1.3, 0, 0.8);
+      // durante o arrasto: linha tracejada até xOy e a «sombra» do ponto nesse plano
+      if (drag3 && drag3.key === key && Math.abs(p[2]) > 1e-9) {
+        add(lines([[p, [p[0], p[1], 0]]], col, 0.9, true));
+        const sh = new T3.Mesh(new T3.CircleGeometry(0.16, 24), basic(col, 0.45));
+        sh.position.set(p[0], p[1], 0.001); add(sh);
+      }
+    };
+    const lab = (src, p, col, ux = 1, uy = 1, px = 0.85) => LAB3.push({ src, p, col, ux, uy, px });
+    // eixos, marcas, quadrícula de xOy, esbatidos
+    const ax = C.axis, E = B3 + 1;
+    add(arrow3([-B3, 0, 0], [E, 0, 0], ax, 0.022)); add(arrow3([0, -B3, 0], [0, E, 0], ax, 0.022)); add(arrow3([0, 0, -B3], [0, 0, E], ax, 0.022));
+    lab("x", [E + 0.35, 0, 0], C.axis, 0, 0, 0.9); lab("y", [0, E + 0.35, 0], C.axis, 0, 0, 0.9); lab("z", [0, 0, E + 0.35], C.axis, 0, 0, 0.9);
+    lab("O", [0, 0, 0], C.muted, -1, -1, 0.7);
+    const tk = [];
+    for (let i = -B3; i <= B3; i++) if (i) {
+      tk.push([[i, -0.12, 0], [i, 0.12, 0]], [[-0.12, i, 0], [0.12, i, 0]], [[-0.12, 0, i], [0.12, 0, i]]);
+      lab(`${i}`, [i, 0, 0], C.muted, -1, -1, 0.55); lab(`${i}`, [0, i, 0], C.muted, 1, -1, 0.55); lab(`${i}`, [0, 0, i], C.muted, -1, 0, 0.55);
+    }
+    add(lines(tk, ax));
+    const grid = [];
+    for (let i = -B3; i <= B3; i++) if (i) grid.push([[i, -B3, 0], [i, B3, 0]], [[-B3, i, 0], [B3, i, 0]]);
+    add(lines(grid, C.grid2, 0.55));
+
+    const V3 = espVals(), al = planeOf(V3.P, V3.n);
+    if (al) {
+      const n = vnum(al.n), P = vnum(al.P), h = -fval(al.d);
+      const rect = planeRect(n, h, [P]);
+      add(planeMesh(rect, C.al));
+      handle("P", P, C.al); lab("P", P, C.al, -1, 1);
+      add(arrow3(P, P.map((v, i) => v + n[i]), C.al, 0.045)); lab("\\vec n", P.map((v, i) => v + n[i]), C.al, 1, 1);
+      handle("n", P.map((v, i) => v + n[i]), C.al, P, 0.1);
+      lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
+    }
+    if (S.eQ && V3.Q && al) {
+      const Q = vnum(V3.Q), n = vnum(al.n), nn = n[0] ** 2 + n[1] ** 2 + n[2] ** 2;
+      const lam = (n[0] * Q[0] + n[1] * Q[1] + n[2] * Q[2] + fval(al.d)) / nn, Hh = Q.map((q, i) => q - lam * n[i]);
+      handle("Q", Q, C.qq); lab("Q", Q, C.qq, 1, 1);
+      if (Math.abs(lam) > 1e-9) {
+        add(lines([[Q, Hh]], C.qq, 1, true)); add(ball(Hh, C.qq, 0.1)); lab("H", Hh, C.qq, 1, -1);
+      }
+    }
+    if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
+      const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
+      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, basic(C.rr))); lab("r", sgm[1], C.rr, 1, 1, 1); }
+      handle("A3", A, C.rr); lab("A", A, C.rr, -1, 1);
+      add(arrow3(A, A.map((v, i) => v + r[i]), C.rr, 0.05)); lab("\\vec r", A.map((v, i) => v + r[i]), C.rr, 1, -1);
+      handle("r3", A.map((v, i) => v + r[i]), C.rr, A, 0.1);
+      if (al) {
+        const n = vnum(al.n), dn = n[0] * r[0] + n[1] * r[1] + n[2] * r[2];
+        if (Math.abs(dn) > 1e-12) {
+          const t = -(n[0] * A[0] + n[1] * A[1] + n[2] * A[2] + fval(al.d)) / dn, I = A.map((a, i) => a + t * r[i]);
+          if (I.every(v => Math.abs(v) <= B3 + 1e-9)) { add(ball(I, C.rr, 0.15)); lab("I", I, C.rr, 1, 1); }
+        }
+      }
+    }
+    if (S.eB) {
+      const be = planeOf(V3.R, V3.m);
+      if (be) {
+        const m = vnum(be.n), R = vnum(be.P), h = -fval(be.d);
+        const rectB = planeRect(m, h, [R]);
+        add(planeMesh(rectB, C.be));
+        handle("R", R, C.be); lab("R", R, C.be, -1, 1);
+        add(arrow3(R, R.map((v, i) => v + m[i]), C.be, 0.045)); lab("\\vec m", R.map((v, i) => v + m[i]), C.be, 1, 1);
+        handle("m", R.map((v, i) => v + m[i]), C.be, R, 0.1);
+        lab("\\beta", rectB.reduce((best, p) => p[0] + p[1] > best[0] + best[1] ? p : best), C.be, 0, -1, 1);
+        // reta de interseção de α e β
+        if (al) {
+          const n = vnum(al.n), w = [n[1] * m[2] - n[2] * m[1], n[2] * m[0] - n[0] * m[2], n[0] * m[1] - n[1] * m[0]], ww = w[0] ** 2 + w[1] ** 2 + w[2] ** 2;
+          if (ww > 1e-12) {
+            const h1 = -fval(al.d), h2 = h, a = [m[1] * w[2] - m[2] * w[1], m[2] * w[0] - m[0] * w[2], m[0] * w[1] - m[1] * w[0]];
+            const b = [w[1] * n[2] - w[2] * n[1], w[2] * n[0] - w[0] * n[2], w[0] * n[1] - w[1] * n[0]];
+            const p0 = [0, 1, 2].map(i => (h1 * a[i] + h2 * b[i]) / ww), sgm = clipLine(p0, w);
+            if (sgm) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink)));
+          }
+        }
+      }
+    }
+    if (S.eUV && V3.u3 && V3.v3) {
+      const u = vnum(V3.u3), v = vnum(V3.v3);
+      add(arrow3([0, 0, 0], u, C.u, 0.06)); lab("\\vec u", u, C.u, 1, 1); handle("u3", u, C.u, [0, 0, 0], 0.11);
+      add(arrow3([0, 0, 0], v, C.v, 0.06)); lab("\\vec v", v, C.v, 1, 1); handle("v3", v, C.v, [0, 0, 0], 0.11);
+    }
+  }
+  function figure3(f, fs) {
+    if (err3) { texAt("e3", "\\text{Não foi possível carregar o 3D (Three.js). Verifica a ligação à internet.}", f.x + f.w / 2, f.y + f.h / 2, fs * 0.8, C.neg); return; }
+    if (!T3) { load3(); texAt("e3", "\\text{A carregar o 3D…}", f.x + f.w / 2, f.y + f.h / 2, fs * 0.9, C.muted); return; }
+    if (!R3) init3();
+    ctl.enabled = true;
+    glc.style.display = "block";
+    glc.style.left = f.x + "px"; glc.style.top = f.y + "px";
+    R3.setPixelRatio(Math.min(3, window.devicePixelRatio || 1));
+    R3.setSize(f.w, f.h);
+    R3.setClearColor(C.bg, 1);
+    // escala: o cubo cabe na figura com zoom 1
+    // ângulo de visão de 35° na direção mais curta da figura
+    cam.aspect = f.w / f.h;
+    cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
+    cam.updateProjectionMatrix();
+    const key = JSON.stringify([ESP, S.eQ, S.eR, S.eB, S.eUV, dark, S.vert, drag3 && drag3.key]);
+    if (key !== built) { build3(); built = key; }
+    // a pega debaixo do cursor (ou a que se arrasta) fica maior
+    for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
+    R3.render(scene, cam);
+    // etiquetas
+    LAB3.forEach((l, i) => {
+      const v = vec3(...l.p).project(cam);
+      if (v.z < -1 || v.z > 1) return;
+      const x = f.x + (v.x + 1) / 2 * f.w, y = f.y + (1 - v.y) / 2 * f.h;
+      if (x < f.x || x > f.x + f.w || y < f.y || y > f.y + f.h) return;
+      const off = 0.45 * fs;
+      texAt("l3" + i, clr(l.col, l.src), x + l.ux * off, y - l.uy * off, fs * l.px, l.col, 0.5 - 0.5 * l.ux, 0.5 + 0.5 * l.uy);
+    });
+  }
+  // pega mais próxima do ecrã (x, y), a menos de 1,1·fs (no ecrã; serve também para o toque)
+  function pick3(x, y) {
+    if (!cam || !L) return null;
+    const f = L.fig;
+    let best = null, bd = 1.1 * L.fs;
+    for (const h of HAND) {
+      const v = vec3(...h.p).project(cam);
+      const sx = f.x + (v.x + 1) / 2 * f.w, sy = f.y + (1 - v.y) / 2 * f.h, d = Math.hypot(sx - x, sy - y);
+      if (d < bd) { bd = d; best = h; }
+    }
+    return best;
+  }
+  // arrastar: na horizontal (plano z = z₀) ou, com a pega em modo ↕ ou com Shift, na vertical (plano vertical virado para a câmara)
+  function move3(x, y, vertical) {
+    const h = drag3, f = L.fig;
+    const ndc = new T3.Vector2((x - f.x) / f.w * 2 - 1, -((y - f.y) / f.h) * 2 + 1);
+    const rc = new T3.Raycaster(); rc.setFromCamera(ndc, cam);
+    const p0 = vec3(...h.p0);
+    let pl;
+    if (vertical) {
+      const d = cam.position.clone().sub(p0); d.z = 0;
+      if (d.lengthSq() < 1e-9) return;
+      pl = new T3.Plane().setFromNormalAndCoplanarPoint(d.normalize(), p0);
+    } else pl = new T3.Plane(vec3(0, 0, 1), -p0.z);
+    const hit = rc.ray.intersectPlane(pl, vec3(0, 0, 0));
+    if (!hit) return;
+    let q = vertical ? [h.p0[0], h.p0[1], Math.round(hit.z)] : [Math.round(hit.x), Math.round(hit.y), h.p0[2]];
+    q = q.map(v => clamp(v, -9, 9));
+    // ponta de um vetor: o vetor é ponta − origem
+    const val = h.base ? q.map((v, i) => v - h.base[i]) : q;
+    const txt = `(${val.map(v => (+v.toFixed(4)).toString()).join(", ")})`;
+    if (txt === ESP[h.key]) return;
+    ESP[h.key] = txt; INP[h.key].value = txt;
+    draw();
+  }
+  function hide3() { if (glc) glc.style.display = "none"; if (ctl) ctl.enabled = false; }
+  // campos de texto em linhas (dois por linha se couberem), no topo da coluna do texto
+  function inputsLayout(tx, fs) {
+    const vis = FIELDS.filter(f => S.mode === "esp" && groupOn(f[3]));
+    const rows = [], lw = 2.0 * fs, iw = 6.2 * fs, two = tx.w >= 2 * (lw + iw) + fs;
+    const byG = {};
+    for (const f of vis) (byG[f[3]] = byG[f[3]] || []).push(f);
+    for (const g of Object.values(byG)) {
+      if (two) rows.push(g); else g.forEach(f => rows.push([f]));
+    }
+    return { rows, lw, iw: two ? Math.min(iw * 1.3, (tx.w - fs) / 2 - lw) : Math.min(tx.w - lw, iw * 1.6), rh: 1.85 * fs };
+  }
+  function inputs(fs) {
+    const shown = new Set();
+    if (S.mode === "esp" && L.inp) {
+      const { rows, lw, iw, rh, x0, y0 } = L.inp;
+      rows.forEach((row, j) => row.forEach(([k, lab, , g], i) => {
+        const x = x0 + i * (lw + iw + fs), y = y0 + j * rh, el = INP[k];
+        const col = (GCOL[k] || GCOL[g])();
+        texAt("il" + k, clr(col, lab + " ="), x + lw - 0.25 * fs, y + rh / 2, fs * 0.9, col, 1, 0.5, false);
+        el.style.left = x + lw + "px"; el.style.top = y + (rh - 1.5 * fs) / 2 + "px"; el.style.width = iw + "px"; el.style.height = 1.5 * fs + "px";
+        el.style.fontSize = fs * 0.8 + "px"; el.style.display = "";
+        el.classList.toggle("bad", !parseVec(ESP[k]));
+        el.style.borderColor = parseVec(ESP[k]) ? col : "";
+        shown.add(k);
+      }));
+    }
+    for (const k in INP) if (!shown.has(k)) INP[k].style.display = "none";
+  }
+
+  // ---------- toque e rato ----------
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  function hitAt(x, y) {
+    let best = null, bd = Infinity;
+    for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d < bd) { best = h; bd = d; } }
+    return best || hits.find(h => h.rect && inRect(h.rect, x, y)) || null;
+  }
+  const PARTNER = { A: "B", B: "A", C: "D", D: "C" };
+  function moveTo(key, px, py) {
+    const st = S.int ? 1 : 0.1;
+    let x = (px - F.cx) / F.k, y = (F.cy - py) / F.k;
+    x = r1(Math.round(x / st) * st); y = r1(Math.round(y / st) * st);
+    // dentro do que se vê (com a margem de um passo)
+    const m = 0.3 / S.z;
+    x = clamp(x, Math.ceil((F.px0 + m) / st) * st, Math.floor((F.px1 - m) / st) * st);
+    y = clamp(y, Math.ceil((F.py0 + m) / st) * st, Math.floor((F.py1 - m) / st) * st);
+    x = r1(x); y = r1(y);
+    const o = PARTNER[key];
+    if (o && S[o][0] === x && S[o][1] === y) return;   // dois pontos iguais não definem uma reta
+    if (S[key][0] === x && S[key][1] === y) return;
+    S[key] = [x, y]; draw();
+  }
+  // ao voltar às coordenadas inteiras, arredondar (sem juntar os dois pontos de uma reta)
+  function roundAll() {
+    for (const k of ["u", "v", "A", "B", "C", "D"]) S[k] = S[k].map(Math.round);
+    for (const [a, b] of [["A", "B"], ["C", "D"]]) if (S[a][0] === S[b][0] && S[a][1] === S[b][1]) S[b] = [S[b][0] + 1, S[b][1]];
+  }
+  // zoom à volta de um ponto do ecrã (esse ponto do plano fica no mesmo sítio)
+  function zoomAt(f, px, py) {
+    const z = clamp(S.z * f, ZMIN, ZMAX), mx = (px - F.cx) / F.k, my = (F.cy - py) / F.k, k = F.k0 * z;
+    S.z = z; S.vx = (F.fcx - px) / k + mx; S.vy = (py - F.fcy) / k + my;
+    if (Math.abs(S.z - 1) < 1e-9 && Math.abs(S.vx) < 1e-9 && Math.abs(S.vy) < 1e-9) { S.z = 1; S.vx = S.vy = 0; }
+    draw();
+  }
+  // botões e caixas (comuns aos três modos)
+  function act(h) {
+    if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; mcache.clear(); draw(); return true; }
+    if (h.kind === "zoom") { zoomAt(h.v, F.fcx, F.fcy); return true; }
+    if (h.kind === "zoom1") { S.z = 1; S.vx = S.vy = 0; draw(); return true; }
+    if (h.kind === "view3") { if (ctl) ctl.reset(); draw(); return true; }
+    if (h.kind === "dolly") {
+      if (cam && ctl) {
+        const d = cam.position.clone().sub(ctl.target), len = clamp(d.length() * h.v, ctl.minDistance, ctl.maxDistance);
+        cam.position.copy(ctl.target).add(d.setLength(len)); ctl.update();
+      }
+      draw(); return true;
+    }
+    if (h.kind === "mode") { S.mode = h.v; draw(); return true; }
+    if (h.kind === "reset") {
+      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } if (ctl) ctl.reset(); }
+      else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
+      draw(); return true;
+    }
+    if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
+    return false;
+  }
+  let drag = null;
+  const ptrs = new Map();
+  const inFig = (x, y) => L && inRect(L.fig, x, y);
+  function startPinch() {
+    const [a, b] = [...ptrs.values()];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    drag = { kind: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: S.z, m: [(mx - F.cx) / F.k, (F.cy - my) / F.k] };
+  }
+  cv.addEventListener("pointerdown", e => {
+    const h = hitAt(e.clientX, e.clientY);
+    // modo Espaço: os botões e as caixas tratam-se aqui; o resto da figura é das OrbitControls (rodar, zoom, deslocar)
+    if (S.mode === "esp") {
+      if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+      if (h) { e.stopImmediatePropagation(); e.preventDefault(); act(h); return; }
+      if (!inFig(e.clientX, e.clientY)) { e.stopImmediatePropagation(); return; }
+      // uma pega: arrasta-se o ponto (as OrbitControls não chegam a saber)
+      const g = pick3(e.clientX, e.clientY);
+      if (g) {
+        e.stopImmediatePropagation(); e.preventDefault();
+        try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+        drag3 = { key: g.key, base: g.base, p0: g.p.slice(), x: e.clientX, y: e.clientY, moved: false, shift: e.shiftKey, id: e.pointerId };
+        cv.style.cursor = "grabbing";
+        draw();
+      }
+      return;
+    }
+    // segundo dedo na figura: pinça (zoom e deslocação)
+    if (ptrs.size === 1 && (!drag || drag.kind === "pan") && inFig(e.clientX, e.clientY)) {
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      startPinch(); e.preventDefault(); return;
+    }
+    if (!h) {
+      if (!inFig(e.clientX, e.clientY)) return;
+      // fundo da figura: arrastar desloca a vista
+      e.preventDefault();
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = { kind: "pan", x: e.clientX, y: e.clientY, vx: S.vx, vy: S.vy };
+      cv.style.cursor = "grabbing";
+      return;
+    }
+    e.preventDefault();
+    if (act(h)) return;
+    if (h.kind === "pt") {
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = h; cv.style.cursor = "grabbing";
+      moveTo(h.key, e.clientX, e.clientY);
+    }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (S.mode === "esp") {
+      if (drag3) {
+        if (e.pointerId !== drag3.id) return;
+        if (!drag3.moved && Math.hypot(e.clientX - drag3.x, e.clientY - drag3.y) < 5) return;
+        drag3.moved = true;
+        move3(e.clientX, e.clientY, !!S.vert[drag3.key] !== (drag3.shift || e.shiftKey));
+        return;
+      }
+      if (e.buttons) return;   // a rodar a figura
+      const g = pick3(e.clientX, e.clientY), k = g ? g.key : null;
+      cv.style.cursor = g ? "grab" : hitAt(e.clientX, e.clientY) ? "pointer" : "default";
+      if (k !== hover3) { hover3 = k; draw(); }
+      return;
+    }
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (drag && drag.kind === "pinch") {
+      if (ptrs.size < 2) return;
+      const [a, b] = [...ptrs.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const z = clamp(drag.z0 * Math.hypot(a.x - b.x, a.y - b.y) / drag.d0, ZMIN, ZMAX), k = F.k0 * z;
+      S.z = z; S.vx = (F.fcx - mx) / k + drag.m[0]; S.vy = (my - F.fcy) / k + drag.m[1];
+      draw(); return;
+    }
+    if (drag && drag.kind === "pan") {
+      S.vx = drag.vx - (e.clientX - drag.x) / F.k; S.vy = drag.vy + (e.clientY - drag.y) / F.k;
+      draw(); return;
+    }
+    if (drag) { moveTo(drag.key, e.clientX, e.clientY); return; }
+    const h = hitAt(e.clientX, e.clientY);
+    cv.style.cursor = !h ? (inFig(e.clientX, e.clientY) ? "grab" : "default") : h.kind === "pt" ? "grab" : "pointer";
+  });
+  const end = e => {
+    if (drag3 && e.pointerId === drag3.id) {
+      // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
+      if (!drag3.moved) S.vert[drag3.key] = !S.vert[drag3.key];
+      drag3 = null; cv.style.cursor = "default"; draw();
+      return;
+    }
+    ptrs.delete(e.pointerId);
+    if (drag && drag.kind === "pinch" && ptrs.size === 1) {
+      // fica um dedo: continua a deslocar a vista
+      const [p] = [...ptrs.values()];
+      drag = { kind: "pan", x: p.x, y: p.y, vx: S.vx, vy: S.vy };
+      return;
+    }
+    if (!ptrs.size) { drag = null; cv.style.cursor = "default"; }
+  };
+  ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+  // roda do rato (ou pinça no trackpad) na figura: zoom à volta do cursor
+  cv.addEventListener("wheel", e => {
+    if (S.mode === "esp") { if (!inFig(e.clientX, e.clientY)) e.stopImmediatePropagation(); return; }
+    if (!inFig(e.clientX, e.clientY)) return;
+    e.preventDefault();
+    zoomAt(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0018)), e.clientX, e.clientY);
+  }, { passive: false });
+
+  // teclado: v/r mudam de modo; a (normas e ângulo / ângulo das retas), p (projeção), i (inclinação), s (reta s), d (vetores diretores), c (coordenadas inteiras)
+  window.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.classList && e.target.classList.contains("inp")) return;
+    const k = e.key.toLowerCase(), vet = S.mode === "vet";
+    if (k === "e") { S.mode = "esp"; e.preventDefault(); draw(); return; }
+    if (S.mode === "esp") return;
+    const tog = n => { S[n] = !S[n]; if (n === "int" && S.int) roundAll(); };
+    if (k === "v") S.mode = "vet";
+    else if (k === "r") S.mode = "retas";
+    else if (k === "a") tog(vet ? "ang" : "angR");
+    else if (k === "p" && vet) tog("proj");
+    else if (k === "i" && !vet) tog("incl");
+    else if (k === "s" && !vet) tog("s");
+    else if (k === "d" && !vet) tog("dir");
+    else if (k === "o" && !vet && S.dir) tog("dirO");
+    else if (k === "c") tog("int");
+    else if (k === "+" || k === "=") return zoomAt(1.25, F.fcx, F.fcy);
+    else if (k === "-") return zoomAt(0.8, F.fcx, F.fcy);
+    else if (k === "0") { S.z = 1; S.vx = S.vy = 0; }
+    else return;
+    e.preventDefault(); draw();
+  });
+
+  // valores iniciais no endereço, p. ex. #u=3,1&v=1,2&angulo  ou  #retas&A=0,1&B=2,2&C=1,4&D=3,-2
+  decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
+    const m = tok.match(/^([uvABCD])=(-?[\d.]+)[,;](-?[\d.]+)$/);
+    if (m) { S[m[1]] = [r1(+m[2]), r1(+m[3])]; if (!S[m[1]].every(isInt)) S.int = false; if ("CD".includes(m[1])) S.s = true; if ("ABCD".includes(m[1])) S.mode = "retas"; return; }
+    if (tok === "retas") S.mode = "retas";
+    else if (tok === "espaco") S.mode = "esp";
+    else if (tok === "angulo") { S.ang = true; S.angR = true; }
+    else if (tok === "projecao") S.proj = true;
+    else if (tok === "diretores") S.dir = true;
+    else if (tok === "origem") S.dir = S.dirO = true;
+  });
+
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  // as letras do KaTeX só se carregam quando aparecem: medir outra vez quando chegam
+  if (document.fonts) { document.fonts.ready.then(() => { mcache.clear(); draw(); }); document.fonts.addEventListener("loadingdone", () => { mcache.clear(); draw(); }); }
+  resize();
+})();
+</script>
+</body>
+</html>
