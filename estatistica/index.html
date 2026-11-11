@@ -2009,7 +2009,7 @@
   // em cima, no sentido dos ponteiros do relógio) e y é a distância ao centro; uma linha fechada por grupo, com a área ténue até ao
   // centro (séries encaixadas, como máximas e mínimas, ficam em faixas); o modelo escolhido também se desenha à volta
   const MESES = ["jan.", "fev.", "mar.", "abr.", "maio", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
-  function radialChart({ pts, GR, xl, yl, W, H, fits }) {
+  function radialChart({ pts, GR, GALL, onPick, xl, yl, W, H, fits }) {
     const ink = css("--ink"), bg = css("--bg"), grid = css("--grid2"), faint = css("--faint"), c1 = css("--c1");
     const xs = [...new Set(pts.map(p => p[0]))].sort((a, b) => a - b);
     const step = d3.min(d3.pairs(xs), ([a, b]) => b - a) || 1, xmin = xs[0];
@@ -2058,7 +2058,8 @@
       x: { domain: asp >= 1 ? [-e * asp, e * asp] : [-e, e], axis: null }, y: { domain: asp >= 1 ? [-e, e] : [-e / asp, e / asp], axis: null },
       marks: mk,
     });
-    if (GR) svgLegend(fig, GR.map(g => ({ name: g.name, c: g.c })), W - 12, 14);
+    // legenda clicável (como no diagrama de dispersão): clique esconde/mostra a série, duplo clique mostra só essa
+    if (GALL) svgLegend(fig, GALL, W - 12, 14, onPick);
     fig.hint = `uma volta = ${months ? "12 meses" : days ? "um ano" : "um período de " + fmt(P, 3)} (${xl}); distância ao centro: ${yl}, de ${fmt(y0, 2)} a ${fmt(y1, 2)}${repeated ? "; a linha passa pela média de cada " + xl : ""}`;
     return fig;
   }
@@ -2315,7 +2316,7 @@
     if (HIDDEN.size && !S.dat) $("main-hint").textContent = `${HIDDEN.size === 1 ? "1 grupo escondido" : HIDDEN.size + " grupos escondidos"} (clica na legenda para mostrar)`;
     const mainHint0 = $("main-hint").textContent;
     // gráfico radial (dados cíclicos): no lugar do diagrama de dispersão; sem seleção com o rato
-    const RAD = S.radial && pts.length > 2 ? radialChart({ pts, GR, xl, yl, W, H, fits: S.model && S.curve ? (byG ? GR.filter(g => !g.F.err).map(g => ({ f: g.F.f, c: g.c })) : (!F.err ? [{ f: F.f, c: c2 }] : [])) : [] }) : null;
+    const RAD = S.radial && pts.length > 2 ? radialChart({ pts, GR, GALL, onPick: FIXED ? null : (name, dbl) => groupClick(name, groups, dbl), xl, yl, W, H, fits: S.model && S.curve ? (byG ? GR.filter(g => !g.F.err).map(g => ({ f: g.F.f, c: g.c })) : (!F.err ? [{ f: F.f, c: c2 }] : [])) : [] }) : null;
     put($("fig-main"), RAD || chart);
     if (RAD) { $("main-title").textContent = "Gráfico radial"; $("main-hint").textContent = RAD.hint; }
 
