@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <style>
-  :root { --btn: #eef2f6; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
-  :root[data-theme="dark"] { --btn: #212b36; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  :root { --phys: #00838f; --btn: #eef2f6; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --phys: #4dd0e1; --btn: #212b36; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
@@ -23,35 +23,48 @@
          background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; text-align: right; outline: none; }
   .inp:focus { border-color: var(--focus); }
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
-  #fx { text-align: left; font-family: "Atkinson Hyperlegible", system-ui, sans-serif; }
-  #fx::placeholder { color: var(--line); opacity: 1; }
-  select.inp { text-align: left; padding: 0 0.1em; cursor: pointer; }
+
   /* janela da tabela com ruído (por cima do canvas) */
   /* no ecrã deitado fica por cima dos controlos (à esquerda); ao alto, em baixo — o gráfico fica à vista */
-  #tab { position: fixed; z-index: 3; left: 0.8rem; top: 0.8rem; width: min(25rem, calc(100vw - 1.6rem)); max-height: calc(100vh - 1.6rem); overflow: auto;
+  .dlg { position: fixed; z-index: 3; left: 0.8rem; top: 0.8rem; width: min(25rem, calc(100vw - 1.6rem)); max-height: calc(100vh - 1.6rem); overflow: auto;
          box-sizing: border-box; padding: 0.7rem 0.9rem 0.8rem; background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px;
          box-shadow: 0 6px 24px rgba(0,0,0,0.18); font: 15px/1.35 "Atkinson Hyperlegible", system-ui, sans-serif; }
-  #tab[hidden] { display: none; }
-  @media (max-aspect-ratio: 11/10), (max-width: 639px) { #tab { top: auto; bottom: 0.8rem; max-height: 56vh; } #tab textarea { height: 7rem; } }
-  #tab .th { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.05em; }
-  #tab .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.8rem; margin: 0.35rem 0; }
-  #tab label { display: inline-flex; align-items: center; gap: 0.3rem; }
-  #tab input, #tab select { font: 14px "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.15rem 0.3rem; }
-  #tab input { width: 4.2em; text-align: right; }
-  #tab input:focus, #tab select:focus { outline: none; border-color: var(--focus); }
-  #tab input.bad { border-color: var(--bad); background: var(--badbg); }
-  #tab button { font: 700 14px "Atkinson Hyperlegible", system-ui, sans-serif; color: var(--ink); background: var(--btn); border: 2px solid var(--line); border-radius: 8px; padding: 0.25rem 0.6rem; cursor: pointer; }
-  #tab button:hover { border-color: var(--focus); }
-  #tab .x { padding: 0 0.5rem; font-size: 18px; line-height: 1.3; }
-  #tab textarea { width: 100%; box-sizing: border-box; height: 11rem; margin-top: 0.3rem; resize: vertical; font: 13px/1.35 "IBM Plex Mono", ui-monospace, monospace;
+  .dlg[hidden] { display: none; }
+  @media (max-aspect-ratio: 11/10), (max-width: 639px) { .dlg { top: auto; bottom: 0.8rem; max-height: 56vh; } .dlg textarea { height: 7rem; } }
+  .dlg .th { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.05em; }
+  .dlg .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.8rem; margin: 0.35rem 0; }
+  .dlg label { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .dlg input, .dlg select { font: 14px "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.15rem 0.3rem; }
+  .dlg input { width: 4.2em; text-align: right; }
+  .dlg input:focus, .dlg select:focus { outline: none; border-color: var(--focus); }
+  .dlg input.bad { border-color: var(--bad); background: var(--badbg); }
+  .dlg button { font: 700 14px "Atkinson Hyperlegible", system-ui, sans-serif; color: var(--ink); background: var(--btn); border: 2px solid var(--line); border-radius: 8px; padding: 0.25rem 0.6rem; cursor: pointer; }
+  .dlg button:hover { border-color: var(--focus); }
+  .dlg .x { padding: 0 0.5rem; font-size: 18px; line-height: 1.3; }
+  .dlg textarea { width: 100%; box-sizing: border-box; height: 11rem; margin-top: 0.3rem; resize: vertical; font: 13px/1.35 "IBM Plex Mono", ui-monospace, monospace;
                   color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.3rem 0.4rem; }
-  #tab .note { font-size: 13px; opacity: 0.8; margin: 0.2rem 0; }
-  #tab .msg { min-height: 1.2em; font-size: 13px; color: var(--focus); font-weight: 700; }
+  .dlg .note { font-size: 13px; opacity: 0.8; margin: 0.2rem 0; }
+  .dlg input.wide { width: 13em; text-align: left; font-family: "Atkinson Hyperlegible", system-ui, sans-serif; }
+  .dlg input.wide::placeholder { color: var(--line); opacity: 1; }
+  .dlg .fb { min-height: 1.4em; margin: 0.3rem 0 0.1rem; color: var(--phys); font-size: 16px; }
+  .dlg .fb.bad { color: var(--bad); font-weight: 700; font-size: 14px; }
+  .dlg .msg { min-height: 1.2em; font-size: 13px; color: var(--focus); font-weight: 700; }
 </style>
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
-<div id="tab" role="dialog" aria-label="Tabela com ruído" hidden>
+<div id="fxd" class="dlg" role="dialog" aria-label="Escrever a função" hidden>
+  <div class="th"><span>Escrever a função</span><button class="x" id="fxd-x" title="Fechar (Esc)">×</button></div>
+  <div class="row">
+    <label><span id="fxl">d(t) =</span> <input id="fx" class="wide" autocomplete="off" spellcheck="false" aria-label="Função sinusoidal"></label>
+    <label>Unidade <select id="fxu" title="Unidade de D e de A na função escrita"><option value="1">m</option><option value="0.1">dm</option><option value="0.01">cm</option></select></label>
+  </div>
+  <div class="note" id="fxex"></div>
+  <div class="fb" id="fxfb"></div>
+  <div class="msg" id="fxnote"></div>
+  <div class="note">Enter aplica a função: os cartões (montagem, m, k, L₀, x₀, v₀) passam a fazer este movimento.</div>
+</div>
+<div id="tab" class="dlg" role="dialog" aria-label="Tabela com ruído" hidden>
   <div class="th"><span id="tab-title">Tabela t × d com ruído</span><button class="x" id="tab-x" title="Fechar (Esc)">×</button></div>
   <div class="row">
     <label>t de <input id="tab-a" inputmode="decimal"> a <input id="tab-b" inputmode="decimal"> s</label>
@@ -363,7 +376,7 @@
     const invT = inv && inv !== "0" ? (inv.includes("frac") ? inv.replace(/\\frac\{(\d*)\}\{(\d+)\}/, "\\frac{$1}{$2\\pi}") : `\\frac{${inv.replace("-", "")}}{\\pi}`.replace(/^/, inv.startsWith("-") ? "-" : "")) : null;
     return frac(x, "") || frac(x / Math.PI, "\\pi") || invT || texNum(x, 3, true);
   }
-  const FX = { el: null, unit: null, fb: "", note: "", bad: false, sig: "" };
+  const FX = { el: null, unit: null, fb: "", note: "", bad: false, sig: "", open: false };
   const paramSig = () => JSON.stringify([S.pos, S.ref, S.href, S.m, S.k, S.L, S.x0, S.v0, S.Hc]);
   // põe a montagem a fazer d(t) = D + A cos(ωt + φ) (D e A em metros); devolve as notas das mudanças
   function fxApply(F, u) {
@@ -409,7 +422,7 @@
   }
   function fxRun() {
     const src = FX.el.value.trim();
-    if (!src) { FX.fb = ""; FX.note = ""; FX.bad = false; FX.el.classList.remove("bad"); draw(); return; }
+    if (!src) { FX.fb = ""; FX.note = ""; FX.bad = false; FX.el.classList.remove("bad"); fxShow(); draw(); return; }
     // se a função não servir, a montagem fica como estava
     const keep = ["pos", "ref", "href", "m", "k", "L", "x0", "v0", "Hc", "scale", "win", "t", "running"].map(k => [k, S[k]]), nTr = S.traces.length;
     try {
@@ -422,32 +435,38 @@
       keep.forEach(([k, v]) => S[k] = v); S.traces.length = Math.min(S.traces.length, nTr);
       FX.fb = "⚠ " + e.message; FX.note = ""; FX.bad = true; FX.el.classList.add("bad");
     }
-    draw();
+    fxShow(); draw();
   }
+  // o que se leu (KaTeX) ou o erro, e as notas sobre a montagem
+  function fxShow() {
+    const fb = document.getElementById("fxfb");
+    fb.classList.toggle("bad", FX.bad);
+    if (!FX.fb || FX.bad) fb.textContent = FX.fb;
+    else if (window.katex) katex.render(FX.fb, fb, { throwOnError: false });
+    else fb.textContent = FX.fb;
+    document.getElementById("fxnote").textContent = FX.note;
+  }
+  function openFx() {
+    if (TAB.open) closeTab();
+    FX.open = true; document.getElementById("fxd").hidden = false;
+    document.getElementById("fxl").textContent = `${VAR()}(t) =`;
+    FX.el.placeholder = isReta(S) ? "A cos(ωt + φ)" : "D + A cos(ωt + φ)";
+    document.getElementById("fxex").textContent = isReta(S) ? "Por exemplo: 4cos(π/3 t + π/6) ou 2sin(3t) (π também como pi)." : "Por exemplo: 5 + 2cos(πt + π/3), 60 + 8cos(3πt) ou 2sin(3t) − 1 (π também como pi).";
+    fxShow(); FX.el.focus(); draw();
+  }
+  function closeFx() { FX.open = false; document.getElementById("fxd").hidden = true; FX.el.blur(); draw(); }
   (function fxMake() {
-    const el = document.createElement("input");
-    el.className = "inp"; el.id = "fx"; el.type = "text"; el.autocomplete = "off"; el.spellcheck = false;
-    el.setAttribute("aria-label", "Função sinusoidal, por exemplo 5 + 2cos(πt + π/3)");
-    document.body.appendChild(el);
-    el.addEventListener("keydown", e => { if (e.key === "Enter") { fxRun(); el.blur(); } else if (e.key === "Escape") el.blur(); });
-    el.addEventListener("change", fxRun);
-    const sel = document.createElement("select");
-    sel.className = "inp"; sel.id = "fxu"; sel.setAttribute("aria-label", "Unidade da função");
-    sel.innerHTML = '<option value="1">m</option><option value="0.1">dm</option><option value="0.01">cm</option>';
-    sel.title = "Unidade de D e de A na função escrita";
-    sel.addEventListener("change", () => { if (FX.el.value.trim()) fxRun(); });
-    document.body.appendChild(sel);
+    const el = document.getElementById("fx"), sel = document.getElementById("fxu");
+    el.addEventListener("keydown", e => { if (e.key === "Enter") fxRun(); else if (e.key === "Escape") { closeFx(); e.stopPropagation(); } });
+    sel.addEventListener("change", () => { if (el.value.trim()) fxRun(); });
+    document.getElementById("fxd-x").onclick = closeFx;
     FX.el = el; FX.unit = sel;
   })();
-  function placeEl(el, r, px) {
-    el.style.display = ""; el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px"; el.style.fontSize = px + "px";
-  }
 
   // ---------- disposição ----------
   // ecrã deitado: controlos numa coluna à esquerda, a mola e o gráfico à direita;
   // ao alto: a mola e o gráfico em cima e os controlos por baixo
   const ROW = 1.6, LEG = 1.9;
-  const legH = () => LEG + (FX.fb ? 1.35 : 0) + (FX.note ? 1.0 : 0);   // com a linha do que se leu da função escrita
   let CP = 0.55, GAP = 0.75, RG = 0.4;
   const CARDS = [["mont", 2], ["tempo", 2], ["ver", 2], ["mola", 3], ["ci", 2], ["graf", 4]];
   const cardH = r => CP * 2 + r * ROW + (r - 1) * RG;
@@ -470,7 +489,7 @@
     if (land) {
       const cw = clamp(W * 0.3, 19 * fs, 23 * fs), x = pad;
       let y = pad;
-      L.legend = { x, y, w: cw, h: legH() * fs }; y += legH() * fs + 0.8 * fs;
+      L.legend = { x, y, w: cw, h: LEG * fs }; y += LEG * fs + 0.8 * fs;
       CARDS.forEach(([k]) => { L.cards[k] = { x, y, w: cw, h: hOf(k) }; y += hOf(k) + gap; });
       const gx = x + cw + 1.2 * fs;
       area = { x: gx, y: pad, w: W - pad - gx, h: H - 2 * pad };
@@ -480,7 +499,7 @@
       const col = nc === 2 ? [["mont", "tempo", "ver"], ["mola", "ci", "graf"]] : [CARDS.map(c => c[0]), []];
       const ctrlH = Math.max(...col.map(cs => cs.reduce((s, k) => s + hOf(k) + gap, 0))) - gap;
       let y = pad;
-      L.legend = { x: pad, y, w, h: legH() * fs }; y += legH() * fs + 0.4 * fs;
+      L.legend = { x: pad, y, w, h: LEG * fs }; y += LEG * fs + 0.4 * fs;
       const gh = H - pad - ctrlH - 0.6 * fs - y;
       area = { x: pad, y, w, h: gh };
       const y0 = y + gh + 0.6 * fs;
@@ -596,7 +615,7 @@
   }
   const go = () => { last = 0; draw(); };
   function paint() {
-    if (FX.sig && FX.sig !== paramSig()) { FX.sig = ""; FX.fb = ""; FX.note = ""; FX.bad = false; if (document.activeElement !== FX.el) FX.el.value = ""; }
+    if (FX.sig && FX.sig !== paramSig()) { FX.sig = ""; FX.fb = ""; FX.note = ""; FX.bad = false; if (document.activeElement !== FX.el) FX.el.value = ""; fxShow(); }
     L = layout(); hits = []; used = new Set(); usedInp = new Set();
     const { fs } = L, mod = model();
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
@@ -622,26 +641,12 @@
     }
   }
 
-  // em cima: campo para escrever a função (com a forma geral como exemplo), unidade e o botão do modo escuro;
-  // por baixo, depois de Enter, o que se leu (D, A, ω, φ, T, f) e as mudanças feitas à montagem
+  // em cima: a forma geral da função e o botão do modo escuro
   function legend(b, fs) {
-    const h1 = LEG * fs, bw = h1 * 1.3, w = b.w - bw - 0.4 * fs;
+    const bw = b.h * 1.3, w = b.w - bw - 0.4 * fs;
     rrect(b.x, b.y, w, b.h, 8, C.band, C.line, 1.5);
-    const lab = texAt("fxl", `${VAR()}(t) =`, b.x + 0.5 * fs, b.y + h1 / 2, fs * 1.05, C.ink, 0, 0.5);
-    const lw = lab.offsetWidth, uw = 3.3 * fs, ih = 1.4 * fs;
-    const ix = b.x + 0.5 * fs + lw + 0.35 * fs, iw = Math.max(4 * fs, b.x + w - 0.4 * fs - uw - 0.3 * fs - ix);
-    placeEl(FX.el, { x: ix, y: b.y + (h1 - ih) / 2, w: iw, h: ih }, fs * 0.85);
-    placeEl(FX.unit, { x: ix + iw + 0.3 * fs, y: b.y + (h1 - ih) / 2, w: uw, h: ih }, fs * 0.8);
-    FX.el.placeholder = isReta(S) ? "A cos(ωt + φ), p. ex. 4cos(π/3 t + π/6)" : "D + A cos(ωt + φ), p. ex. 5 + 2cos(πt + π/3)";
-    if (FX.fb) {
-      const y2 = b.y + h1 + 0.75 * fs;
-      line(b.x + 0.5 * fs, b.y + h1 - 0.05 * fs, b.x + w - 0.5 * fs, b.y + h1 - 0.05 * fs, C.grid, 1);
-      const plain = (str, y, px, col, wt) => text(str, b.x + 0.5 * fs, y, Math.min(px, px * (w - fs) / tw(str, px, FONT, wt)), col, "left", FONT, wt);
-      if (FX.bad) plain(FX.fb, y2, fs * 0.78, C.curve, 700);
-      else fit(texAt("fxfb", FX.fb, b.x + 0.5 * fs, y2 - 0.05 * fs, fs * 0.82, C.phys, 0, 0.5), w - fs, 1.4 * fs);
-      if (FX.note) plain(FX.note, y2 + 0.95 * fs, fs * 0.72, C.hot, 700);
-    }
-    button(b.x + b.w - bw, b.y, bw, h1, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+    fit(texAt("legend", isReta(S) ? "x(t) = A\\cos(\\omega t + \\varphi)" : "d(t) = D + A\\cos(\\omega t + \\varphi)", b.x + w / 2, b.y + b.h / 2, fs * 1.2, C.ink), w - 0.8 * fs, b.h);
+    button(b.x + b.w - bw, b.y, bw, b.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
   }
   function card(b, col, fs) {
     rrect(b.x, b.y, b.w, b.h, 9, C.band, C.line, 1.2);
@@ -754,7 +759,10 @@
       button(Math.max(ex + 0.6 * fs, c.x + c.w - w), y + (rh - bh) / 2, w, bh, t, false, "clear", {}, C.muted, fs * 0.8);
     }
     y = rowY(c, 3, fs);
-    button(c.x, y + (rh - bh) / 2, c.w, bh, "⤓ Tabela com ruído (para a regressão)…", TAB.open, "table", {}, C.muted, fs * 0.8);
+    const g2 = 0.3 * fs, bw2 = (c.w - g2) / 2, b1 = "⤓ Obter dados…", b2 = "ƒ Escrever a função…";
+    const px2 = Math.min(fs * 0.8, fs * 0.8 * (bw2 - 0.8 * fs) / Math.max(tw(b1, fs * 0.8, FONT, 700), tw(b2, fs * 0.8, FONT, 700)));
+    button(c.x, y + (rh - bh) / 2, bw2, bh, b1, TAB.open, "table", {}, C.muted, px2);
+    button(c.x + bw2 + g2, y + (rh - bh) / 2, bw2, bh, b2, FX.open, "func", {}, C.muted, px2);
   }
 
   // expressão de d(t) com os valores atuais
@@ -1064,6 +1072,7 @@
     return span / h > 499 ? [1, 2, 2.5, 5, 10].map(v => v * p).find(v => span / v <= 499) : h;
   }
   function openTab() {
+    if (FX.open) closeFx();
     // ao abrir: com o gráfico à vista, de 0 até ao instante a que o tempo chegou; sem gráfico (ou com t ≈ 0), a janela toda
     // (pedido do utilizador); depois edita-se à vontade
     TAB.open = true; TAB.a = 0; TAB.b = S.graph && S.t >= 0.05 ? Math.round(S.t * 100) / 100 : S.win; TAB.h = +niceH(model().T, TAB.b - TAB.a).toPrecision(6);
@@ -1132,6 +1141,7 @@
     if (h.kind === "ref") { setRef(h.v); return; }
     if (h.kind === "href") { setHref(h.v); return; }
     if (h.kind === "table") { TAB.open ? closeTab() : openTab(); return; }
+    if (h.kind === "func") { FX.open ? closeFx() : openFx(); return; }
     if (["graph", "mid", "law", "phys", "keep"].includes(h.kind)) { toggle(h.kind); return; }
     if (h.kind === "clear") { S.traces = []; nextColor = 0; draw(); return; }
     if (h.kind === "slide") {
@@ -1155,7 +1165,8 @@
   // g gráfico, l linha média, e expressão, f grandezas, v troca a montagem
   window.addEventListener("keydown", e => {
     if (TAB.open && e.key === "Escape") { closeTab(); e.preventDefault(); return; }
-    if (document.activeElement && (document.activeElement.classList.contains("inp") || document.activeElement.closest("#tab") || document.activeElement.tagName === "SELECT")) return;
+    if (FX.open && e.key === "Escape") { closeFx(); e.preventDefault(); return; }
+    if (document.activeElement && (document.activeElement.classList.contains("inp") || document.activeElement.closest(".dlg") || document.activeElement.tagName === "SELECT")) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === " ") toggleRun();
     else if (e.key === "r") restart();
@@ -1167,6 +1178,7 @@
     else if (e.key === "v") setPos(S.pos === "vertical" ? "horizontal" : "vertical");
     else if (e.key === "s") toggleRef();
     else if (e.key === "t") TAB.open ? closeTab() : openTab();
+    else if (e.key === "w") FX.open ? closeFx() : openFx();
     else return;
     e.preventDefault();
   });
@@ -1194,7 +1206,7 @@
     // #f=5+2cos(pi*t+pi/3)&u=dm: escreve a função no campo e aplica-a (depois da montagem: vertical/solo/horizontal/reta)
     const fv = parts.find(kv => kv.startsWith("f=")), uv = parts.find(kv => kv.startsWith("u="));
     if (uv) { const u = { m: "1", dm: "0.1", cm: "0.01" }[decodeURIComponent(uv.slice(2))]; if (u) FX.unit.value = u; }
-    if (fv) { FX.el.value = decodeURIComponent(fv.slice(2)); fxRun(); }
+    if (fv) { FX.el.value = decodeURIComponent(fv.slice(2)); fxRun(); openFx(); FX.el.blur(); }
   })();
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
