@@ -660,7 +660,7 @@
     }
     for (const [key, col, nm] of [["u", C.u, "u"], ["v", C.v, "v"]]) {
       const [a, b] = S[key], x = X(a), y = Y(b);
-      if (Math.hypot(a, b) > EPS) arrow(ox, oy, x, y, col, fs); else dot(x, y, 0.32 * fs, col, 2);
+      if (Math.hypot(a, b) > EPS) arrow(ox, oy, x, y, col, fs); else dot(x, y, 0.272 * fs, col, 2);
       const n = Math.hypot(a, b);
       labelAt("l" + key, clr(col, `\\vec ${nm} = ${pt(S[key])}`), x, y, n > EPS ? a / n : (key === "u" ? 1 : -1), n > EPS ? b / n : 0.4, fs, col);
       hits.push({ kind: "pt", key, x, y, r: 1.3 * fs });
@@ -777,7 +777,7 @@
     // pontos
     for (const [o, n1, n2] of list) for (const [key, nm, p, q] of [[n1, n1, o.P, o.Q], [n2, n2, o.Q, o.P]]) {
       const x = X(p[0]), y = Y(p[1]);
-      dot(x, y, 0.32 * fs, o.col, 2);
+      dot(x, y, 0.272 * fs, o.col, 2);   // 15 % menor (pedido do utilizador)
       const n = Math.hypot(p[0] - q[0], p[1] - q[1]);
       placeLabel("p" + key, clr(o.col, `${nm}${pt(p)}`), x, y, (p[0] - q[0]) / n * 0.7 - (p[1] - q[1]) / n * 0.7, (p[1] - q[1]) / n * 0.7 + (p[0] - q[0]) / n * 0.7, fs, o.col, 0.75, OB, LN);
       hits.push({ kind: "pt", key, x, y, r: 1.3 * fs });
@@ -1175,7 +1175,7 @@
     };
     // pegas arrastáveis: pontos (P, Q, A, R) e pontas dos vetores (n, r, m, u, v); base = origem do vetor
     const handle = (key, p, col, base = null, r = 0.13) => {
-      const m = add(ball(p, col, r));
+      const m = add(ball(p, col, r * 0.85));   // pontos 15 % menores (pedido do utilizador)
       HAND.push({ key, p, base, mesh: m, r });
       if (S.vert[key]) lab("\\updownarrow", p, col, 1.3, 0, 0.8);
       // durante o arrasto: linha tracejada até xOy e a «sombra» do ponto nesse plano
