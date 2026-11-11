@@ -280,8 +280,10 @@
         <option value="hist" selected>Histograma</option>
         <option value="bars">Diagrama de barras</option>
         <option value="dots">Diagrama de pontos</option>
+        <option value="swarm">Diagrama de enxame (beeswarm)</option>
         <option value="box">Diagrama de extremos e quartis</option>
         <option value="dens" id="g-dens" hidden disabled>Densidades sobrepostas (por grupo)</option>
+        <option value="stack" id="g-stack" hidden disabled>Barras empilhadas / agrupadas (por grupo)</option>
       </select>
     </div>
     <div class="row" id="hist-opts">
@@ -292,6 +294,13 @@
       <input class="inp" id="h" type="text" inputmode="decimal" aria-label="Amplitude das classes" style="width:4.2rem">
       <span class="lbl">início</span>
       <input class="inp" id="a0" type="text" inputmode="decimal" aria-label="Início da primeira classe" style="width:4.2rem">
+    </div>
+    <div class="row" id="stack-row" style="display:none">
+      <span class="lbl">Barras</span>
+      <div class="seg" role="group" aria-label="Barras empilhadas ou agrupadas">
+        <button class="b small" data-stk="stacked" aria-pressed="true" title="Uma barra por valor (ou classe), com os grupos uns por cima dos outros: vê-se o total">empilhadas</button>
+        <button class="b small" data-stk="grouped" aria-pressed="false" title="Os grupos lado a lado, todos a partir do 0: comparam-se os grupos">agrupadas</button>
+      </div>
     </div>
     <div class="row" id="freq-row">
       <span class="lbl">Frequência</span>
@@ -334,6 +343,8 @@
       <label class="chk"><input type="checkbox" id="sh-res"> Resíduos</label>
       <label class="chk"><input type="checkbox" id="sh-cg"> Centro de gravidade</label>
       <label class="chk" title="Curva de densidade de x junto do eixo horizontal e de y junto do eixo vertical"><input type="checkbox" id="sh-mdens"> Curvas de densidade</label>
+      <label class="chk" title="Liga os pontos pela ordem em que estão nos dados (com grupos, uma linha por grupo), com uma seta no fim; com a coluna do tempo, mostra o caminho de cada caso (p. ex. cada país) até ao instante mostrado"><input type="checkbox" id="sh-conn"> Ligar os pontos (por ordem)</label>
+      <label class="chk" title="Curvas de nível da densidade dos pontos (estimativa por núcleo gaussiano a duas dimensões): mostram onde os pontos se concentram"><input type="checkbox" id="sh-cont"> Curvas de nível da densidade</label>
       <label class="chk" id="byg-lbl" hidden title="Ajusta o modelo escolhido a cada grupo, em separado"><input type="checkbox" id="sh-byg"> Um modelo por grupo</label>
     </div>
     <div class="row">
@@ -429,7 +440,7 @@
     box: false, violin: false, mean: false, tab: false, stem: false, dens: false, out: false, split: false, dec: 2,
     col: { v: null, x: null, y: null, g: null, t: null, s: null, id: null },   // colunas escolhidas, quando os dados são uma tabela (CSV); g = grupos, t = tempo, s = tamanho dos pontos
     logx: false, logy: false, ti: 0,   // escala logarítmica em x; índice do instante mostrado (com a coluna do tempo)
-    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, dec2: 3, xest: "",
+    model: null, curve: true, res: false, cg: false, dat: false, mdens: false, byG: false, conn: false, cont: false, stack: "stacked", dec2: 3, xest: "",
     data: { uni: null, bi: null },
     picked: { uni: "", bi: "" },   // escolha no menu de exemplos («e0», «d:penguins», …)
   };
@@ -931,12 +942,26 @@
     render();
   });
   segBind("f", "freq");
+  // empilhadas ↔ agrupadas: transição animada (primeiro os lados das barras, depois as alturas; ao contrário no regresso)
+  const STK = { u: 0, raf: 0 };
+  document.querySelectorAll("[data-stk]").forEach(b => b.onclick = () => {
+    S.stack = b.dataset.stk;
+    document.querySelectorAll("[data-stk]").forEach(x => x.setAttribute("aria-pressed", x === b));
+    const to = S.stack === "grouped" ? 1 : 0, from = STK.u, t0 = performance.now(), dur = 900 * Math.abs(to - from);
+    cancelAnimationFrame(STK.raf);
+    const step = now => {
+      const k = dur ? Math.min(1, (now - t0) / dur) : 1;
+      STK.u = from + (to - from) * d3.easeCubicInOut(k); render();
+      if (k < 1) STK.raf = requestAnimationFrame(step);
+    };
+    STK.raf = requestAnimationFrame(step);
+  });
   // tipo de gráfico e modelo de regressão: menus pendentes (o modelo começa em nenhum)
   $("g-sel").onchange = e => { S.graph = e.target.value; render(); };
   $("r-sel").onchange = e => { S.model = e.target.value || null; render(); };
   const chkBind = (id, key) => { $(id).checked = S[key]; $(id).onchange = e => { S[key] = e.target.checked; render(); }; };
   chkBind("sh-box", "box"); chkBind("sh-out", "out"); chkBind("sh-vio", "violin"); chkBind("stem-split", "split"); chkBind("sh-stem", "stem"); chkBind("sh-dens", "dens"); chkBind("sh-mean", "mean"); chkBind("sh-tab", "tab");
-  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG");
+  chkBind("sh-curve", "curve"); chkBind("sh-res", "res"); chkBind("sh-cg", "cg"); chkBind("sh-dat", "dat"); chkBind("sh-mdens", "mdens"); chkBind("sh-byg", "byG"); chkBind("sh-conn", "conn"); chkBind("sh-cont", "cont");
   // abrir / fechar os cartões das medidas e dos resultados (estado guardado no navegador)
   // (começam sempre fechados — pedido do utilizador; abrir/fechar não fica guardado)
   const folded = { meas: true, res: true };
@@ -1216,7 +1241,9 @@
     const RU = readUni(ta.value), { name, xs, bad, note } = RU;
     // «Densidades sobrepostas» só existe com grupos
     $("g-dens").hidden = $("g-dens").disabled = !RU.groups;
-    if (!RU.groups && S.graph === "dens") { S.graph = "hist"; $("g-sel").value = "hist"; }
+    $("g-stack").hidden = $("g-stack").disabled = !RU.groups;
+    if (!RU.groups && (S.graph === "dens" || S.graph === "stack")) { S.graph = "hist"; $("g-sel").value = "hist"; }
+    $("stack-row").style.display = S.graph === "stack" ? "" : "none";
     // «Diagrama de extremos e quartis» como tipo de gráfico: os cálculos são os do diagrama de barras, mas o gráfico de cima não se mostra
     const boxOnly = S.graph === "box", GT = boxOnly ? "bars" : S.graph, SBOX = S.box || boxOnly;
     $("msg").textContent = bad.length ? `Ignorados (não são números): ${bad.slice(0, 6).join(", ")}${bad.length > 6 ? "…" : ""}` : (note || "");
@@ -1228,9 +1255,9 @@
     uniTable(RU);
     $("box-frame").hidden = !SBOX; $("res-frame").hidden = true; plots.classList.toggle("lower", S.box && !boxOnly); plots.classList.toggle("boxonly", boxOnly);
     // (com o diagrama como gráfico, a caixa dele e a curva de densidade não fazem sentido nas opções)
-    $("sh-box").closest("label").hidden = boxOnly; $("sh-dens").closest("label").hidden = boxOnly || S.graph === "dens";   // (nas densidades sobrepostas, as curvas já são o gráfico)
+    $("sh-box").closest("label").hidden = boxOnly; $("sh-dens").closest("label").hidden = boxOnly || ["dens", "swarm", "stack"].includes(S.graph);   // (nas densidades sobrepostas, as curvas já são o gráfico; no enxame e nas barras por grupo não há escala de frequências para a curva)
     $("hist-opts").style.display = GT === "hist" ? "" : "none";
-    $("freq-row").style.display = GT === "dots" || boxOnly ? "none" : "";   // (no diagrama de pontos, cada ponto é uma observação)
+    $("freq-row").style.display = GT === "dots" || GT === "swarm" || boxOnly ? "none" : "";   // (no diagrama de pontos e no enxame, cada ponto é uma observação)
     $("meas").className = "meas"; $("fig-box").style.height = !boxOnly && LOWH.box ? LOWH.box + "px" : "";
     if (xs.length < 1) { LAST = null; groupChips(null); put($("fig-main"), null); put($("fig-box"), null); $("meas").innerHTML = ""; $("tab").innerHTML = ""; return; }
     if (RU.groups) {
@@ -1285,6 +1312,18 @@
       tableRows = C.cl.map(c => { Fi += c.ni; return [`[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`, c.ni, c.ni / st.n, Fi, Fi / st.n]; });
       // marcas nos limites das classes; se não couberem todas, só uma em cada m
       var binW = C.h, xdom = [C.a, C.a + C.k * C.h], ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), W);
+    } else if (GT === "swarm") {
+      // diagrama de enxame: um ponto por observação, encostados sem se sobreporem, à volta de uma linha a meio
+      const span = st.max - st.min || 1;
+      var binW = span, xdom = [st.min - span * 0.05, st.max + span * 0.05];
+      const vals = st.counts.map(c => c[0]);
+      var ticks = fits(vals, W) ? vals : niceTicks(xdom, d3.ticks(xdom[0], xdom[1], 10), W);
+      var SWARM = { r: Math.max(1.5, Math.min(10, Math.sqrt((W - 60) * (H - 70) * 0.3 / (st.n * Math.PI)))) };
+      marks.push(Plot.dot(st.xs.map(v => ({ v })), Plot.dodgeY("middle", { x: "v", r: SWARM.r, fill: css("--bg"), stroke: c1, strokeWidth: Math.max(1.2, Math.min(2.2, SWARM.r * 0.3)), title: d => fmt(d.v, 4) })));
+      $("main-title").textContent = "Diagrama de enxame";
+      $("main-hint").textContent = "um ponto por observação, encostados sem se sobreporem";
+      let Fi = 0;
+      tableRows = st.counts.map(([v, ni]) => { Fi += ni; return [fmt(v, 4), ni, ni / st.n, Fi, Fi / st.n]; });
     } else {
       const data = st.counts.map(([v, ni]) => ({ v, ni, y: rel ? ni / st.n : ni }));
       maxY = d3.max(data, c => c.y);
@@ -1331,7 +1370,7 @@
     }
     // curva de densidade: estimativa por núcleo gaussiano (largura de banda de Silverman), posta na escala das frequências
     // (× n × amplitude das classes, ou × amplitude se forem relativas; nos diagramas de barras e de pontos, × n × espaço entre valores)
-    if (S.dens && st.n > 1 && st.s > 0) {
+    if (S.dens && GT !== "swarm" && st.n > 1 && st.s > 0) {
       const sp = Math.min(st.s, (st.q3 - st.q1) / 1.34 || st.s), bw0 = 0.9 * sp * st.n ** -0.2;
       const kde = x => sum(st.xs.map(v => Math.exp(-0.5 * ((x - v) / bw0) ** 2))) / (st.n * bw0 * Math.sqrt(2 * Math.PI));
       const k = (rel ? 1 : st.n) * binW, N = 240;
@@ -1361,7 +1400,7 @@
       width: W, height: H, marginLeft: 48, marginBottom: 40, marginTop: 26, style: plotStyle(),
       x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
       // frequências absolutas: só marcas inteiras
-      y: { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: GT !== "dots", tickFormat: decTick, labelArrow: "none",
+      y: GT === "swarm" ? { axis: null } : { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: GT !== "dots", tickFormat: decTick, labelArrow: "none",
            domain: GT === "dots" ? [0, dotTop] : undefined,
            ticks: rel ? undefined : d3.ticks(0, maxY || 1, Math.max(2, Math.round(H / 45))).filter(Number.isInteger).filter(t => GT !== "dots" || t <= maxY) },
       marks,
@@ -1409,7 +1448,7 @@
     // tabela de frequências
     const SL = stemLeaf(st);
     if (S.stem) $("stem").innerHTML = stemHTML(SL);
-    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, histTab: GT === "hist", graph: S.graph, title: $("main-title").textContent, hint: $("main-hint").textContent,
+    LAST = { mode: "uni", name: xlabel, st, tableRows, SL, histTab: GT === "hist", graph: S.graph, densOn: S.dens && GT !== "swarm", title: $("main-title").textContent, hint: $("main-hint").textContent,
              fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9) };
     if (S.tab) {
       const f4 = v => fmt(v, 4);
@@ -1436,14 +1475,15 @@
 
   function renderUniG(fromInputs, { name, xs, groups, gname }) {
     const boxOnly = S.graph === "box", GT = boxOnly ? "bars" : S.graph, SBOX = S.box || boxOnly;
-    const st = uniStats(xs), d = S.dec, dens = GT === "dens";
-    const rel = S.freq === "rel" && GT !== "dots" && !dens;
+    const st = uniStats(xs), d = S.dec, dens = GT === "dens", swarm = GT === "swarm", stk = GT === "stack";
+    const rel = S.freq === "rel" && GT !== "dots" && !dens && !swarm && !stk;
+    const noFacet = dens || stk;   // (densidades sobrepostas e barras por grupo: um só referencial)
     const xlabel = name || "x", pal = gColors();
     const G = groups.map((g, i) => ({ name: g.name, xs: g.xs, st: uniStats(g.xs), c: pal[(g.ci ?? i) % MAXG] }));
     const names = G.map(g => g.name), ng = G.length;
     const color = { domain: names, range: G.map(g => g.c) };
     $("hist-opts").style.display = GT === "hist" ? "" : "none";
-    $("freq-row").style.display = GT === "dots" || dens || boxOnly ? "none" : "";
+    $("freq-row").style.display = GT === "dots" || dens || swarm || stk || boxOnly ? "none" : "";
     const meas = $("meas"); meas.className = "gmeas"; meas.innerHTML = measG(G, st, d);
 
     const ink = css("--ink"), c2 = css("--c2"), c3 = css("--c3"), bg = css("--bg");
@@ -1464,7 +1504,10 @@
     }
     const inCl = (v, c) => v >= c.lo - 1e-9 && (v < c.hi - 1e-9 || (c.last && v <= c.hi + 1e-9));
     const clName = c => `[${fmt(c.lo, 4)}, ${fmt(c.hi, 4)}${c.last ? "]" : "["}`;
-    const byVal = GT === "bars" || GT === "dots";
+    // (barras por grupo: por valor se houver poucos valores diferentes, senão pelas classes do histograma)
+    const stkByVal = stk && st.counts.length <= 20;
+    $("hist-opts").style.display = GT === "hist" || (stk && !stkByVal) ? "" : "none";
+    const byVal = GT === "bars" || GT === "dots" || swarm || stkByVal;
     const tableRows = byVal
       ? st.counts.map(([v, ni]) => [fmt(v, 4), ...G.map(g => g.xs.filter(x => x === v).length), ni])
       : C.cl.map(c => [clName(c), ...G.map(g => g.xs.filter(v => inCl(v, c)).length), c.ni]);
@@ -1482,6 +1525,48 @@
       binW = C.h; xdom = [C.a, C.a + C.k * C.h]; ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), Wx);
       $("main-title").textContent = "Histogramas por grupo";
       hint = C.out ? `${C.out} valor(es) fora das classes` : `${C.k} classes de amplitude ${fmt(C.h, 4)}${rel ? " · fᵢ em cada grupo" : ""}`;
+    } else if (stk) {
+      // barras empilhadas ↔ agrupadas: cada barra é (valor ou classe) × grupo; u = STK.u ∈ [0, 1] (0 empilhadas, 1 agrupadas)
+      // (primeira metade: os lados das barras; segunda metade: as alturas — no regresso, ao contrário)
+      const u = STK.u, p1 = Math.min(1, u * 2), p2 = Math.max(0, u * 2 - 1);
+      let bins;
+      if (stkByVal) {
+        const vals = st.counts.map(c => c[0]), gap = d3.min(d3.pairs(vals), ([a, b]) => b - a) || 1;
+        bins = vals.map(v => ({ c: v, w: gap * 0.8, lab: fmt(v, 4), has: x => x === v }));
+        xdom = [st.min - gap * 0.6, st.max + gap * 0.6]; ticks = fits(vals, Wx) ? vals : niceTicks(xdom, vals, Wx); binW = gap;
+      } else {
+        bins = C.cl.map(c => ({ c: (c.lo + c.hi) / 2, w: (c.hi - c.lo) * 0.9, lab: clName(c), has: v => inCl(v, c) }));
+        xdom = [C.a, C.a + C.k * C.h]; ticks = thin(C.cl.map(c => c.lo).concat([C.a + C.k * C.h]), Wx); binW = C.h;
+      }
+      const rects = [];
+      let top = 1;
+      bins.forEach(bn => {
+        let cum = 0;
+        G.forEach((g, i) => {
+          const n = g.xs.filter(bn.has).length;
+          const sx1 = bn.c - bn.w / 2, sx2 = bn.c + bn.w / 2, gx1 = bn.c - bn.w / 2 + i * bn.w / ng, gx2 = gx1 + bn.w / ng;
+          rects.push({ g: g.name, n, lab: bn.lab, x1: sx1 + (gx1 - sx1) * p1, x2: sx2 + (gx2 - sx2) * p1, y1: cum * (1 - p2), y2: cum * (1 - p2) + n });
+          cum += n;
+        });
+        top = Math.max(top, cum);
+      });
+      maxY = top;
+      marks.push(Plot.rect(rects.filter(r => r.n > 0), { x1: "x1", x2: "x2", y1: "y1", y2: "y2", fill: "g", fillOpacity: 0.75, stroke: bg, strokeWidth: 0.8,
+        title: r => `${r.g}\n${r.lab}\nnᵢ = ${r.n}` }));
+      if (u > 0.999) marks.push(Plot.text(rects.filter(r => r.n > 0), { x: r => (r.x1 + r.x2) / 2, y: "y2", text: r => String(r.n), dy: -7, fill: ink, fontSize: 10, fontWeight: 700 }));
+      if (u < 0.001) marks.push(Plot.text(bins.map(bn => ({ x: bn.c, y: d3.sum(G, g => g.xs.filter(bn.has).length) })).filter(t => t.y > 0), { x: "x", y: "y", text: t => String(t.y), dy: -7, fill: ink, fontSize: 11, fontWeight: 700 }));
+      $("main-title").textContent = u < 0.5 ? "Barras empilhadas por grupo" : "Barras agrupadas por grupo";
+      hint = (u < 0.5 ? "em cima de cada barra, o total; " : "lado a lado, todos a partir do 0; ") + (stkByVal ? `${bins.length} valores diferentes` : `${C.k} classes de amplitude ${fmt(C.h, 4)}`) + " · a mesma escala nos dois";
+    } else if (swarm) {
+      // um enxame por grupo (facetas): um ponto por observação, encostados sem se sobreporem
+      const span = st.max - st.min || 1, vals = st.counts.map(c => c[0]);
+      binW = span; xdom = [st.min - span * 0.05, st.max + span * 0.05];
+      ticks = fits(vals, Wx) ? vals : niceTicks(xdom, d3.ticks(xdom[0], xdom[1], 10), Wx);
+      const maxN = d3.max(G, g => g.st.n);
+      const r = Math.max(1.5, Math.min(8, Math.sqrt((W - mL - 20) * facetH * 0.32 / (maxN * Math.PI))));
+      marks.push(Plot.dot(G.flatMap(g => g.xs.map(v => ({ g: g.name, v }))), Plot.dodgeY("middle", { x: "v", fy: "g", r, fill: bg, stroke: "g", strokeWidth: Math.max(1.2, Math.min(2.2, r * 0.3)), title: p => `${p.g}\n${fmt(p.v, 4)}` })));
+      $("main-title").textContent = "Diagramas de enxame por grupo";
+      hint = "um ponto por observação, encostados sem se sobreporem";
     } else if (byVal) {
       const vals = st.counts.map(c => c[0]);
       const gap = d3.min(d3.pairs(vals), ([a, b]) => b - a) || 1;
@@ -1537,7 +1622,7 @@
       hint = "núcleo gaussiano; área 1 em cada grupo" + (missing.length ? ` · sem curva (poucos valores): ${missing.join(", ")}` : "");
     }
     // curva de densidade em cada faceta, na escala das frequências do grupo
-    if (S.dens && !dens) {
+    if (S.dens && !dens && !swarm && !stk) {
       const N = 240, curves = [];
       G.forEach(g => {
         const k = kdeOf(g.xs);
@@ -1557,7 +1642,7 @@
       const r = Math.max(1.5, Math.min(10, Math.min(pxGap, pyUnit) / 2 - 0.5));
       marks.unshift(Plot.dot(pendDots.dots, { x: "v", y: "k", fy: "g", r, fill: bg, stroke: "g", strokeWidth: Math.max(1.4, Math.min(2.6, r * 0.28)) }));
     }
-    if (!dens) marks.push(Plot.ruleY([0], { stroke: ink }));
+    if (!dens && !swarm) marks.push(Plot.ruleY([0], { stroke: ink }));
     // diagramas de extremos e quartis (um por grupo); com outliers, as barreiras de todos ficam à vista
     const B = G.map((g, i) => {
       const s = g.st, aiq = s.q3 - s.q1, fLo = s.q1 - 1.5 * aiq, fHi = s.q3 + 1.5 * aiq;
@@ -1570,21 +1655,23 @@
       xdom = [Math.min(xdom[0], lo - padF), Math.max(xdom[1], hi + padF)];
     }
     if (S.mean) {
-      const fyo = dens ? {} : { fy: "name" };
-      marks.push(Plot.ruleX(G, { x: g => g.st.m, ...fyo, stroke: dens ? "name" : c2, strokeWidth: 2, strokeDasharray: "6 4" }),
-                 Plot.ruleX(G, { x: g => g.st.med, ...fyo, stroke: dens ? "name" : c3, strokeWidth: 2 }));
+      const fyo = noFacet ? {} : { fy: "name" };
+      marks.push(Plot.ruleX(G, { x: g => g.st.m, ...fyo, stroke: noFacet ? "name" : c2, strokeWidth: 2, strokeDasharray: "6 4" }),
+                 Plot.ruleX(G, { x: g => g.st.med, ...fyo, stroke: noFacet ? "name" : c3, strokeWidth: 2 }));
       hint += " · a tracejado, a média; a cheio, a mediana";
     }
     // nome do grupo no canto de cada faceta
-    if (!dens) marks.push(Plot.text(G, { fy: "name", frameAnchor: "top-right", text: gLabel, fill: "name", dy: 2, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
+    if (!noFacet) marks.push(Plot.text(G, { fy: "name", frameAnchor: "top-right", text: gLabel, fill: "name", dy: 2, fontWeight: 700, stroke: bg, strokeWidth: 4, paintOrder: "stroke" }));
     marks.push(...last);
     $("main-hint").textContent = hint;
-    const yTicks = Math.max(2, Math.round((dens ? H : facetH) / (dens ? 70 : 40)));
+    const yTicks = Math.max(2, Math.round((noFacet ? H : facetH) / (noFacet ? 70 : 40)));
     const main = Plot.plot({
       width: W, height: H, marginLeft: mL, marginBottom: mB, marginTop: mT, style: plotStyle(), color,
       x: { domain: xdom, label: xlabel, labelAnchor: "right", ticks, tickFormat: decTick, labelArrow: "none" },
-      ...(dens ? {} : { fy: { axis: null, domain: names, padding: 0.16 } }),
-      y: dens ? { label: "densidade", grid: true, tickFormat: decTick, labelArrow: "none", ticks: yTicks }
+      ...(noFacet ? {} : { fy: { axis: null, domain: names, padding: 0.16 } }),
+      y: swarm ? { axis: null }
+        : stk ? { label: "frequência absoluta", grid: true, domain: [0, maxY * 1.08], tickFormat: decTick, labelArrow: "none", ticks: d3.ticks(0, maxY, Math.max(2, Math.round(H / 50))).filter(Number.isInteger) }
+        : dens ? { label: "densidade", grid: true, tickFormat: decTick, labelArrow: "none", ticks: yTicks }
         : { label: rel ? "frequência relativa" : "frequência absoluta", grid: true, nice: GT !== "dots", tickFormat: decTick, labelArrow: "none",
             domain: GT === "dots" ? [0, dotTop] : undefined,
             ticks: rel ? yTicks : d3.ticks(0, maxY || 1, yTicks).filter(Number.isInteger).filter(t => GT !== "dots" || t <= maxY) },
@@ -1629,7 +1716,7 @@
     let Fi = 0;
     const totRows = tableRows.map(r => { const ni = r[r.length - 1]; Fi += ni; return [r[0], ni, ni / st.n, Fi, Fi / st.n]; });
     const aiq = st.q3 - st.q1, fLo = st.q1 - 1.5 * aiq, fHi = st.q3 + 1.5 * aiq;
-    LAST = { mode: "uni", name: xlabel, st, tableRows: totRows, histTab: !byVal, SL: stemLeaf(st), graph: S.graph, title: $("main-title").textContent, hint: `${C.k} classes de amplitude ${fmt(C.h, 4)}`,
+    LAST = { mode: "uni", name: xlabel, st, tableRows: totRows, histTab: !byVal, SL: stemLeaf(st), graph: S.graph, densOn: S.dens && !dens && !swarm && !stk, title: $("main-title").textContent, hint: `${C.k} classes de amplitude ${fmt(C.h, 4)}`,
              fLo, fHi, outs: st.xs.filter(v => v < fLo - 1e-9 || v > fHi + 1e-9), groups: G, B, gname, gTable: tableRows };
   }
 
@@ -1860,6 +1947,18 @@
     }
     // pontos vazios (só o contorno, a cheio de cor de fundo), como no diagrama de pontos; com grupos, cada um na sua cor
     const color = GALL ? { domain: groups, range: GALL.map(g => g.c) } : undefined;
+    // curvas de nível da densidade (núcleo gaussiano a 2 dimensões, calculado pelo Plot no espaço do gráfico), por baixo dos pontos
+    if (S.cont && pts.length > 3) marks.push(Plot.density(pts, { x: p => p[0], y: p => p[1], ...(GR ? { z: p => p[2], stroke: p => p[2] } : { stroke: css("--pi") }), strokeWidth: 1.2, strokeOpacity: 0.8, thresholds: 8 }));
+    // ligar os pontos (connected scatterplot), com uma seta no fim:
+    // sem tempo, pela ordem dos dados (com grupos, uma linha por grupo); com tempo e identificação, o caminho de cada caso
+    // (p. ex. cada país) por todos os instantes até ao mostrado
+    if (S.conn && pts.length > 1) {
+      const st0 = { strokeWidth: 1.6, strokeOpacity: 0.7, markerEnd: "arrow" };
+      if (TM && ALL.some(p => p.id !== undefined)) {
+        const path = ALL.filter(p => p.id !== undefined && p.t <= curT && !isHid(p) && (!LOG || p[0] > 0) && (!LOGY || p[1] > 0)).sort((u, v) => u.t - v.t);
+        marks.push(Plot.line(path, { x: p => p[0], y: p => p[1], z: p => p.id, stroke: GR ? p => p[2] : c1, ...st0, strokeWidth: 1.1, strokeOpacity: 0.45 }));
+      } else marks.push(Plot.line(pts, { x: p => p[0], y: p => p[1], ...(GR ? { z: p => p[2], stroke: p => p[2] } : { stroke: c1 }), ...st0 }));
+    }
     // com «Tamanho», bolhas cheias e meio transparentes, as maiores por baixo
     if (SZ) marks.push(Plot.dot(pts.slice().sort((u, v) => (v.s || 0) - (u.s || 0)), { x: p => p[0], y: p => p[1], r: rad, fill: GR ? p => p[2] : c1, fillOpacity: 0.5, stroke: GR ? p => p[2] : c1, strokeWidth: 1.2 }));
     else marks.push(Plot.dot(pts, { x: p => p[0], y: p => p[1], r: 5, fill: bg, stroke: GR ? p => p[2] : c1, strokeWidth: 1.8 }));
@@ -2228,7 +2327,7 @@
       body += TAB(R.histTab ? `Tabela de frequências${R.groups ? " da amostra toda" : ""} (${esc(R.hint.split(" · ")[0])})` : `Tabela de frequências${R.groups ? " da amostra toda" : ""}`, [R.histTab ? "Classe" : "Valor", K("n_i"), K("f_i"), K("N_i"), K("F_i")],
         R.tableRows.map(r => [r[0], r[1], f4(r[2]), r[3], f4(r[4])]),
         `<tfoot><tr><td>Total</td><td>${st.n}</td><td>1</td><td></td><td></td></tr></tfoot>`);
-      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${R.groups ? ` (grupos de <i>${esc(R.gname)}</i>)` : ""}${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}${S.dens ? "; a roxo, a curva de densidade (estimativa por núcleo gaussiano)" : ""}.`);
+      body += FIG(figs.main, `${esc(R.title)} de <i>${esc(R.name)}</i>${R.groups ? ` (grupos de <i>${esc(R.gname)}</i>)` : ""}${S.mean ? " (a tracejado, a média; a cheio, a mediana)" : ""}${(R.densOn ?? S.dens) ? "; a roxo, a curva de densidade (estimativa por núcleo gaussiano)" : ""}.`);
       if (S.stem) body += `<figure class="stem">${R.SL.lines.map(([a, b]) => `<div class="r"><span class="s">${a}</span><span class="l">${b}</span></div>`).join("")}<figcaption><b>Figura ${++fig}:</b> Diagrama de caule e folhas de <i>${esc(R.name)}</i>. Chave: ${R.SL.key}${R.SL.trunc ? " (algarismos seguintes truncados)" : ""}.</figcaption></figure>`;
       body += H2("Diagrama de extremos e quartis e outliers");
       const aiq = st.q3 - st.q1;
