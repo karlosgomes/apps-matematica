@@ -59,7 +59,7 @@
                     background: repeating-linear-gradient(to bottom, var(--muted) 0 2px, transparent 2px 5px); opacity: .5; }
   #divisor:hover, #divisor.ativo, #divisor:focus-visible { background: var(--accent); outline: none; }
   #divisor:hover::after, #divisor.ativo::after { opacity: .9; }
-  .CodeMirror { flex: 1; height: auto; font: 15px/1.5 "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  .CodeMirror { flex: 1; height: auto; font: var(--letra, 15px)/1.5 "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
                 background: var(--bg); color: var(--ink); }
   .CodeMirror-gutters { background: var(--panel); border-right: 1px solid var(--line); }
   .CodeMirror-linenumber { color: var(--muted); }
@@ -122,6 +122,10 @@
     <button id="partilhar" title="Copiar um link com este programa">Copiar link</button>
   </div>
   <span class="espaco"></span>
+  <div class="grupo" role="group" aria-label="Tamanho da letra do código">
+    <button id="letra-menos" title="Letra do código mais pequena (Ctrl+−)">A−</button>
+    <button id="letra-mais" title="Letra do código maior (Ctrl++); duplo clique num dos dois volta ao tamanho normal">A+</button>
+  </div>
   <button id="tema" aria-label="Alternar modo claro/escuro"></button>
   <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
   <button id="parar" hidden title="Parar o programa (Esc)">■ Parar</button>
@@ -285,6 +289,25 @@ plt.show()
       "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
     },
   });
+  // ---------- tamanho da letra do código (A− / A+, Ctrl+− / Ctrl++ no editor; guardado em apps-mat-python-letra) ----------
+  {
+    const CL = "apps-mat-python-letra", MIN = 11, MAX = 32, NORMAL = 15;
+    let px = NORMAL;
+    try { const v = parseInt(localStorage.getItem(CL)); if (v >= MIN && v <= MAX) px = v; } catch (e) {}
+    const aplicar = (v, guardar = true) => {
+      px = Math.max(MIN, Math.min(MAX, v));
+      document.documentElement.style.setProperty("--letra", px + "px");
+      $("letra-menos").disabled = px <= MIN; $("letra-mais").disabled = px >= MAX;
+      $("letra-mais").title = `Letra do código maior (${px} px; Ctrl++); duplo clique volta ao normal`;
+      editor.refresh();
+      if (guardar) try { px === NORMAL ? localStorage.removeItem(CL) : localStorage.setItem(CL, String(px)); } catch (e) {}
+    };
+    aplicar(px, false);
+    $("letra-menos").onclick = () => aplicar(px - 1);
+    $("letra-mais").onclick = () => aplicar(px + 1);
+    ["letra-menos", "letra-mais"].forEach(id => $(id).addEventListener("dblclick", () => aplicar(NORMAL)));
+    editor.addKeyMap({ "Ctrl-=": () => aplicar(px + 1), "Ctrl-+": () => aplicar(px + 1), "Ctrl--": () => aplicar(px - 1), "Ctrl-0": () => aplicar(NORMAL) });
+  }
   // ---------- barra entre o código e a saída ----------
   // a largura do código guarda-se como fração da janela (apps-mat-python-divisor), para se adaptar a outros ecrãs
   {
