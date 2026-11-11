@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
 <script>
@@ -31,6 +32,33 @@
   }
   :root[data-theme="dark"] { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
           --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
+  /* janela do PDF (não modal, para o teclado matemático do MathLive aparecer por cima) */
+  #rel-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.35); }
+  #rel-back[hidden] { display: none; }
+  #rel-dlg { position: fixed; inset: 0; margin: auto; z-index: 60; height: fit-content; overflow: auto; width: min(40rem, calc(100vw - 1.5rem)); max-height: calc(100vh - 1.5rem);
+             padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  #rel-dlg h2 { margin: 0 0 .3rem; font-size: 1.15rem; }
+  .rel-note { margin: 0 0 .7rem; font-size: .85rem; color: var(--muted); }
+  .rel-grid { display: grid; grid-template-columns: auto 1fr; gap: .4rem .7rem; align-items: center; }
+  .rel-grid label, .rel-ta { font-weight: 700; font-size: .92rem; }
+  #rel-dlg input:not([type]), #rel-dlg textarea { font: inherit; font-size: .95rem; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: .3rem .45rem; width: 100%; }
+  #rel-dlg input.short { max-width: 8rem; } #rel-dlg input.short2 { max-width: 14rem; }
+  #rel-dlg textarea { resize: vertical; min-height: 4.5rem; }
+  .rel-ta { display: block; margin: .7rem 0 .25rem; }
+  .rel-tools { display: flex; gap: .5rem; margin-top: .3rem; }
+  .rel-mf { margin-top: .4rem; padding: .5rem; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); }
+  .rel-mf math-field { display: block; width: 100%; font-size: 1.3rem; padding: .2rem .4rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  .rel-mf .row2 { display: flex; gap: .5rem; align-items: center; margin-top: .4rem; font-size: .82rem; color: var(--muted); }
+  .rel-prev { margin-top: .4rem; padding: .35rem .6rem; border: 1px dashed var(--line); border-radius: 7px; font-size: .95rem; }
+  .rel-prev::before { content: "Pré-visualização"; display: block; font-size: .75rem; color: var(--muted); font-weight: 700; margin-bottom: .1rem; }
+  .rel-prev p { margin: .2rem 0; }
+  .rel-opts { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: .8rem; font-size: .92rem; }
+  .rel-opts label { cursor: pointer; }
+  .rel-warn { margin: .6rem 0 0; padding: .4rem .6rem; border-left: 4px solid var(--accent); background: var(--panel); font-size: .9rem; }
+  .rel-btns { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; align-items: center; }
+  #rel-dlg .rb { font: inherit; font-size: .9rem; font-weight: 700; padding: .3rem .8rem; border-radius: 8px; cursor: pointer; color: var(--ink); background: var(--panel); border: 2px solid var(--line); }
+  #rel-dlg .rb.small { font-size: .82rem; padding: .15rem .55rem; }
+  #rel-dlg .rb.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   #tema { font-size: 1.05rem; line-height: 1; padding: 5px 9px; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -120,6 +148,7 @@
     <button id="abrir" title="Abrir um ficheiro .py do computador">Abrir .py</button>
     <button id="descarregar" title="Guardar o programa num ficheiro .py">Descarregar</button>
     <button id="partilhar" title="Copiar um link com este programa">Copiar link</button>
+    <button id="pdf" title="Documento com o código e a saída (estilo LaTeX), pronto a guardar em PDF">📄 PDF</button>
   </div>
   <span class="espaco"></span>
   <div class="grupo" role="group" aria-label="Tamanho da letra do código">
@@ -141,6 +170,42 @@
   </div>
 </main>
 <div id="msg" role="status"></div>
+<div id="rel-back" hidden></div>
+<dialog id="rel-dlg" aria-labelledby="rel-h" aria-modal="true">
+  <form id="rel-form">
+    <h2 id="rel-h">PDF do programa</h2>
+    <p class="rel-note">O documento tem o código e a saída da última execução. Os campos vazios não aparecem. Ficam guardados só neste browser (o botão «Limpar» apaga-os).</p>
+    <div class="rel-grid">
+      <label for="rel-title">Título</label><input id="rel-title" autocomplete="off">
+      <label for="rel-author">Autor(es)</label><input id="rel-author" autocomplete="off">
+      <label for="rel-school">Escola</label><input id="rel-school" autocomplete="off">
+      <label for="rel-class">Turma</label><input id="rel-class" autocomplete="off" class="short">
+      <label for="rel-date">Data</label><input id="rel-date" autocomplete="off" class="short2">
+    </div>
+    <label class="rel-ta" for="rel-desc">Descrição</label>
+    <textarea id="rel-desc" rows="4" placeholder="O enunciado ou o que o programa faz. Uma linha em branco separa parágrafos."></textarea>
+    <div class="rel-tools"><button type="button" class="rb small" data-mf="desc" title="Escrever uma fórmula com o editor (e o teclado matemático) e inseri-la onde está o cursor">√x Inserir fórmula</button></div>
+    <div class="rel-mf" id="rel-mf-desc" hidden></div>
+    <div class="rel-prev" id="rel-prev-desc" hidden></div>
+    <label class="rel-ta" for="rel-com">Comentários</label>
+    <textarea id="rel-com" rows="4" placeholder="O que se conclui da saída do programa."></textarea>
+    <div class="rel-tools"><button type="button" class="rb small" data-mf="com" title="Escrever uma fórmula com o editor (e o teclado matemático) e inseri-la onde está o cursor">√x Inserir fórmula</button></div>
+    <div class="rel-mf" id="rel-mf-com" hidden></div>
+    <div class="rel-prev" id="rel-prev-com" hidden></div>
+    <div class="rel-opts">
+      <label><input type="checkbox" id="rel-num" checked> Números de linha</label>
+      <span>Código: <label><input type="radio" name="rel-cor" value="cor" checked> a cores</label> <label><input type="radio" name="rel-cor" value="pb"> a preto e branco</label></span>
+    </div>
+    <p class="rel-warn" id="rel-warn" hidden></p>
+    <div class="rel-btns">
+      <button type="button" class="rb" id="rel-clear" title="Apagar o autor, a escola, a turma e os textos">Limpar</button>
+      <span style="flex: 1"></span>
+      <button type="button" class="rb" id="rel-cancel">Cancelar</button>
+      <button type="button" class="rb" id="rel-gen-old" hidden>Gerar com a saída antiga</button>
+      <button type="submit" class="rb primary" id="rel-go">Gerar PDF</button>
+    </div>
+  </form>
+</dialog>
 <script type="text/plain" id="worker">
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
 let py, ctl = null, bytes = null, mplPronto = false;
@@ -340,6 +405,209 @@ plt.show()
     $("saida-mais").onclick = () => aplicar(px + 1);
     ["saida-menos", "saida-mais"].forEach(id => $(id).addEventListener("dblclick", () => aplicar(NORMAL)));
   }
+  // ---------- PDF do programa: código (estilo listings) e saída da última execução ----------
+  // KaTeX (fórmulas da descrição e dos comentários) e MathLive (editor de fórmulas) carregam-se só quando são precisos
+  const carregar = (src, css) => new Promise((ok, mal) => {
+    if (css) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = css; document.head.appendChild(l); }
+    const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = mal; document.head.appendChild(sc);
+  });
+  let katexPronto = null;
+  const loadKatex = () => katexPronto || (katexPronto = carregar("https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css").catch(() => { katexPronto = null; }));
+  const escH = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const K = src => window.katex ? katex.renderToString(src, { throwOnError: false, strict: false }) : escH("$" + src + "$");
+  // texto do aluno: parágrafos separados por linhas em branco, quebras de linha, fórmulas entre $…$
+  const rich = t => String(t || "").trim().split(/\n\s*\n/).filter(x => x.trim()).map(par =>
+    "<p>" + par.split(/(\$[^$]+\$)/).map(seg => /^\$[^$]+\$$/.test(seg) ? K(seg.slice(1, -1)) : escH(seg).replace(/\n/g, "<br>")).join("") + "</p>").join("");
+  const hoje = () => new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" });
+  const RELKEY = "apps-mat-python-relatorio", RCAMPOS = ["title", "author", "school", "class", "date", "desc", "com"];
+  const relLer = () => { try { return JSON.parse(localStorage.getItem(RELKEY)) || {}; } catch (e) { return {}; } };
+  const relCampos = () => Object.fromEntries(RCAMPOS.map(k => [k, $("rel-" + k).value]));
+  function relGuardar() {
+    const v = relCampos(), o = { author: v.author, school: v.school, cls: v.class, desc: v.desc, com: v.com,
+      num: $("rel-num").checked, cor: document.querySelector('input[name="rel-cor"]:checked').value };
+    if (v.title.trim() && v.title.trim() !== nomeAtual()) { o.title = v.title; o.para = nomeAtual(); }
+    try { localStorage.setItem(RELKEY, JSON.stringify(o)); } catch (e) {}
+  }
+  const relPrev = k => { const v = $("rel-" + k).value, el = $("rel-prev-" + k); el.hidden = !v.trim(); if (v.trim()) el.innerHTML = rich(v); };
+  // código com as cores do CodeMirror (runMode), linha a linha
+  function codigoHTML(src) {
+    const linhas = [[]];
+    CodeMirror.runMode(src, "python", (txt, estilo) => {
+      if (txt === "\n") { linhas.push([]); return; }
+      linhas[linhas.length - 1].push(estilo ? `<span class="${estilo.split(" ").map(c => "cm-" + c).join(" ")}">${escH(txt)}</span>` : escH(txt));
+    });
+    while (linhas.length > 1 && !linhas[linhas.length - 1].join("").trim()) linhas.pop();
+    return linhas.map((l, i) => `<div class="l"><span class="n">${i + 1}</span><span class="c">${l.join("") || " "}</span></div>`).join("");
+  }
+  // a saída que está no ecrã: blocos de texto (com os erros) e figuras; as caixas de ajuda dos erros ficam de fora
+  function saidaHTML() {
+    let html = "", bloco = "", nfig = 0;
+    const fecha = () => { if (bloco.replace(/<[^>]*>/g, "").trim()) html += `<pre class="out">${bloco.replace(/\n+$/, "")}</pre>`; bloco = ""; };
+    for (const el of saida.childNodes) {
+      if (el.nodeName === "IMG") { fecha(); nfig++; html += `<figure><img src="${el.src}" alt="Figura ${nfig}"><figcaption><b>Figura ${nfig}:</b> gráfico produzido pelo programa.</figcaption></figure>`; }
+      else if (el.classList && el.classList.contains("ajuda")) continue;
+      else { const cls = el.classList && el.classList.contains("err") ? "err" : el.classList && el.classList.contains("info") ? "info" : ""; bloco += cls ? `<span class="${cls}">${escH(el.textContent)}</span>` : escH(el.textContent); }
+    }
+    fecha();
+    return html || `<p class="note">O programa não escreveu nada na saída.</p>`;
+  }
+  function relHTML(info) {
+    let sec = 0;
+    const H2 = t => `<h2><span class="n">${++sec}</span>${t}</h2>`;
+    let body = "";
+    if (info.desc.trim()) body += H2("Descrição") + rich(info.desc);
+    body += H2("Código") + `<figure class="lst"><figcaption><b>Listagem 1:</b> ${escH(nomeAtual())}</figcaption>
+      <div class="code${info.num ? "" : " nonum"}${info.cor === "pb" ? " pb" : ""}">${codigoHTML(info.codigo)}</div></figure>`;
+    body += H2("Saída") + saidaHTML();
+    if (info.com.trim()) body += H2("Comentários") + rich(info.com);
+    const titulo = escH(info.title.trim() || nomeAtual());
+    const quem = [info.author, info.cls ? "Turma " + info.cls.trim() : "", info.school].map(x => String(x || "").trim()).filter(Boolean).map(escH).join(" · ");
+    return `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${titulo}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  @page { size: A4; margin: 2.2cm 2.3cm 2.4cm; }
+  body { font-family: KaTeX_Main, "Latin Modern Roman", "Computer Modern", serif; font-size: 11pt; line-height: 1.45; color: #111; max-width: 16.5cm; margin: 1.5cm auto; }
+  .bar { position: sticky; top: 0; background: #f6f8fb; border: 1px solid #ccd; border-radius: 8px; padding: 6px 10px; margin-bottom: 1.2cm; font-family: system-ui, sans-serif; font-size: 10pt; display: flex; gap: 10px; align-items: center; z-index: 2; }
+  .bar button { font: inherit; font-weight: 700; padding: 4px 12px; border-radius: 6px; border: 1px solid #99a; background: #fff; cursor: pointer; }
+  header { text-align: center; margin-bottom: 1cm; }
+  header h1 { font-size: 17pt; font-weight: normal; margin: 0 0 .35cm; }
+  header .who { font-size: 12pt; margin-bottom: .3cm; } header .sub { font-size: 11pt; }
+  header .sub a { color: inherit; text-decoration: none; border: 1px solid #7b1fa2; padding: 0 2px; } header .date { margin-top: .25cm; }
+  h2 { font-size: 13pt; margin: .75cm 0 .25cm; break-after: avoid; } h2 .n { display: inline-block; min-width: 1.4em; }
+  p { margin: .2cm 0; text-align: justify; hyphens: auto; }
+  .note { font-size: 10pt; color: #444; font-style: italic; }
+  figure { margin: .4cm 0; text-align: center; }
+  figure img { max-width: 100%; max-height: 11cm; break-inside: avoid; }
+  figcaption { font-size: 10pt; margin-top: .15cm; }
+  figure.lst { text-align: left; }
+  figure.lst figcaption { text-align: center; margin: 0 0 .15cm; }
+  /* listagem ao estilo do listings: números de linha, fundo cinzento claro, filetes em cima e em baixo */
+  .code { font: 9pt/1.42 "IBM Plex Mono", "DejaVu Sans Mono", monospace; background: #f6f6f8; border-top: .8px solid #000; border-bottom: .8px solid #000; padding: .12cm 0; }
+  .code .l { display: grid; grid-template-columns: 2.4em 1fr; break-inside: avoid; }
+  .code .n { text-align: right; padding-right: .55em; color: #888; border-right: .6px solid #bbb; font-size: 8pt; user-select: none; }
+  .code .c { padding-left: .7em; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .code.nonum .l { grid-template-columns: 1fr; } .code.nonum .n { display: none; }
+  .cm-keyword { color: #7b1fa2; font-weight: 600; } .cm-builtin { color: #c75000; } .cm-def { color: #c75000; font-weight: 600; }
+  .cm-string, .cm-string-2 { color: #2e7d32; } .cm-number { color: #1565c0; } .cm-comment { color: #6b7685; font-style: italic; }
+  .code.pb .cm-keyword, .code.pb .cm-def { color: #000; font-weight: 700; } .code.pb .cm-builtin, .code.pb .cm-string, .code.pb .cm-string-2, .code.pb .cm-number { color: #000; }
+  .code.pb .cm-comment { color: #555; font-style: italic; }
+  /* saída: caixa ao estilo de um terminal */
+  pre.out { font: 9pt/1.42 "IBM Plex Mono", "DejaVu Sans Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: .3cm 0; padding: .18cm .3cm;
+            border: .8px solid #999; border-radius: 3px; background: #fcfcfc; }
+  pre.out .err { color: #c62828; } pre.out .info { color: #666; font-style: italic; }
+  .katex { font-size: 1.05em; }
+  @media print { .bar { display: none; } body { margin: 0; max-width: none; } }
+</style></head><body>
+<div class="bar"><button onclick="print()">Imprimir / Guardar como PDF</button><span>Na janela de impressão, escolhe «Guardar como PDF».</span></div>
+<header><h1>${titulo}</h1>${quem ? `<div class="who">${quem}</div>` : ""}<div class="sub"><a href="https://karlosgomes.github.io/apps-matematica/">Aplicações Interativas de Matemática</a> · Python</div><div class="date">${escH(info.date)}</div></header>
+${body}
+<script>document.fonts.ready.then(() => setTimeout(() => print(), 400));<\/script>
+</body></html>`;
+  }
+  async function escreverPDF(w, info) {
+    await loadKatex();
+    if (w.closed) return;
+    w.document.open(); w.document.write(relHTML({ ...info, codigo: codigoExecutado ?? info.codigo })); w.document.close();
+  }
+  const relAtual = () => codigoExecutado !== null && codigoExecutado === editor.getValue();
+  $("pdf").onclick = async () => {
+    const o = relLer();
+    $("rel-title").value = o.title && o.para === nomeAtual() ? o.title : nomeAtual();
+    $("rel-author").value = o.author || ""; $("rel-school").value = o.school || ""; $("rel-class").value = o.cls || "";
+    $("rel-date").value = hoje(); $("rel-desc").value = o.desc || ""; $("rel-com").value = o.com || "";
+    $("rel-num").checked = o.num !== false;
+    document.querySelector(`input[name="rel-cor"][value="${o.cor === "pb" ? "pb" : "cor"}"]`).checked = true;
+    // a saída tem de ser a do código que está no editor
+    const w = $("rel-warn"), velho = $("rel-gen-old");
+    if (aCorrer) { w.hidden = false; w.textContent = "O programa ainda está a correr: o PDF é gerado quando acabar."; velho.hidden = true; $("rel-go").textContent = "Gerar PDF quando acabar"; }
+    else if (!relAtual()) {
+      w.hidden = false; velho.hidden = codigoExecutado === null;
+      w.textContent = codigoExecutado === null ? "O programa ainda não foi executado: «Executar e gerar» corre-o primeiro." : "A saída não corresponde ao código atual (o código mudou depois de executar).";
+      $("rel-go").textContent = "Executar e gerar PDF";
+    } else { w.hidden = true; velho.hidden = true; $("rel-go").textContent = "Gerar PDF"; }
+    ["desc", "com"].forEach(k => { $("rel-mf-" + k).hidden = true; });
+    $("rel-dlg").show(); $("rel-back").hidden = false; $("rel-title").focus();
+    await loadKatex(); ["desc", "com"].forEach(relPrev);
+  };
+  ["title", "author", "school", "class", "desc", "com"].forEach(k => $("rel-" + k).addEventListener("input", relGuardar));
+  ["rel-num"].forEach(id => $(id).addEventListener("change", relGuardar));
+  document.querySelectorAll('input[name="rel-cor"]').forEach(r => r.addEventListener("change", relGuardar));
+  ["desc", "com"].forEach(k => $("rel-" + k).addEventListener("input", () => relPrev(k)));
+  const relFechar = () => $("rel-dlg").close();
+  $("rel-dlg").addEventListener("close", () => { $("rel-back").hidden = true; try { window.mathVirtualKeyboard.hide(); } catch (e) {} });
+  $("rel-dlg").addEventListener("keydown", e => { if (e.key === "Escape" && document.activeElement.tagName !== "MATH-FIELD") { e.preventDefault(); relFechar(); } e.stopPropagation(); });
+  $("rel-back").onclick = relFechar;
+  $("rel-cancel").onclick = relFechar;
+  $("rel-clear").onclick = () => {
+    ["author", "school", "class", "desc", "com"].forEach(k => $("rel-" + k).value = "");
+    $("rel-title").value = nomeAtual(); $("rel-date").value = hoje();
+    try { localStorage.removeItem(RELKEY); } catch (e) {}
+    ["desc", "com"].forEach(relPrev);
+  };
+  const relInfo = () => { const v = relCampos(); return { title: v.title, author: v.author, school: v.school, cls: v.class, date: v.date, desc: v.desc, com: v.com,
+    num: $("rel-num").checked, cor: document.querySelector('input[name="rel-cor"]:checked').value, codigo: editor.getValue() }; };
+  function relGerar(executarAntes) {
+    relGuardar();
+    const info = relInfo();
+    const w = window.open("", "_blank");   // (abre-se já, no clique, para o browser não a bloquear)
+    if (!w) { aviso("O browser bloqueou a janela do PDF: autorize as janelas deste site."); return; }
+    relFechar();
+    if (aCorrer || executarAntes) {
+      w.document.write(`<p style="font: 15px system-ui, sans-serif; margin: 2rem">A executar o programa… o documento aparece quando acabar.</p>`);
+      pdfPendente = { w, info };
+      if (!aCorrer) executar();
+      return;
+    }
+    escreverPDF(w, info);
+  }
+  $("rel-form").addEventListener("submit", e => { e.preventDefault(); relGerar(!aCorrer && !relAtual()); });
+  $("rel-gen-old").onclick = () => relGerar(false);
+  // editor de fórmulas (MathLive, MIT, jsDelivr; carregado só ao primeiro uso), como na app Estatística
+  let mlPronto = null;
+  const loadML = () => mlPronto || (mlPronto = carregar("https://cdn.jsdelivr.net/npm/mathlive@0.111.4/mathlive.min.js").then(() => {
+    try { MathfieldElement.decimalSeparator = ","; } catch (e) {}
+    try {
+      window.mathVirtualKeyboard.addEventListener("geometrychange", () => {
+        const h = window.mathVirtualKeyboard.visible ? window.mathVirtualKeyboard.boundingRect.height : 0, dl = $("rel-dlg");
+        dl.style.bottom = h ? h + "px" : ""; dl.style.maxHeight = h ? `calc(100vh - ${h}px - .75rem)` : "";
+        const f = dl.querySelector(".rel-mf:not([hidden])"); if (f && h) setTimeout(() => f.scrollIntoView({ block: "nearest" }), 50);
+      });
+    } catch (e) {}
+  }).catch(e => { mlPronto = null; throw e; }));
+  async function abrirMF(k) {
+    const caixa = $("rel-mf-" + k), ta = $("rel-" + k);
+    $("rel-mf-" + (k === "desc" ? "com" : "desc")).hidden = true;
+    if (!caixa.hidden) { caixa.hidden = true; return; }
+    const pos = [ta.selectionStart ?? ta.value.length, ta.selectionEnd ?? ta.value.length];
+    caixa.hidden = false; caixa.innerHTML = '<div class="row2">A carregar o editor de fórmulas…</div>';
+    try { await loadML(); } catch (e) { caixa.innerHTML = '<div class="row2">Não foi possível carregar o editor (é preciso Internet). Pode escrever a fórmula entre $…$ em LaTeX.</div>'; return; }
+    caixa.innerHTML = `<math-field id="mf-${k}" math-virtual-keyboard-policy="auto"></math-field>
+      <div class="row2"><span>Escreve como vês: <b>/</b> faz uma fração, <b>^</b> um expoente; o teclado ⌨ tem √, x̄, ≈, letras gregas…</span>
+      <span style="flex:1"></span><button class="rb small" type="button" data-mfx="cancel">Cancelar</button><button class="rb small primary" type="button" data-mfx="ok">Inserir</button></div>`;
+    const mf = $("mf-" + k);
+    setTimeout(() => mf.focus(), 50);
+    const feito = ins => {
+      const tex = ins ? mf.value.trim() : "";
+      try { window.mathVirtualKeyboard.hide(); } catch (e) {}
+      caixa.hidden = true; caixa.innerHTML = "";
+      if (tex) {
+        const v = ta.value, a = v.slice(0, pos[0]), b = v.slice(pos[1]);
+        const pedaco = (a && !/\s$/.test(a) ? " " : "") + "$" + tex + "$" + (b && !/^[\s.,;:!?)]/.test(b) ? " " : "");
+        ta.value = a + pedaco + b;
+        const c = (a + pedaco).length; ta.focus(); ta.setSelectionRange(c, c);
+        ta.dispatchEvent(new Event("input"));
+      } else ta.focus();
+    };
+    caixa.querySelector('[data-mfx="ok"]').onclick = () => feito(true);
+    caixa.querySelector('[data-mfx="cancel"]').onclick = () => feito(false);
+    mf.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); feito(true); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); feito(false); }
+    });
+  }
+  document.querySelectorAll("#rel-dlg [data-mf]").forEach(b => b.onclick = () => abrirMF(b.dataset.mf));
   // ---------- barra entre o código e a saída ----------
   // a largura do código guarda-se como fração da janela (apps-mat-python-divisor), para se adaptar a outros ecrãs
   {
@@ -518,12 +786,15 @@ plt.show()
     saida.innerHTML = ""; setEstado("A executar…"); tirarMarca();
     t0 = performance.now();
     if (sab) interromper[0] = 0;
-    worker.postMessage({ tipo: "executar", codigo: editor.getValue() });
+    codigoExecutado = editor.getValue();
+    worker.postMessage({ tipo: "executar", codigo: codigoExecutado });
   }
+  let codigoExecutado = null, pdfPendente = null;
   function acabar(texto, classe) {
     clearTimeout(timerParar); fecharCampo();
     aCorrer = false; btnExec.hidden = false; btnParar.hidden = true;
     setEstado(texto, classe); editor.focus();
+    if (pdfPendente) { const p = pdfPendente; pdfPendente = null; escreverPDF(p.w, p.info); }
   }
   function parar() {
     if (!aCorrer) return;
