@@ -43,6 +43,20 @@
              background: var(--btn); color: var(--ink); border: 2px solid var(--line); white-space: nowrap; line-height: 1.3; }
   button.b[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); color: var(--on); }
   button.b.small { font-size: 0.82rem; padding: 0.15rem 0.55rem; }
+  button.b.primary { background: var(--muted); border-color: var(--muted); color: var(--on); }
+  /* janela do relatório: autor, escola, introdução e conclusões */
+  #rep-dlg { width: min(40rem, calc(100vw - 1.5rem)); max-height: calc(100vh - 1.5rem); padding: 1rem 1.2rem; border: 1.5px solid var(--line); border-radius: 12px;
+             background: var(--bg); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+  #rep-dlg::backdrop { background: rgba(0,0,0,0.35); }
+  #rep-dlg h2 { margin: 0 0 0.3rem; font-size: 1.15rem; }
+  .rep-note { margin: 0 0 0.7rem; font-size: 0.85rem; color: var(--faint); }
+  .rep-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.7rem; align-items: center; }
+  .rep-grid label, .rep-ta { font-weight: 700; font-size: 0.92rem; }
+  #rep-dlg input, #rep-dlg textarea { font: inherit; font-size: 0.95rem; color: var(--ink); background: var(--bg); border: 2px solid var(--line); border-radius: 7px; padding: 0.3rem 0.45rem; width: 100%; }
+  #rep-dlg input.short { max-width: 8rem; } #rep-dlg input.short2 { max-width: 14rem; }
+  #rep-dlg textarea { resize: vertical; min-height: 5.5rem; }
+  .rep-ta { display: block; margin: 0.75rem 0 0.25rem; }
+  .rep-btns { display: flex; gap: 0.5rem; margin-top: 0.9rem; align-items: center; }
   button.b:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   #cols select.inp { max-width: 11rem; }
   #ex-sel { min-width: 0; max-width: 15rem; font-size: 0.85rem; }
@@ -348,6 +362,30 @@
       <button class="b small exp" id="sel-ex" hidden title="Excluir do ajuste os pares selecionados">Excluir</button><button class="b small exp" id="sel-in" hidden title="Voltar a incluir no ajuste os pares selecionados">Incluir</button><button class="b small close" id="dat-close" type="button" title="Fechar a tabela dos dados" aria-label="Fechar a tabela dos dados">×</button></span></h3><div id="dat"></div></div>
   </div>
 </div>
+
+<dialog id="rep-dlg" aria-labelledby="rep-h">
+  <form method="dialog" id="rep-form">
+    <h2 id="rep-h">Relatório (PDF)</h2>
+    <p class="rep-note">Os campos vazios não aparecem no relatório. Ficam guardados só neste browser (o botão «Limpar» apaga-os).</p>
+    <div class="rep-grid">
+      <label for="rep-title">Título</label><input id="rep-title" autocomplete="off">
+      <label for="rep-author">Autor(es)</label><input id="rep-author" autocomplete="off">
+      <label for="rep-school">Escola</label><input id="rep-school" autocomplete="off">
+      <label for="rep-class">Turma</label><input id="rep-class" autocomplete="off" class="short">
+      <label for="rep-date">Data</label><input id="rep-date" autocomplete="off" class="short2">
+    </div>
+    <label class="rep-ta" for="rep-intro">Introdução</label>
+    <textarea id="rep-intro" rows="5" placeholder="O que se estuda, de onde vêm os dados e o que se quer saber. Uma linha em branco separa parágrafos; fórmulas entre $…$, p. ex. $\bar{x}$."></textarea>
+    <label class="rep-ta" for="rep-concl">Conclusões</label>
+    <textarea id="rep-concl" rows="5" placeholder="O que os resultados mostram, p. ex. $r \approx 0{,}87$: correlação positiva forte."></textarea>
+    <div class="rep-btns">
+      <button class="b" type="button" id="rep-clear" title="Apagar o autor, a escola, a turma e os textos">Limpar</button>
+      <span style="flex: 1"></span>
+      <button class="b" type="button" id="rep-cancel">Cancelar</button>
+      <button class="b primary" type="submit" id="rep-go">Gerar relatório</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
 (() => {
@@ -2125,14 +2163,20 @@
   const K = src => window.katex ? katex.renderToString(src, { throwOnError: false, strict: false }) : src;
   const KD = src => window.katex ? katex.renderToString(src, { throwOnError: false, strict: false, displayMode: true }) : src;
   const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  function reportHTML() {
+  // texto do aluno: parágrafos separados por linhas em branco, quebras de linha mantidas, fórmulas entre $…$ (KaTeX)
+  const rich = t => String(t || "").trim().split(/\n\s*\n/).filter(x => x.trim()).map(par =>
+    "<p>" + par.split(/(\$[^$]+\$)/).map(seg => /^\$[^$]+\$$/.test(seg) ? K(seg.slice(1, -1)) : esc(seg).replace(/\n/g, "<br>")).join("") + "</p>").join("");
+  const autoTitle = () => !LAST ? "" : LAST.mode === "uni" ? `Análise exploratória: ${LAST.name}` : `Regressão: ${LAST.yl} em função de ${LAST.xl}`;
+  const todayStr = () => new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" });
+  function reportHTML(info = {}) {
     const R = LAST, figs = captureFigs();
-    const today = new Date().toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" });
+    const today = info.date !== undefined ? esc(info.date) : todayStr();
     let sec = 0, fig = 0, tab = 0;
     const H2 = t => `<h2><span class="n">${++sec}</span>${t}</h2>`;
     const FIG = (svg, cap) => svg ? `<figure>${svg}<figcaption><b>Figura ${++fig}:</b> ${cap}</figcaption></figure>` : "";
     const TAB = (cap, head, rows, foot = "") => `<table><caption><b>Tabela ${++tab}:</b> ${cap}</caption><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>${foot}</table>`;
     let body = "";
+    if (String(info.intro || "").trim()) body += H2("Introdução") + rich(info.intro);
     if (R.mode === "uni") {
       const st = R.st, d = S.dec, f = v => fmt(v, d), f4 = v => fmt(v, 4);
       body += H2("Dados");
@@ -2216,7 +2260,9 @@
       }
       if (figs.res) body += FIG(figs.res, `Gráfico de resíduos ${K("e_i = y_i - \\hat{y}_i")} do modelo ${NAMES[R.model].toLowerCase()}${R.byG ? " de cada grupo" : ""}, com a mesma escala de ${K("x")} do diagrama de dispersão; num modelo adequado os resíduos espalham-se ao acaso à volta de 0, sem padrão.`);
     }
-    const title = R.mode === "uni" ? `Análise exploratória: ${esc(R.name)}` : `Regressão: ${esc(R.yl)} em função de ${esc(R.xl)}`;
+    if (String(info.concl || "").trim()) body += H2("Conclusões") + rich(info.concl);
+    const title = esc(String(info.title || "").trim() || autoTitle());
+    const who = [info.author, info.cls ? "Turma " + String(info.cls).trim() : "", info.school].map(x => String(x || "").trim()).filter(Boolean).map(esc).join(" · ");
     return `<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8"><title>${title}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <style>
@@ -2226,7 +2272,7 @@
   .bar button { font: inherit; font-weight: 700; padding: 4px 12px; border-radius: 6px; border: 1px solid #99a; background: #fff; cursor: pointer; }
   header { text-align: center; margin-bottom: 1cm; }
   header h1 { font-size: 17pt; font-weight: normal; margin: 0 0 0.35cm; }
-  header .sub { font-size: 11pt; } header .sub a { color: inherit; text-decoration: none; border: 1px solid #7b1fa2; padding: 0 2px; } header .date { margin-top: 0.25cm; }
+  header .who { font-size: 12pt; margin-bottom: 0.3cm; } header .sub { font-size: 11pt; } header .sub a { color: inherit; text-decoration: none; border: 1px solid #7b1fa2; padding: 0 2px; } header .date { margin-top: 0.25cm; }
   h2 { font-size: 13pt; margin: 0.75cm 0 0.25cm; break-after: avoid; } h2 .n { display: inline-block; min-width: 1.4em; }
   p { margin: 0.2cm 0; text-align: justify; hyphens: auto; }
   .data { font-size: 10pt; line-height: 1.6; }
@@ -2246,17 +2292,45 @@
   @media print { .bar { display: none; } body { margin: 0; max-width: none; } }
 </style></head><body>
 <div class="bar"><button onclick="print()">Imprimir / Guardar como PDF</button><span>Na janela de impressão, escolhe «Guardar como PDF».</span></div>
-<header><h1>${title}</h1><div class="sub"><a href="https://karlosgomes.github.io/apps-matematica/">Aplicações Interativas de Matemática</a> · Estatística</div><div class="date">${today}</div></header>
+<header><h1>${title}</h1>${who ? `<div class="who">${who}</div>` : ""}<div class="sub"><a href="https://karlosgomes.github.io/apps-matematica/">Aplicações Interativas de Matemática</a> · Estatística</div><div class="date">${today}</div></header>
 ${body}
 <script>document.fonts.ready.then(() => setTimeout(() => print(), 300));<\/script>
 </body></html>`;
   }
+  // janela antes do relatório: título (o automático, a não ser que se tenha mudado para estes dados), autor, escola,
+  // turma, data, introdução e conclusões; guardados no localStorage (exceto a data), «Limpar» apaga-os
+  const REPKEY = "apps-mat-estatistica-relatorio", RF = ["title", "author", "school", "class", "date", "intro", "concl"];
+  const repLoad = () => { try { return JSON.parse(localStorage.getItem(REPKEY)) || {}; } catch (e) { return {}; } };
+  const repRead = () => Object.fromEntries(RF.map(k => [k, $("rep-" + k).value]));
+  function repSave() {
+    const v = repRead(), o = { author: v.author, school: v.school, cls: v.class, intro: v.intro, concl: v.concl };
+    if (v.title.trim() && v.title.trim() !== autoTitle()) { o.title = v.title; o.for = autoTitle(); }
+    try { localStorage.setItem(REPKEY, JSON.stringify(o)); } catch (e) {}
+  }
   $("report").onclick = () => {
     if (!LAST) { $("msg").textContent = "Não há dados suficientes para o relatório."; return; }
-    const w = window.open("", "_blank");
-    if (!w) { $("msg").textContent = "O browser bloqueou a janela do relatório: autoriza as janelas deste site."; return; }
-    w.document.open(); w.document.write(reportHTML()); w.document.close();
+    const o = repLoad();
+    $("rep-title").value = o.title && o.for === autoTitle() ? o.title : autoTitle();
+    $("rep-author").value = o.author || ""; $("rep-school").value = o.school || ""; $("rep-class").value = o.cls || "";
+    $("rep-date").value = todayStr(); $("rep-intro").value = o.intro || ""; $("rep-concl").value = o.concl || "";
+    $("rep-dlg").showModal();
   };
+  ["title", "author", "school", "class", "intro", "concl"].forEach(k => $("rep-" + k).addEventListener("input", repSave));
+  $("rep-cancel").onclick = () => $("rep-dlg").close();
+  $("rep-clear").onclick = () => {
+    ["author", "school", "class", "intro", "concl"].forEach(k => $("rep-" + k).value = "");
+    $("rep-title").value = autoTitle(); $("rep-date").value = todayStr();
+    try { localStorage.removeItem(REPKEY); } catch (e) {}
+  };
+  $("rep-form").addEventListener("submit", e => {
+    e.preventDefault();
+    repSave();
+    const v = repRead();
+    const w = window.open("", "_blank");
+    if (!w) { $("msg").textContent = "O browser bloqueou a janela do relatório: autoriza as janelas deste site."; $("rep-dlg").close(); return; }
+    $("rep-dlg").close();
+    w.document.open(); w.document.write(reportHTML({ title: v.title, author: v.author, school: v.school, cls: v.class, date: v.date, intro: v.intro, concl: v.concl })); w.document.close();
+  });
   window.__reportHTML = reportHTML;   // (para testes)
 
   document.querySelectorAll(".exp[data-fig]").forEach(b => b.onclick = () => exportFig(b.dataset.fig, b.dataset.t));
