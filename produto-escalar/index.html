@@ -297,7 +297,7 @@
   // ---------- controlos de baixo ----------
   const VEC = "⃗", plain = t => t.split(VEC).join("");
   function boxItems(mode = S.mode, withS = S.s, withDir = S.dir) {
-    if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
+    if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"], ["Coordenadas inteiras", "int"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], ["Coordenadas inteiras", "int"]]
       : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withS ? [["Ângulo das retas", "angR"]] : []), ["Coordenadas inteiras", "int"]];
@@ -798,7 +798,16 @@
   const fneg = a => [-a[0], a[1]];
   const fval = a => a[0] / a[1];
   const fz = a => a[0] === 0;
-  const fT = a => frac(a[0], a[1]);
+  // com décimas nos campos (ESP_DEC), as frações de denominador 2^a·5^b aparecem como decimais com vírgula (até 4 casas)
+  let ESP_DEC = false;
+  const fT = a => {
+    if (ESP_DEC && a[1] !== 1) {
+      let q = a[1]; while (q % 2 === 0) q /= 2; while (q % 5 === 0) q /= 5;
+      const v = a[0] / a[1];
+      if (q === 1 && Math.abs(+v.toFixed(4) - v) < 1e-12) return v.toString().replace(".", "{,}");
+    }
+    return frac(a[0], a[1]);
+  };
   const fP = a => a[0] < 0 ? (a[1] === 1 ? `(${fT(a)})` : `\\left(${fT(a)}\\right)`) : fT(a);
   const dot3 = (a, b) => fadd(fadd(fmul(a[0], b[0]), fmul(a[1], b[1])), fmul(a[2], b[2]));
   const cross3 = (a, b) => [fsub(fmul(a[1], b[2]), fmul(a[2], b[1])), fsub(fmul(a[2], b[0]), fmul(a[0], b[2])), fsub(fmul(a[0], b[1]), fmul(a[1], b[0]))];
@@ -870,6 +879,7 @@
   const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
   function espPieces() {
     const V3 = espVals(), G = [];
+    ESP_DEC = Object.values(ESP).some(t => /\d\.\d/.test(t) || (t.includes(";") && /\d,\d/.test(t)));
     const showA = S.eA || S.eC, al = showA ? planeOf(V3.P, V3.n) : null, aC = C.al, A_ = clr(aC, "\\alpha");
     if (!showA) { /* plano α escondido */ }
     else if (!V3.P || !V3.n) G.push([`\\text{Escreve as três coordenadas de } P \\text{ e de } \\vec n\\text{, p. ex. } (2, 1, 1)`]);
@@ -1361,10 +1371,12 @@
     } else pl = new T3.Plane(vec3(0, 0, 1), -p0.z);
     const hit = rc.ray.intersectPlane(pl, vec3(0, 0, 0));
     if (!hit) return;
-    let q = vertical ? [h.p0[0], h.p0[1], Math.round(hit.z)] : [Math.round(hit.x), Math.round(hit.y), h.p0[2]];
+    // íman: inteiros com «Coordenadas inteiras» (a mesma caixa dos outros modos), senão décimas
+    const st = S.int ? 1 : 0.1, snap = v => +(Math.round(v / st) * st).toFixed(1);
+    let q = vertical ? [h.p0[0], h.p0[1], snap(hit.z)] : [snap(hit.x), snap(hit.y), h.p0[2]];
     q = q.map(v => clamp(v, -9, 9));
     // ponta de um vetor: o vetor é ponta − origem
-    const val = h.base ? q.map((v, i) => v - h.base[i]) : q;
+    const val = (h.base ? q.map((v, i) => v - h.base[i]) : q).map(v => +v.toFixed(4));
     const txt = `(${val.map(v => (+v.toFixed(4)).toString()).join(", ")})`;
     if (txt === ESP[h.key]) return;
     ESP[h.key] = txt; INP[h.key].value = txt;
