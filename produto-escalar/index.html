@@ -370,7 +370,7 @@
     if (land) L.fig = L.frame;
     else { const top = L.band.y + L.band.h + gap; L.fig = { ...L.frame, y: top, h: L.frame.y + L.frame.h - top }; }
     // ☾/☀ no canto de cima à direita da figura
-    L.theme = { x: L.fig.x + L.fig.w - 2.2 * fs, y: L.fig.y, w: 2.2 * fs, h: 1.8 * fs };
+    L.theme = { x: L.fig.x + L.fig.w - 1.6 * fs, y: L.fig.y, w: 1.6 * fs, h: 1.3 * fs };   // botões pequenos (pedido do utilizador)
     return L;
   }
 
@@ -440,24 +440,24 @@
       // a figura 3D está num canvas por baixo: aqui fica transparente
       ctx.clearRect(L.fig.x, L.fig.y, L.fig.w, L.fig.h);
       figure3(L.fig, fs);
-      button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 1.1);
+      button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
       // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
-      const zy = L.theme.y + L.theme.h + 0.35 * fs, zh = 1.6 * fs;
-      button(L.theme.x, zy, L.theme.w, zh, "+", false, "dolly", { v: 0.8 }, fs * 1.1);
-      button(L.theme.x, zy + zh + 0.25 * fs, L.theme.w, zh, "−", false, "dolly", { v: 1.25 }, fs * 1.1);
-      button(L.theme.x, zy + 2 * (zh + 0.25 * fs), L.theme.w, zh, "⌂", false, "view3", {}, fs);
+      const zy = L.theme.y + L.theme.h + 0.25 * fs, zh = 1.2 * fs;
+      button(L.theme.x, zy, L.theme.w, zh, "+", false, "dolly", { v: 0.8 }, fs * 0.8);
+      button(L.theme.x, zy + zh + 0.2 * fs, L.theme.w, zh, "−", false, "dolly", { v: 1.25 }, fs * 0.8);
+      button(L.theme.x, zy + 2 * (zh + 0.2 * fs), L.theme.w, zh, "⌂", false, "view3", {}, fs * 0.75);
       bottom(fs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
     }
     hide3();
     figure(L.fig, L.frame, fs);
-    button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 1.1);
+    button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
     // zoom: + e − por baixo do ☾/☀; «1:1» volta à vista inicial (só aparece fora dela)
-    const zx = L.theme.x, zw = L.theme.w, zh = 1.6 * fs, zy = L.theme.y + L.theme.h + 0.35 * fs;
-    button(zx, zy, zw, zh, "+", false, "zoom", { v: 1.25 }, fs * 1.1);
-    button(zx, zy + zh + 0.25 * fs, zw, zh, "−", false, "zoom", { v: 0.8 }, fs * 1.1);
-    if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 2 * (zh + 0.25 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.7);
+    const zx = L.theme.x, zw = L.theme.w, zh = 1.2 * fs, zy = L.theme.y + L.theme.h + 0.25 * fs;
+    button(zx, zy, zw, zh, "+", false, "zoom", { v: 1.25 }, fs * 0.8);
+    button(zx, zy + zh + 0.2 * fs, zw, zh, "−", false, "zoom", { v: 0.8 }, fs * 0.8);
+    if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 2 * (zh + 0.2 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.55);
     bottom(fs);
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
@@ -643,18 +643,18 @@
       dot(X(hx), Y(hy), 0.28 * fs, C.muted, 2);
       labelAt("H", "H", X(hx), Y(hy), -(v1 - hx) || -ey, -(v2 - hy) || ex, fs, C.muted);
     }
-    // ângulo θ
-    if (S.ang && nu > EPS && nv > EPS) {
+    // ângulo θ (sempre visível; o texto das normas e do ângulo é que depende da caixa «Normas e ângulo»)
+    if (nu > EPS && nv > EPS) {
       const a0 = Math.atan2(u2, u1), a1 = Math.atan2(v2, v1);
       let da = angNorm(a1 - a0);
       const c = d / (nu * nv);
-      const r = clamp(0.4 * Math.min(nu, nv) * F.k, 1.3 * fs, 3 * fs);
-      if (Math.abs(Math.round(d * 100) / 100) < EPS) rightMark(ox, oy, 0.7 * fs, a0, a1, C.zero);
+      const r = clamp(0.32 * Math.min(nu, nv) * F.k, 1.04 * fs, 2.4 * fs);   // raio 20 % menor que o inicial
+      if (Math.abs(Math.round(d * 100) / 100) < EPS) rightMark(ox, oy, 0.56 * fs, a0, a1, C.zero);
       else {
         if (Math.abs(Math.abs(da) - PI) < 1e-9) da = PI;
         sector(ox, oy, r, a0, da, sc);
       }
-      const am = a0 + da / 2, rr = Math.abs(Math.round(d * 100) / 100) < EPS ? 1.6 * fs : r + 0.9 * fs;
+      const am = a0 + da / 2, rr = Math.abs(Math.round(d * 100) / 100) < EPS ? 1.3 * fs : r + 0.75 * fs;
       texAt("th", `\\theta`, ox + Math.cos(am) * rr, oy - Math.sin(am) * rr, fs * 0.95, sc);
       void c;
     }
