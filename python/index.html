@@ -153,8 +153,22 @@ function pedirInput(msg) {
   if (Atomics.load(ctl, 0) === 2) return null;
   return new TextDecoder().decode(bytes.slice(0, ctl[1]));
 }
+// time.sleep(s): espera a sério (Atomics.wait) em pedaços de 50 ms, para o «Parar» continuar a funcionar;
+// sem SharedArrayBuffer, espera ativa
+const dormirSab = typeof SharedArrayBuffer !== "undefined" && self.crossOriginIsolated ? new Int32Array(new SharedArrayBuffer(4)) : null;
+let intBuf = null;
+function dormir(s) {
+  const fim = performance.now() + Math.max(0, s) * 1000;
+  while (performance.now() < fim) {
+    if (intBuf && intBuf[0]) return;                       // «Parar»: o Python levanta KeyboardInterrupt a seguir
+    const resta = Math.min(50, fim - performance.now());
+    if (dormirSab) Atomics.wait(dormirSab, 0, 0, resta);
+    else { const t = performance.now() + resta; while (performance.now() < t) {} }
+  }
+}
 const PREPARAR = `
-import builtins, _pagina
+import builtins, _pagina, time
+time.sleep = lambda s=0: _pagina.dormir(float(s))
 def _input(msg=""):
     r = _pagina.input(str(msg))
     if r is False:
@@ -168,12 +182,13 @@ const MPL = `
 import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
-def _show(*a, **k):
+def _show(*a, substituir=False, **k):
+    # plt.show(substituir=True) põe o gráfico no lugar do anterior (animações, com time.sleep)
     import io, base64, _pagina
     for n in plt.get_fignums():
         buf = io.BytesIO()
         plt.figure(n).savefig(buf, format="png", dpi=110, bbox_inches="tight")
-        _pagina.figura(base64.b64encode(buf.getvalue()).decode())
+        _pagina.figura(base64.b64encode(buf.getvalue()).decode(), bool(substituir))
     plt.close("all")
 plt.show = _show
 `;
@@ -184,8 +199,8 @@ onmessage = async e => {
       py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
       py.setStdout({ batched: t => postMessage({ tipo: "out", t: t + "\n" }) });
       py.setStderr({ batched: t => postMessage({ tipo: "err", t: t + "\n" }) });
-      py.registerJsModule("_pagina", { input: pedirInput, figura: png => postMessage({ tipo: "fig", png }) });
-      if (m.sab) { ctl = new Int32Array(m.sab, 0, 2); bytes = new Uint8Array(m.sab, 16); py.setInterruptBuffer(new Uint8Array(m.sab, 8, 1)); }
+      py.registerJsModule("_pagina", { input: pedirInput, dormir, figura: (png, subst) => postMessage({ tipo: "fig", png, subst: !!subst }) });
+      if (m.sab) { ctl = new Int32Array(m.sab, 0, 2); bytes = new Uint8Array(m.sab, 16); intBuf = new Uint8Array(m.sab, 8, 1); py.setInterruptBuffer(intBuf); }
       await py.runPythonAsync(PREPARAR);
       postMessage({ tipo: "pronto" });
     } catch (err) { postMessage({ tipo: "falhou", t: String(err && (err.stack || err)) }); }
@@ -450,9 +465,13 @@ plt.show()
     else { const s = document.createElement("span"); if (classe) s.className = classe; s.textContent = texto; saida.appendChild(s); }
     saida.scrollTop = saida.scrollHeight;
   }
-  function mostrarFigura(png) {
+  // com substituir (plt.show(substituir=True)), o gráfico novo fica no lugar do último desses: dá uma animação
+  let figAnim = null;
+  function mostrarFigura(png, subst) {
+    if (subst && figAnim && figAnim.isConnected) { figAnim.src = "data:image/png;base64," + png; return; }
     const img = document.createElement("img"); img.src = "data:image/png;base64," + png; img.alt = "Gráfico";
     saida.appendChild(img); img.onload = () => { saida.scrollTop = saida.scrollHeight; };
+    figAnim = subst ? img : null;
   }
   const setEstado = (t, c) => { estado.textContent = t; estado.className = c || ""; };
 
@@ -482,7 +501,7 @@ plt.show()
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
     else if (m.tipo === "out") escrever(m.t);
     else if (m.tipo === "err") escrever(m.t, "err");
-    else if (m.tipo === "fig") mostrarFigura(m.png);
+    else if (m.tipo === "fig") mostrarFigura(m.png, m.subst);
     else if (m.tipo === "instalar") setEstado("A instalar bibliotecas… (só da primeira vez)");
     else if (m.tipo === "executar") setEstado("A executar…");
     else if (m.tipo === "input") pedir(m.msg);
