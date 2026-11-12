@@ -95,7 +95,8 @@
               ang: false, proj: false, int: true, s: false, incl: true, dir: false, dO: false, angR: false,
               z: 1, vx: 0, vy: 0,
               uo: [0, 0], vo: [0, 0],   // origens de u e v (arrastar o corpo do vetor desloca-o; duplo clique volta a O)
-              txt: true,                // texto da esquerda à vista (botão «Texto», tecla t)
+              txt: true,
+              rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {} };   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
   // ---------- números em LaTeX ----------
@@ -140,11 +141,29 @@
   // ---------- texto da faixa de cima (grupos de afirmações; cada grupo começa numa linha nova) ----------
   // cada peça é uma string, ou {t, cont: true} para continuar a anterior sem grande espaço
   const UU = () => U("\\vec u"), VV = () => V("\\vec v");
+  // «v a rodar»: f(t) = u·v(t) = a cos t + b sin t = ‖u‖R cos(t − φ)
+  function rotInfo() {
+    const [u1, u2] = S.u, Rr = S.R, A = Math.hypot(u1, u2) * Rr;
+    let phi = Math.atan2(u2, u1); if (phi < 0) phi += TAU;
+    return { u1, u2, Rr, A, phi, a: u1 * Rr, b: u2 * Rr, f: t => A * Math.cos(t - phi) };
+  }
+  function rotPieces() {
+    const o = rotInfo(), nu = o.u1 ** 2 + o.u2 ** 2, RT = num(o.Rr), ft = o.f(S.tr);
+    const lin = (a, b) => { let s_ = ""; if (Math.abs(a) > EPS) s_ += `${num(a)}\\cos t`; if (Math.abs(b) > EPS) s_ += `${s_ ? (b < 0 ? " - " : " + ") : (b < 0 ? "-" : "")}${num(Math.abs(b))}\\sin t`; return s_ || "0"; };
+    const AT = sqrtTex(Math.round(nu * o.Rr * o.Rr * 100) / 100);
+    return [
+      [`${VV()}(t) = (${RT}\\cos t,\\ ${RT}\\sin t)`],
+      [`f(t) = ${UU()}\\cdot${VV()}(t) = ${U(par(o.u1))}\\times ${RT}\\cos t + ${U(par(o.u2))}\\times ${RT}\\sin t`, { cont: true, t: `= ${lin(o.a, o.b)}` }],
+      [`f(t) = \\|${UU()}\\|\\,\\|${VV()}\\|\\cos(t - \\varphi) = ${AT}\\cos(t - \\varphi)`, { cont: true, sep: 1, t: `\\varphi \\approx ${apx(o.phi)}\\ \\text{rad}\\ (${apx(o.phi * 180 / PI, 1)}^\\circ)` }],
+      [`\\text{máximo } ${AT} \\approx ${apx(o.A)}\\ (${VV()}\\ \\text{com o sentido de}\\ ${UU()}),`, `\\text{mínimo } -${AT}\\ (\\text{sentido oposto}),`, `\\text{zeros: } ${VV()} \\perp ${UU()}`],
+      [`t \\approx ${apx(S.tr)}:\\quad f(t) \\approx ${clr(sgnCol(Math.round(ft * 100) / 100), apx(ft))}`],
+    ];
+  }
   function vecPieces() {
     const [u1, u2] = S.u, [v1, v2] = S.v;
     const d = Math.round((u1 * v1 + u2 * v2) * 100) / 100, sc = sgnCol(d);
     const nu = u1 * u1 + u2 * u2, nv = v1 * v1 + v2 * v2;
-    const G = [[
+    const G = S.rot ? rotPieces() : [[
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")}`,
       { cont: true, t: `= ${U(par(u1))}\\times${V(par(v1))} + ${U(par(u2))}\\times${V(par(v2))} = ${clr(sc, num(d))}` },
     ]];
@@ -333,7 +352,7 @@
   function boxItems0(mode, withS, withDir) {
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"], ["Coordenadas inteiras", "int"]];
     return mode === "vet"
-      ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], ["Coordenadas inteiras", "int"]]
+      ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], [`${VEC}v a rodar`, "rot"], ["Coordenadas inteiras", "int"]]
       : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withS ? [["Ângulo das retas", "angR"]] : []), ["Coordenadas inteiras", "int"]];
   }
   function controls(fs, mode, withS, withDir) {
@@ -345,6 +364,8 @@
     out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
     out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1 });
     // modo Espaço: levar os vetores normais à origem (e esbater os planos)
+    // modo Vetores com «v a rodar»: ▶/❚❚ do tempo
+    if ((mode === "vet" || (mode === undefined && S.mode === "vet")) && S.rot) out.push({ t: "btn", txt: S.run ? "❚❚" : "▶", on: S.run, kind: "rotPlay", w: 2.2 * fs, h: bh, f: bf * 1.1 });
     // modo Retas: levar os vetores diretores à origem (esbatendo as retas) e depois normalizá-los
     if (mode === "retas" || (mode === undefined && S.mode === "retas")) out.push({ t: "btn", txt: "r, s → O", on: S.dO, kind: "dirO", w: bw("r, s → O"), h: bh, f: bf });
     if (mode === "esp" || (mode === undefined && S.mode === "esp")) out.push({ t: "btn", txt: "n, m → O", on: S.nO, kind: "normO", w: bw("n, m → O"), h: bh, f: bf });
@@ -383,6 +404,13 @@
     const tx = { x: pad, y: pad, w: cw, h: land ? L.rowY - gap - pad : Math.round(H * (S.mode === "esp" ? 0.36 : 0.3)) };
     if (land) L.frame = { x: pad + cw + 1.2 * fs, y: pad, w: W - 2 * pad - cw - 1.2 * fs, h: H - 2 * pad };
     else L.frame = { x: pad, y: pad + tx.h + gap, w: W - 2 * pad, h: Math.max(4 * fs, L.rowY - gap - (pad + tx.h + gap)) };
+    // «v a rodar»: o gráfico de f(t) = u·v(t) ocupa a parte de baixo da figura
+    L.graph = null;
+    if (S.mode === "vet" && S.rot) {
+      const gh = Math.round(L.frame.h * 0.36);
+      L.graph = { x: L.frame.x, y: L.frame.y + L.frame.h - gh, w: L.frame.w, h: gh };
+      L.frame = { ...L.frame, h: L.frame.h - gh - gap };
+    }
     // modo Espaço: os campos das coordenadas no topo da coluna do texto
     if (S.mode === "esp") {
       const il = inputsLayout(tx, fs);
@@ -487,6 +515,7 @@
     }
     hide3();
     figure(L.fig, L.frame, fs);
+    if (L.graph) rotGraph(L.graph, fs);
     button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
     // zoom: + e − por baixo do ☾/☀; «1:1» volta à vista inicial (só aparece fora dela)
     const zx = L.theme.x, zw = L.theme.w, zh = 1.2 * fs, zy = L.theme.y + L.theme.h + 0.25 * fs;
@@ -694,6 +723,8 @@
       texAt("th", `\\theta`, ox + Math.cos(am) * rr, oy - Math.sin(am) * rr, fs * 0.95, sc);
       void c;
     }
+    // «v a rodar»: circunferência de raio R por onde v roda
+    if (S.rot) { ctx.beginPath(); ctx.arc(ox, oy, S.R * F.k, 0, TAU); ctx.setLineDash([5, 5]); ctx.strokeStyle = alpha(C.v, 0.6); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
     // u e v: se foram deslocados (origem ≠ O), o representante na origem fica esbatido e o deslocado desenha-se a cheio
     for (const [key, col, nm] of [["u", C.u, "u"], ["v", C.v, "v"]]) {
       const [a, b] = S[key], [p, q] = S[key + "o"], moved = Math.abs(p) > EPS || Math.abs(q) > EPS, n = Math.hypot(a, b);
@@ -703,11 +734,73 @@
       labelAt("l" + key, clr(col, `\\vec ${nm} = ${pt(S[key])}`), x, y, n > EPS ? a / n : (key === "u" ? 1 : -1), n > EPS ? b / n : 0.4, fs, col);
       hits.push({ kind: "pt", key, x, y, r: 1.0 * fs });
       // o corpo do vetor (sem a zona da ponta) agarra-se para o deslocar
-      if (n > EPS) {
+      if (n > EPS && !(S.rot && key === "v")) {
         const L_ = Math.hypot(x - x0, y - y0), cut = Math.max(0, L_ - 1.0 * fs) / L_;
         hits.push({ kind: "vbody", key, seg: [x0, y0, x0 + (x - x0) * cut, y0 + (y - y0) * cut], d: 0.7 * fs });
       }
     }
+  }
+
+  // ---------- «v a rodar»: tempo e gráfico de f(t) = u·v(t) ----------
+  function setRotV() { S.v = [S.R * Math.cos(S.tr), S.R * Math.sin(S.tr)].map(x => Math.abs(x) < 1e-9 ? 0 : x); }
+  let rotRaf = 0;
+  function rotAnim() {
+    if (rotRaf) return;
+    let last = performance.now();
+    const step = now => {
+      rotRaf = 0;
+      if (!S.rot || !S.run || S.mode !== "vet") return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      S.tr = (S.tr + 0.5 * dt) % TAU; setRotV(); draw();
+      rotRaf = requestAnimationFrame(step);
+    };
+    rotRaf = requestAnimationFrame(step);
+  }
+  function rotOn(on) {
+    if (on) {
+      const [a, b] = S.v, n = Math.hypot(a, b);
+      S.R = n > EPS ? (S.int ? Math.max(1, Math.round(n)) : Math.max(0.1, r1(n))) : 3;
+      S.tr = n > EPS ? (Math.atan2(b, a) + TAU) % TAU : 0;
+      S.vo = [0, 0]; S.run = true; setRotV(); rotAnim();
+    } else {
+      S.run = false;
+      const st = S.int ? 1 : 0.1; S.v = S.v.map(x => r1(Math.round(x / st) * st));
+    }
+  }
+  function rotGraph(g, fs) {
+    const o = rotInfo(), pad = 1.2 * fs, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
+    const top = Math.max(o.A, 1e-6) * 1.15, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
+    // eixos e marcas em múltiplos de π/2
+    line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(x0, y0, x0, y1, C.axis, 1.4);
+    ["0", "\\frac{\\pi}{2}", "\\pi", "\\frac{3\\pi}{2}", "2\\pi"].forEach((lb, i) => {
+      const x = TX(i * PI / 2); if (i) line(x, TY(0) - 0.15 * fs, x, TY(0) + 0.15 * fs, C.axis, 1.2);
+      texAt("rg" + i, lb, x, TY(0) + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0);
+    });
+    texAt("rgt", "t", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
+    texAt("rgf", "f(t)", x0 - 0.3 * fs, g.y + 0.1 * fs, fs * 0.7, C.axis, 1, 0);
+    // máximo e mínimo (tracejado) com o valor
+    for (const [v, id] of [[o.A, "mx"], [-o.A, "mn"]]) {
+      line(x0, TY(v), x1, TY(v), C.grid2, 1, [4, 4]);
+      texAt("rg" + id, (v < 0 ? "-" : "") + apx(o.A), x0 - 0.25 * fs, TY(v), fs * 0.55, C.muted, 1, 0.5);
+    }
+    // curva com a cor do sinal (verde > 0, vermelho < 0)
+    const N = 240;
+    for (let i = 0; i < N; i++) {
+      const ta = i / N * TAU, tb = (i + 1) / N * TAU, fa = o.f(ta), fb = o.f(tb);
+      line(TX(ta), TY(fa), TX(tb), TY(fb), (fa + fb) / 2 >= 0 ? C.pos : C.neg, 2.4);
+    }
+    // pontos notáveis: máximo (t = φ), mínimo (φ + π), zeros (φ ± π/2)
+    const marks = [[o.phi, o.A, "máx", C.pos], [(o.phi + PI) % TAU, -o.A, "mín", C.neg], [(o.phi + PI / 2) % TAU, 0, "", C.zero], [(o.phi + 3 * PI / 2) % TAU, 0, "", C.zero]];
+    marks.forEach(([t, v, lb, col], i) => {
+      dot(TX(t), TY(v), 0.2 * fs, col, 1.5);
+      if (lb) texAt("rgm" + i, `\\text{${lb}}`, TX(t), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, 0.5, v > 0 ? 1 : 0);
+    });
+    // instante atual
+    const ft = o.f(S.tr);
+    line(TX(S.tr), y0, TX(S.tr), y1, C.muted, 1.2, [5, 4]);
+    dot(TX(S.tr), TY(ft), 0.3 * fs, C.v, 2);
+    hits.push({ kind: "rotT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => clamp((px - x0) / (x1 - x0), 0, 1) * TAU });
   }
 
   // reta infinita (recortada pela figura) e ponto onde corta o eixo Ox
@@ -1482,6 +1575,12 @@
     x = r1(x); y = r1(y);
     const o = PARTNER[key];
     if (o && S[o][0] === x && S[o][1] === y) return;   // dois pontos iguais não definem uma reta
+    // «v a rodar»: arrastar a ponta de v muda o raio R (inteiro ou décimas) e o instante t; o tempo para
+    if (key === "v" && S.rot) {
+      const ax = (px - F.cx) / F.k, ay = (F.cy - py) / F.k, d = Math.hypot(ax, ay);
+      S.R = S.int ? Math.max(1, Math.round(d)) : Math.max(0.1, r1(d));
+      S.tr = (Math.atan2(ay, ax) + TAU) % TAU; S.run = false; setRotV(); draw(); return;
+    }
     // pontas de u e v: o vetor é ponta − origem
     if (key === "u" || key === "v") { const o_ = S[key + "o"]; x = r1(x - o_[0]); y = r1(y - o_[1]); }
     if (S[key][0] === x && S[key][1] === y) return;
@@ -1521,6 +1620,8 @@
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
     }
+    if (h.kind === "box" && h.k === "rot") { S.rot = !S.rot; rotOn(S.rot); draw(); return true; }
+    if (h.kind === "rotPlay") { S.run = !S.run; if (S.run) rotAnim(); draw(); return true; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
     return false;
   }
@@ -1570,6 +1671,12 @@
     }
     e.preventDefault();
     if (act(h)) return;
+    if (h.kind === "rotT") {
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      drag = h; S.run = false; S.tr = h.val(e.clientX); setRotV(); draw();
+      return;
+    }
     if (h.kind === "vbody") {
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { cv.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1611,6 +1718,7 @@
       S.vx = drag.vx - (e.clientX - drag.x) / F.k; S.vy = drag.vy + (e.clientY - drag.y) / F.k;
       draw(); return;
     }
+    if (drag && drag.kind === "rotT") { S.tr = drag.val(e.clientX); setRotV(); draw(); return; }
     if (drag && drag.kind === "vbody") {
       // deslocar o vetor (a origem salta para inteiros, ou décimas sem «Coordenadas inteiras»), sem sair da vista
       const st = S.int ? 1 : 0.1, sn = v => r1(Math.round(v / st) * st);
@@ -1676,6 +1784,7 @@
     else if (k === "o" && !vet) { act({ kind: "dirO" }); return; }
     else if (k === "c") tog("int");
     else if (k === "t") S.txt = !S.txt;
+    else if (k === " " && vet && S.rot) { S.run = !S.run; if (S.run) rotAnim(); }
     else if (k === "+" || k === "=") return zoomAt(1.25, F.fcx, F.fcy);
     else if (k === "-") return zoomAt(0.8, F.fcx, F.fcy);
     else if (k === "0") { S.z = 1; S.vx = S.vy = 0; }
@@ -1693,6 +1802,7 @@
     else if (tok === "projecao") S.proj = true;
     else if (tok === "diretores") S.dir = true;
     else if (tok === "origem") { S.dir = S.dO = true; tD = 2; }
+    else if (tok === "rodar") { S.rot = true; rotOn(true); }
   });
 
   window.addEventListener("resize", resize);
