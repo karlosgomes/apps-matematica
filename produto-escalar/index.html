@@ -761,7 +761,7 @@
       const [a, b] = S.v, n = Math.hypot(a, b);
       S.R = n > EPS ? (S.int ? Math.max(1, Math.round(n)) : Math.max(0.1, r1(n))) : 3;
       S.tr = n > EPS ? (Math.atan2(b, a) + TAU) % TAU : 0;
-      S.vo = [0, 0]; S.run = true; setRotV(); rotAnim();
+      S.vo = [0, 0]; S.run = false; setRotV();   // espera pelo ▶ (pedido do utilizador)
     } else {
       S.run = false;
       const st = S.int ? 1 : 0.1; S.v = S.v.map(x => r1(Math.round(x / st) * st));
@@ -769,7 +769,8 @@
   }
   function rotGraph(g, fs) {
     const o = rotInfo(), pad = 1.2 * fs, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
-    const top = Math.max(o.A, 1e-6) * 1.15, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    // escala vertical FIXA (±30, ou ±60, ±90… se a amplitude não couber), para se ver a amplitude mudar com R e com u
+    const top = o.A <= 28 ? 30 : Math.ceil(o.A * 1.07 / 30) * 30, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
     rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
     // eixos e marcas em múltiplos de π/2
     line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(x0, y0, x0, y1, C.axis, 1.4);
@@ -779,6 +780,14 @@
     });
     texAt("rgt", "t", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
     texAt("rgf", "f(t)", x0 - 0.3 * fs, g.y + 0.1 * fs, fs * 0.7, C.axis, 1, 0);
+    // marcas do eixo vertical (de 10 em 10, ou de 30 em 30 com escalas maiores)
+    const stY = top <= 30 ? 10 : 30;
+    for (let v = -top; v <= top + 1e-9; v += stY) if (v) {
+      line(x0 - 0.12 * fs, TY(v), x0 + 0.12 * fs, TY(v), C.axis, 1.2);
+      line(x0, TY(v), x1, TY(v), C.grid, 1);
+      // número da marca, se não ficar em cima do valor do máximo/mínimo
+      if (v < top && Math.abs(TY(Math.abs(v)) - TY(o.A)) > 0.7 * fs) texAt("rgy" + v, `${v}`, x0 - 0.25 * fs, TY(v), fs * 0.5, C.muted, 1, 0.5);
+    }
     // máximo e mínimo (tracejado) com o valor
     for (const [v, id] of [[o.A, "mx"], [-o.A, "mn"]]) {
       line(x0, TY(v), x1, TY(v), C.grid2, 1, [4, 4]);
