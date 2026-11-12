@@ -30,6 +30,10 @@ Pequenas aplicações interativas para as aulas de Matemática A (secundário, c
 - A página inicial usa o CSS/JS do próprio weblog (`https://karlosgomes.github.io/weblog/site_libs/bootstrap/...`) e tem uma cópia do menu do weblog (`<header id="quarto-header">`), com «Apps de Matemática» ativo. Sem pesquisa (precisa do Quarto). Tem botão de modo escuro próprio (`alternarModo()`), com a mesma chave do weblog no `localStorage` (`quarto-color-scheme` = `alternate`): liga o `bootstrap-dark.min.css` do weblog e a classe `escuro` no `<html>`.
 - **Se o menu do weblog mudar, atualizar aqui à mão** (e também em `~/site/matematica-a-z/index.html`).
 
+## Estatísticas de visitas (GoatCounter)
+- Conta `karlosgomes` em https://karlosgomes.goatcounter.com (pedido do utilizador, 2026-11-12; sem cookies, por isso sem aviso RGPD; não conta em localhost). O mesmo contador está no weblog (todas as páginas HTML publicadas e o `_quarto.yml`, em `include-in-header`) e na Matemática A...Z.
+- Todas as páginas das apps têm o `<script data-goatcounter=… count.js>` antes do `</head>`. As apps (não a página inicial) têm também o `gcEvt(nome)`: conta um evento «app: ação» no máximo uma vez por visita. Eventos automáticos: cliques em botões HTML (texto do botão) e mudanças de menus/caixas HTML; nas apps em canvas, `if (h && window.gcEvt) gcEvt(h);` logo a seguir ao `hitAt` do `pointerdown` (nome = `kind` + `v`/`k`/`key` do alvo, p. ex. «mode esp», «box proj»); no Produto escalar também «arrastou P (Espaço)». App nova: copiar o bloco GoatCounter do `<head>` de outra app e a linha `gcEvt(h)`.
+
 ## Convenções de design (pedidas pelo utilizador)
 - Ecrãs largos: controlos numa coluna estreita e compacta à esquerda; a figura à direita, fixa (`position: sticky`) e com a altura limitada ao ecrã, para estar sempre toda visível. A figura deve ter o máximo de espaço.
 - Valores escritos diretamente na figura (ex.: (t; sin t) junto do ponto do gráfico), em vez de um cartão de valores à parte. Evitar blocos de texto explicativo que não foram pedidos.

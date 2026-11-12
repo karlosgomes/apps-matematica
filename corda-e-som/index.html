@@ -19,6 +19,35 @@
   .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
+<!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
+<script data-goatcounter="https://karlosgomes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script>
+// GoatCounter: eventos dentro da app (cada um no máximo uma vez por visita), com o nome «app: ação»
+(() => {
+  const seen = new Set(), app = location.pathname.split("/").filter(Boolean).pop() || "apps";
+  const send = (name, tries = 0) => {
+    if (window.goatcounter && goatcounter.count) goatcounter.count({ path: app + ": " + name, title: name, event: true });
+    else if (tries < 20) setTimeout(() => send(name, tries + 1), 500);
+  };
+  window.gcEvt = h => {
+    if (!h) return;
+    let name = typeof h === "string" ? h : [h.kind, h.v ?? h.k ?? h.key ?? ""].filter(x => x !== "" && x != null).join(" ");
+    name = String(name).trim().slice(0, 60);
+    if (!name || seen.has(name)) return;
+    seen.add(name); send(name);
+  };
+  // botões e menus em HTML (apps Python, Estatística, Folha de cálculo e as janelas das outras)
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("button, [role=button]");
+    if (b) gcEvt((b.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40) || b.title || b.id);
+  }, true);
+  document.addEventListener("change", e => {
+    const t = e.target;
+    if (t.tagName === "SELECT") gcEvt((t.id || t.name || "menu") + ": " + ((t.options[t.selectedIndex] || {}).text || t.value));
+    else if (t.type === "checkbox") gcEvt(((t.closest("label") || {}).textContent || t.id || "caixa").trim().slice(0, 40));
+  }, true);
+})();
+</script>
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
@@ -776,6 +805,7 @@
   let drag = null;
   cv.addEventListener("pointerdown", e => {
     const h = hitAt(e.clientX, e.clientY);
+    if (h && window.gcEvt) gcEvt(h);   // GoatCounter: evento (uma vez por visita)
     if (!h) return;
     e.preventDefault();
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; draw(); return; }
