@@ -1148,7 +1148,7 @@
     geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
     // opacidade por tema (o fundo branco «come» a cor; no escuro clareia depressa): 0,32 no claro, 0,24 no escuro
     const op0 = dark ? 0.24 : 0.32;
-    const mesh = new T3.Mesh(geo, basic(col, op0 + (0.03 - op0) * fade));
+    const mesh = new T3.Mesh(geo, basic(col, op0 + (0.08 - op0) * fade));
     mesh.renderOrder = 2;
     g.add(mesh);
     // só profundidade (sem cor), depois do preenchimento dos planos: serve para os eixos saberem onde estão tapados
@@ -1156,7 +1156,7 @@
     const depth = new T3.Mesh(geo, dmat);
     depth.renderOrder = 2.5;
     if (fade < 0.5) g.add(depth);   // com os planos quase transparentes («n, m → O») os eixos voltam a cheio
-    g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.12 - 0.9) * fade));
+    g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.4 - 0.9) * fade));   // esbatidos: 8 % de preenchimento e 40 % de contorno (visíveis no projetor)
     return g;
   }
   // segmento da reta A + k r dentro do cubo
@@ -1300,7 +1300,7 @@
             const h1 = -fval(al.d), h2 = h, a = [m[1] * w[2] - m[2] * w[1], m[2] * w[0] - m[0] * w[2], m[0] * w[1] - m[1] * w[0]];
             const b = [w[1] * n[2] - w[2] * n[1], w[2] * n[0] - w[0] * n[2], w[0] * n[1] - w[1] * n[0]];
             const p0 = [0, 1, 2].map(i => (h1 * a[i] + h2 * b[i]) / ww), sgm = clipLine(p0, w);
-            if (sgm) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink, 1 - 0.85 * ease(tN))));
+            if (sgm) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink, 1 - 0.6 * ease(tN))));
           }
           // com «n, m → O», o ângulo dos vetores normais aparece na origem quando chegam lá
           const op = clamp((tN - 0.75) / 0.25, 0, 1);
