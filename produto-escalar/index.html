@@ -299,6 +299,9 @@
   // ---------- controlos de baixo ----------
   const VEC = "⃗", plain = t => t.split(VEC).join("");
   function boxItems(mode = S.mode, withS = S.s, withDir = S.dir) {
+    return [...boxItems0(mode, withS, withDir), ["Mostrar texto", "txt"]];   // caixa do texto da esquerda, em todos os modos
+  }
+  function boxItems0(mode, withS, withDir) {
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"], ["Coordenadas inteiras", "int"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], ["Coordenadas inteiras", "int"]]
@@ -311,8 +314,7 @@
     out.push({ t: "btn", txt: "Vetores", on: S.mode === "vet", kind: "mode", v: "vet", w: bw("Vetores"), h: bh, f: bf, join: true });
     out.push({ t: "btn", txt: "Retas", on: S.mode === "retas", kind: "mode", v: "retas", w: bw("Retas"), h: bh, f: bf, join: true });
     out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
-    out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1, join: true });
-    out.push({ t: "btn", txt: "Texto", on: S.txt, kind: "txt", w: bw("Texto"), h: bh, f: bf });
+    out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1 });
     // modo Espaço: levar os vetores normais à origem (e esbater os planos)
     // modo Retas: levar os vetores diretores à origem (esbatendo as retas) e depois normalizá-los
     if (mode === "retas" || (mode === undefined && S.mode === "retas")) out.push({ t: "btn", txt: "r, s → O", on: S.dO, kind: "dirO", w: bw("r, s → O"), h: bh, f: bf });
@@ -1490,7 +1492,6 @@
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
     }
-    if (h.kind === "txt") { S.txt = !S.txt; draw(); return true; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
     return false;
   }
