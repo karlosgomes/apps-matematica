@@ -108,7 +108,8 @@
               op: null,   // vetor soma/diferença (botão direito em Vetores): "s" = u+v, "d" = u−v, "e" = v−u
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
-              nrm: false };   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+              nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
+              eI: false };   // Espaço: reta de interseção de α e β (botão direito)   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -1519,7 +1520,7 @@
             const h1 = -fval(al.d), h2 = h, a = [m[1] * w[2] - m[2] * w[1], m[2] * w[0] - m[0] * w[2], m[0] * w[1] - m[1] * w[0]];
             const b = [w[1] * n[2] - w[2] * n[1], w[2] * n[0] - w[0] * n[2], w[0] * n[1] - w[1] * n[0]];
             const p0 = [0, 1, 2].map(i => (h1 * a[i] + h2 * b[i]) / ww), sgm = clipLine(p0, w);
-            if (sgm) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink, 1 - 0.6 * ease(tN))));
+            if (sgm && S.eI) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink, 1 - 0.6 * ease(tN))));   // só a pedido (botão direito)
           }
           // com «n, m → O», o ângulo dos vetores normais aparece na origem quando chegam lá
           const op = clamp((tN - 0.75) / 0.25, 0, 1);
@@ -1549,7 +1550,7 @@
     cam.aspect = f.w / f.h;
     cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
     cam.updateProjectionMatrix();
-    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1838,7 +1839,17 @@
       b.addEventListener("click", () => { S.op = S.op !== op ? op : null; closeMenu(); draw(); });
       menu.appendChild(b);
     };
-    if (S.mode === "retas") {
+    if (S.mode === "esp") {
+      // reta de interseção dos planos α e β (só com os dois planos à vista)
+      const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.eI ? "✓" : "";
+      const lb = document.createElement("span");
+      if (window.katex) katex.render("\\text{Reta de interseção de } \\alpha \\text{ e } \\beta", lb, { output: "html", throwOnError: false }); else lb.textContent = "Reta de interseção de α e β";
+      b.append(ok, lb);
+      if (!((S.eA || S.eC) && S.eB)) { b.disabled = true; b.style.opacity = 0.45; b.style.cursor = "default"; b.title = "Liga o plano α e o plano β"; }
+      b.addEventListener("click", () => { if (b.disabled) return; S.eI = !S.eI; closeMenu(); draw(); });
+      menu.appendChild(b);
+    } else if (S.mode === "retas") {
       // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.nrm ? "✓" : "";
@@ -1856,8 +1867,16 @@
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
     menu.querySelector("button").focus({ preventScroll: true });
   }
+  // no Espaço o botão direito arrastado é das OrbitControls (deslocar): o menu só abre num clique sem arrastar
+  let rDown = null;
+  cv.addEventListener("pointerdown", e => { if (S.mode === "esp" && e.button === 2) rDown = { x: e.clientX, y: e.clientY }; }, true);
+  window.addEventListener("pointerup", e => {
+    if (e.button !== 2 || !rDown) return;
+    const d = Math.hypot(e.clientX - rDown.x, e.clientY - rDown.y); rDown = null;
+    if (S.mode === "esp" && d < 5 && inFig(e.clientX, e.clientY)) openMenu(e.clientX, e.clientY);
+  });
   cv.addEventListener("contextmenu", e => {
-    if (S.mode === "esp") return;
+    if (S.mode === "esp") { e.preventDefault(); return; }
     e.preventDefault();
     if (inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
   });
