@@ -23,6 +23,8 @@
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
   .tx .katex { font-size: 1em; }
   .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  /* Espaço: contorno fino em vez do halo difuso, que fazia uma «nuvem» clara/escura sobre os planos (pedido do utilizador, 2026-11-13) */
+  :root[data-mode="esp"] .tx.halo { text-shadow: 0 0 1px var(--bg), 0 0 1px var(--bg); }
   /* menu do botão direito (modo Vetores): soma e diferença */
   #menu { position: fixed; z-index: 3; display: none; flex-direction: column; min-width: 9em; padding: 4px; border: 2px solid var(--line); border-radius: 10px;
           background: var(--bg); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 17px; }
@@ -518,6 +520,7 @@
   let raf = 0;
   function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
   function paint() {
+    if (document.documentElement.dataset.mode !== S.mode) document.documentElement.dataset.mode = S.mode;
     L = layout(); hits = []; used = new Set();
     const { fs } = L;
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
