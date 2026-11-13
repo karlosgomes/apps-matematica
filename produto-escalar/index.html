@@ -23,6 +23,13 @@
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
   .tx .katex { font-size: 1em; }
   .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
+  /* menu do botão direito (modo Vetores): soma e diferença */
+  #menu { position: fixed; z-index: 3; display: none; flex-direction: column; min-width: 9em; padding: 4px; border: 2px solid var(--line); border-radius: 10px;
+          background: var(--bg); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 17px; }
+  #menu button { all: unset; display: flex; align-items: center; gap: .5em; padding: .35em .7em; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  #menu button:hover, #menu button:focus-visible { background: var(--line); }
+  #menu button .ok { width: 1em; text-align: center; }
+  #menu hr { border: 0; border-top: 1px solid var(--line); margin: 3px 4px; }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
 <!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
@@ -57,6 +64,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
+<div id="menu" role="menu"></div>
 <canvas id="cv" aria-label="Produto escalar de dois vetores no plano; declive, inclinação e ângulo de duas retas"></canvas>
 <script>
 (() => {
@@ -66,13 +74,13 @@
     bg: "#ffffff", ink: "#17202b", muted: "#333d4a", grid: "#e6eaf0", grid2: "#c4cdd8",
     axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
     u: "#1565c0", v: "#7b1fa2", pos: "#2e7d32", neg: "#d32f2f", zero: "#ef6c00",
-    al: "#1565c0", be: "#7b1fa2", rr: "#e65100", qq: "#2e7d32",
+    al: "#1565c0", be: "#7b1fa2", rr: "#e65100", qq: "#2e7d32", w: "#00838f",
   };
   const DARK = {
     bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", grid: "#232c36", grid2: "#3a4552",
     axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
     u: "#64a8ff", v: "#d09cff", pos: "#5cc26a", neg: "#ff6b6b", zero: "#ffa040",
-    al: "#64a8ff", be: "#d09cff", rr: "#ffa040", qq: "#5cc26a",
+    al: "#64a8ff", be: "#d09cff", rr: "#ffa040", qq: "#5cc26a", w: "#4dd0e1",
   };
   const C = { ...LIGHT };
   // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
@@ -96,6 +104,7 @@
               z: 1, vx: 0, vy: 0,
               uo: [0, 0], vo: [0, 0],   // origens de u e v (arrastar o corpo do vetor desloca-o; duplo clique volta a O)
               txt: true,
+              op: null,   // vetor soma/diferença (botão direito em Vetores): "s" = u+v, "d" = u−v, "e" = v−u
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {} };   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
@@ -159,6 +168,24 @@
       [`t \\approx ${apx(S.tr)}:\\quad f(t) \\approx ${clr(sgnCol(Math.round(ft * 100) / 100), apx(ft))}`],
     ];
   }
+  // vetor soma/diferença (S.op): w = a ± b, com a e b os representantes na origem
+  const OPS = { s: ["u", "v", 1], d: ["u", "v", -1], e: ["v", "u", -1] };
+  function opInfo() {
+    if (!OPS[S.op]) return null;
+    const [ka, kb, sg] = OPS[S.op], a = S[ka], b = S[kb];
+    const T = k => k === "u" ? UU() : VV(), cl = k => k === "u" ? U : V, sub = k => k === "u" ? "u" : "v";
+    return { ka, kb, sg, a, b, w: [r1(a[0] + sg * b[0]), r1(a[1] + sg * b[1])],
+             name: `${T(ka)} ${sg > 0 ? "+" : "-"} ${T(kb)}`, nm: `\\vec ${ka} ${sg > 0 ? "+" : "-"} \\vec ${kb}`, plain: `${ka}${sg > 0 ? "+" : "−"}${kb}`, cl, sub };
+  }
+  function opPieces() {
+    const o = opInfo(); if (!o) return null;
+    const op = o.sg > 0 ? "+" : "-", A = o.cl(o.ka), B = o.cl(o.kb), sa = o.sub(o.ka), sb = o.sub(o.kb);
+    const sep = [...o.a, ...o.b, ...o.w].every(isInt) ? ",\\," : ";\\,";
+    return [
+      `${o.name} = (${A(sa + "_1")} ${op} ${B(sb + "_1")}${sep}${A(sa + "_2")} ${op} ${B(sb + "_2")})`,
+      { cont: true, t: `= (${A(num(o.a[0]))} ${op} ${B(par(o.b[0]))}${sep}${A(num(o.a[1]))} ${op} ${B(par(o.b[1]))}) = ${clr(C.w, pt(o.w))}` },
+    ];
+  }
   function vecPieces() {
     const [u1, u2] = S.u, [v1, v2] = S.v;
     const d = Math.round((u1 * v1 + u2 * v2) * 100) / 100, sc = sgnCol(d);
@@ -167,6 +194,7 @@
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")}`,
       { cont: true, t: `= ${U(par(u1))}\\times${V(par(v1))} + ${U(par(u2))}\\times${V(par(v2))} = ${clr(sc, num(d))}` },
     ]];
+    const og = opPieces(); if (og) G.push(og);
     if (S.ang) {
       const g = [
         `\\|${UU()}\\| = \\sqrt{${sq(u1)} + ${sq(u2)}} = ${sqrtTex(nu)}`,
@@ -725,6 +753,23 @@
     }
     // «v a rodar»: circunferência de raio R por onde v roda
     if (S.rot) { ctx.beginPath(); ctx.arc(ox, oy, S.R * F.k, 0, TAU); ctx.setLineDash([5, 5]); ctx.strokeStyle = alpha(C.v, 0.6); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+    // vetor soma/diferença (botão direito): representante na origem e a construção a tracejado
+    const o = opInfo();
+    if (o) {
+      const [w1, w2] = o.w, nw = Math.hypot(w1, w2), XA = X(o.a[0]), YA = Y(o.a[1]), XB = X(o.b[0]), YB = Y(o.b[1]), XW = X(w1), YW = Y(w2);
+      const ca = o.ka === "u" ? C.u : C.v, cb = o.kb === "u" ? C.u : C.v;
+      if (o.sg > 0) {
+        // regra do paralelogramo: cópias de v na ponta de u e de u na ponta de v
+        line(XA, YA, XW, YW, alpha(cb, 0.7), 1.8, [6, 5]);
+        line(XB, YB, XW, YW, alpha(ca, 0.7), 1.8, [6, 5]);
+      } else if (Math.hypot(o.a[0] - o.b[0], o.a[1] - o.b[1]) > EPS) {
+        // a − b vai da ponta de b à ponta de a (representante esbatido) e fecha o paralelogramo O, b, a, a − b
+        ctx.globalAlpha = 0.45; arrow(XB, YB, XA, YA, C.w, fs); ctx.globalAlpha = 1;
+        line(XW, YW, XA, YA, alpha(cb, 0.7), 1.8, [6, 5]);
+      }
+      if (nw > EPS) arrow(ox, oy, XW, YW, C.w, fs); else dot(ox, oy, 0.272 * fs, C.w, 2);
+      labelAt("lw", clr(C.w, `${o.nm} = ${pt(o.w)}`), XW, YW, nw > EPS ? w1 / nw : 0.7, nw > EPS ? w2 / nw : -0.7, fs, C.w);
+    }
     // u e v: se foram deslocados (origem ≠ O), o representante na origem fica esbatido e o deslocado desenha-se a cheio
     for (const [key, col, nm] of [["u", C.u, "u"], ["v", C.v, "v"]]) {
       const [a, b] = S[key], [p, q] = S[key + "o"], moved = Math.abs(p) > EPS || Math.abs(q) > EPS, n = Math.hypot(a, b);
@@ -1643,6 +1688,7 @@
     drag = { kind: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: S.z, m: [(mx - F.cx) / F.k, (F.cy - my) / F.k] };
   }
   cv.addEventListener("pointerdown", e => {
+    if (e.button === 2 && S.mode !== "esp") return;   // botão direito: é o menu (contextmenu)
     const h = hitAt(e.clientX, e.clientY);
     if (h && window.gcEvt) gcEvt(h);   // GoatCounter: evento (uma vez por visita)
     // modo Espaço: os botões e as caixas tratam-se aqui; o resto da figura é das OrbitControls (rodar, zoom, deslocar)
@@ -1749,6 +1795,44 @@
     const h = hitAt(e.clientX, e.clientY);
     if (h && h.kind === "vbody") { S[h.key + "o"] = [0, 0]; draw(); }
   });
+  // botão direito (ou toque longo) na figura, em Vetores: menu com u + v, u − v e v − u
+  const menu = document.getElementById("menu");
+  const closeMenu = () => { menu.style.display = "none"; };
+  function openMenu(x, y) {
+    menu.innerHTML = "";
+    const item = (op, tex, txt) => {
+      const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.op === op ? "✓" : "";
+      const lb = document.createElement("span");
+      if (tex && window.katex) katex.render(tex, lb, { output: "html", throwOnError: false }); else lb.textContent = txt;
+      b.append(ok, lb);
+      b.addEventListener("click", () => { S.op = op && S.op !== op ? op : null; closeMenu(); draw(); });
+      menu.appendChild(b);
+    };
+    item("s", "\\vec u + \\vec v", "u + v");
+    item("d", "\\vec u - \\vec v", "u − v");
+    item("e", "\\vec v - \\vec u", "v − u");
+    if (S.op) { menu.appendChild(document.createElement("hr")); item(null, null, "Esconder"); }
+    menu.style.display = "flex";
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
+    menu.querySelector("button").focus({ preventScroll: true });
+  }
+  cv.addEventListener("contextmenu", e => {
+    if (S.mode === "esp") return;
+    e.preventDefault();
+    if (S.mode === "vet" && inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
+  });
+  window.addEventListener("pointerdown", e => { if (menu.style.display === "flex" && !menu.contains(e.target)) closeMenu(); }, true);
+  menu.addEventListener("keydown", e => {
+    const bs = [...menu.querySelectorAll("button")], i = bs.indexOf(document.activeElement);
+    if (e.key === "Escape") closeMenu();
+    else if (e.key === "ArrowDown") bs[(i + 1) % bs.length].focus();
+    else if (e.key === "ArrowUp") bs[(i - 1 + bs.length) % bs.length].focus();
+    else return;
+    e.preventDefault(); e.stopPropagation();
+  });
+  window.addEventListener("resize", closeMenu);
   const end = e => {
     if (drag3 && e.pointerId === drag3.id) {
       // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
@@ -1778,6 +1862,7 @@
   window.addEventListener("keydown", e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.classList && e.target.classList.contains("inp")) return;
+    if (menu.contains(e.target)) return;
     const k = e.key.toLowerCase(), vet = S.mode === "vet";
     if (k === "e") { S.mode = "esp"; e.preventDefault(); draw(); return; }
     if (k === "t") { S.txt = !S.txt; e.preventDefault(); draw(); return; }
