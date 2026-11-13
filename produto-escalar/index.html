@@ -100,14 +100,17 @@
   // estado: modo «vet» (vetores u e v com origem em O) ou «retas» (r por A e B, s por C e D)
   const INI = { u: [3, 1], v: [1, 2], A: [0, 1], B: [2, 2], C: [1, 4], D: [3, -2] };
   const S = { mode: "vet", ...JSON.parse(JSON.stringify(INI)),
-              ang: false, proj: false, int: true, s: false, incl: true, dir: false, dO: false, angR: false,
+              ang: false, proj: false, int: true, s: false, incl: false, dir: false, dO: false, angR: false,
               z: 1, vx: 0, vy: 0,
               uo: [0, 0], vo: [0, 0],   // origens de u e v (arrastar o corpo do vetor desloca-o; duplo clique volta a O)
-              txt: true,
               op: null,   // vetor soma/diferença (botão direito em Vetores): "s" = u+v, "d" = u−v, "e" = v−u
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false };   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+
+  // «Mostrar texto»: um valor por modo (Retas começa sem texto, a pedido do utilizador)
+  const TXT = { vet: true, retas: false, esp: true };
+  Object.defineProperty(S, "txt", { get: () => TXT[S.mode], set: v => { TXT[S.mode] = v; }, enumerable: true });
 
   // ---------- números em LaTeX ----------
   const EPS = 1e-9;
@@ -870,17 +873,22 @@
       add(labelAt("n" + o.nm, clr(o.col, o.nm), X(lx), Y(ly), -ey * side, ex * side, fs, o.col, 1));
     }
     // inclinação: ângulo do semieixo positivo Ox para a reta, a partir do ponto em que a reta corta Ox
-    if (S.incl && e1 < 0.6) for (const [o] of list) {
+    // com «r, s → O» fica esbatida como as retas (fadeL)
+    if (S.incl) for (const [o] of list) {
       if (o.horiz) continue;
       const ix = o.vert ? o.P[0] : -o.b / o.m;
       if (ix < F.x0 + 0.5 / S.z || ix > F.x1 - 0.5 / S.z || F.y0 > 0 || F.y1 < 0) continue;
       const R = 1.5 * fs;
+      ctx.globalAlpha = fadeL;
       line(X(ix), Y(0), X(ix) + R * 1.5, Y(0), o.col, 3.5);
       if (o.vert) rightMark(X(ix), Y(0), 0.6 * fs, 0, PI / 2, o.col);
       else sector(X(ix), Y(0), R, 0, o.alpha, o.col);
       OB.push({ x: X(ix) - (o.alpha > PI / 2 ? R : 0), y: Y(0) - R, w: o.alpha > PI / 2 ? 2.5 * R : 1.5 * R, h: R });
+      ctx.globalAlpha = 1;
       const am = o.alpha / 2, rr = R + 0.9 * fs;
-      add(texAt("al" + o.nm, clr(o.col, `\\alpha_${o.nm}`), X(ix) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.9, o.col));
+      const el = texAt("al" + o.nm, clr(o.col, `\\alpha_${o.nm}`), X(ix) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.9, o.col);
+      el.style.opacity = fadeL < 1 ? Math.max(0.3, fadeL) : "";
+      if (fadeL > 0.6) add(el);
     }
     // ângulo das duas retas (o agudo, ou reto), no ponto de interseção
     if (s && S.angR && e1 < 0.6) {
@@ -930,6 +938,21 @@
         if (eA > 0.5) {
           const am = a0 + da / 2, rr = Math.abs(dp) < EPS ? 1.3 * fs : rad + 0.7 * fs;
           add(texAt("thD", clr(col, "\\theta"), X(0) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.95, col));
+        }
+      }
+      // só a reta r: a inclinação passa também para o vetor diretor na origem (eA), de Ox+ até à direção da reta;
+      // se o vetor aponta para baixo, a semirreta oposta (a tracejado) mostra o outro lado do ângulo
+      if (!s && S.incl && eA > 0 && !r.horiz) {
+        const c = cur[0], lenPx = Math.hypot(c.vx, c.vy) * F.k, rad = clamp(0.55 * lenPx, 0.9 * fs, 2.2 * fs);
+        ctx.globalAlpha = eA;
+        if (r.dy < 0) line(X(0), Y(0), X(-c.vx), Y(-c.vy), alpha(r.col, 0.8), 2, [6, 5]);
+        line(X(0), Y(0), X(0) + rad * 1.5, Y(0), r.col, 3.5);
+        if (r.vert) rightMark(X(0), Y(0), 0.6 * fs, 0, PI / 2, r.col);
+        else sector(X(0), Y(0), rad, 0, r.alpha, r.col);
+        ctx.globalAlpha = 1;
+        if (eA > 0.5) {
+          const am = r.alpha / 2, rr = rad + 0.8 * fs;
+          add(texAt("alO", clr(r.col, "\\alpha_r"), X(0) + Math.cos(am) * rr, Y(0) - Math.sin(am) * rr, fs * 0.9, r.col));
         }
       }
       for (const c of cur) {
