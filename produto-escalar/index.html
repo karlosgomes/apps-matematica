@@ -31,6 +31,7 @@
   #menu button { all: unset; display: flex; align-items: center; gap: .5em; padding: .35em .7em; border-radius: 7px; cursor: pointer; white-space: nowrap; }
   #menu button:hover, #menu button:focus-visible { background: var(--line); }
   #menu button .ok { width: 1em; text-align: center; }
+  #menu .katex { font-size: 1.05em; }
   #menu hr { border: 0; border-top: 1px solid var(--line); margin: 3px 4px; }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
@@ -109,11 +110,13 @@
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
-              eI: false,   // Espaço: reta de interseção de α e β (botão direito)
-              noNum: false };   // esconder os valores nos eixos (botão direito, nos três modos)   // Espaço: reta de interseção de α e β (botão direito)   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+              eI: false };   // Espaço: reta de interseção de α e β (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
+  // «Eixos: esconder números» (botão direito): também um valor por modo (pedido do utilizador)
+  const NONUM = { vet: false, retas: false, esp: false };
+  Object.defineProperty(S, "noNum", { get: () => NONUM[S.mode], set: v => { NONUM[S.mode] = v; }, enumerable: true });
   Object.defineProperty(S, "txt", { get: () => TXT[S.mode], set: v => { TXT[S.mode] = v; }, enumerable: true });
 
   // ---------- números em LaTeX ----------
@@ -1838,13 +1841,22 @@
   // botão direito (ou toque longo) na figura, em Vetores: menu com u + v, u − v e v − u
   const menu = document.getElementById("menu");
   const closeMenu = () => { menu.style.display = "none"; };
+  // texto das opções: letra da app; o que está entre $…$ em KaTeX (pedido do utilizador, 2026-11-13)
+  function menuLabel(el, txt) {
+    el.textContent = "";
+    txt.split("$").forEach((p, i) => {
+      if (!p) return;
+      if (i % 2 && window.katex) { const sp = document.createElement("span"); katex.render(p, sp, { output: "html", throwOnError: false }); el.appendChild(sp); }
+      else el.appendChild(document.createTextNode(p));
+    });
+  }
   function openMenu(x, y) {
     menu.innerHTML = "";
     const item = (op, tex, txt) => {
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.op === op ? "✓" : "";
       const lb = document.createElement("span");
-      if (tex && window.katex) katex.render(tex, lb, { output: "html", throwOnError: false }); else lb.textContent = txt;
+      menuLabel(lb, txt);
       b.append(ok, lb);
       b.addEventListener("click", () => { S.op = S.op !== op ? op : null; closeMenu(); draw(); });
       menu.appendChild(b);
@@ -1854,7 +1866,7 @@
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.eI ? "✓" : "";
       const lb = document.createElement("span");
-      if (window.katex) katex.render("\\text{Reta de interseção de } \\alpha \\text{ e } \\beta", lb, { output: "html", throwOnError: false }); else lb.textContent = "Reta de interseção de α e β";
+      menuLabel(lb, "Reta de interseção de $\\alpha$ e $\\beta$");
       b.append(ok, lb);
       if (!((S.eA || S.eC) && S.eB)) { b.disabled = true; b.style.opacity = 0.45; b.style.cursor = "default"; b.title = "Liga o plano α e o plano β"; }
       b.addEventListener("click", () => { if (b.disabled) return; S.eI = !S.eI; closeMenu(); draw(); });
@@ -1868,9 +1880,9 @@
       b.addEventListener("click", () => { S.nrm = !S.nrm; if (S.nrm) { S.dO = S.dir = true; } animDir(); closeMenu(); draw(); });
       menu.appendChild(b);
     } else {
-      item("s", "\\vec u + \\vec v", "u + v");
-      item("d", "\\vec u - \\vec v", "u − v");
-      item("e", "\\vec v - \\vec u", "v − u");
+      item("s", null, "$\\vec u + \\vec v$");
+      item("d", null, "$\\vec u - \\vec v$");
+      item("e", null, "$\\vec v - \\vec u$");
     }
     // em todos os modos: esconder os valores nos eixos (as marcas ficam)
     menu.appendChild(document.createElement("hr"));
