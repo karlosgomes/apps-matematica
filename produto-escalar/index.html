@@ -177,15 +177,6 @@
     return { ka, kb, sg, a, b, w: [r1(a[0] + sg * b[0]), r1(a[1] + sg * b[1])],
              name: `${T(ka)} ${sg > 0 ? "+" : "-"} ${T(kb)}`, nm: `\\vec ${ka} ${sg > 0 ? "+" : "-"} \\vec ${kb}`, plain: `${ka}${sg > 0 ? "+" : "−"}${kb}`, cl, sub };
   }
-  function opPieces() {
-    const o = opInfo(); if (!o) return null;
-    const op = o.sg > 0 ? "+" : "-", A = o.cl(o.ka), B = o.cl(o.kb), sa = o.sub(o.ka), sb = o.sub(o.kb);
-    const sep = [...o.a, ...o.b, ...o.w].every(isInt) ? ",\\," : ";\\,";
-    return [
-      `${o.name} = (${A(sa + "_1")} ${op} ${B(sb + "_1")}${sep}${A(sa + "_2")} ${op} ${B(sb + "_2")})`,
-      { cont: true, t: `= (${A(num(o.a[0]))} ${op} ${B(par(o.b[0]))}${sep}${A(num(o.a[1]))} ${op} ${B(par(o.b[1]))}) = ${clr(C.w, pt(o.w))}` },
-    ];
-  }
   function vecPieces() {
     const [u1, u2] = S.u, [v1, v2] = S.v;
     const d = Math.round((u1 * v1 + u2 * v2) * 100) / 100, sc = sgnCol(d);
@@ -194,7 +185,6 @@
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")}`,
       { cont: true, t: `= ${U(par(u1))}\\times${V(par(v1))} + ${U(par(u2))}\\times${V(par(v2))} = ${clr(sc, num(d))}` },
     ]];
-    const og = opPieces(); if (og) G.push(og);
     if (S.ang) {
       const g = [
         `\\|${UU()}\\| = \\sqrt{${sq(u1)} + ${sq(u2)}} = ${sqrtTex(nu)}`,
@@ -1806,13 +1796,12 @@
       const lb = document.createElement("span");
       if (tex && window.katex) katex.render(tex, lb, { output: "html", throwOnError: false }); else lb.textContent = txt;
       b.append(ok, lb);
-      b.addEventListener("click", () => { S.op = op && S.op !== op ? op : null; closeMenu(); draw(); });
+      b.addEventListener("click", () => { S.op = S.op !== op ? op : null; closeMenu(); draw(); });
       menu.appendChild(b);
     };
     item("s", "\\vec u + \\vec v", "u + v");
     item("d", "\\vec u - \\vec v", "u − v");
     item("e", "\\vec v - \\vec u", "v − u");
-    if (S.op) { menu.appendChild(document.createElement("hr")); item(null, null, "Esconder"); }
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
