@@ -106,7 +106,8 @@
               txt: true,
               op: null,   // vetor soma/diferença (botão direito em Vetores): "s" = u+v, "d" = u−v, "e" = v−u
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
-              eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {} };   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+              eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
+              nrm: false };   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
   // ---------- números em LaTeX ----------
   const EPS = 1e-9;
@@ -284,16 +285,16 @@
     // «r, s → O»: os vetores diretores normalizados e o ângulo deles
     if (S.dO) {
       const lines_ = S.s ? [r, lineInfo(S.C, S.D, "s", C.v)] : [r], g = [];
-      for (const o of lines_) {
+      if (S.nrm) for (const o of lines_) {
         const n2 = Math.round((o.dx ** 2 + o.dy ** 2) * 100) / 100, v = clr(o.col, `\\vec ${o.nm}`);
         g.push(`\\frac{${v}}{\\|${v}\\|} = \\frac{${pt([o.dx, o.dy])}}{${sqrtTex(n2)}}`, { cont: true, t: `\\quad \\left\\|\\frac{${v}}{\\|${v}\\|}\\right\\| = 1` });
       }
       if (S.s) {
         const s_ = lines_[1], rv = U("\\vec r"), sv = V("\\vec s"), d = Math.round((r.dx * s_.dx + r.dy * s_.dy) * 100) / 100;
         const nr = r.dx ** 2 + r.dy ** 2, ns = s_.dx ** 2 + s_.dy ** 2, c = clamp(d / Math.sqrt(nr * ns), -1, 1);
-        g.push(`\\cos\\theta = \\frac{${rv}}{\\|${rv}\\|}\\cdot\\frac{${sv}}{\\|${sv}\\|} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
+        g.push(`\\cos\\theta = ${S.nrm ? `\\frac{${rv}}{\\|${rv}\\|}\\cdot\\frac{${sv}}{\\|${sv}\\|}` : `\\frac{${rv}\\cdot${sv}}{\\|${rv}\\|\\,\\|${sv}\\|}`} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
       }
-      G.push(g);
+      if (g.length) G.push(g);
     }
     return G;
   }
@@ -1176,14 +1177,14 @@
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
   // «r, s → O» (modo Retas): tD de 0 a 2 — até 1 os vetores diretores deslizam para a origem e as retas esbatem-se;
-  // de 1 a 1,25 aparece o ângulo dos vetores; de 1,25 a 2 os vetores são normalizados (ficam com norma 1)
+  // de 1 a 1,25 aparece o ângulo dos vetores; de 1,25 a 2 os vetores são normalizados (ficam com norma 1) — só com S.nrm (botão direito)
   let tD = 0, animD = 0;
   function animDir() {
     if (animD) return;
     let last = performance.now();
     const step = now => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      const goal = S.dO ? 2 : 0;
+      const goal = S.dO ? (S.nrm ? 2 : 1.25) : 0;   // sem normalizar, pára em 1,25
       tD = goal > tD ? Math.min(goal, tD + dt / 1.1) : Math.max(goal, tD - dt / 1.1);
       draw();
       animD = tD !== goal ? requestAnimationFrame(step) : 0;
@@ -1647,7 +1648,7 @@
     if (h.kind === "theme") { setDark(!dark, true); for (const el of pool.values()) el._src = null; mcache.clear(); draw(); return true; }
     if (h.kind === "zoom") { zoomAt(h.v, F.fcx, F.fcy); return true; }
     if (h.kind === "zoom1") { S.z = 1; S.vx = S.vy = 0; draw(); return true; }
-    if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; animDir(); draw(); return true; }
+    if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; else S.nrm = false; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
     if (h.kind === "view3") { if (ctl) ctl.reset(); draw(); return true; }
     if (h.kind === "dolly") {
@@ -1799,9 +1800,19 @@
       b.addEventListener("click", () => { S.op = S.op !== op ? op : null; closeMenu(); draw(); });
       menu.appendChild(b);
     };
-    item("s", "\\vec u + \\vec v", "u + v");
-    item("d", "\\vec u - \\vec v", "u − v");
-    item("e", "\\vec v - \\vec u", "v − u");
+    if (S.mode === "retas") {
+      // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
+      const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.nrm ? "✓" : "";
+      const lb = document.createElement("span"); lb.textContent = "Normalizar os vetores diretores";
+      b.append(ok, lb);
+      b.addEventListener("click", () => { S.nrm = !S.nrm; if (S.nrm) { S.dO = S.dir = true; } animDir(); closeMenu(); draw(); });
+      menu.appendChild(b);
+    } else {
+      item("s", "\\vec u + \\vec v", "u + v");
+      item("d", "\\vec u - \\vec v", "u − v");
+      item("e", "\\vec v - \\vec u", "v − u");
+    }
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
@@ -1810,7 +1821,7 @@
   cv.addEventListener("contextmenu", e => {
     if (S.mode === "esp") return;
     e.preventDefault();
-    if (S.mode === "vet" && inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
+    if (inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
   });
   window.addEventListener("pointerdown", e => { if (menu.style.display === "flex" && !menu.contains(e.target)) closeMenu(); }, true);
   menu.addEventListener("keydown", e => {
@@ -1851,7 +1862,7 @@
   window.addEventListener("keydown", e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.classList && e.target.classList.contains("inp")) return;
-    if (menu.contains(e.target)) return;
+    if (e.target instanceof Node && menu.contains(e.target)) return;
     const k = e.key.toLowerCase(), vet = S.mode === "vet";
     if (k === "e") { S.mode = "esp"; e.preventDefault(); draw(); return; }
     if (k === "t") { S.txt = !S.txt; e.preventDefault(); draw(); return; }
@@ -1884,7 +1895,8 @@
     else if (tok === "angulo") { S.ang = true; S.angR = true; }
     else if (tok === "projecao") S.proj = true;
     else if (tok === "diretores") S.dir = true;
-    else if (tok === "origem") { S.dir = S.dO = true; tD = 2; }
+    else if (tok === "origem") { S.dir = S.dO = true; tD = 1.25; }
+    else if (tok === "normalizar") { S.dir = S.dO = S.nrm = true; tD = 2; }
     else if (tok === "rodar") { S.rot = true; rotOn(true); }
   });
 
