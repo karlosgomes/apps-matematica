@@ -1562,10 +1562,19 @@
       const x = f.x + (v.x + 1) / 2 * f.w, y = f.y + (1 - v.y) / 2 * f.h;
       if (x < f.x || x > f.x + f.w || y < f.y || y > f.y + f.h) return;
       const off = 0.45 * fs;
-      texAt("l3" + i, clr(l.col, l.src), x + l.ux * off, y - l.uy * off, fs * l.px, l.col, 0.5 - 0.5 * l.ux, 0.5 + 0.5 * l.uy);
+      const col = deep(l.col);   // etiquetas mais escuras (claro) / mais claras (escuro), para se lerem melhor sobre os planos
+      texAt("l3" + i, clr(col, l.src), x + l.ux * off, y - l.uy * off, fs * l.px, col, 0.5 - 0.5 * l.ux, 0.5 + 0.5 * l.uy);
     });
   }
-  // pega mais próxima do ecrã (x, y), a menos de 1,1·fs (no ecrã; serve também para o toque)
+  // cor da etiqueta mais funda: no tema claro aproxima-se do preto, no escuro do branco (pedido do utilizador, 2026-11-13)
+  const DEEP = 0.4;
+  function deep(hex) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
+    const v = parseInt(m[1], 16), to = dark ? 255 : 0, t = dark ? DEEP * 0.5 : DEEP;
+    const c = [v >> 16, (v >> 8) & 255, v & 255].map(x => Math.round(x + (to - x) * t));
+    return "#" + c.map(x => x.toString(16).padStart(2, "0")).join("");
+  }
+    // pega mais próxima do ecrã (x, y), a menos de 1,1·fs (no ecrã; serve também para o toque)
   function pick3(x, y) {
     if (!cam || !L) return null;
     const f = L.fig;
