@@ -872,7 +872,9 @@
       // nome da reta, perto da borda
       const tEnd = Math.min(...[ex ? ((ex > 0 ? F.x1 : F.x0) - o.P[0]) / ex : Infinity, ey ? ((ey > 0 ? F.y1 : F.y0) - o.P[1]) / ey : Infinity]) - 1.4;
       const lx = o.P[0] + tEnd * ex, ly = o.P[1] + tEnd * ey, side = -ey * -lx + ex * -ly >= 0 ? 1 : -1;   // do lado do centro da figura
-      add(labelAt("n" + o.nm, clr(o.col, o.nm), X(lx), Y(ly), -ey * side, ex * side, fs, o.col, 1));
+      const elN = labelAt("n" + o.nm, clr(o.col, o.nm), X(lx), Y(ly), -ey * side, ex * side, fs, o.col, 1);
+      elN.style.opacity = fadeL < 1 ? Math.max(0.3, fadeL) : "";   // o nome esbate-se com a reta
+      add(elN);
     }
     // inclinação: ângulo do semieixo positivo Ox para a reta, a partir do ponto em que a reta corta Ox
     // com «r, s → O» fica esbatida como as retas (fadeL)
@@ -988,9 +990,12 @@
     // pontos
     for (const [o, n1, n2] of list) for (const [key, nm, p, q] of [[n1, n1, o.P, o.Q], [n2, n2, o.Q, o.P]]) {
       const x = X(p[0]), y = Y(p[1]);
+      ctx.globalAlpha = fadeL;   // com «r, s → O» esbatem-se como as retas (pedido do utilizador)
       dot(x, y, 0.272 * fs, o.col, 2);   // 15 % menor (pedido do utilizador)
+      ctx.globalAlpha = 1;
       const n = Math.hypot(p[0] - q[0], p[1] - q[1]);
-      placeLabel("p" + key, clr(o.col, `${nm}${pt(p)}`), x, y, (p[0] - q[0]) / n * 0.7 - (p[1] - q[1]) / n * 0.7, (p[1] - q[1]) / n * 0.7 + (p[0] - q[0]) / n * 0.7, fs, o.col, 0.75, OB, LN);
+      const el = placeLabel("p" + key, clr(o.col, `${nm}${pt(p)}`), x, y, (p[0] - q[0]) / n * 0.7 - (p[1] - q[1]) / n * 0.7, (p[1] - q[1]) / n * 0.7 + (p[0] - q[0]) / n * 0.7, fs, o.col, 0.75, OB, LN);
+      el.style.opacity = fadeL < 1 ? Math.max(0.3, fadeL) : "";
       hits.push({ kind: "pt", key, x, y, r: 1.3 * fs });
     }
   }
