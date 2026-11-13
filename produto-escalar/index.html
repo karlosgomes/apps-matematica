@@ -108,8 +108,8 @@
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false };   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
-  // «Mostrar texto»: um valor por modo (Retas começa sem texto, a pedido do utilizador)
-  const TXT = { vet: true, retas: false, esp: true };
+  // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
+  const TXT = { vet: false, retas: false, esp: false };
   Object.defineProperty(S, "txt", { get: () => TXT[S.mode], set: v => { TXT[S.mode] = v; }, enumerable: true });
 
   // ---------- números em LaTeX ----------
