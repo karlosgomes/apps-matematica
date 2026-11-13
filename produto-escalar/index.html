@@ -109,7 +109,8 @@
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
-              eI: false };   // Espaço: reta de interseção de α e β (botão direito)   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
+              eI: false,   // Espaço: reta de interseção de α e β (botão direito)
+              noNum: false };   // esconder os valores nos eixos (botão direito, nos três modos)   // Espaço: reta de interseção de α e β (botão direito)   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)   // modo Espaço: o que se mostra   // vista: zoom e ponto no centro da figura (arrastar o fundo, roda do rato, pinça, + e −)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -654,12 +655,12 @@
     for (let i = Math.ceil(x0 / st); i * st < x1 - 0.6 * st; i++) if (i && i * st > x0 + 0.3 * st) {
       const v = i * st;
       line(X(v), ly - 0.15 * fs, X(v), ly + 0.15 * fs, C.axis, 1.4);
-      texAt("tx" + i, fmt(v, 1), X(v), ly + 0.25 * fs, fs * 0.6, C.muted, 0.5, 0);
+      if (!S.noNum) texAt("tx" + i, fmt(v, 1), X(v), ly + 0.25 * fs, fs * 0.6, C.muted, 0.5, 0);
     }
     for (let j = Math.ceil(y0 / st); j * st < y1 - 0.6 * st; j++) if (j && j * st > y0 + 0.3 * st) {
       const v = j * st;
       line(lx - 0.15 * fs, Y(v), lx + 0.15 * fs, Y(v), C.axis, 1.4);
-      texAt("ty" + j, fmt(v, 1), lx - 0.3 * fs, Y(v), fs * 0.6, C.muted, 1, 0.5);
+      if (!S.noNum) texAt("ty" + j, fmt(v, 1), lx - 0.3 * fs, Y(v), fs * 0.6, C.muted, 1, 0.5);
     }
     ctx.save();
     ctx.beginPath(); ctx.rect(f.x, f.y, f.w, f.h); ctx.clip();
@@ -1451,7 +1452,7 @@
     const tk = [];
     for (let i = -B3; i <= B3; i++) if (i) {
       tk.push([[i, -0.12, 0], [i, 0.12, 0]], [[-0.12, i, 0], [0.12, i, 0]], [[-0.12, 0, i], [0.12, 0, i]]);
-      lab(`${i}`, [i, 0, 0], C.muted, -1, -1, 0.55); lab(`${i}`, [0, i, 0], C.muted, 1, -1, 0.55); lab(`${i}`, [0, 0, i], C.muted, -1, 0, 0.55);
+      if (!S.noNum) { lab(`${i}`, [i, 0, 0], C.muted, -1, -1, 0.55); lab(`${i}`, [0, i, 0], C.muted, 1, -1, 0.55); lab(`${i}`, [0, 0, i], C.muted, -1, 0, 0.55); }
     }
     add(lines(tk, ax));
     const grid = [];
@@ -1550,7 +1551,7 @@
     cam.aspect = f.w / f.h;
     cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
     cam.updateProjectionMatrix();
-    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1871,6 +1872,14 @@
       item("d", "\\vec u - \\vec v", "u − v");
       item("e", "\\vec v - \\vec u", "v − u");
     }
+    // em todos os modos: esconder os valores nos eixos (as marcas ficam)
+    menu.appendChild(document.createElement("hr"));
+    { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.noNum ? "✓" : "";
+      const lb = document.createElement("span"); lb.textContent = "Eixos: esconder números";
+      b.append(ok, lb);
+      b.addEventListener("click", () => { S.noNum = !S.noNum; closeMenu(); draw(); });
+      menu.appendChild(b); }
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
