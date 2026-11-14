@@ -32,6 +32,8 @@
   #menu button:hover, #menu button:focus-visible { background: var(--line); }
   #menu button .ok { width: 1em; text-align: center; }
   #menu .katex { font-size: 1.05em; }
+  #toast { position: fixed; z-index: 4; left: 50%; bottom: 1.2rem; transform: translateX(-50%); padding: .45em .9em; border-radius: 8px;
+           background: var(--ink); color: var(--bg); font: 15px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; opacity: 0; transition: opacity .25s; pointer-events: none; }
   #menu hr { border: 0; border-top: 1px solid var(--line); margin: 3px 4px; }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
@@ -1302,6 +1304,8 @@
     ctl.minDistance = 8; ctl.maxDistance = 90;
     ctl.addEventListener("change", draw);
     ctl.saveState();
+    // vista vinda de um link «Copiar link da cena» (o ⌂ continua a voltar à vista inicial)
+    if (camPend) { cam.position.set(...camPend.p); ctl.target.set(...camPend.t); ctl.update(); camPend = null; }
     // Ctrl/⌘ + botão esquerdo: pan pela grelha (as OrbitControls já deslocam com Ctrl; aqui só se segue o alvo)
     cv.addEventListener("pointerdown", e => {
       if (S.mode === "esp" && e.button === 0 && (e.ctrlKey || e.metaKey)) panC = { t0: [ctl.target.x, ctl.target.y, ctl.target.z], c0: C3F.slice() };
@@ -2010,6 +2014,13 @@
       b.append(ok, lb);
       b.addEventListener("click", () => { S.txt = !S.txt; closeMenu(); draw(); });
       menu.appendChild(b); }
+    menu.appendChild(document.createElement("hr"));
+    { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok";
+      const lb = document.createElement("span"); lb.textContent = "Copiar link da cena";
+      b.append(ok, lb);
+      b.addEventListener("click", () => { closeMenu(); copyScene(); });
+      menu.appendChild(b); }
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
@@ -2092,6 +2103,77 @@
     e.preventDefault(); draw();
   });
 
+  // ---------- «Copiar link da cena» (botão direito): o estado do modo atual num link #cena=… ----------
+  // (JSON em base64 «url-safe»; os valores por modo — texto, inteiras, números — só os do modo atual)
+  const KEYS = {
+    vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
+    retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "vert"],
+  };
+  const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
+  function sceneLink() {
+    const o = { m: S.mode, z: S.z, vx: S.vx, vy: S.vy, txt: S.txt, int: S.int, noNum: S.noNum };
+    for (const k of KEYS[S.mode]) o[k] = S[k];
+    if (S.mode === "esp") {
+      o.f = {}; for (const [k] of FIELDS) o.f[k] = ESP[k];
+      if (cam && ctl) { o.cp = cam.position.toArray().map(v => +v.toFixed(3)); o.ct = ctl.target.toArray().map(v => +v.toFixed(3)); o.c3 = C3F.map(v => +v.toFixed(3)); }
+    }
+    return location.origin + location.pathname + "#cena=" + b64e(JSON.stringify(o));
+  }
+  let camPend = null;
+  function applyScene(code) {
+    let o; try { o = JSON.parse(b64d(code)); } catch (e) { return; }
+    if (!["vet", "retas", "esp"].includes(o.m)) return;
+    S.mode = o.m;
+    for (const k of ["z", "vx", "vy"]) if (typeof o[k] === "number") S[k] = o[k];
+    for (const k of ["txt", "int", "noNum"]) if (typeof o[k] === "boolean") S[k] = o[k];
+    for (const k of KEYS[o.m]) if (k in o) S[k] = o[k];
+    if (o.m === "retas") tD = S.dO ? (S.nrm ? 2 : 1.25) : 0;
+    if (o.m === "esp") {
+      for (const [k] of FIELDS) if (o.f && typeof o.f[k] === "string") { ESP[k] = o.f[k]; INP[k].value = o.f[k]; }
+      tN = S.nO ? 1 : 0;
+      if (o.cp && o.ct) camPend = { p: o.cp, t: o.ct };
+      if (o.c3) C3F = o.c3.slice();
+    }
+  }
+  // link curto pelo is.gd (JSONP: o is.gd não tem CORS); null se falhar ou demorar mais de 5 s
+  function shorten(url) {
+    return new Promise(res => {
+      const cb = "__isgd" + Date.now(), sc = document.createElement("script");
+      const done = v => { clearTimeout(t); delete window[cb]; sc.remove(); res(v); };
+      const t = setTimeout(() => done(null), 5000);
+      window[cb] = d => done(d && d.shorturl ? d.shorturl : null);
+      sc.onerror = () => done(null);
+      sc.src = "https://is.gd/create.php?format=json&callback=" + cb + "&url=" + encodeURIComponent(url);
+      document.head.appendChild(sc);
+    });
+  }
+  async function copyScene() {
+    const url = sceneLink();
+    toast("A criar o link curto…", 6000);
+    const short = shorten(url);   // começa já
+    let ok = false, used = url;
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        // a escrita começa ainda dentro do clique (o Safari exige-o); o texto chega quando o is.gd responder
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": short.then(sh => { used = sh || url; return new Blob([used], { type: "text/plain" }); }) })]);
+      } else { used = (await short) || url; await navigator.clipboard.writeText(used); }
+      ok = true;
+    } catch (e) {
+      used = (await short) || url;
+      const ta = document.createElement("textarea"); ta.value = used; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); try { ok = document.execCommand("copy"); } catch (_) {} ta.remove();
+    }
+    toast(!ok ? "Não foi possível copiar o link" : used !== url ? "Link curto copiado: " + used : "Link da cena copiado (sem encurtar)");
+  }
+  function toast(msg, ms = 2600) {
+    let el = document.getElementById("toast");
+    if (!el) { el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
+    el.textContent = msg; el.style.opacity = 1;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { el.style.opacity = 0; }, ms);
+  }
+
   // valores iniciais no endereço, p. ex. #u=3,1&v=1,2&angulo  ou  #retas&A=0,1&B=2,2&C=1,4&D=3,-2
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
     const m = tok.match(/^([uvABCD])=(-?[\d.]+)[,;](-?[\d.]+)$/);
@@ -2104,6 +2186,7 @@
     else if (tok === "origem") { S.dir = S.dO = true; tD = 1.25; }
     else if (tok === "normalizar") { S.dir = S.dO = S.nrm = true; tD = 2; }
     else if (tok === "rodar") { S.rot = true; rotOn(true); }
+    else if (tok.startsWith("cena=")) applyScene(tok.slice(5));
   });
 
   window.addEventListener("resize", resize);
