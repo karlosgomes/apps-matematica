@@ -115,6 +115,7 @@
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
               noXOy: false,   // Espaço: esconder a quadrícula do plano xOy (botão direito)
               noAx: false,   // Espaço: esconder o referencial Oxyz (botão direito)
+              tX: true,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
               xG: false,   // Espaço: xOy a cinzento suave em vez da grelha (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
@@ -1464,6 +1465,16 @@
     g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.4 - 0.9) * fade));   // esbatidos: 8 % de preenchimento e 40 % de contorno (visíveis no projetor)
     return g;
   }
+  // interseção do plano n·X = h com xOy (linha cinzenta ténue, recortada no cubo); nada se o plano for horizontal
+  function traceXOy(n, h, fade = 0) {
+    const q = n[0] * n[0] + n[1] * n[1];
+    if (!S.tX || S.noXOy || q < 1e-12) return null;
+    const sg = clipLine([n[0] * h / q, n[1] * h / q, 0], [-n[1], n[0], 0]);
+    if (!sg) return null;
+    const L_ = lines([sg], C.muted, (dark ? 0.55 : 0.5) * (1 - 0.6 * fade));
+    L_.renderOrder = 2.2;
+    return L_;
+  }
   // segmento da reta A + k r dentro do cubo centrado em C3
   function clipLine(A, r) {
     let t0 = -1e9, t1 = 1e9;
@@ -1614,6 +1625,7 @@
         }
         rightMark3(P, n, d, C.al, 1 - 2 * tN);
       }
+      if (S.eA) add(traceXOy(n, h, ease(tN)));
       if (S.eA) lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
     }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
@@ -1651,6 +1663,7 @@
         add(arrow3(Rm, Rm.map((v, i) => v + m[i]), C.be, 0.045)); lab("\\vec m", Rm.map((v, i) => v + m[i]), C.be, 1, 1);
         handle("m", Rm.map((v, i) => v + m[i]), C.be, Rm, 0.1);
         if (tN < 0.5) rightMark3(R, m, inPlane(m)[0], C.be, 1 - 2 * tN);   // ângulo reto entre m e β em R
+        add(traceXOy(m, h, ease(tN)));
         lab("\\beta", rectB.reduce((best, p) => p[0] + p[1] > best[0] + best[1] ? p : best), C.be, 0, -1, 1);
         // reta de interseção de α e β
         if (al) {
@@ -1691,7 +1704,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, S.gP, S.xG, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, S.gP, S.xG, S.tX, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2043,6 +2056,7 @@
       b2.append(ok2, lb2);
       b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
       menu.appendChild(b2);
+      tog("Interseção dos planos com $xOy$", S.tX, () => { S.tX = !S.tX; draw(); });
       tog("$xOy$ a cinzento", S.xG, () => { S.xG = !S.xG; draw(); });
       tog("Esconder $Oxyz$", S.noAx, () => { S.noAx = !S.noAx; draw(); });
       tog("Ponto $X$ do plano $\\alpha$", S.eX, () => { S.eX = !S.eX; draw(); });
@@ -2175,7 +2189,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "gP", "xG", "xst", "vert"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "gP", "xG", "tX", "xst", "vert"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
