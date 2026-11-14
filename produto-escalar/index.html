@@ -1445,7 +1445,7 @@
   function planeMesh(P, col, fade = 0, Q = null) {
     if (!P) return null;
     const g = new T3.Group();
-    if (Q && S.gP) { const gr = planeGrid(P, Q, col, (dark ? 0.4 : 0.35) * (1 - 0.7 * fade)); if (gr) { gr.renderOrder = 2.2; g.add(gr); } }   // depois do preenchimento
+    if (Q && S.gP) { const gr = planeGrid(P, Q, col, (dark ? 0.24 : 0.2) * (1 - 0.7 * fade)); if (gr) { gr.renderOrder = 2.2; g.add(gr); } }   // depois do preenchimento
     const pos = [];
     for (let i = 1; i < P.length - 1; i++) pos.push(...P[0], ...P[i], ...P[i + 1]);
     const geo = new T3.BufferGeometry();
