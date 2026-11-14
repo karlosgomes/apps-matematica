@@ -114,7 +114,8 @@
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
               noXOy: false,   // Espaço: esconder a quadrícula do plano xOy (botão direito)
-              noAx: false };   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
+              noAx: false,   // Espaço: esconder o referencial Oxyz (botão direito)
+              eX: false };   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -1470,6 +1471,19 @@
     const add = o => { if (o) scene.add(o); return o; };
     // ângulo θ entre dois vetores com origem em O, no plano dos dois, na cor do sinal do produto escalar
     // (quadrado se for reto); op: opacidade (o das normais aparece aos poucos com «n, m → O»)
+    // duas direções unitárias do plano de vetor normal n (a primeira horizontal, como no planeRect)
+    const inPlane = n => {
+      const N = vec3(...n).normalize(); let e1 = N.clone().cross(vec3(0, 0, 1));
+      e1 = e1.lengthSq() < 1e-10 ? vec3(1, 0, 0) : e1.normalize();
+      return [e1.toArray(), N.clone().cross(e1).normalize().toArray()];
+    };
+    // marca de ângulo reto em Q entre a direção do vetor a e a direção unitária d (quadrado de lado 0,5)
+    const rightMark3 = (Q, a, d, col, op = 1) => {
+      const ua = vec3(...a).normalize().toArray(), q = 0.5;
+      const A_ = Q.map((v, i) => v + q * ua[i]), D_ = Q.map((v, i) => v + q * d[i]), M_ = Q.map((v, i) => v + q * (ua[i] + d[i]));
+      const mat = solid(col, op);
+      for (const [p0, p1] of [[A_, M_], [M_, D_]]) { const m = rod(p0, p1, 0.024, mat); if (m) add(m); }
+    };
     const angle3 = (u, v, op, sym = "\\theta") => {
       const U3 = vec3(...u), W3 = vec3(...v), lu = U3.length(), lv = W3.length();
       if (lu > 1e-9 && lv > 1e-9) {
@@ -1567,6 +1581,17 @@
       const Pn = P.map(v => v * (1 - ease(tN)));
       add(arrow3(Pn, Pn.map((v, i) => v + n[i]), C.al, 0.045)); lab("\\vec n", Pn.map((v, i) => v + n[i]), C.al, 1, 1);
       handle("n", Pn.map((v, i) => v + n[i]), C.al, Pn, 0.1);
+      // ângulo reto entre n e o plano α em P; com «Ponto X» (botão direito), o vetor PX e o ângulo reto entre n e PX
+      if (S.eA && tN < 0.5) {
+        const [e1, e2] = inPlane(n);
+        let d = e1;
+        if (S.eX) {
+          const X = P.map((v, i) => v - 2.4 * e1[i] - 1.2 * e2[i]);
+          add(arrow3(P, X, C.al, 0.03)); add(ball(X, C.ink, 0.11)); lab("X", X, C.ink, 1, -1);
+          const L = Math.hypot(2.4, 1.2); d = [0, 1, 2].map(i => (X[i] - P[i]) / L);
+        }
+        rightMark3(P, n, d, C.al, 1 - 2 * tN);
+      }
       if (S.eA) lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
     }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
@@ -1598,6 +1623,7 @@
         const Rm = R.map(v => v * (1 - ease(tN)));
         add(arrow3(Rm, Rm.map((v, i) => v + m[i]), C.be, 0.045)); lab("\\vec m", Rm.map((v, i) => v + m[i]), C.be, 1, 1);
         handle("m", Rm.map((v, i) => v + m[i]), C.be, Rm, 0.1);
+        if (tN < 0.5) rightMark3(R, m, inPlane(m)[0], C.be, 1 - 2 * tN);   // ângulo reto entre m e β em R
         lab("\\beta", rectB.reduce((best, p) => p[0] + p[1] > best[0] + best[1] ? p : best), C.be, 0, -1, 1);
         // reta de interseção de α e β
         if (al) {
@@ -1638,7 +1664,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1980,6 +2006,7 @@
       b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
       menu.appendChild(b2);
       tog("Esconder $Oxyz$", S.noAx, () => { S.noAx = !S.noAx; draw(); });
+      tog("Ponto $X$ do plano $\\alpha$", S.eX, () => { S.eX = !S.eX; draw(); });
     } else if (S.mode === "retas") {
       tog("$\\vec r, \\vec s \\to O$", S.dO, () => act({ kind: "dirO" }));
       // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
@@ -2108,7 +2135,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "vert"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "vert"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
