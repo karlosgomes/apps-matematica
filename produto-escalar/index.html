@@ -407,7 +407,8 @@
     // «r, s → O» e «n, m → O» passaram para o menu do botão direito (pedido do utilizador, 2026-11-14)
     const bs = 0.66 * fs, cf = 0.72 * fs;
     ctx.font = `${cf}px ${CBFONT}`;
-    for (const [txt, k] of boxItems(mode, withS, withDir)) out.push({ t: "box", txt, k, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width, f: cf, bs });
+    // as caixas começam sempre numa linha nova, por baixo dos botões (br; pedido do utilizador, 2026-11-14)
+    boxItems(mode, withS, withDir).forEach(([txt, k], i) => out.push({ t: "box", txt, k, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width, f: cf, bs, br: i === 0 }));
     return out;
   }
 
@@ -420,7 +421,7 @@
     let x = 0;
     for (const it of items) {
       const r = rows[rows.length - 1], sp = r.length ? (it.t === "btn" && r[r.length - 1].join ? 0.25 : 1.0) * fs : 0;
-      if (r.length && x + sp + it.w > w) { rows.push([it]); x = it.w; }
+      if (r.length && (it.br || x + sp + it.w > w)) { rows.push([it]); x = it.w; }
       else { r.push(it); x += sp + it.w; }
     }
     return rows;
