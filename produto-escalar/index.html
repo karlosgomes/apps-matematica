@@ -2175,6 +2175,7 @@
   }
 
   // valores iniciais no endereço, p. ex. #u=3,1&v=1,2&angulo  ou  #retas&A=0,1&B=2,2&C=1,4&D=3,-2
+  let txtPend = false;   // «texto»: mostra o texto da esquerda no modo escolhido pelo endereço (links da Matemática A...Z)
   decodeURIComponent(location.hash.slice(1)).split("&").forEach(tok => {
     const m = tok.match(/^([uvABCD])=(-?[\d.]+)[,;](-?[\d.]+)$/);
     if (m) { S[m[1]] = [r1(+m[2]), r1(+m[3])]; if ("CD".includes(m[1])) S.s = true; if ("ABCD".includes(m[1])) S.mode = "retas"; if (!S[m[1]].every(isInt)) INT["ABCD".includes(m[1]) ? "retas" : "vet"] = false; return; }
@@ -2187,7 +2188,9 @@
     else if (tok === "normalizar") { S.dir = S.dO = S.nrm = true; tD = 2; }
     else if (tok === "rodar") { S.rot = true; rotOn(true); }
     else if (tok.startsWith("cena=")) applyScene(tok.slice(5));
+    else if (tok === "texto") txtPend = true;
   });
+  if (txtPend) S.txt = true;
 
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
