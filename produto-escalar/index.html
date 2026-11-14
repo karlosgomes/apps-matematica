@@ -1150,6 +1150,12 @@
             const t = fneg(fdiv(fadd(dot3(al.n, A), al.d), dn)), I = A.map((a, i) => fadd(a, fmul(t, r[i])));
             g.push(`${R_} \\cap ${A_} = \\{${clr(C.ink, "I")}\\},\\ ${clr(C.ink, "I")}${p3T(I)}`);
           }
+          // com «n, m → O»: o ângulo φ do vetor diretor r com o vetor normal n
+          if (S.nO) {
+            const nT = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
+            const c = clamp(fval(dn) / Math.sqrt(fval(dot3(r, r)) * fval(dot3(al.n, al.n))), -1, 1);
+            g.push(`\\cos\\varphi = \\frac{${rv}\\cdot${nv}}{\\|${rv}\\|\\,\\|${nv}\\|} = \\frac{${clr(sgnCol(fval(dn)), fT(dn))}}{${nT(r)}\\times${nT(al.n)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\varphi") });
+          }
         }
         G.push(g);
       }
@@ -1460,7 +1466,7 @@
     const add = o => { if (o) scene.add(o); return o; };
     // ângulo θ entre dois vetores com origem em O, no plano dos dois, na cor do sinal do produto escalar
     // (quadrado se for reto); op: opacidade (o das normais aparece aos poucos com «n, m → O»)
-    const angle3 = (u, v, op) => {
+    const angle3 = (u, v, op, sym = "\\theta") => {
       const U3 = vec3(...u), W3 = vec3(...v), lu = U3.length(), lv = W3.length();
       if (lu > 1e-9 && lv > 1e-9) {
         const e1 = U3.clone().normalize(), dv = U3.dot(W3), th = Math.acos(clamp(dv / (lu * lv), -1, 1));
@@ -1474,7 +1480,7 @@
           const pos = [0, 0, 0, ...sq[0], ...sq[1], 0, 0, 0, ...sq[1], ...sq[2]];
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
           add(new T3.Mesh(geo, basic(col, 0.35 * op))); add(lines([[sq[0], sq[1]], [sq[1], sq[2]]], col, op));
-          if (op > 0.5) lab("\\theta", e1.clone().add(e2).multiplyScalar(0.75).toArray(), col, 0, 0, 0.85);
+          if (op > 0.5) lab(sym, e1.clone().add(e2).multiplyScalar(0.75).toArray(), col, 0, 0, 0.85);
         } else if (th > 1e-6) {
           const N = 40, pos = [], arc = [];
           for (let i = 0; i < N; i++) {
@@ -1484,7 +1490,7 @@
           }
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
           add(new T3.Mesh(geo, basic(col, 0.3 * op))); add(lines(arc, col, op));
-          if (op > 0.5) lab("\\theta", at(th / 2, rad + 0.35), col, 0, 0, 0.85);
+          if (op > 0.5) lab(sym, at(th / 2, rad + 0.35), col, 0, 0, 0.85);
         }
       }
     };
@@ -1573,6 +1579,9 @@
           const t = -(n[0] * A[0] + n[1] * A[1] + n[2] * A[2] + fval(al.d)) / dn, I = A.map((a, i) => a + t * r[i]);
           if (I.every((v, i) => Math.abs(v - C3[i]) <= B3 + 1e-9)) { add(ball(I, C.ink, 0.15)); lab("I", I, C.ink, 1, 1); }   // interseções a preto/branco, como a reta α ∩ β (pedido do utilizador)
         }
+        // com «n, m → O»: quando r e n chegam à origem, aparece o ângulo φ entre eles (pedido do utilizador, 2026-11-14)
+        const opR = clamp((tN - 0.75) / 0.25, 0, 1);
+        if (opR > 0) angle3(n, r, opR, "\\varphi");
       }
     }
     if (S.eB) {
