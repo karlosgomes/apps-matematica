@@ -421,16 +421,19 @@
     }
     return rows;
   }
+  const CTRL = 0.82;
   function layout() {
     const fs = clamp(Math.min(W, H) / 24, 14, 26);
     const pad = Math.round(fs * 0.6), gap = 0.5 * fs;
     const land = W > H * 1.15 && W >= 700;
     const L = { fs, pad, gap, land };
     const cw = land ? clamp(W * 0.36, 300, 540) : W - 2 * pad;
-    const rows = rowsOf(controls(fs), cw, fs);
-    const nRows = Math.max(rows.length, rowsOf(controls(fs, "retas", true, true), cw, fs).length, rowsOf(controls(fs, "vet"), cw, fs).length, rowsOf(controls(fs, "esp"), cw, fs).length);
-    const rh = 1.7 * fs;
-    L.rows = rows; L.rh = rh; L.rowX = pad;
+    // controlos de baixo (botões e caixas) mais pequenos que o resto (CTRL; pedido do utilizador, 2026-11-14)
+    const cfs = CTRL * fs;
+    const rows = rowsOf(controls(cfs), cw, cfs);
+    const nRows = Math.max(rows.length, rowsOf(controls(cfs, "retas", true, true), cw, cfs).length, rowsOf(controls(cfs, "vet"), cw, cfs).length, rowsOf(controls(cfs, "esp"), cw, cfs).length);
+    const rh = 1.7 * cfs;
+    L.rows = rows; L.rh = rh; L.rowX = pad; L.cfs = cfs;
     L.rowY = H - pad - nRows * rh;
     // espaço do texto
     const tx = { x: pad, y: pad, w: cw, h: land ? L.rowY - gap - pad : Math.round(H * (S.mode === "esp" ? 0.36 : 0.3)) };
@@ -542,7 +545,7 @@
       button(L.theme.x, zy, L.theme.w, zh, "+", false, "dolly", { v: 0.8 }, fs * 0.8);
       button(L.theme.x, zy + zh + 0.2 * fs, L.theme.w, zh, "−", false, "dolly", { v: 1.25 }, fs * 0.8);
       button(L.theme.x, zy + 2 * (zh + 0.2 * fs), L.theme.w, zh, "⌂", false, "view3", {}, fs * 0.75);
-      bottom(fs);
+      bottom(L.cfs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
     }
@@ -555,7 +558,7 @@
     button(zx, zy, zw, zh, "+", false, "zoom", { v: 1.25 }, fs * 0.8);
     button(zx, zy + zh + 0.2 * fs, zw, zh, "−", false, "zoom", { v: 0.8 }, fs * 0.8);
     if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 2 * (zh + 0.2 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.55);
-    bottom(fs);
+    bottom(L.cfs);
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
 
