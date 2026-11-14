@@ -115,7 +115,7 @@
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
               xs: 0,   // Espaço: plano xOy — 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (botão «xOy» à direita, cada toque passa ao seguinte)
               noAx: false,   // Espaço: esconder o referencial Oxyz (botão «Oxyz» à direita)
-              tX: true,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
+              tX: false,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
@@ -1914,7 +1914,7 @@
     if (h.kind === "mode") { S.mode = h.v; draw(); return true; }
     if (h.kind === "menu") {
       // o mesmo toque que fechou o menu (pointerdown em captura) não o volta a abrir
-      if (performance.now() - menuClosedAt > 60) { const r = h.rect; openMenu(r.x, r.y - 4); }
+      if (performance.now() - menuClosedAt > 60) { const r = h.rect; openMenu(r.x, r.y - 4, "all"); }
       return true;
     }
     if (h.kind === "reset") {
@@ -2056,7 +2056,8 @@
       else el.appendChild(document.createTextNode(p));
     });
   }
-  function openMenu(x, y) {
+  // onde: "fig" (botão direito na figura), "txt" (botão direito na zona do texto, à esquerda: só «Mostrar texto»), "all" (botão ⋯)
+  function openMenu(x, y, onde = "fig") {
     menu.innerHTML = "";
     const item = (op, tex, txt) => {
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
@@ -2076,6 +2077,7 @@
       b.addEventListener("click", () => { closeMenu(); fn(); });
       menu.appendChild(b);
     };
+    if (onde === "txt") { tog("Mostrar texto", S.txt, () => { S.txt = !S.txt; draw(); }); showMenu(x, y); return; }
     if (S.mode === "esp") {
       tog("$\\vec n, \\vec m \\to O$", S.nO, () => act({ kind: "normO" }));
       // reta de interseção dos planos α e β (só com os dois planos à vista)
@@ -2087,7 +2089,7 @@
       if (!((S.eA || S.eC) && S.eB)) { b.disabled = true; b.style.opacity = 0.45; b.style.cursor = "default"; b.title = "Liga o plano α e o plano β"; }
       b.addEventListener("click", () => { if (b.disabled) return; S.eI = !S.eI; closeMenu(); draw(); });
       menu.appendChild(b);
-      tog("Interseção dos planos com $xOy$", S.tX, () => { S.tX = !S.tX; draw(); });
+      tog("Interseção com $xOy$", S.tX, () => { S.tX = !S.tX; draw(); });
       tog("Ponto $X$ do plano $\\alpha$", S.eX, () => { S.eX = !S.eX; draw(); });
       tog("Grelha nos planos", S.gP, () => { S.gP = !S.gP; draw(); });
     } else if (S.mode === "retas") {
@@ -2118,12 +2120,7 @@
       b.append(ok, lb);
       b.addEventListener("click", () => { S.noNum = !S.noNum; closeMenu(); draw(); });
       menu.appendChild(b); }
-    { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
-      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.txt ? "✓" : "";
-      const lb = document.createElement("span"); lb.textContent = "Mostrar texto";
-      b.append(ok, lb);
-      b.addEventListener("click", () => { S.txt = !S.txt; closeMenu(); draw(); });
-      menu.appendChild(b); }
+    if (onde === "all") tog("Mostrar texto", S.txt, () => { S.txt = !S.txt; draw(); });
     menu.appendChild(document.createElement("hr"));
     { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok";
@@ -2131,6 +2128,9 @@
       b.append(ok, lb);
       b.addEventListener("click", () => { closeMenu(); copyScene(); });
       menu.appendChild(b); }
+    showMenu(x, y);
+  }
+  function showMenu(x, y) {
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
@@ -2142,13 +2142,19 @@
   window.addEventListener("pointerup", e => {
     if (e.button !== 2 || !rDown) return;
     const d = Math.hypot(e.clientX - rDown.x, e.clientY - rDown.y); rDown = null;
-    if (S.mode === "esp" && d < 5 && inFig(e.clientX, e.clientY)) openMenu(e.clientX, e.clientY);
+    if (S.mode === "esp" && d < 5) { if (inFig(e.clientX, e.clientY)) openMenu(e.clientX, e.clientY); else if (inText(e.clientX, e.clientY)) openMenu(e.clientX, e.clientY, "txt"); }
   });
   cv.addEventListener("contextmenu", e => {
     if (S.mode === "esp") { e.preventDefault(); return; }
     e.preventDefault();
     if (inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
+    else if (inText(e.clientX, e.clientY)) openMenu(e.clientX, e.clientY, "txt");
   });
+  // zona do texto (fora da figura e fora dos botões e caixas de baixo): o botão direito aí dá «Mostrar texto» (pedido do utilizador, 2026-11-15)
+  function inText(x, y) {
+    if (inFig(x, y)) return false;
+    return !hits.some(h => h.rect && x >= h.rect.x && x <= h.rect.x + h.rect.w && y >= h.rect.y && y <= h.rect.y + h.rect.h);
+  }
   let menuClosedAt = -1e9;
   window.addEventListener("pointerdown", e => { if (menu.style.display === "flex" && !menu.contains(e.target)) { closeMenu(); menuClosedAt = performance.now(); } }, true);
   menu.addEventListener("keydown", e => {
