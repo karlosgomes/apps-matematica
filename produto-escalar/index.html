@@ -1147,7 +1147,7 @@
           else g.push(prod, { cont: true, t: `\\ne 0 \\;\\Rightarrow\\; ${R_}\\ \\text{interseta}\\ ${A_}` });
           if (!fz(dn)) {
             const t = fneg(fdiv(fadd(dot3(al.n, A), al.d), dn)), I = A.map((a, i) => fadd(a, fmul(t, r[i])));
-            g.push(`${R_} \\cap ${A_} = \\{${clr(rc, "I")}\\},\\ ${clr(rc, "I")}${p3T(I)}`);
+            g.push(`${R_} \\cap ${A_} = \\{${clr(C.ink, "I")}\\},\\ ${clr(C.ink, "I")}${p3T(I)}`);
           }
         }
         G.push(g);
@@ -1503,15 +1503,17 @@
     }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
-      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, basic(C.rr))); lab("r", sgm[1], C.rr, 1, 1, 1); }
+      // com «n, m → O», a reta esbate-se como os planos e o vetor diretor também vai para a origem (pedido do utilizador)
+      const eN3 = ease(tN), Ar = A.map(v => v * (1 - eN3));
+      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, basic(C.rr, 1 - 0.6 * eN3))); lab("r", sgm[1], C.rr, 1, 1, 1); }
       handle("A3", A, C.rr); lab("A", A, C.rr, -1, 1);
-      add(arrow3(A, A.map((v, i) => v + r[i]), C.rr, 0.05)); lab("\\vec r", A.map((v, i) => v + r[i]), C.rr, 1, -1);
-      handle("r3", A.map((v, i) => v + r[i]), C.rr, A, 0.1);
+      add(arrow3(Ar, Ar.map((v, i) => v + r[i]), C.rr, 0.05)); lab("\\vec r", Ar.map((v, i) => v + r[i]), C.rr, 1, -1);
+      handle("r3", Ar.map((v, i) => v + r[i]), C.rr, Ar, 0.1);
       if (al) {
         const n = vnum(al.n), dn = n[0] * r[0] + n[1] * r[1] + n[2] * r[2];
         if (Math.abs(dn) > 1e-12) {
           const t = -(n[0] * A[0] + n[1] * A[1] + n[2] * A[2] + fval(al.d)) / dn, I = A.map((a, i) => a + t * r[i]);
-          if (I.every(v => Math.abs(v) <= B3 + 1e-9)) { add(ball(I, C.rr, 0.15)); lab("I", I, C.rr, 1, 1); }
+          if (I.every(v => Math.abs(v) <= B3 + 1e-9)) { add(ball(I, C.ink, 0.15)); lab("I", I, C.ink, 1, 1); }   // interseções a preto/branco, como a reta α ∩ β (pedido do utilizador)
         }
       }
     }
