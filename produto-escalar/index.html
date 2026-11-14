@@ -402,8 +402,7 @@
     // modo Vetores com «v a rodar»: ▶/❚❚ do tempo
     if ((mode === "vet" || (mode === undefined && S.mode === "vet")) && S.rot) out.push({ t: "btn", txt: S.run ? "❚❚" : "▶", on: S.run, kind: "rotPlay", w: 2.2 * fs, h: bh, f: bf * 1.1 });
     // modo Retas: levar os vetores diretores à origem (esbatendo as retas) e depois normalizá-los
-    if (mode === "retas" || (mode === undefined && S.mode === "retas")) out.push({ t: "btn", txt: "r, s → O", on: S.dO, kind: "dirO", w: bw("r, s → O"), h: bh, f: bf });
-    if (mode === "esp" || (mode === undefined && S.mode === "esp")) out.push({ t: "btn", txt: "n, m → O", on: S.nO, kind: "normO", w: bw("n, m → O"), h: bh, f: bf });
+    // «r, s → O» e «n, m → O» passaram para o menu do botão direito (pedido do utilizador, 2026-11-14)
     const bs = 0.66 * fs, cf = 0.72 * fs;
     ctx.font = `${cf}px ${CBFONT}`;
     for (const [txt, k] of boxItems(mode, withS, withDir)) out.push({ t: "box", txt, k, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width, f: cf, bs });
@@ -1870,7 +1869,17 @@
       b.addEventListener("click", () => { S.op = S.op !== op ? op : null; closeMenu(); draw(); });
       menu.appendChild(b);
     };
+    // opção que liga/desliga e mostra ✓ (texto com $…$ em KaTeX)
+    const tog = (label, on, fn) => {
+      const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = on ? "✓" : "";
+      const lb = document.createElement("span"); menuLabel(lb, label);
+      b.append(ok, lb);
+      b.addEventListener("click", () => { closeMenu(); fn(); });
+      menu.appendChild(b);
+    };
     if (S.mode === "esp") {
+      tog("$\\vec n, \\vec m \\to O$", S.nO, () => act({ kind: "normO" }));
       // reta de interseção dos planos α e β (só com os dois planos à vista)
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.eI ? "✓" : "";
@@ -1888,6 +1897,7 @@
       b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
       menu.appendChild(b2);
     } else if (S.mode === "retas") {
+      tog("$\\vec r, \\vec s \\to O$", S.dO, () => act({ kind: "dirO" }));
       // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.nrm ? "✓" : "";
