@@ -115,7 +115,8 @@
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
               noXOy: false,   // Espaço: esconder a quadrícula do plano xOy (botão direito)
               noAx: false,   // Espaço: esconder o referencial Oxyz (botão direito)
-              eX: false };   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
+              eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
+              xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -1585,10 +1586,11 @@
       if (S.eA && tN < 0.5) {
         const [e1, e2] = inPlane(n);
         let d = e1;
+        XPL = { P, n, e1, e2 };   // para arrastar X ao longo de α (move3)
         if (S.eX) {
-          const X = P.map((v, i) => v - 2.4 * e1[i] - 1.2 * e2[i]);
-          add(arrow3(P, X, C.al, 0.03)); add(ball(X, C.ink, 0.11)); lab("X", X, C.ink, 1, -1);
-          const L = Math.hypot(2.4, 1.2); d = [0, 1, 2].map(i => (X[i] - P[i]) / L);
+          const [xs, xt] = S.xst, X = P.map((v, i) => v + xs * e1[i] + xt * e2[i]), L = Math.hypot(xs, xt);
+          if (L > 1e-6) { add(arrow3(P, X, C.al, 0.03)); d = [0, 1, 2].map(i => (X[i] - P[i]) / L); }
+          handle("Xa", X, C.ink, null, 0.13); lab("X", X, C.ink, 1, -1);
         }
         rightMark3(P, n, d, C.al, 1 - 2 * tN);
       }
@@ -1664,7 +1666,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1701,10 +1703,21 @@
     return best;
   }
   // arrastar: na horizontal (plano z = z₀) ou, com a pega em modo ↕ ou com Shift, na vertical (plano vertical virado para a câmara)
+  let XPL = null;   // plano α para o ponto X: { P, n, e1, e2 }
   function move3(x, y, vertical) {
     const h = drag3, f = L.fig;
     const ndc = new T3.Vector2((x - f.x) / f.w * 2 - 1, -((y - f.y) / f.h) * 2 + 1);
     const rc = new T3.Raycaster(); rc.setFromCamera(ndc, cam);
+    // ponto X: desliza no plano α (coordenadas s, t na base e1, e2 do plano, de 0,1 em 0,1)
+    if (h.key === "Xa" && XPL) {
+      const pa = new T3.Plane().setFromNormalAndCoplanarPoint(vec3(...XPL.n).normalize(), vec3(...XPL.P));
+      const hit = rc.ray.intersectPlane(pa, vec3(0, 0, 0));
+      if (!hit) return;
+      const dv = hit.sub(vec3(...XPL.P)), r1_ = v => Math.round(v * 10) / 10;
+      const st = [clamp(r1_(dv.dot(vec3(...XPL.e1))), -7, 7), clamp(r1_(dv.dot(vec3(...XPL.e2))), -7, 7)];
+      if (st[0] !== S.xst[0] || st[1] !== S.xst[1]) { S.xst = st; draw(); }
+      return;
+    }
     const p0 = vec3(...h.p0);
     let pl;
     if (vertical) {
@@ -2080,7 +2093,7 @@
   const end = e => {
     if (drag3 && e.pointerId === drag3.id) {
       // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
-      if (!drag3.moved) S.vert[drag3.key] = !S.vert[drag3.key];
+      if (!drag3.moved && drag3.key !== "Xa") S.vert[drag3.key] = !S.vert[drag3.key];
       drag3 = null; cv.style.cursor = "default"; draw();
       return;
     }
@@ -2135,7 +2148,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "vert"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "xst", "vert"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
