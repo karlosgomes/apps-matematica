@@ -110,7 +110,8 @@
               rot: false, R: 3, tr: 0, run: false,   // «v a rodar»: v(t) = R(cos t, sin t) e o gráfico de f(t) = u·v(t)                // texto da esquerda à vista (botão «Texto», tecla t)
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
-              eI: false };   // Espaço: reta de interseção de α e β (botão direito)
+              eI: false,   // Espaço: reta de interseção de α e β (botão direito)
+              noXOy: false };   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -1460,7 +1461,7 @@
     add(lines(tk, ax));
     const grid = [];
     for (let i = -B3; i <= B3; i++) if (i) grid.push([[i, -B3, 0], [i, B3, 0]], [[-B3, i, 0], [B3, i, 0]]);
-    add(lines(grid, C.grid2, 0.55));
+    if (!S.noXOy) add(lines(grid, C.grid2, 0.55));   // «Esconder xOy» (botão direito)
 
     const V3 = espVals(), al = (S.eA || S.eC) ? planeOf(V3.P, V3.n) : null;
     // cubo [0, 4]³ e a secção por α
@@ -1554,7 +1555,7 @@
     cam.aspect = f.w / f.h;
     cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
     cam.updateProjectionMatrix();
-    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1871,6 +1872,13 @@
       if (!((S.eA || S.eC) && S.eB)) { b.disabled = true; b.style.opacity = 0.45; b.style.cursor = "default"; b.title = "Liga o plano α e o plano β"; }
       b.addEventListener("click", () => { if (b.disabled) return; S.eI = !S.eI; closeMenu(); draw(); });
       menu.appendChild(b);
+      // esconder a quadrícula do plano xOy
+      const b2 = document.createElement("button"); b2.setAttribute("role", "menuitem");
+      const ok2 = document.createElement("span"); ok2.className = "ok"; ok2.textContent = S.noXOy ? "✓" : "";
+      const lb2 = document.createElement("span"); menuLabel(lb2, "Esconder $xOy$");
+      b2.append(ok2, lb2);
+      b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
+      menu.appendChild(b2);
     } else if (S.mode === "retas") {
       // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
