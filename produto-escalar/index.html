@@ -113,10 +113,9 @@
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
-              noXOy: false,   // Espaço: esconder a quadrícula do plano xOy (botão direito)
-              noAx: false,   // Espaço: esconder o referencial Oxyz (botão direito)
+              xs: 0,   // Espaço: plano xOy — 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (botão «xOy» à direita, cada toque passa ao seguinte)
+              noAx: false,   // Espaço: esconder o referencial Oxyz (botão «Oxyz» à direita)
               tX: true,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
-              xG: false,   // Espaço: xOy a cinzento suave em vez da grelha (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
@@ -558,6 +557,12 @@
       button(L.theme.x, zy, L.theme.w, zh, "+", false, "dolly", { v: 0.8 }, fs * 0.8);
       button(L.theme.x, zy + zh + 0.2 * fs, L.theme.w, zh, "−", false, "dolly", { v: 1.25 }, fs * 0.8);
       button(L.theme.x, zy + 2 * (zh + 0.2 * fs), L.theme.w, zh, "⌂", false, "view3", {}, fs * 0.75);
+      // xOy (grelha → cinzento → grelha e cinzento → escondido) e Oxyz (mostrar/esconder) — pedido do utilizador, 2026-11-15
+      const xy = zy + 3 * (zh + 0.2 * fs) + 0.25 * fs;
+      const xh = 1.85 * zh;   // o botão xOy é mais alto: nome em cima e ícone do estado em baixo
+      mathButton(L.theme.x, xy, L.theme.w, xh, "xOy", "xoy", S.xs === 3, fs, zh);
+      xoyIcon(L.theme.x + L.theme.w / 2, xy + zh * 1.22, L.theme.w - 0.42 * fs, 0.5 * fs, S.xs);
+      mathButton(L.theme.x, xy + xh + 0.2 * fs, L.theme.w, zh, "Oxyz", "oxyz", S.noAx, fs);
       bottom(L.cfs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
@@ -591,6 +596,36 @@
     ctx.font = `700 ${f}px ${FONT}`; ctx.fillStyle = on ? C.on : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(txt, x + w / 2, y + h / 2 + 1);
     hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  // botão com o nome em itálico matemático (KaTeX_Math); «off» = esbatido (o que ele mostra está escondido)
+  function mathButton(x, y, w, h, txt, kind, off, fs, th = h) {
+    rrect(x, y, w, h, 8, C.btn, C.line, 2);
+    let f = fs * 0.62;
+    ctx.font = `italic ${f}px KaTeX_Math, serif`;
+    const tw = ctx.measureText(txt).width;
+    if (tw > w - 0.3 * fs) { f *= (w - 0.3 * fs) / tw; ctx.font = `italic ${f}px KaTeX_Math, serif`; }
+    ctx.globalAlpha = off ? 0.35 : 1;
+    ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(txt, x + w / 2, y + th / 2 + 1);
+    if (off) { ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 0.2 * fs, y + th / 2 + 1); ctx.lineTo(x + w - 0.2 * fs, y + th / 2 + 1); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    hits.push({ kind, rect: { x, y, w, h } });
+  }
+  // ícone do estado de xOy (paralelogramo deitado, centro cx, cy): 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (tracejado esbatido)
+  function xoyIcon(cx, cy, w, h, st) {
+    const k = 0.28 * w, P = [[cx - w / 2 + k, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2 - k, cy + h / 2], [cx - w / 2, cy + h / 2]];
+    const at = (s, t) => [P[3][0] + s * (P[2][0] - P[3][0]) + t * (P[0][0] - P[3][0]), P[3][1] + t * (P[0][1] - P[3][1])];
+    const path = () => { ctx.beginPath(); ctx.moveTo(...P[0]); for (const p of P.slice(1)) ctx.lineTo(...p); ctx.closePath(); };
+    ctx.save();
+    if (st === 3) { ctx.globalAlpha = 0.45; ctx.setLineDash([3, 2]); path(); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore(); return; }
+    if (st === 1 || st === 2) { path(); ctx.fillStyle = dark ? "rgba(138,150,163,0.55)" : "rgba(125,136,150,0.4)"; ctx.fill(); }
+    if (st === 0 || st === 2) {
+      ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.beginPath();
+      for (const s of [1 / 3, 2 / 3]) { ctx.moveTo(...at(s, 0)); ctx.lineTo(...at(s, 1)); ctx.moveTo(...at(0, s)); ctx.lineTo(...at(1, s)); }
+      ctx.stroke();
+    }
+    path(); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.restore();
   }
   // texto com VEC antes de uma letra: seta por cima dessa letra
   function vecText(t, x, y) {
@@ -1468,7 +1503,7 @@
   // interseção do plano n·X = h com xOy (linha cinzenta ténue, recortada no cubo); nada se o plano for horizontal
   function traceXOy(n, h, fade = 0) {
     const q = n[0] * n[0] + n[1] * n[1];
-    if (!S.tX || S.noXOy || q < 1e-12) return null;
+    if (!S.tX || S.xs === 3 || q < 1e-12) return null;
     const sg = clipLine([n[0] * h / q, n[1] * h / q, 0], [-n[1], n[0], 0]);
     if (!sg) return null;
     const L_ = lines([sg], C.muted, (dark ? 0.55 : 0.5) * (1 - 0.6 * fade));
@@ -1577,11 +1612,12 @@
       for (let i = Math.ceil(lo3(0)); i <= Math.floor(hi3(0)); i++) if (i) grid.push([[i, lo3(1), 0], [i, hi3(1), 0]]);
       for (let i = Math.ceil(lo3(1)); i <= Math.floor(hi3(1)); i++) if (i) grid.push([[lo3(0), i, 0], [hi3(0), i, 0]]);
     }
-    if (!S.noXOy && inB(2) && S.xG) {   // «xOy a cinzento» (botão direito): quadrado cinzento suave no lugar da grelha
+    if ((S.xs === 1 || S.xs === 2) && inB(2)) {   // xOy a cinzento (botão «xOy»): quadrado cinzento suave
       const q = [[lo3(0), lo3(1), 0], [hi3(0), lo3(1), 0], [hi3(0), hi3(1), 0], [lo3(0), hi3(1), 0]];
       const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute([...q[0], ...q[1], ...q[2], ...q[0], ...q[2], ...q[3]], 3));
       const sq = new T3.Mesh(geo, basic(dark ? "#8a96a3" : "#7d8896", dark ? 0.16 : 0.14)); sq.renderOrder = 1; add(sq);
-    } else if (!S.noXOy && grid.length) add(lines(grid, C.grid2, 0.55));   // «Esconder xOy» (botão direito)
+    }
+    if ((S.xs === 0 || S.xs === 2) && grid.length) add(lines(grid, C.grid2, 0.55));   // grelha de xOy (botão «xOy»)
 
     const V3 = espVals(), al = (S.eA || S.eC) ? planeOf(V3.P, V3.n) : null;
     // cubo [0, 4]³ e a secção por α
@@ -1704,7 +1740,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, S.eX, S.gP, S.xG, S.tX, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1865,6 +1901,8 @@
     if (h.kind === "zoom1") { S.z = 1; S.vx = S.vy = 0; draw(); return true; }
     if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; else S.nrm = false; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
+    if (h.kind === "xoy") { S.xs = (S.xs + 1) % 4; toast(["xOy: grelha", "xOy: cinzento", "xOy: grelha e cinzento", "xOy: escondido"][S.xs], 1400); draw(); return true; }
+    if (h.kind === "oxyz") { S.noAx = !S.noAx; toast(S.noAx ? "Oxyz: escondido" : "Oxyz: à vista", 1400); draw(); return true; }
     if (h.kind === "view3") { if (ctl) ctl.reset(); C3F = [0, 0, 0]; draw(); return true; }
     if (h.kind === "dolly") {
       if (cam && ctl) {
@@ -2049,16 +2087,7 @@
       if (!((S.eA || S.eC) && S.eB)) { b.disabled = true; b.style.opacity = 0.45; b.style.cursor = "default"; b.title = "Liga o plano α e o plano β"; }
       b.addEventListener("click", () => { if (b.disabled) return; S.eI = !S.eI; closeMenu(); draw(); });
       menu.appendChild(b);
-      // esconder a quadrícula do plano xOy
-      const b2 = document.createElement("button"); b2.setAttribute("role", "menuitem");
-      const ok2 = document.createElement("span"); ok2.className = "ok"; ok2.textContent = S.noXOy ? "✓" : "";
-      const lb2 = document.createElement("span"); menuLabel(lb2, "Esconder $xOy$");
-      b2.append(ok2, lb2);
-      b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
-      menu.appendChild(b2);
       tog("Interseção dos planos com $xOy$", S.tX, () => { S.tX = !S.tX; draw(); });
-      tog("$xOy$ a cinzento", S.xG, () => { S.xG = !S.xG; draw(); });
-      tog("Esconder $Oxyz$", S.noAx, () => { S.noAx = !S.noAx; draw(); });
       tog("Ponto $X$ do plano $\\alpha$", S.eX, () => { S.eX = !S.eX; draw(); });
       tog("Grelha nos planos", S.gP, () => { S.gP = !S.gP; draw(); });
     } else if (S.mode === "retas") {
@@ -2189,7 +2218,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "noXOy", "noAx", "eX", "gP", "xG", "tX", "xst", "vert"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "gP", "tX", "xst", "vert"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
