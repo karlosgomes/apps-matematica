@@ -111,7 +111,8 @@
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
-              noXOy: false };   // Espaço: esconder a quadrícula do plano xOy (botão direito)
+              noXOy: false,   // Espaço: esconder a quadrícula do plano xOy (botão direito)
+              noAx: false };   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
   const TXT = { vet: false, retas: false, esp: false };
@@ -1206,9 +1207,18 @@
   }
   // pontos em que o plano n·X = h corta as arestas da caixa [lo, hi]³ (sem repetidos)
   const CUBE = 4;   // cubo [0, 4]³ para as secções
+  // lo e hi: números (cubo) ou ternos (caixa com limites próprios em cada coordenada)
   function sectionPts(n, h, lo, hi) {
-    const c = [lo, hi], pts = [], E = [];
-    for (const a of c) for (const b of c) E.push([[lo, a, b], [hi, a, b]], [[a, lo, b], [a, hi, b]], [[a, b, lo], [a, b, hi]]);
+    const Lo = [0, 1, 2].map(i => Array.isArray(lo) ? lo[i] : lo), Hi = [0, 1, 2].map(i => Array.isArray(hi) ? hi[i] : hi);
+    const pts = [], E = [];
+    for (let i = 0; i < 3; i++) {
+      const j = (i + 1) % 3, k = (i + 2) % 3;
+      for (const a of [Lo[j], Hi[j]]) for (const b of [Lo[k], Hi[k]]) {
+        const p = [], q = [];
+        p[i] = Lo[i]; q[i] = Hi[i]; p[j] = q[j] = a; p[k] = q[k] = b;
+        E.push([p, q]);
+      }
+    }
     const f = p => n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - h;
     for (const [p, q] of E) {
       const fp = f(p), fq = f(q);
@@ -1222,7 +1232,15 @@
   }
 
   // ---------- desenho 3D ----------
-  const B3 = 5;   // os planos e as retas ficam recortados no cubo [−5, 5]³ (que não se desenha)
+  const B3 = 5;   // os planos e as retas ficam recortados no cubo de aresta 2·B3 centrado em C3 (que não se desenha)
+  // centro da vista: o alvo das OrbitControls arredondado a inteiros (só muda ao deslocar a vista; a origem não sai do sítio).
+  // Eixos, quadrícula, planos e retas desenham-se no cubo [C3 − B3, C3 + B3], para a vista deslocada não ficar sem nada
+  let C3 = [0, 0, 0];
+  // Dois tipos de deslocação (pedido do utilizador): botão direito (ou Shift + esquerdo) desliza a cena pelo canvas,
+  // sem mudar o que se desenha; Ctrl (ou ⌘) + botão esquerdo é o «pan» pela grelha: o centro C3 acompanha a vista.
+  // C3F é o centro sem arredondar; durante um pan com Ctrl soma-se-lhe o deslocamento do alvo das OrbitControls.
+  let C3F = [0, 0, 0], panC = null;
+  const lo3 = i => C3[i] - B3, hi3 = i => C3[i] + B3;
   let T3 = null, OC = null, loading3 = false, err3 = null;
   let R3 = null, cam = null, ctl = null, scene = null, glc = null, built = "";
   let HAND = [], hover3 = null, drag3 = null;
@@ -1278,10 +1296,36 @@
     ctl.minDistance = 8; ctl.maxDistance = 90;
     ctl.addEventListener("change", draw);
     ctl.saveState();
+    // Ctrl/⌘ + botão esquerdo: pan pela grelha (as OrbitControls já deslocam com Ctrl; aqui só se segue o alvo)
+    cv.addEventListener("pointerdown", e => {
+      if (S.mode === "esp" && e.button === 0 && (e.ctrlKey || e.metaKey)) panC = { t0: [ctl.target.x, ctl.target.y, ctl.target.z], c0: C3F.slice() };
+    }, true);
+    window.addEventListener("pointerup", () => { panC = null; });
   }
   const vec3 = (x, y, z) => new T3.Vector3(x, y, z);
   function basic(col, op = 1) {
     return new T3.MeshBasicMaterial({ color: col, transparent: op < 1, opacity: op, side: T3.DoubleSide, depthWrite: op >= 1 });
+  }
+  // iluminação (experiência da versão 2): os sólidos (setas, pontos, eixos, retas, arestas) com sombreado de Lambert —
+  // luz ambiente + luz direcional presa à câmara (vem de cima e da frente de quem olha); os planos, a grelha e os ângulos
+  // continuam com cor lisa (cores previsíveis no projetor). Endereço «#espaco&semluz» desliga a luz, para comparar.
+  let LIT = !/(^|[#&])semluz(&|$)/.test(location.hash);
+  const AMB = 1.0, DIR = 2.6;   // afinados à vista nos dois temas (o lado iluminado fica com a cor original)
+  let lightA = null, lightD = null;
+  function solid(col, op = 1) {
+    if (!LIT) return basic(col, op);
+    return new T3.MeshLambertMaterial({ color: col, transparent: op < 1, opacity: op, depthWrite: op >= 1 });
+  }
+  function addLights() {
+    if (!LIT) return;
+    if (!lightA) {
+      lightA = new T3.AmbientLight(0xffffff, AMB);
+      lightD = new T3.DirectionalLight(0xffffff, DIR);
+      lightD.position.set(0.6, 1.2, 1);   // em coordenadas da câmara: acima, à direita e à frente
+      lightD.target.position.set(0, 0, -1);
+      cam.add(lightD); cam.add(lightD.target);
+    }
+    scene.add(lightA); scene.add(cam);
   }
   // cilindro de a para b (raio r)
   function rod(a, b, r, mat) {
@@ -1294,12 +1338,12 @@
   }
   // contorno de um polígono com cilindros (linhas grossas)
   function rodLoop(P, col, r = 0.04) {
-    const g = new T3.Group(), mat = basic(col);
+    const g = new T3.Group(), mat = solid(col);
     P.forEach((p, i) => { const m = rod(p, P[(i + 1) % P.length], r, mat); if (m) g.add(m); });
     return g;
   }
   function arrow3(a, b, col, r = 0.05) {
-    const g = new T3.Group(), mat = basic(col);
+    const g = new T3.Group(), mat = solid(col);
     const A = vec3(...a), Bv = vec3(...b), d = Bv.clone().sub(A), len = d.length();
     if (len < 1e-6) { g.add(ball(a, col, 0.12)); return g; }
     const hl = Math.min(0.45, len * 0.45), u = d.clone().normalize();
@@ -1314,12 +1358,12 @@
   // eixo: a parte à vista a cheio e a parte tapada pelos planos a tracejado (desenhados depois da profundidade dos planos)
   function axis3(a, b, col, r = 0.022) {
     const g = new T3.Group();
-    const solid = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 1 });
+    const solid_ = solid(col); solid_.transparent = true;
     const hidden = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthFunc: T3.GreaterDepth, depthWrite: false });
     const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A), hl = 0.45;
     const mid = Bv.clone().sub(u.clone().multiplyScalar(hl));
-    const s_ = rod(a, mid.toArray(), r, solid); if (s_) g.add(s_);
-    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), solid);
+    const s_ = rod(a, mid.toArray(), r, solid_); if (s_) g.add(s_);
+    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), solid_);
     cone.position.copy(mid.clone().add(u.clone().multiplyScalar(hl / 2)));
     cone.quaternion.setFromUnitVectors(vec3(0, 1, 0), u);
     g.add(cone);
@@ -1332,7 +1376,7 @@
     return g;
   }
   function ball(p, col, r = 0.13) {
-    const m = new T3.Mesh(new T3.SphereGeometry(r, 16, 12), basic(col));
+    const m = new T3.Mesh(new T3.SphereGeometry(r, 24, 16), solid(col));
     m.position.set(...p);
     return m;
   }
@@ -1345,7 +1389,7 @@
     return L_;
   }
   // polígono do plano n·X = h dentro do cubo
-  function planePoly(n, h, lo = -B3, hi = B3) {
+  function planePoly(n, h, lo = [0, 1, 2].map(lo3), hi = [0, 1, 2].map(hi3)) {
     const uniq = sectionPts(n, h, lo, hi);
     if (uniq.length < 3) return null;
     const cen = [0, 1, 2].map(i => uniq.reduce((s, p) => s + p[i], 0) / uniq.length);
@@ -1356,11 +1400,11 @@
     });
     return uniq;
   }
-  // retângulo do plano n·X = h: centrado no ponto do plano mais próximo de O, lados horizontal e de maior declive
+  // retângulo do plano n·X = h: centrado no ponto do plano mais próximo do centro da vista C3 (ao início, O), lados horizontal e de maior declive
   // (num plano horizontal, paralelos a Ox e Oy), com pelo menos 10 × 10 e grande que chegue para os pontos dados
   function planeRect(n, h, pts = []) {
     const N = vec3(...n), nn = N.lengthSq();
-    const X0 = N.clone().multiplyScalar(h / nn);
+    const Cv = vec3(...C3), X0 = Cv.clone().add(N.clone().multiplyScalar((h - N.dot(Cv)) / nn));
     N.normalize();
     let e1 = N.clone().cross(vec3(0, 0, 1));
     e1 = e1.lengthSq() < 1e-10 ? vec3(1, 0, 0) : e1.normalize();
@@ -1392,12 +1436,12 @@
     g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.4 - 0.9) * fade));   // esbatidos: 8 % de preenchimento e 40 % de contorno (visíveis no projetor)
     return g;
   }
-  // segmento da reta A + k r dentro do cubo
+  // segmento da reta A + k r dentro do cubo centrado em C3
   function clipLine(A, r) {
     let t0 = -1e9, t1 = 1e9;
     for (let i = 0; i < 3; i++) {
-      if (Math.abs(r[i]) < 1e-12) { if (Math.abs(A[i]) > B3) return null; continue; }
-      let a = (-B3 - A[i]) / r[i], b = (B3 - A[i]) / r[i];
+      if (Math.abs(r[i]) < 1e-12) { if (Math.abs(A[i] - C3[i]) > B3) return null; continue; }
+      let a = (lo3(i) - A[i]) / r[i], b = (hi3(i) - A[i]) / r[i];
       if (a > b) [a, b] = [b, a];
       t0 = Math.max(t0, a); t1 = Math.min(t1, b);
     }
@@ -1412,6 +1456,7 @@
       o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) x.material.dispose(); });
     }
     LAB3 = []; HAND = [];
+    addLights();
     const add = o => { if (o) scene.add(o); return o; };
     // ângulo θ entre dois vetores com origem em O, no plano dos dois, na cor do sinal do produto escalar
     // (quadrado se for reto); op: opacidade (o das normais aparece aos poucos com «n, m → O»)
@@ -1457,33 +1502,46 @@
     };
     const lab = (src, p, col, ux = 1, uy = 1, px = 0.85) => LAB3.push({ src, p, col, ux, uy, px });
     // eixos, marcas, quadrícula de xOy, esbatidos
-    const ax = C.axis, E = B3 + 1;
-    add(axis3([-B3, 0, 0], [E, 0, 0], ax)); add(axis3([0, -B3, 0], [0, E, 0], ax)); add(axis3([0, 0, -B3], [0, 0, E], ax));
-    lab("x", [E + 0.35, 0, 0], C.axis, 0, 0, 0.9); lab("y", [0, E + 0.35, 0], C.axis, 0, 0, 0.9); lab("z", [0, 0, E + 0.35], C.axis, 0, 0, 0.9);
-    lab("O", [0, 0, 0], C.muted, -1, -1, 0.7);
-    const tk = [];
-    for (let i = -B3; i <= B3; i++) if (i) {
-      tk.push([[i, -0.12, 0], [i, 0.12, 0]], [[-0.12, i, 0], [0.12, i, 0]], [[-0.12, 0, i], [0.12, 0, i]]);
-      if (!S.noNum) { lab(`${i}`, [i, 0, 0], C.muted, -1, -1, 0.55); lab(`${i}`, [0, i, 0], C.muted, 1, -1, 0.55); lab(`${i}`, [0, 0, i], C.muted, -1, 0, 0.55); }
+    // cada eixo só no troço dentro do cubo da vista (e só se o atravessar); números de C3 − B3 a C3 + B3
+    const ax = C.axis, inB = i => Math.abs(C3[i]) <= B3;   // a coordenada 0 está dentro do cubo da vista?
+    const unit = i => [0, 1, 2].map(j => +(j === i)), at = (i, t) => unit(i).map(v => v * t);
+    const tk = [], tkOff = [[0, 1, 0], [1, 0, 0], [1, 0, 0]], tkLab = [[-1, -1], [1, -1], [-1, 0]];
+    for (let i = 0; i < 3; i++) {
+      if (S.noAx) break;   // «Esconder Oxyz»
+      if (!inB((i + 1) % 3) || !inB((i + 2) % 3)) continue;
+      const E = hi3(i) + 1;
+      add(axis3(at(i, lo3(i)), at(i, E), ax));
+      lab("xyz"[i], at(i, E + 0.35), C.axis, 0, 0, 0.9);
+      for (let k = Math.ceil(lo3(i)); k <= Math.floor(hi3(i)); k++) if (k) {
+        const p = at(i, k), o = tkOff[i];
+        tk.push([p.map((v, j) => v - 0.12 * o[j]), p.map((v, j) => v + 0.12 * o[j])]);
+        if (!S.noNum) lab(`${k}`, p, C.muted, tkLab[i][0], tkLab[i][1], 0.55);
+      }
     }
-    add(lines(tk, ax));
+    if (!S.noAx && [0, 1, 2].every(inB)) lab("O", [0, 0, 0], C.muted, -1, -1, 0.7);
+    if (tk.length) add(lines(tk, ax));
     const grid = [];
-    for (let i = -B3; i <= B3; i++) if (i) grid.push([[i, -B3, 0], [i, B3, 0]], [[-B3, i, 0], [B3, i, 0]]);
-    if (!S.noXOy) add(lines(grid, C.grid2, 0.55));   // «Esconder xOy» (botão direito)
+    if (inB(2)) {
+      for (let i = Math.ceil(lo3(0)); i <= Math.floor(hi3(0)); i++) if (i) grid.push([[i, lo3(1), 0], [i, hi3(1), 0]]);
+      for (let i = Math.ceil(lo3(1)); i <= Math.floor(hi3(1)); i++) if (i) grid.push([[lo3(0), i, 0], [hi3(0), i, 0]]);
+    }
+    if (!S.noXOy && grid.length) add(lines(grid, C.grid2, 0.55));   // «Esconder xOy» (botão direito)
 
     const V3 = espVals(), al = (S.eA || S.eC) ? planeOf(V3.P, V3.n) : null;
     // cubo [0, 4]³ e a secção por α
     if (S.eC) {
       const c = [0, CUBE], ed = [];
       for (const a of c) for (const b of c) ed.push([[0, a, b], [CUBE, a, b]], [[a, 0, b], [a, CUBE, b]], [[a, b, 0], [a, b, CUBE]]);
-      add(lines(ed, C.ink, 0.85));
+      // com luz, as arestas são cilindros finos (para ganharem sombreado); sem luz, linhas como antes
+      if (LIT) { const g = new T3.Group(), em = solid(C.ink, 0.85); ed.forEach(([a, b]) => { const m = rod(a, b, 0.018, em); if (m) g.add(m); }); add(g); }
+      else add(lines(ed, C.ink, 0.85));
       if (al) {
         const sp = planePoly(vnum(al.n), -fval(al.d), 0, CUBE);
         if (sp) {
           const pos = [];
           for (let i = 1; i < sp.length - 1; i++) pos.push(...sp[0], ...sp[i], ...sp[i + 1]);
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
-          const smat = basic(C.rr, 0.5); smat.polygonOffset = true; smat.polygonOffsetFactor = -2; smat.polygonOffsetUnits = -2;   // à frente do plano α (é coplanar)
+          const smat = solid(C.rr, 0.5); smat.side = T3.DoubleSide; smat.polygonOffset = true; smat.polygonOffsetFactor = -2; smat.polygonOffsetUnits = -2;   // à frente do plano α (é coplanar)
           const mesh = new T3.Mesh(geo, smat); mesh.renderOrder = 3; add(mesh);
           add(rodLoop(sp, C.rr));
         }
@@ -1505,7 +1563,7 @@
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
       // com «n, m → O», a reta esbate-se como os planos e o vetor diretor também vai para a origem (pedido do utilizador)
       const eN3 = ease(tN), Ar = A.map(v => v * (1 - eN3));
-      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, basic(C.rr, 1 - 0.6 * eN3))); lab("r", sgm[1], C.rr, 1, 1, 1); }
+      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, solid(C.rr, 1 - 0.6 * eN3))); lab("r", sgm[1], C.rr, 1, 1, 1); }
       handle("A3", A, C.rr); lab("A", A, C.rr, -1, 1);
       add(arrow3(Ar, Ar.map((v, i) => v + r[i]), C.rr, 0.05)); lab("\\vec r", Ar.map((v, i) => v + r[i]), C.rr, 1, -1);
       handle("r3", Ar.map((v, i) => v + r[i]), C.rr, Ar, 0.1);
@@ -1513,7 +1571,7 @@
         const n = vnum(al.n), dn = n[0] * r[0] + n[1] * r[1] + n[2] * r[2];
         if (Math.abs(dn) > 1e-12) {
           const t = -(n[0] * A[0] + n[1] * A[1] + n[2] * A[2] + fval(al.d)) / dn, I = A.map((a, i) => a + t * r[i]);
-          if (I.every(v => Math.abs(v) <= B3 + 1e-9)) { add(ball(I, C.ink, 0.15)); lab("I", I, C.ink, 1, 1); }   // interseções a preto/branco, como a reta α ∩ β (pedido do utilizador)
+          if (I.every((v, i) => Math.abs(v - C3[i]) <= B3 + 1e-9)) { add(ball(I, C.ink, 0.15)); lab("I", I, C.ink, 1, 1); }   // interseções a preto/branco, como a reta α ∩ β (pedido do utilizador)
         }
       }
     }
@@ -1535,7 +1593,7 @@
             const h1 = -fval(al.d), h2 = h, a = [m[1] * w[2] - m[2] * w[1], m[2] * w[0] - m[0] * w[2], m[0] * w[1] - m[1] * w[0]];
             const b = [w[1] * n[2] - w[2] * n[1], w[2] * n[0] - w[0] * n[2], w[0] * n[1] - w[1] * n[0]];
             const p0 = [0, 1, 2].map(i => (h1 * a[i] + h2 * b[i]) / ww), sgm = clipLine(p0, w);
-            if (sgm && S.eI) add(rod(sgm[0], sgm[1], 0.03, basic(C.ink, 1 - 0.6 * ease(tN))));   // só a pedido (botão direito)
+            if (sgm && S.eI) add(rod(sgm[0], sgm[1], 0.03, solid(C.ink, 1 - 0.6 * ease(tN))));   // só a pedido (botão direito)
           }
           // com «n, m → O», o ângulo dos vetores normais aparece na origem quando chegam lá
           const op = clamp((tN - 0.75) / 0.25, 0, 1);
@@ -1565,7 +1623,9 @@
     cam.aspect = f.w / f.h;
     cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
     cam.updateProjectionMatrix();
-    const key = JSON.stringify([ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, dark, tN, S.vert, drag3 && drag3.key]);
+    if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
+    C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.noXOy, S.noAx, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1618,7 +1678,7 @@
     // íman: inteiros com «Coordenadas inteiras» (a mesma caixa dos outros modos), senão décimas
     const st = S.int ? 1 : 0.1, snap = v => +(Math.round(v / st) * st).toFixed(1);
     let q = vertical ? [h.p0[0], h.p0[1], snap(hit.z)] : [snap(hit.x), snap(hit.y), h.p0[2]];
-    q = q.map(v => clamp(v, -9, 9));
+    q = q.map((v, i) => clamp(v, C3[i] - 9, C3[i] + 9));   // até 9 unidades do centro da vista
     // ponta de um vetor: o vetor é ponta − origem
     const val = (h.base ? q.map((v, i) => v - h.base[i]) : q).map(v => +v.toFixed(4));
     const txt = `(${val.map(v => (+v.toFixed(4)).toString()).join(", ")})`;
@@ -1715,7 +1775,7 @@
     if (h.kind === "zoom1") { S.z = 1; S.vx = S.vy = 0; draw(); return true; }
     if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; else S.nrm = false; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
-    if (h.kind === "view3") { if (ctl) ctl.reset(); draw(); return true; }
+    if (h.kind === "view3") { if (ctl) ctl.reset(); C3F = [0, 0, 0]; draw(); return true; }
     if (h.kind === "dolly") {
       if (cam && ctl) {
         const d = cam.position.clone().sub(ctl.target), len = clamp(d.length() * h.v, ctl.minDistance, ctl.maxDistance);
@@ -1730,7 +1790,7 @@
       return true;
     }
     if (h.kind === "reset") {
-      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } if (ctl) ctl.reset(); }
+      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } if (ctl) ctl.reset(); C3F = [0, 0, 0]; }
       else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
@@ -1906,6 +1966,7 @@
       b2.append(ok2, lb2);
       b2.addEventListener("click", () => { S.noXOy = !S.noXOy; closeMenu(); draw(); });
       menu.appendChild(b2);
+      tog("Esconder $Oxyz$", S.noAx, () => { S.noAx = !S.noAx; draw(); });
     } else if (S.mode === "retas") {
       tog("$\\vec r, \\vec s \\to O$", S.dO, () => act({ kind: "dirO" }));
       // normalizar os vetores diretores (leva-os também à origem, como «r, s → O»)
