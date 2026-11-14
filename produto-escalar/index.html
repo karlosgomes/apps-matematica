@@ -382,7 +382,7 @@
   // ---------- controlos de baixo ----------
   const VEC = "⃗", plain = t => t.split(VEC).join("");
   function boxItems(mode = S.mode, withS = S.s, withDir = S.dir) {
-    return [...boxItems0(mode, withS, withDir), ["Mostrar texto", "txt"]];   // caixa do texto da esquerda, em todos os modos
+    return boxItems0(mode, withS, withDir);   // «Mostrar texto» passou para o menu do botão direito (pedido do utilizador, 2026-11-14)
   }
   function boxItems0(mode, withS, withDir) {
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
@@ -397,7 +397,9 @@
     out.push({ t: "btn", txt: "Vetores", on: S.mode === "vet", kind: "mode", v: "vet", w: bw("Vetores"), h: bh, f: bf, join: true });
     out.push({ t: "btn", txt: "Retas", on: S.mode === "retas", kind: "mode", v: "retas", w: bw("Retas"), h: bh, f: bf, join: true });
     out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
-    out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1 });
+    out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1, join: true });
+    // ⋯ abre o menu do botão direito (para tablets, onde não há botão direito, e para se saber que existe)
+    out.push({ t: "btn", txt: "⋯", on: false, kind: "menu", w: 2 * fs, h: bh, f: bf * 1.2 });
     // modo Espaço: levar os vetores normais à origem (e esbater os planos)
     // modo Vetores com «v a rodar»: ▶/❚❚ do tempo
     if ((mode === "vet" || (mode === undefined && S.mode === "vet")) && S.rot) out.push({ t: "btn", txt: S.run ? "❚❚" : "▶", on: S.run, kind: "rotPlay", w: 2.2 * fs, h: bh, f: bf * 1.1 });
@@ -1719,6 +1721,11 @@
       draw(); return true;
     }
     if (h.kind === "mode") { S.mode = h.v; draw(); return true; }
+    if (h.kind === "menu") {
+      // o mesmo toque que fechou o menu (pointerdown em captura) não o volta a abrir
+      if (performance.now() - menuClosedAt > 60) { const r = h.rect; openMenu(r.x, r.y - 4); }
+      return true;
+    }
     if (h.kind === "reset") {
       if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } if (ctl) ctl.reset(); }
       else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
@@ -1924,6 +1931,12 @@
       b.append(ok, lb);
       b.addEventListener("click", () => { S.noNum = !S.noNum; closeMenu(); draw(); });
       menu.appendChild(b); }
+    { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.txt ? "✓" : "";
+      const lb = document.createElement("span"); lb.textContent = "Mostrar texto";
+      b.append(ok, lb);
+      b.addEventListener("click", () => { S.txt = !S.txt; closeMenu(); draw(); });
+      menu.appendChild(b); }
     menu.style.display = "flex";
     const w = menu.offsetWidth, h = menu.offsetHeight;
     menu.style.left = clamp(x, 4, innerWidth - w - 4) + "px"; menu.style.top = clamp(y, 4, innerHeight - h - 4) + "px";
@@ -1942,7 +1955,8 @@
     e.preventDefault();
     if (inFig(e.clientX, e.clientY)) { drag = null; ptrs.clear(); cv.style.cursor = "default"; openMenu(e.clientX, e.clientY); }
   });
-  window.addEventListener("pointerdown", e => { if (menu.style.display === "flex" && !menu.contains(e.target)) closeMenu(); }, true);
+  let menuClosedAt = -1e9;
+  window.addEventListener("pointerdown", e => { if (menu.style.display === "flex" && !menu.contains(e.target)) { closeMenu(); menuClosedAt = performance.now(); } }, true);
   menu.addEventListener("keydown", e => {
     const bs = [...menu.querySelectorAll("button")], i = bs.indexOf(document.activeElement);
     if (e.key === "Escape") closeMenu();
