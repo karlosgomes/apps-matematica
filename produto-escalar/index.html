@@ -26,15 +26,15 @@
   /* Espaço: contorno fino em vez do halo difuso, que fazia uma «nuvem» clara/escura sobre os planos (pedido do utilizador, 2026-11-13) */
   :root[data-mode="esp"] .tx.halo { text-shadow: 0 0 1px var(--bg), 0 0 1px var(--bg); }
   /* menu do botão direito (modo Vetores): soma e diferença */
-  #menu { position: fixed; z-index: 3; display: none; flex-direction: column; min-width: 9em; padding: 4px; border: 2px solid var(--line); border-radius: 10px;
-          background: var(--bg); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 17px; }
-  #menu button { all: unset; display: flex; align-items: center; gap: .5em; padding: .35em .7em; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  #menu { position: fixed; z-index: 3; display: none; flex-direction: column; min-width: 9em; padding: 3px; border: 1.5px solid var(--line); border-radius: 8px;
+          background: var(--bg); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+  #menu button { all: unset; display: flex; align-items: center; gap: .5em; padding: .25em .6em; border-radius: 6px; cursor: pointer; white-space: nowrap; }
   #menu button:hover, #menu button:focus-visible { background: var(--line); }
   #menu button .ok { width: 1em; text-align: center; }
   #menu .katex { font-size: 1.05em; }
   #toast { position: fixed; z-index: 4; left: 50%; bottom: 1.2rem; transform: translateX(-50%); padding: .45em .9em; border-radius: 8px;
            background: var(--ink); color: var(--bg); font: 15px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; opacity: 0; transition: opacity .25s; pointer-events: none; }
-  #menu hr { border: 0; border-top: 1px solid var(--line); margin: 3px 4px; }
+  #menu hr { border: 0; border-top: 1px solid var(--line); margin: 2px 4px; }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
 <!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
