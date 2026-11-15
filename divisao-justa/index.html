@@ -59,7 +59,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
-<canvas id="cv" aria-label="Divisão Justa: métodos das licitações secretas e do Ajuste na Partilha, passo a passo, com a tabela de cálculos"></canvas>
+<canvas id="cv" aria-label="Divisão Justa: métodos das licitações secretas, do Ajuste na Partilha e dos marcadores, passo a passo, com a tabela de cálculos"></canvas>
 <div id="caixas"></div>
 <script>
 (() => {
@@ -252,13 +252,101 @@
     return { owner, tieInfo, t1, G, Q, order, tests, div, x, part, fin, other };
   }
 
+
+  // ---------- Marcadores: N jogadores, itens em linha, N − 1 marcas cada ----------
+  // t: tipos de itens (emoji ou letra); l: linha (tipo de cada item); m: marcas (n.º do item imediatamente à esquerda);
+  // val: valor de cada tipo para cada jogador (opcional); ord: ordem (sorteada) de escolha das sobras; pre: prefixo dos números
+  const MK_EX = [
+    { label: "Doces", j: ["Teodoro", "Vanessa", "Rudy"], t: ["🍫", "🍬", "🍭"], l: "000111222", m: [[3, 6], [4, 5], [2, 5]], val: [[1, 1, 1], [0, 2, 0], [1.5, 0.75, 0.75]], ord: [1, 2, 0] },
+    { label: "16 presentes", j: ["A", "B", "C", "D"], t: ["🎁"], l: "0".repeat(16), m: [[1, 6, 12], [3, 8, 15], [2, 9, 14], [2, 7, 12]] },
+    { label: "Joias (empate)", j: ["Ana", "Beatriz", "Clara", "Diana"], t: ["💎"], l: "0".repeat(20), m: [[5, 8, 14], [5, 9, 14], [3, 8, 15], [4, 7, 13]] },
+    { label: "Sérgio, Leonardo e Paula", j: ["Sérgio", "Leonardo", "Paula"], t: ["🍫", "🍬", "🍭"], l: "011122002", m: [[2, 3], [5, 7], [3, 6]], val: [[0, 1, 0], [1, 0, 1], [1, 1, 1]], ord: [1, 2, 0] },
+    { label: "Rita, Bruno e Carla", j: ["Rita", "Bruno", "Carla"], t: ["🍫", "🍬", "🍭"], l: "000111222", m: [[7, 8], [2, 4], [3, 6]], val: [[0, 0, 1], [1, 1, 0], [1, 1, 1]] },
+    { label: "Banda desenhada", j: ["Quintino", "Ramon", "Stephanie", "Tim"], t: ["W", "S", "G", "B"], l: "011210032221212133", m: [[4, 7, 13], [5, 8, 14], [5, 9, 15], [5, 9, 14]], val: [[12, 7, 4, 6], [9, 5, 5, 11], [8, 7, 6, 14], [5, 4, 4, 7]] },
+    { label: "Carros (Exame 2026)", j: ["Álvaro", "Manuela", "Paula"], t: ["🚗"], l: "0".repeat(14), pre: "C", m: [[6, 10], [4, 8], [6, 11]] },
+    { label: "Levadas (Exame 2024)", j: ["Fernando", "Helena", "Joana"], t: ["🥾"], l: "0".repeat(12), pre: "L", m: [[2, 8], [3, 8], [5, 7]] },
+    { label: "Caixas (Exame 2019)", j: ["Laura", "Paulo", "Rita"], t: ["📦"], l: "0".repeat(10), pre: "C", m: [[2, 7], [3, 7], [4, 8]] },
+  ];
+  const MAXN_MK = 24, MAXT_MK = 4;
+  const AM = { j: [], t: [], l: [], m: [], val: null, ord: null, pre: "", tie: {}, ex: null };
+
+  function computeMK() {
+    const N = AM.j.length, n = AM.l.length;
+    for (let p = 0; p < N; p++) {
+      const m = AM.m[p];
+      if (m.length !== N - 1 || !m.every((x, k) => Number.isInteger(x) && x >= 1 && x <= n - 1 && (k === 0 || x > m[k - 1])))
+        return { err: `Marcas de ${AM.j[p]}: têm de ser ${N - 1} números inteiros de 1 a ${n - 1}, por ordem crescente (cada marca fica logo a seguir ao item com esse número).` };
+    }
+    if (AM.val && !AM.val.every(r => r.length === AM.t.length && r.every(x => x >= 0)))
+      return { err: "Há valores por preencher ou inválidos (só números ≥ 0)." };
+    // percorre-se a linha: em cada volta, a k-ésima marca mais à esquerda dos que ainda não receberam (empate: sorteio, AM.tie)
+    const active = AM.j.map((_, p) => p), rounds = [], seg = [];
+    for (let k = 0; k < N - 1; k++) {
+      const mark = Math.min(...active.map(p => AM.m[p][k]));
+      const ws = active.filter(p => AM.m[p][k] === mark);
+      const v = ws.length > 1 && ws.includes(AM.tie[k]) ? AM.tie[k] : ws[0];
+      seg[v] = [k === 0 ? 1 : AM.m[v][k - 1] + 1, mark];
+      rounds.push({ k, cand: [...active], v, ws: ws.length > 1 ? ws : null, mark });
+      active.splice(active.indexOf(v), 1);
+    }
+    const last = active[0];
+    seg[last] = [AM.m[last][N - 2] + 1, n];
+    const owner = Array(n + 1).fill(null);
+    seg.forEach(([a, b], p) => { for (let i = a; i <= b; i++) owner[i] = p; });
+    const left = []; for (let i = 1; i <= n; i++) if (owner[i] == null) left.push(i);
+    const res = { N, n, rounds, last, seg, owner, left };
+    if (AM.val) {
+      const val = (p, i) => AM.val[p][AM.l[i - 1]];
+      res.tot = AM.j.map((_, p) => AM.l.reduce((a, _, i) => a + val(p, i + 1), 0));
+      res.pj = res.tot.map(t => t / N);
+      res.vale = seg.map(([a, b], p) => { let s = 0; for (let i = a; i <= b; i++) s += val(p, i); return s; });
+      // sobras: cada um, pela ordem sorteada, escolhe o item que vale mais para si (empate: o mais à esquerda); repete-se
+      const ord = AM.ord && AM.ord.length === N && [...AM.ord].sort().every((x, k) => x === k) ? AM.ord : AM.j.map((_, p) => p);
+      const rest = [...left], picks = [];
+      while (rest.length) for (const p of ord) {
+        if (!rest.length) break;
+        let bi = 0; rest.forEach((i, k) => { if (val(p, i) > val(p, rest[bi]) + 1e-9) bi = k; });
+        picks.push({ p, i: rest[bi] }); rest.splice(bi, 1);
+      }
+      res.ord = ord; res.picks = picks;
+      res.fin = res.vale.map((x, p) => x + picks.filter(q => q.p === p).reduce((a, q) => a + val(p, q.i), 0));
+    }
+    return res;
+  }
+  // marcas justas de p: a k-ésima marca onde o valor acumulado fica mais perto de k/N do total (empate: a mais à esquerda)
+  function fairMarks(p) {
+    const n = AM.l.length, N = AM.j.length, cum = [0];
+    AM.l.forEach((t, i) => cum.push(cum[i] + (AM.val ? AM.val[p][t] : 1)));
+    const T = cum[n], m = [];
+    let lo = 1;
+    for (let k = 1; k <= N - 1; k++) {
+      let best = lo, bd = Infinity;
+      for (let pos = lo; pos <= n - 1 - (N - 1 - k); pos++) { const d = Math.abs(cum[pos] - k * T / N); if (d < bd - 1e-9) { best = pos; bd = d; } }
+      m.push(best); lo = best + 1;
+    }
+    return m;
+  }
+  const itemName = i => (AM.pre || "") + i;
+  const segTxt = ([a, b]) => a === b ? itemName(a) : `${itemName(a)}–${itemName(b)}`;
+  const initial = p => (AM.j[p] || "?").charAt(0).toUpperCase();
+
   // passos (estados da tabela): 1 licitações · 2 total e parte justa · 3 atribuição · 4 alocação provisória
   // 5 excedente · 6 alocação final · 7 valor para o próprio · 8 inveja (opcional)
   // Ajuste: 1 pontos · 2 1.ª fase · 3 ordem · 4 passagens por inteiro · 5 bem dividido · 6 partilha final · 7 inveja · 8 pontos verdadeiros
-  const NSTEPS = () => S.m === "aw" ? (AJ.r ? 8 : 7) : S.tar ? 6 : (S.inv ? 8 : 7);
+  // Marcadores (N jogadores): 1 itens · 2 marcas · 3 … N+1 cada volta · N+2 o último · N+3 sobras · N+4 escolha das sobras (com valores)
+  const NSTEPS = () => S.m === "mk" ? AM.j.length + 3 + (AM.val ? 1 : 0) : S.m === "aw" ? (AJ.r ? 8 : 7) : S.tar ? 6 : (S.inv ? 8 : 7);
   const STEPNAME = ["", "Licitações", "Parte justa", "Quem fica com cada bem", "Alocação provisória", "Excedente", "Alocação final", "Valor para o próprio", "Há inveja?"];
   const STEPNAME_AW = ["", "Pontos", "1.ª fase", "Ordem do ajuste", "Passar bens inteiros", "Dividir um bem", "Partilha final", "Há inveja?", "E se alguém mentir?"];
-  const stepName = k => (S.m === "aw" ? STEPNAME_AW : STEPNAME)[k];
+  function stepNameMK(k) {
+    const N = AM.j.length;
+    if (k === 1) return "Itens em linha";
+    if (k === 2) return "Marcas";
+    if (k <= N + 1) return `${k - 2}.ª volta`;
+    if (k === N + 2) return "O último";
+    if (k === N + 3) return "Sobras";
+    return "Escolha das sobras";
+  }
+  const stepName = k => S.m === "mk" ? stepNameMK(k) : (S.m === "aw" ? STEPNAME_AW : STEPNAME)[k];
 
   // ---------- canvas e caixas ----------
   const cv = document.getElementById("cv");
@@ -297,6 +385,7 @@
     box.innerHTML = "";
     IN = { j: [], b: [], v: [], q: [], r: [], u: null };
     if (S.m === "aw") return buildInputsAW();
+    if (S.m === "mk") return buildInputsMK();
     S.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { S.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
     S.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { S.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
     S.v.forEach((row, i) => IN.v.push(row.map((x, p) => mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
@@ -317,8 +406,20 @@
     IN.v = num(AJ.v, "v", "Pontos");
     if (AJ.r) IN.r = num(AJ.r, "r", "Pontos verdadeiros");
   }
+  function buildInputsMK() {
+    IN.t = []; IN.m = []; IN.val = [];
+    AM.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { AM.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
+    AM.t.forEach((t, k) => IN.t.push(mkInput("nome tipo", t, el => { AM.t[k] = el.value.trim() || "?"; changed(); }, `Tipo de item ${k + 1}`)));
+    AM.m.forEach((row, p) => IN.m.push(row.map((x, k) => mkInput("num", isFinite(x) ? String(x) : "", el => {
+      const y = parseNum(el.value); AM.m[p][k] = y; el.classList.toggle("bad", !(Number.isInteger(y) && y >= 1 && y < AM.l.length)); changed();
+    }, `Marca ${k + 1} de ${AM.j[p]}`, "numeric"))));
+    if (AM.val) AM.val.forEach((row, p) => IN.val.push(row.map((x, k) => mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
+      const y = parseNum(el.value); AM.val[p][k] = y; el.classList.toggle("bad", !(y >= 0)); changed();
+    }, `Valor de ${AM.t[k]} para ${AM.j[p]}`, "decimal"))));
+  }
   function changed(rebuild) {
     S.tie = Object.fromEntries(Object.entries(S.tie).filter(([i]) => +i < S.b.length));
+    AM.tie = Object.fromEntries(Object.entries(AM.tie).filter(([k, p]) => +k < AM.j.length - 1 && +p < AM.j.length));
     if (rebuild) buildInputs();
     writeHash(); draw();
   }
@@ -345,11 +446,12 @@
     const yb = H - pad - (rowO * nr + 0.3 * fs * (nr - 1));
     L.opt = { x: pad, y: yb, w, h: rowO, rows };
     const main = { x: pad, y, w, h: yb - gap - y };
-    const aw = S.m === "aw";
+    const aw = S.m === "aw", mk = S.m === "mk";
     const N = aw ? (AJ.r ? 4 : 2) : S.j.length, M = aw ? AJ.b.length : S.b.length;
-    const rowsIn = aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas/soma, botões
-    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : 2.4) * fs;
-    const inW = Math.min(main.w * (land ? 0.42 : 1), (aw && !AJ.r ? 12 : 9) * fs + N * 6.2 * fs);
+    const rowsIn = mk ? 2 + AM.j.length + 1 : aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas/soma, botões
+    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : mk ? 1.2 : 2.4) * fs;
+    const inW = mk ? Math.min(main.w * (land ? 0.42 : 1), Math.max(26, 7.5 + (AM.j.length - 1) * 3.2 + (AM.val ? AM.t.length * 3.6 + 0.6 : 0)) * fs + 1.4 * fs)
+      : Math.min(main.w * (land ? 0.42 : 1), (aw && !AJ.r ? 12 : 9) * fs + N * 6.2 * fs);
     if (land) {
       L.IN = { x: main.x, y: main.y, w: inW, h: Math.min(main.h, inNeedH) };
       L.EX = { x: main.x, y: main.y + L.IN.h + gap, w: inW, h: main.h - L.IN.h - gap };
@@ -438,11 +540,12 @@
     L = layout(); hits = [];
     const { fs } = L;
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-    const aw = S.m === "aw";
-    R = aw ? computeAW() : compute();
+    const aw = S.m === "aw", mk = S.m === "mk";
+    R = mk ? computeMK() : aw ? computeAW() : compute();
     S.step = clamp(S.step, 1, NSTEPS());
     topBar(fs);
-    if (aw) { inputsAW(L.IN, fs); tableAW(L.T, fs); }
+    if (mk) { inputsMK(L.IN, fs); tableMK(L.T, fs); }
+    else if (aw) { inputsAW(L.IN, fs); tableAW(L.T, fs); }
     else { inputs(L.IN, fs); table(L.T, fs); }
     options(L.opt, fs);
   }
@@ -453,7 +556,7 @@
     const modes = [["lic", "Licitações secretas"], ["aw", "Ajuste na Partilha"], ["mk", "Marcadores"]];
     const f = fs * 0.85, bh = t.h * 0.85;
     modes.forEach(([m, lab]) => {
-      const ready = m !== "mk";
+      const ready = true;
       const bw = tw(lab, f, FONT, 700) + 1.2 * fs;
       if (x + bw > L.theme.x - fs) return;
       button(x, t.y + (t.h - bh) / 2, bw, bh, lab, S.m === m, "mode", { m }, C.muted, f, ready);
@@ -541,6 +644,40 @@
       button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
       x += bw + 0.4 * fs;
     });
+  }
+
+
+  // Marcadores: tipos de itens e ± item; por jogador, o nome, as marcas e (com «Valores») o valor de cada tipo
+  function inputsMK(b, fs) {
+    const c = panel(b, fs, "Marcas: onde cada um corta a linha");
+    const N = AM.j.length, T = AM.t.length;
+    const rh = 1.75 * fs, ih = 1.4 * fs, px = fs * 0.85, f = fs * 0.75, bh = 1.3 * fs;
+    let y = c.y + 0.1 * fs, x = c.x;
+    // tipos de itens (tocar num item da linha muda o tipo)
+    x += text("Tipos:", x, y + ih / 2, f, C.muted) + 0.4 * fs;
+    AM.t.forEach((_, k) => { place(IN.t[k], { x, y, w: 2.6 * fs, h: ih }, px); x += 2.9 * fs; });
+    const btns = (list, yy, x0) => { let xx = x0; list.forEach(([k, lab, ok]) => { const bw = tw(lab, f, FONT, 700) + 1 * fs; button(xx, yy + 0.05 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok); xx += bw + 0.4 * fs; }); return xx; };
+    btns([["addT", "+ tipo", T < MAXT_MK], ["delT", "−", T > 1]], y, x + 0.2 * fs);
+    y += rh;
+    x = c.x + text(`Itens: ${AM.l.length}`, c.x, y + ih / 2, f, C.muted) + 0.6 * fs;
+    btns([["addI", "+ item", AM.l.length < MAXN_MK], ["delI", "− item", AM.l.length > AM.j.length + 1]], y, x);
+    y += rh;
+    // jogadores: nome | marcas | valores
+    const nameW = 7 * fs, mW = 3 * fs, vW = 3.4 * fs;
+    const mx = c.x + nameW + 0.3 * fs, vx = mx + (N - 1) * (mW + 0.2 * fs) + 0.6 * fs;
+    text("Marcas", mx, y + 0.45 * fs, f, C.muted, "left", FONT, 700);
+    if (AM.val) AM.t.forEach((t, k) => textFit(t, vx + k * (vW + 0.2 * fs) + vW / 2, y + 0.45 * fs, f * 1.1, vW, C.muted, "center", FONT, 700));
+    y += 0.95 * fs;
+    AM.j.forEach((_, p) => {
+      place(IN.j[p], { x: c.x, y, w: nameW, h: ih }, px);
+      IN.j[p].style.color = C.L[p];
+      IN.m[p].forEach((el, k) => place(el, { x: mx + k * (mW + 0.2 * fs), y, w: mW, h: ih }, px));
+      if (AM.val) IN.val[p].forEach((el, k) => place(el, { x: vx + k * (vW + 0.2 * fs), y, w: vW, h: ih }, px));
+      y += rh;
+    });
+    const list = [["addJ", "+ jogador", AM.j.length < MAXJ], ["delJ", "− jogador", AM.j.length > 2], ["fair", "Marcas justas", true]];
+    if (AM.val && R && !R.err && R.left.length) list.push(["shuffle", "🎲 Sortear ordem", true]);
+    btns(list, y, c.x);
   }
 
   // à direita: a tabela de cálculos sempre presente, com as linhas do passo atual destacadas, e a explicação do passo
@@ -766,6 +903,110 @@
     return [];
   }
 
+
+  // Marcadores: a linha de itens (com as marcas e as partes) por cima e a tabela por baixo
+  function tableMK(b, fs) {
+    const N = AM.j.length, step = S.all ? NSTEPS() : S.step;
+    const marks = step >= 2 && step <= N + 1 && !S.all;     // só há marcas a desenhar até à última volta
+    const lineH = Math.min(b.h * 0.45, ((marks ? N * 0.95 : 0) + 5.2) * fs);
+    drawLine({ x: b.x, y: b.y, w: b.w, h: lineH }, fs, step);
+    const tb = { x: b.x, y: b.y + lineH + 0.5 * fs, w: b.w, h: b.h - lineH - 0.5 * fs };
+    const o = { title: `Cálculos · passo ${S.all ? "—" : S.step} de ${NSTEPS()}: ${S.all ? "tudo" : stepName(S.step)}`,
+      players: AM.j, step, stepName: stepName(step), rows: [], expl: [] };
+    if (R.err) { o.err = R.err; return renderTable(tb, fs, o); }
+    const rows = o.rows, C1 = (t, col, extra = {}) => ({ t, col, ...extra });
+    if (AM.val) rows.push({ st: 1, badge: 1, lab: "Parte justa", cells: R.pj.map(x => C1(fmt(x), C.ink)) });
+    else rows.push({ st: 1, badge: 1, lab: "Itens", span: `${R.n} itens em linha, ${N} jogadores` });
+    rows.push({ st: 2, badge: 2, lab: "Marcas", cells: AM.m.map(m => C1(m.join(", "), C.ink)) });
+    R.rounds.forEach(r => rows.push({ st: 3 + r.k, badge: 3 + r.k, lab: `${r.k + 1}.ª marca mais à esquerda`, cells: AM.j.map((_, p) => {
+      if (!r.cand.includes(p)) return C1("—", C.future);
+      const isTied = r.ws && r.ws.includes(p), win = p === r.v;
+      return C1(win ? `${AM.m[p][r.k]} → ${segTxt(R.seg[p])}` : String(AM.m[p][r.k]), win ? C.L[p] : C.ink,
+        { box: isTied ? (win ? "tiewin" : "tie") : win ? "max" : null, bold: win, hit: isTied ? { kind: "mktie", k: r.k, p } : null });
+    }) }));
+    rows.push({ st: N + 2, badge: N + 2, lab: "O último: o resto", cells: AM.j.map((_, p) => p === R.last ? C1(`${segTxt(R.seg[p])}`, C.L[p], { box: "max", bold: true }) : C1("", C.ink)) });
+    if (AM.val) rows.push({ st: N + 2, lab: "A sua parte vale", cells: R.vale.map((x, p) => { const ok = x >= R.pj[p] - 1e-9; return C1(fmt(x) + (ok ? " ✔" : " ✘"), ok ? C.ok : C.bad); }) });
+    rows.push({ st: N + 3, badge: "★", lab: "Sobras", span: R.left.length ? R.left.map(i => itemName(i) + " " + AM.t[AM.l[i - 1]]).join(", ") : "nenhuma" });
+    if (AM.val) {
+      rows.push({ st: N + 4, badge: N + 4, lab: "Escolhe das sobras", cells: AM.j.map((_, p) => C1(R.picks.filter(q => q.p === p).map(q => itemName(q.i)).join(", ") || "—", C.ink)) });
+      rows.push({ st: N + 4, lab: "Total", bold: true, cells: R.fin.map(x => C1(fmt(x), C.ink)) });
+    }
+    o.expl = explainMK(step);
+    renderTable(tb, fs, o);
+  }
+
+  // a linha: um quadrado por item (tipo e número), as marcas por cima (uma fila por jogador), as partes pintadas na cor de quem as recebe
+  function drawLine(b, fs, step) {
+    const c = panel(b, fs, "Linha de itens" + (AM.t.length > 1 ? " (tocar num item muda o tipo)" : ""));
+    const N = AM.j.length, n = AM.l.length, ok = R && !R.err;
+    const showMarks = step >= 2 && step <= N + 1 && !S.all;
+    const sw = c.w / n, sz = Math.min(sw * 0.8, 2.6 * fs, c.h - 1.3 * fs), rowH = showMarks ? Math.max(0, Math.min(0.95 * fs, (c.h - sz - 1.2 * fs) / Math.max(1, N))) : 0;
+    const xi = i => c.x + sw * (i - 0.5), xg = i => c.x + sw * i;
+    const y0 = c.y, yI = y0 + N * rowH + 0.35 * fs;
+    // passo em que cada jogador recebe (as suas marcas deixam de aparecer depois)
+    const got = AM.j.map(() => Infinity);
+    if (ok) { R.rounds.forEach(r => got[r.v] = 3 + r.k); got[R.last] = N + 2; }
+    for (let i = 1; i <= n; i++) {
+      const x = xi(i) - sz / 2;
+      const p = ok ? R.owner[i] : null;
+      const pick = ok && AM.val && step >= N + 4 ? R.picks.find(q => q.i === i) : null;
+      const isLeft = ok && p == null && step >= N + 3;
+      let fill = C.btn, stroke = C.line, dash = null, lw = 1.5;
+      if (p != null && step >= got[p]) { fill = C.L[p]; stroke = C.L[p]; lw = 2.5; }
+      if (isLeft) { stroke = C.d; dash = [5, 4]; lw = 2.5; if (pick) fill = C.L[pick.p]; }
+      ctx.globalAlpha = fill === C.btn ? 1 : 0.22; rrect(x, yI, sz, sz, 6, fill); ctx.globalAlpha = 1;
+      rrect(x, yI, sz, sz, 6, null, stroke, lw, dash);
+      const sym = AM.t[AM.l[i - 1]] || "?";
+      textFit(sym, xi(i), yI + sz / 2 + 1, sz * 0.55, sz * 0.9, C.ink, "center", FONT, 700);
+      textFit(itemName(i), xi(i), yI + sz + 0.55 * fs, Math.min(0.7 * fs, sw * 0.45), sw * 0.95, C.faint, "center", MONO, 400);
+      if (AM.t.length > 1) hits.push({ kind: "cyc", i, rect: { x, y: yI, w: sz, h: sz } });
+    }
+    if (!showMarks || !ok) return;
+    AM.j.forEach((_, p) => {
+      if (step > got[p]) return;               // já recebeu: as marcas deixam de contar
+      AM.m[p].forEach((g, k) => {
+        const x = xg(g), yy = y0 + p * rowH + rowH / 2;
+        const lab = initial(p) + (k + 1), pw = Math.min(tw(lab, rowH * 0.7, FONT, 700) + 0.5 * fs, sw * 1.6);
+        line(x, yy + rowH * 0.4, x, yI + sz + 0.1 * fs, C.L[p], 2.5);
+        rrect(x - pw / 2, yy - rowH * 0.42, pw, rowH * 0.84, 5, C.L[p]);
+        textFit(lab, x, yy + 1, rowH * 0.7, pw - 0.2 * fs, C.on, "center", FONT, 700);
+      });
+    });
+  }
+
+  function explainMK(step) {
+    const n = AM.j, N = n.length;
+    const names = ps => ps.map(p => n[p]).join(", ").replace(/, ([^,]*)$/, " e $1");
+    if (step === 1) return AM.val
+      ? ["Os itens estão em linha e não mudam de lugar. Cada um dá o seu valor a cada tipo de item.",
+         n.map((x, p) => `${x}: total ${fmt(R.tot[p])} → parte justa ${fmt(R.tot[p])} : ${N} = ${fmt(R.pj[p])}`).join(" · ")]
+      : ["Os itens estão em linha e não mudam de lugar.", `Cada um dos ${N} jogadores vai cortar a linha em ${N} partes que, para si, valem o mesmo.`];
+    if (step === 2) return [`Cada um coloca, em segredo, ${N - 1} marca${N > 2 ? "s" : ""}: a linha fica dividida em ${N} partes que, para si, são justas.`,
+      n.map((x, p) => `${x}: ${AM.m[p].map((g, k) => initial(p) + (k + 1) + " depois de " + itemName(g)).join(", ")}`).join(" · "),
+      "Com «Marcas justas», a app põe cada marca onde o valor acumulado fica mais perto da fração certa do total."];
+    if (step <= N + 1) {
+      const r = R.rounds[step - 3], k = r.k + 1;
+      const a = [`Percorre-se a linha da esquerda para a direita até à ${k}.ª marca de ${names(r.cand)}: a primeira é a de ${n[r.v]} (depois de ${itemName(r.mark)}).`,
+        `${n[r.v]} recebe ${k === 1 ? "tudo o que está à esquerda dessa marca" : `o que está entre a sua ${k - 1}.ª e a sua ${k}.ª marca`}: ${segTxt(R.seg[r.v])}. Sai, e as suas marcas deixam de contar.`];
+      if (r.ws) a.push(`Empate entre ${names(r.ws)}: decide-se por sorteio. Toque numa das marcas empatadas para escolher.`);
+      return a;
+    }
+    if (step === N + 2) {
+      const a = [`${n[R.last]} é o último: recebe tudo o que está à direita da sua última marca, ${segTxt(R.seg[R.last])}.`];
+      if (AM.val) a.push("Cada um recebe uma parte que, pelas suas marcas, vale pelo menos a parte justa:",
+        n.map((x, p) => `${x}: ${fmt(R.vale[p])} (parte justa ${fmt(R.pj[p])}) ${R.vale[p] >= R.pj[p] - 1e-9 ? "✔" : "✘"}`).join(" · "));
+      return a;
+    }
+    if (step === N + 3) return R.left.length
+      ? [`Sobram ${R.left.length} ite${R.left.length > 1 ? "ns" : "m"}: ${R.left.map(itemName).join(", ")}.`,
+         AM.val ? "Cada um, por uma ordem sorteada, escolhe uma das sobras." : "As sobras sorteiam-se pelos jogadores (ou escolhe-se uma de cada vez, por uma ordem sorteada).",
+         "Sobram itens porque cada um recebe uma parte que, para si, é justa, e que é mais pequena do que as dos outros."]
+      : ["Não sobra nenhum item: as marcas de quem recebeu coincidem."];
+    return [`Ordem sorteada: ${R.ord.map(p => n[p]).join(", ")}. Na sua vez, cada um escolhe o item que vale mais para si.`,
+      R.picks.map(q => `${n[q.p]} escolhe ${itemName(q.i)} ${AM.t[AM.l[q.i - 1]]}`).join(" · "),
+      n.map((x, p) => `${x}: ${fmt(R.vale[p])} + sobras = ${fmt(R.fin[p])}`).join(" · ")];
+  }
+
   // ---------- em baixo: passos, opções e exemplos ----------
   function optGroups(fs) {
     const f = fs * 0.8, bh = 1.35 * fs, gap = 0.5 * fs, bs = 0.72 * fs;
@@ -780,6 +1021,7 @@
         button(x, by, bw("▶"), bh, "▶", false, "next", {}, C.d, f, !S.all && S.step < NSTEPS()); x += bw("▶") + gap;
         button(x, by, bw("Tudo"), bh, "Tudo", S.all, "all", {}, C.muted, f);
       } },
+      S.m === "mk" ? { w: cw("Valores"), draw: (x, y, h) => cbox(x, y, h, bs, fs, !!AM.val, "Valores", { kind: "mval" }) } :
       S.m === "aw" ? { w: cw("Pontos verdadeiros"), draw: (x, y, h) => cbox(x, y, h, bs, fs, !!AJ.r, "Pontos verdadeiros", { kind: "real" }) } :
       { w: cw("Tarefas (leilão inverso)") + 1.1 * fs + cw("Partes diferentes (%)") + 1.1 * fs + cw("Inveja"), draw: (x, y, h) => {
         x = cbox(x, y, h, bs, fs, S.tar, "Tarefas (leilão inverso)", { kind: "box", k: "tar" }) + 1.1 * fs;
@@ -787,11 +1029,11 @@
         if (!S.tar) cbox(x, y, h, bs, fs, S.inv, "Inveja", { kind: "box", k: "inv" });
       } },
       // exemplos: um grupo por botão (o primeiro com «Exemplos:»), para se arrumarem em várias linhas
-      ...(S.m === "aw" ? AW_EX : EXAMPLES).map((e, i) => {
+      ...(S.m === "mk" ? MK_EX : S.m === "aw" ? AW_EX : EXAMPLES).map((e, i) => {
         const lab = i === 0 ? tw(exLab, fs * 0.8) + 0.5 * fs : 0;
         return { w: lab + bw(e.label), ex: true, draw: (x, y, h) => {
           if (i === 0) x += text(exLab, x, y + h / 2 + 1, fs * 0.8, C.muted) + 0.5 * fs;
-          button(x, y + (h - bh) / 2, bw(e.label), bh, e.label, (S.m === "aw" ? AJ.ex : S.ex) === i, "example", { i }, C.muted, f);
+          button(x, y + (h - bh) / 2, bw(e.label), bh, e.label, (S.m === "mk" ? AM.ex : S.m === "aw" ? AJ.ex : S.ex) === i, "example", { i }, C.muted, f);
         } };
       }),
     ];
@@ -819,12 +1061,17 @@
     const e = AW_EX[i];
     AJ.ex = i; AJ.j = [...e.j]; AJ.b = [...e.b]; AJ.v = e.v.map(r => [...r]); AJ.r = e.r ? e.r.map(r => [...r]) : null;
   }
+  function setMK(i) {
+    const e = MK_EX[i];
+    AM.ex = i; AM.j = [...e.j]; AM.t = [...e.t]; AM.l = [...e.l].map(Number); AM.m = e.m.map(r => [...r]);
+    AM.val = e.val ? e.val.map(r => [...r]) : null; AM.ord = e.ord ? [...e.ord] : null; AM.pre = e.pre || ""; AM.tie = {};
+  }
   function loadExample(i) {
-    if (S.m === "aw") setAW(i); else setLic(i);
+    if (S.m === "mk") setMK(i); else if (S.m === "aw") setAW(i); else setLic(i);
     S.step = 1; S.all = false;
     changed(true);
   }
-  function edit(fn) { fn(); if (S.m !== "aw") S.ex = null; changed(true); }
+  function edit(fn) { fn(); if (S.m === "lic") S.ex = null; if (S.m === "mk") AM.ex = null; changed(true); }
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   cv.addEventListener("pointerdown", e => {
     if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
@@ -836,8 +1083,28 @@
       if (S.m === h.m) return;
       S.m = h.m; S.step = 1; S.all = false;
       if (S.m === "aw" && !AJ.j.length) setAW(0);
+      if (S.m === "mk" && !AM.j.length) setMK(0);
       if (S.m === "lic" && !S.j.length) setLic(0);
       changed(true); return;
+    }
+    if (S.m === "mk") {
+      const evenM = () => AM.j.map((_, p) => fairMarks(p));
+      const N = AM.j.length;
+      if (h.kind === "mktie") { AM.tie[h.k] = h.p; changed(); return; }
+      if (h.kind === "cyc") { AM.l[h.i - 1] = (AM.l[h.i - 1] + 1) % AM.t.length; AM.ex = null; changed(true); return; }
+      if (h.kind === "mval") return edit(() => { AM.val = AM.val ? null : AM.j.map(() => AM.t.map(() => 1)); });
+      if (h.kind === "fair") return edit(() => { AM.m = evenM(); });
+      if (h.kind === "shuffle") {
+        const o = AM.j.map((_, p) => p);
+        for (let k = o.length - 1; k > 0; k--) { const r = Math.floor(Math.random() * (k + 1)); [o[k], o[r]] = [o[r], o[k]]; }
+        AM.ord = o; AM.ex = null; S.step = NSTEPS(); S.all = false; changed(); return;
+      }
+      if (h.kind === "addT") return edit(() => { AM.t.push(["🔺", "🔷", "⭐", "🟢"][AM.t.length % 4]); if (AM.val) AM.val.forEach(r => r.push(1)); });
+      if (h.kind === "delT") return edit(() => { AM.t.pop(); AM.l = AM.l.map(t => Math.min(t, AM.t.length - 1)); if (AM.val) AM.val.forEach(r => r.pop()); });
+      if (h.kind === "addI") return edit(() => { AM.l.push(AM.l.length ? AM.l[AM.l.length - 1] : 0); });
+      if (h.kind === "delI") return edit(() => { AM.l.pop(); AM.m = AM.m.map(r => r.map(x => Math.min(x, AM.l.length - 1))); });
+      if (h.kind === "addJ") return edit(() => { AM.j.push("J" + (N + 1)); if (AM.val) AM.val.push(AM.t.map(() => 1)); AM.m.push([]); AM.ord = null; AM.tie = {}; AM.m = evenM(); });
+      if (h.kind === "delJ") return edit(() => { AM.j.pop(); if (AM.val) AM.val.pop(); AM.m.pop(); AM.ord = null; AM.tie = {}; AM.m = evenM(); });
     }
     if (h.kind === "real") { AJ.r = AJ.r ? null : AJ.v.map(r => [...r]); AJ.ex = null; changed(true); return; }
     if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Bem " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; });
@@ -875,6 +1142,16 @@
 
   // ---------- endereço: #m=lic&j=Afonso;Beatriz&b=Casa;Iate&v=100,180;200,150&u=€&passo=3&tar&q=50,50&inv&tudo ----------
   function writeHash() {
+    if (S.m === "mk") {
+      const p = ["m=mk", "j=" + AM.j.join(";"), "t=" + AM.t.join(";"), "l=" + AM.l.join(""), "mk=" + AM.m.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";"), "passo=" + S.step];
+      if (AM.val) p.push("val=" + AM.val.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";"));
+      if (AM.ord) p.push("ord=" + AM.ord.join(","));
+      if (AM.pre) p.push("pre=" + AM.pre);
+      const t = Object.entries(AM.tie); if (t.length) p.push("emp=" + t.map(([k, q]) => k + ":" + q).join(","));
+      if (S.all) p.push("tudo");
+      history.replaceState(null, "", "#" + p.map(s => s.replace(/=(.*)$/, (m, v) => "=" + encodeURIComponent(v))).join("&"));
+      return;
+    }
     if (S.m === "aw") {
       const m = M => M.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";");
       const p = ["m=aw", "j=" + AJ.j.join(";"), "b=" + AJ.b.join(";"), "v=" + m(AJ.v), "passo=" + S.step];
@@ -895,6 +1172,24 @@
   function readHash() {
     const hp = new URLSearchParams(location.hash.slice(1));
     const ex = hp.get("ex");
+    if (hp.get("m") === "mk") {
+      S.m = "mk"; S.all = hp.has("tudo"); S.step = 1;
+      if (!S.j.length) setLic(0);
+      const rd = k => (hp.get(k) || "").split(";").map(r => r.split(",").map(parseNum));
+      const j = (hp.get("j") || "").split(";").slice(0, MAXJ), t = (hp.get("t") || "").split(";").slice(0, MAXT_MK);
+      const l = [...(hp.get("l") || "")].map(Number).slice(0, MAXN_MK), m = rd("mk"), val = hp.has("val") ? rd("val") : null;
+      if (ex != null && MK_EX[+ex]) setMK(+ex);
+      else if (j.length >= 2 && t[0] && l.length > j.length && l.every(x => x >= 0 && x < t.length) && m.length === j.length && (!val || (val.length === j.length && val.every(r => r.length === t.length)))) {
+        AM.j = j; AM.t = t; AM.l = l; AM.m = m; AM.val = val; AM.pre = hp.get("pre") || ""; AM.tie = {};
+        AM.ord = hp.has("ord") ? hp.get("ord").split(",").map(Number) : null;
+        (hp.get("emp") || "").split(",").filter(Boolean).forEach(s => { const [k, q] = s.split(":").map(Number); AM.tie[k] = q; });
+        AM.ex = MK_EX.findIndex(e => JSON.stringify([e.j, e.t, [...e.l].map(Number), e.m, e.val || null]) === JSON.stringify([j, t, l, m, val]));
+        if (AM.ex < 0) AM.ex = null;
+      } else setMK(0);
+      if (+hp.get("passo") >= 1) S.step = +hp.get("passo");
+      buildInputs();
+      return;
+    }
     if (hp.get("m") === "aw") {
       S.m = "aw"; S.all = hp.has("tudo"); S.step = 1;
       if (!S.j.length) setLic(0);
