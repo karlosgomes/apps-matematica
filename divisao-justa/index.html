@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Divisão Justa: licitações secretas, Ajuste na Partilha e marcadores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  :root { --band: #f6f8fb; --bg: #ffffff; --ink: #17202b; --line: #b3bfcc; --focus: #ef6c00; --bad: #d32f2f; --badbg: #fff5f5; }
+  :root[data-theme="dark"] { --band: #1c242d; --bg: #151b22; --ink: #e6ebf1; --line: #46525f; --focus: #ffa040; --bad: #ff6b6b; --badbg: #3a1f22; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+  #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
+  .tx .katex { font-size: 1em; }
+  .tx.halo { text-shadow: 0 0 2px var(--band), 0 0 3px var(--band), 0 0 4px var(--band), 0 0 6px var(--band); }
+  canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  /* caixas de texto (nomes e valores), postas por cima do canvas pelo layout */
+  .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.5em; border: 2px solid var(--line); border-radius: 8px;
+         background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
+  .inp:focus { border-color: var(--focus); }
+  .inp.bad { border-color: var(--bad); background: var(--badbg); }
+  .inp.num { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; padding: 0 0.35em; }
+  .inp.nome { font-weight: 700; padding: 0 0.35em; }
+
+</style>
+<!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
+<script data-goatcounter="https://karlosgomes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script>
+// GoatCounter: eventos dentro da app (cada um no máximo uma vez por visita), com o nome «app: ação»
+(() => {
+  const seen = new Set(), app = location.pathname.split("/").filter(Boolean).pop() || "apps";
+  const send = (name, tries = 0) => {
+    if (window.goatcounter && goatcounter.count) goatcounter.count({ path: app + ": " + name, title: name, event: true });
+    else if (tries < 20) setTimeout(() => send(name, tries + 1), 500);
+  };
+  window.gcEvt = h => {
+    if (!h) return;
+    let name = typeof h === "string" ? h : [h.kind, h.v ?? h.k ?? h.key ?? ""].filter(x => x !== "" && x != null).join(" ");
+    name = String(name).trim().slice(0, 60);
+    if (!name || seen.has(name)) return;
+    seen.add(name); send(name);
+  };
+  // botões e menus em HTML (apps Python, Estatística, Folha de cálculo e as janelas das outras)
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("button, [role=button]");
+    if (b) gcEvt((b.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40) || b.title || b.id);
+  }, true);
+  document.addEventListener("change", e => {
+    const t = e.target;
+    if (t.tagName === "SELECT") gcEvt((t.id || t.name || "menu") + ": " + ((t.options[t.selectedIndex] || {}).text || t.value));
+    else if (t.type === "checkbox") gcEvt(((t.closest("label") || {}).textContent || t.id || "caixa").trim().slice(0, 40));
+  }, true);
+})();
+</script>
+</head>
+<body>
+<div id="tex" aria-hidden="true"></div>
+<canvas id="cv" aria-label="Divisão Justa: método das licitações secretas, passo a passo, com a tabela de cálculos"></canvas>
+<div id="caixas"></div>
+<script>
+(() => {
+  // Pensada para projeção: contraste forte, controlos desenhados na própria folha; tema claro ou escuro
+  const LIGHT = {
+    bg: "#ffffff", ink: "#17202b", muted: "#333d4a", faint: "#6b7685", grid: "#e6eaf0", grid2: "#c4cdd8",
+    axis: "#1f2833", btn: "#eef2f6", line: "#b3bfcc", band: "#f6f8fb", on: "#ffffff",
+    d: "#ef6c00", dbg: "#fff3e6", ok: "#2e7d32", bad: "#c62828", max: "#ffe0bf", future: "#a7b1bd",
+    L: ["#1565c0", "#d32f2f", "#2e7d32", "#7b1fa2", "#00838f", "#6d4c41"],
+  };
+  const DARK = {
+    bg: "#151b22", ink: "#e6ebf1", muted: "#b4bdc8", faint: "#8592a1", grid: "#232c36", grid2: "#3a4552",
+    axis: "#cfd6de", btn: "#212b36", line: "#46525f", band: "#1c242d", on: "#151b22",
+    d: "#ffa040", dbg: "#3a2a17", ok: "#5cc26a", bad: "#ff6b6b", max: "#5a3a12", future: "#56616d",
+    L: ["#64a8ff", "#ff6b6b", "#5cc26a", "#d09cff", "#4dd0e1", "#c8a27c"],
+  };
+  const C = { ...LIGHT };
+  // modo escuro: mesma chave do weblog no localStorage ("alternate" = escuro, "default" = claro); sem escolha, segue o sistema
+  let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  try { const v = localStorage.getItem("quarto-color-scheme"); if (v) dark = v === "alternate"; } catch (e) {}
+  function setDark(on, save) {
+    dark = on;
+    Object.assign(C, on ? DARK : LIGHT);
+    document.documentElement.dataset.theme = on ? "dark" : "light";
+    if (save) try { localStorage.setItem("quarto-color-scheme", on ? "alternate" : "default"); } catch (e) {}
+  }
+  setDark(dark, false);
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+  const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+  const MAXJ = 5, MAXB = 6;
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  // ---------- exemplos: os das apresentações do MACS A...Z (karlosgomes.github.io/macs-a-z) ----------
+  // v: licitações por bem (linhas) e por jogador (colunas)
+  const EXAMPLES = [
+    { label: "Herança dos avós", j: ["Afonso", "Beatriz", "Carlos"], b: ["🏠 Casa", "⛵ Iate"], v: [[100, 180, 150], [200, 150, 90]], u: "milhares de €" },
+    { label: "Jornal da escola (Exame 2026)", j: ["Ana", "Bruno", "Carlos"], b: ["📱 Tablet", "📷 Máquina fotográfica"], v: [[100, 180, 75], [140, 30, 75]], u: "€" },
+    { label: "Agência de viagens (Exame 2015)", j: ["Alice", "Bernardo", "Camila"], b: ["💻 Computador", "📱 Tablet", "🚌 Viagem"], v: [[600, 950, 750], [350, 300, 300], [850, 1000, 810]], u: "€" },
+    { label: "Quatro herdeiras (Exame 2010)", j: ["Ana", "Berta", "Carla", "Daniela"], b: ["🚗 Automóvel", "🏞️ Terreno", "🏠 Casa"], v: [[15000, 18000, 15600, 16500], [33000, 20000, 27000, 30000], [117000, 150000, 120000, 180000]], u: "€" },
+    { label: "Partes 50/30/20 (Exame 2021)", j: ["Dora", "Elsa", "Fernando"], b: ["🎟️ Bilhete", "👕 Camisola", "💿 CD"], v: [[40, 34, 36], [20, 22, 26], [26, 34, 28]], u: "€", q: [50, 30, 20] },
+    { label: "Tarefas", j: ["Henrique", "Inês", "João"], b: ["🚿 Casas de banho", "🎨 Parede", "🧽 Rodapés", "🪟 Janelas"], v: [[65, 70, 55], [100, 85, 95], [60, 50, 45], [75, 80, 90]], u: "€", tar: true },
+    { label: "Empate", j: ["Rita", "Sara", "Tiago"], b: ["🏠 Casa", "🚗 Carro", "🎹 Piano"], v: [[150, 150, 135], [15, 12, 23], [3, 9, 4]], u: "milhares de €" },
+  ];
+  // m: modo («lic» = licitações secretas; os outros dois chegam depois)
+  const S = { m: "lic", j: [], b: [], v: [], u: "€", tar: false, quotas: false, q: [], inv: false, step: 1, all: false, tie: {} };
+
+  // ---------- números ----------
+  const fmt = (x, dec = 2) => {
+    if (!isFinite(x)) return "—";
+    let s = (Math.round(x * 10 ** dec) / 10 ** dec).toFixed(dec);
+    if (s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    const [i, d] = s.replace(/^-/, "").split(".");
+    const ig = Math.abs(+i) >= 10000 ? i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") : i;
+    return (x < 0 && Math.round(x * 100) ? "−" : "") + ig + (d ? "," + d : "");
+  };
+  const parseNum = s => {
+    s = String(s).trim().replace(/\s/g, "").replace("−", "-").replace(",", ".");
+    return /^-?\d*\.?\d+$/.test(s) ? parseFloat(s) : NaN;
+  };
+  const eq = (a, b) => Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+  // ---------- cálculos do método das licitações secretas ----------
+  // R: resultado (ou R.err com a mensagem do que falta corrigir)
+  let R = null;
+  function compute() {
+    const N = S.j.length, M = S.b.length;
+    for (let i = 0; i < M; i++) for (let p = 0; p < N; p++)
+      if (!(S.v[i][p] >= 0)) return { err: "Há uma licitação por preencher ou inválida (só números ≥ 0)." };
+    let q = S.j.map(() => 1 / N);
+    if (S.quotas) {
+      if (S.q.some(x => !(x >= 0))) return { err: "Há uma quota por preencher." };
+      const t = S.q.reduce((a, x) => a + x, 0);
+      if (Math.abs(t - 100) > 1e-9) return { err: `As quotas somam ${fmt(t)} %, e têm de somar 100 %.` };
+      q = S.q.map(x => x / 100);
+    }
+    const tot = S.j.map((_, p) => S.v.reduce((a, row) => a + row[p], 0));
+    const pj = tot.map((t, p) => q[p] * t);
+    // cada bem vai para quem licitou mais (tarefas: para quem pede menos); empate → sorteio (S.tie)
+    const owner = [], tied = [];
+    S.v.forEach((row, i) => {
+      const best = S.tar ? Math.min(...row) : Math.max(...row);
+      const ws = row.map((x, p) => eq(x, best) ? p : -1).filter(p => p >= 0);
+      tied[i] = ws.length > 1 ? ws : null;
+      owner[i] = ws.length > 1 && ws.includes(S.tie[i]) ? S.tie[i] : ws[0];
+    });
+    const val = S.j.map((_, p) => S.v.reduce((a, row, i) => a + (owner[i] === p ? row[p] : 0), 0));
+    // positivo = paga; bens: quem recebe mais do que a parte justa paga; tarefas: quem trabalha menos paga
+    const ini = val.map((x, p) => S.tar ? pj[p] - x : x - pj[p]);
+    const E = ini.reduce((a, x) => a + x, 0);
+    const fin = ini.map((x, p) => x - q[p] * E);
+    const prop = pj.map((x, p) => x + q[p] * E);
+    // inveja: quanto vale, para a, a parte de b (bens recebidos − o que paga, ou + o que recebe)
+    const env = S.j.map((_, a) => S.j.map((_, b) => S.v.reduce((s, row, i) => s + (owner[i] === b ? row[a] : 0), 0) - fin[b]));
+    return { N, M, q, tot, pj, owner, tied, val, ini, E, fin, prop, env };
+  }
+
+  // passos (estados da tabela): 1 licitações · 2 total e parte justa · 3 atribuição · 4 alocação provisória
+  // 5 excedente · 6 alocação final · 7 valor para o próprio · 8 inveja (opcional)
+  const NSTEPS = () => S.tar ? 6 : (S.inv ? 8 : 7);
+  const STEPNAME = ["", "Licitações", "Parte justa", "Quem fica com cada bem", "Alocação provisória", "Excedente", "Alocação final", "Valor para o próprio", "Há inveja?"];
+
+  // ---------- canvas e caixas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const box = document.getElementById("caixas");
+  let W = 0, H = 0, L = null, hits = [], err = "";
+  function resize() {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // caixas de texto: nomes dos jogadores, nomes dos bens, licitações e quotas (refeitas quando muda o tamanho)
+  let IN = { j: [], b: [], v: [], q: [], u: null };
+  function mkInput(cls, val, onInput, label, mode = "text") {
+    const el = document.createElement("input");
+    el.className = "inp " + cls; el.type = "text"; el.value = val; el.spellcheck = false; el.autocomplete = "off";
+    el.setAttribute("aria-label", label);
+    if (mode !== "text") el.inputMode = mode;
+    el.addEventListener("input", () => onInput(el));
+    el.addEventListener("keydown", e => {   // ↑/↓ mudam o valor (Shift ×10)
+      if (cls.includes("num") && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        const x = parseNum(el.value);
+        if (isFinite(x)) { el.value = fmtIn(Math.max(0, x + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1))); onInput(el); }
+        e.preventDefault();
+      }
+    });
+    box.appendChild(el);
+    return el;
+  }
+  const fmtIn = x => String(Math.round(x * 100) / 100).replace(".", ",");
+  function buildInputs() {
+    box.innerHTML = "";
+    IN = { j: [], b: [], v: [], q: [], u: null };
+    S.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { S.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
+    S.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { S.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
+    S.v.forEach((row, i) => IN.v.push(row.map((x, p) => mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
+      const y = parseNum(el.value); S.v[i][p] = y; el.classList.toggle("bad", !(y >= 0)); changed();
+    }, `Licitação de ${S.j[p]} por ${S.b[i]}`, "decimal"))));
+    if (S.quotas) S.q.forEach((x, p) => IN.q.push(mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
+      const y = parseNum(el.value); S.q[p] = y; el.classList.toggle("bad", !(y >= 0)); changed();
+    }, `Quota de ${S.j[p]} em percentagem`, "decimal")));
+    IN.u = mkInput("nome unidade", S.u, el => { S.u = el.value.trim(); changed(false); }, "Unidade das licitações");
+  }
+  function changed(rebuild) {
+    S.tie = Object.fromEntries(Object.entries(S.tie).filter(([i]) => +i < S.b.length));
+    if (rebuild) buildInputs();
+    writeHash(); draw();
+  }
+
+  // ---------- disposição ----------
+  // em cima: o título, os modos e o tema; à esquerda as licitações (caixas); à direita a tabela dos cálculos e a explicação;
+  // em baixo: os passos, as opções e os exemplos
+  function layout() {
+    const fs = clamp(Math.min(W, H) / 30, 13, 22);
+    const pad = Math.round(fs * 0.7), gap = 0.6 * fs;
+    const land = W > H * 1.15 && W >= 700;
+    const L = { fs, pad, land, gap };
+    const w = W - 2 * pad, ih = 1.75 * fs;
+    let y = pad;
+    L.title = { x: pad, y, h: ih };
+    L.theme = { x: W - pad - ih * 1.3, y, w: ih * 1.3, h: ih };
+    y += ih + gap;
+    // opções em grupos, arrumadas no menor número de linhas
+    const gw = optGroups(fs).map(g => g.w), rows = [[]];
+    let usedw = 0;
+    const OG = optGroups(fs), sep = i => OG[i].ex && i > 0 && OG[i - 1].ex ? 0.5 * fs : 1.5 * fs;
+    gw.forEach((g, i) => { if (rows[rows.length - 1].length && usedw + sep(i) + g > w) { rows.push([]); usedw = 0; } rows[rows.length - 1].push(i); usedw += (usedw ? sep(i) : 0) + g; });
+    const rowO = 1.5 * fs, nr = rows.length;
+    const yb = H - pad - (rowO * nr + 0.3 * fs * (nr - 1));
+    L.opt = { x: pad, y: yb, w, h: rowO, rows };
+    const main = { x: pad, y, w, h: yb - gap - y };
+    const N = S.j.length, M = S.b.length;
+    const rowsIn = 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas, botões
+    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + 2.4 * fs;
+    const inW = Math.min(main.w * (land ? 0.42 : 1), 9 * fs + N * 6.2 * fs);
+    if (land) {
+      L.IN = { x: main.x, y: main.y, w: inW, h: Math.min(main.h, inNeedH) };
+      L.EX = { x: main.x, y: main.y + L.IN.h + gap, w: inW, h: main.h - L.IN.h - gap };
+      L.T = { x: main.x + inW + gap, y: main.y, w: main.w - inW - gap, h: main.h };
+    } else {
+      const ih2 = Math.min(inNeedH, main.h * 0.45);
+      L.IN = { x: main.x, y: main.y, w: main.w, h: ih2 };
+      L.T = { x: main.x, y: main.y + ih2 + gap, w: main.w, h: main.h - ih2 - gap };
+    }
+    return L;
+  }
+
+  // ---------- desenho: primitivas (como na jefferson-hondt) ----------
+  function line(x0, y0, x1, y1, c, w, dash) {
+    ctx.strokeStyle = c; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function rrect(x, y, w, h, r, fill, stroke, lw = 1, dash) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  function text(s, x, y, px, color, align = "left", font = FONT, weight = 400) {
+    ctx.font = `${weight} ${px}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return ctx.measureText(s).width;
+  }
+  const tw = (s, px, font = FONT, weight = 400) => { ctx.font = `${weight} ${px}px ${font}`; return ctx.measureText(s).width; };
+  // texto que encolhe para caber em w
+  function textFit(s, x, y, px, w, color, align = "left", font = FONT, weight = 400) {
+    const k = Math.min(1, w / Math.max(1, tw(s, px, font, weight)));
+    return text(s, x, y, px * k, color, align, font, weight);
+  }
+  // texto partido em linhas que caibam em w; devolve o número de linhas
+  function wrap(s, x, y, w, px, color, weight = 400, lh = 1.3) {
+    const words = s.split(" "), lines = [];
+    let cur = "";
+    for (const wd of words) {
+      const t = cur ? cur + " " + wd : wd;
+      if (cur && tw(t, px, FONT, weight) > w) { lines.push(cur); cur = wd; } else cur = t;
+    }
+    if (cur) lines.push(cur);
+    lines.forEach((l, i) => text(l, x, y + i * px * lh, px, color, "left", FONT, weight));
+    return lines.length;
+  }
+  function button(x, y, w, h, txt, on, kind, extra = {}, col = C.muted, px = 16, enabled = true) {
+    rrect(x, y, w, h, 8, on ? col : C.btn, on ? col : C.line, 2);
+    text(txt, x + w / 2, y + h / 2 + 1, px, !enabled ? C.faint : on ? C.on : C.ink, "center", FONT, 700);
+    if (enabled) hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  function cbox(x, y, h, bs, fs, on, txt, hit) {
+    const yy = y + (h - bs) / 2;
+    rrect(x, yy, bs, bs, 5, on ? C.muted : C.bg, C.muted, 2);
+    if (on) {
+      ctx.lineCap = ctx.lineJoin = "round"; ctx.strokeStyle = C.on; ctx.lineWidth = 0.14 * bs;
+      ctx.beginPath(); ctx.moveTo(x + 0.24 * bs, yy + 0.52 * bs); ctx.lineTo(x + 0.43 * bs, yy + 0.72 * bs);
+      ctx.lineTo(x + 0.77 * bs, yy + 0.3 * bs); ctx.stroke();
+      ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+    }
+    const w = bs + 0.4 * fs + text(txt, x + bs + 0.4 * fs, y + h / 2 + 1, fs * 0.85, C.ink);
+    hits.push({ ...hit, rect: { x, y, w, h } });
+    return x + w;
+  }
+  function place(el, r, px) {
+    el.style.display = "";
+    el.style.left = r.x + "px"; el.style.top = r.y + "px"; el.style.width = r.w + "px"; el.style.height = r.h + "px";
+    el.style.fontSize = px + "px";
+  }
+  // um quadro: fundo leve e título
+  function panel(b, fs, title) {
+    rrect(b.x, b.y, b.w, b.h, 10, C.band, C.line, 1.2);
+    textFit(title, b.x + 0.7 * fs, b.y + 0.85 * fs, fs * 0.9, b.w - 1.4 * fs, C.muted, "left", FONT, 700);
+    return { x: b.x + 0.7 * fs, y: b.y + 1.7 * fs, w: b.w - 1.4 * fs, h: b.h - 2.2 * fs };
+  }
+  // número do passo num círculo
+  function badge(n, x, y, r, state) {
+    const col = state === "atual" ? C.d : state === "feito" ? C.L[0] : C.future;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    text(String(n), x, y + 0.5, r * 1.15, C.on, "center", FONT, 700);
+  }
+
+  // ---------- desenho ----------
+  let raf = 0;
+  function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+  function paint() {
+    L = layout(); hits = [];
+    const { fs } = L;
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    R = compute();
+    S.step = clamp(S.step, 1, NSTEPS());
+    topBar(fs);
+    inputs(L.IN, fs);
+    table(L.T, fs);
+    options(L.opt, fs);
+  }
+
+  function topBar(fs) {
+    const t = L.title;
+    let x = t.x + text("Divisão Justa", t.x, t.y + t.h / 2 + 1, fs * 1.1, C.ink, "left", FONT, 700) + 1.2 * fs;
+    const modes = [["lic", "Licitações secretas"], ["aw", "Ajuste na Partilha"], ["mk", "Marcadores"]];
+    const f = fs * 0.85, bh = t.h * 0.85;
+    modes.forEach(([m, lab]) => {
+      const ready = m === "lic";
+      const bw = tw(lab, f, FONT, 700) + 1.2 * fs;
+      if (x + bw > L.theme.x - fs) return;
+      button(x, t.y + (t.h - bh) / 2, bw, bh, lab, S.m === m, "mode", { m }, C.muted, f, ready);
+      x += bw + 0.5 * fs;
+    });
+    button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
+  }
+
+  // à esquerda: as licitações em caixas (bens nas linhas, jogadores nas colunas), as quotas e os botões ±
+  function inputs(b, fs) {
+    const c = panel(b, fs, S.tar ? "Licitações: quanto cada um pede por cada tarefa" : "Licitações: quanto vale cada bem para cada um");
+    const N = S.j.length, M = S.b.length;
+    const rh = 1.75 * fs, ih = 1.4 * fs, px = fs * 0.85;
+    const labW = Math.min(c.w * 0.38, 9 * fs), cw = (c.w - labW) / N;
+    let y = c.y + 0.1 * fs;
+    // unidade
+    text("Unidade:", c.x, y + ih / 2, fs * 0.75, C.muted);
+    place(IN.u, { x: c.x + 4.4 * fs, y: y + 0.05 * fs, w: Math.min(9 * fs, c.w - 4.6 * fs), h: ih * 0.95 }, fs * 0.75);
+    y += rh;
+    S.j.forEach((_, p) => {
+      place(IN.j[p], { x: c.x + labW + p * cw + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px);
+      IN.j[p].style.color = C.L[p];
+    });
+    y += rh;
+    S.b.forEach((_, i) => {
+      place(IN.b[i], { x: c.x, y, w: labW - 0.3 * fs, h: ih }, px);
+      S.j.forEach((_, p) => place(IN.v[i][p], { x: c.x + labW + p * cw + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px));
+      y += rh;
+    });
+    if (S.quotas) {
+      text("Quota (%)", c.x, y + ih / 2, px, C.ink, "left", FONT, 700);
+      S.j.forEach((_, p) => place(IN.q[p], { x: c.x + labW + p * cw + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px));
+      y += rh;
+    }
+    // botões: + − jogador, + − bem
+    const f = fs * 0.75, bh = 1.3 * fs;
+    let x = c.x;
+    const bens = S.tar ? "tarefa" : "bem";
+    [["addJ", "+ jogador", N < MAXJ], ["delJ", "− jogador", N > 2], ["addB", "+ " + bens, M < MAXB], ["delB", "− " + bens, M > 1]].forEach(([k, lab, ok]) => {
+      const bw = tw(lab, f, FONT, 700) + 1 * fs;
+      button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
+      x += bw + 0.4 * fs;
+    });
+  }
+
+  // à direita: a tabela de cálculos sempre presente, com as linhas do passo atual destacadas, e a explicação do passo
+  function table(b, fs) {
+    const c = panel(b, fs, `Cálculos (${S.u || "valores"}) · passo ${S.all ? "—" : S.step} de ${NSTEPS()}: ${S.all ? "tudo" : STEPNAME[S.step]}`);
+    if (R.err) { wrap(R.err, c.x, c.y + fs, c.w, fs * 0.9, C.bad, 700); return; }
+    const N = R.N, M = R.M;
+    const step = S.all ? NSTEPS() : S.step;
+    const cur = st => S.all ? false : st === step;
+    const state = st => cur(st) ? "atual" : st <= step ? "feito" : "futuro";
+    const rows = [];
+    const bensRec = p => S.b.map((n, i) => R.owner[i] === p ? n.split(" ")[0] : null).filter(Boolean).join(" ");
+    const pay = x => Math.abs(x) < 1e-9 ? ["0", C.ink] : x > 0 ? ["paga " + fmt(x), C.bad] : ["recebe " + fmt(-x), C.ok];
+    S.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n, cells: S.v[i].map(x => [fmt(x), C.ink]), item: i }));
+    rows.push({ st: 2, badge: 2, lab: "Total", cells: R.tot.map(x => [fmt(x), C.ink]) });
+    rows.push({ st: 2, lab: S.tar ? "Parte justa de trabalho" : "Parte justa", cells: R.pj.map(x => [fmt(x), C.ink]), bold: true });
+    rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Bens recebidos", cells: S.j.map((_, p) => [R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink]) });
+    rows.push({ st: 4, badge: 4, lab: "Alocação provisória", cells: R.ini.map(pay) });
+    rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => ["+" + fmt(q * R.E), C.ink]) });
+    rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
+    if (!S.tar) rows.push({ st: 7, badge: "✔", lab: "Valor para o próprio", cells: R.prop.map(x => [fmt(x), C.ink]), bold: true });
+    if (!S.tar && S.inv) S.j.forEach((n, a) => rows.push({ st: 8, badge: a === 0 ? "?" : null, lab: "Para " + n, cells: S.j.map((_, bb) => {
+      const v = R.env[a][bb], envy = bb !== a && v > R.env[a][a] + 1e-9;
+      return [fmt(v), envy ? C.bad : bb === a ? C.L[a] : C.ink, envy];
+    }) }));
+    // explicação: no quadro da esquerda (ecrã deitado) ou por baixo da tabela
+    const expl = explain(step);
+    const exPx = fs * 0.85, exLines = L.EX ? 0 : Math.min(7, expl.length + 1);
+    const avail = c.h - 1.6 * fs - exLines * exPx * 1.35 - 0.6 * fs;
+    const rh = clamp(avail / rows.length, 1.05 * fs, 1.9 * fs), px = clamp(rh * 0.52, 11, fs * 1.0);
+    const badgeW = 1.5 * fs;
+    const labW = Math.min(c.w * 0.32, Math.max(...rows.map(r => tw(r.lab, px, FONT, 700))) + 0.6 * fs);
+    const cw = (c.w - badgeW - labW) / N;
+    const cx = p => c.x + badgeW + labW + cw * (p + 0.5);
+    // cabeçalho
+    let y = c.y + 0.6 * fs;
+    S.j.forEach((n, p) => textFit(n, cx(p), y, px, cw - 0.3 * fs, C.L[p], "center", FONT, 700));
+    y += 0.8 * fs;
+    line(c.x, y, c.x + c.w, y, C.line, 1.5);
+    rows.forEach(r => {
+      const s = state(r.st);
+      if (s === "atual") {
+        ctx.fillStyle = C.dbg; ctx.fillRect(c.x, y, c.w, rh);
+        ctx.fillStyle = C.d; ctx.fillRect(c.x, y, 0.22 * fs, rh);
+      }
+      const ym = y + rh / 2, vis = r.st <= step;
+      if (r.badge != null) badge(r.badge, c.x + 0.75 * fs, ym, 0.55 * px, s);
+      textFit(r.lab, c.x + badgeW, ym, px, labW - 0.3 * fs, s === "atual" ? C.d : s === "futuro" ? C.future : C.ink, "left", FONT, r.bold || s === "atual" ? 700 : 400);
+      if (vis) r.cells.forEach(([t, col, mark], p) => {
+        // licitação vencedora (a partir do passo 3) e empates
+        if (r.item != null && step >= 3) {
+          const winner = R.owner[r.item] === p, isTied = R.tied[r.item] && R.tied[r.item].includes(p);
+          if (winner || isTied) rrect(cx(p) - cw / 2 + 0.15 * fs, y + 0.12 * rh, cw - 0.3 * fs, rh * 0.76, 6, winner ? C.max : null, isTied ? C.d : null, 2, isTied && !winner ? [4, 3] : null);
+          if (isTied) hits.push({ kind: "tie", i: r.item, p, rect: { x: cx(p) - cw / 2, y, w: cw, h: rh } });
+        }
+        if (mark) rrect(cx(p) - cw / 2 + 0.15 * fs, y + 0.12 * rh, cw - 0.3 * fs, rh * 0.76, 6, null, C.bad, 2);
+        textFit(t, cx(p), ym, px, cw - 0.4 * fs, col, "center", MONO, r.bold || r.item != null && R.owner[r.item] === p && step >= 3 ? 600 : 400);
+      });
+      y += rh;
+      line(c.x, y, c.x + c.w, y, s === "futuro" ? C.grid : C.grid2, 1, s === "futuro" ? [3, 3] : null);
+    });
+    // explicação do passo
+    let box = { x: c.x, y: y + 0.7 * fs, w: c.w, h: c.y + c.h - y - 0.7 * fs };
+    if (L.EX) {
+      const e = panel(L.EX, fs, S.all ? "Explicação" : `Passo ${step}: ${STEPNAME[step]}`);
+      box = { x: e.x, y: e.y + 0.3 * fs, w: e.w, h: e.h };
+    }
+    y = box.y;
+    expl.forEach((s, k) => {
+      if (y > box.y + box.h - 0.4 * fs) return;
+      const px2 = L.EX ? exPx * 1.05 : exPx;
+      // listas «A: … · B: …» numa linha por jogador no quadro da esquerda
+      const parts = L.EX && s.includes(" · ") ? s.split(" · ") : [s];
+      parts.forEach(t => {
+        const n = wrap(t, box.x, y, box.w, k === 0 ? px2 : px2 * 0.95, k === 0 ? C.ink : C.muted, k === 0 ? 700 : 400);
+        y += n * px2 * 1.32 + 0.1 * fs;
+      });
+      y += 0.25 * fs;
+    });
+  }
+
+  // frases que explicam o passo (a primeira em destaque)
+  function explain(step) {
+    const n = S.j, u = S.u ? " " + S.u : "";
+    const N = R.N, eqQ = !S.quotas;
+    const pay = x => Math.abs(x) < 1e-9 ? "fica a 0" : x > 0 ? "paga " + fmt(x) : "recebe " + fmt(-x);
+    switch (step) {
+      case 1: return [S.tar
+        ? "Cada um escreve, em segredo, quanto quer receber para fazer cada tarefa: a sua licitação."
+        : "Cada um escreve, em segredo, quanto acha que vale cada bem: a sua licitação.",
+        "Os valores são subjetivos: cada um avalia os bens à sua maneira."];
+      case 2: return [eqQ ? `Parte justa = total das licitações : ${N} (o número de jogadores).` : "Porção justa = quota × total das licitações de cada um.",
+        n.map((x, p) => eqQ ? `${x}: ${fmt(R.tot[p])} : ${N} = ${fmt(R.pj[p])}` : `${x}: ${fmt(R.q[p] * 100)} % × ${fmt(R.tot[p])} = ${fmt(R.pj[p])}`).join(" · ")];
+      case 3: {
+        const a = [S.tar ? "Cada tarefa vai para quem pede menos." : "Cada bem vai para quem fez a licitação mais alta.",
+          S.b.map((b, i) => `${b} → ${n[R.owner[i]]} (${fmt(S.v[i][R.owner[i]])})`).join(" · ")];
+        S.b.forEach((b, i) => { if (R.tied[i]) a.push(`Empate em ${b} (${R.tied[i].map(p => n[p]).join(" e ")}): decide-se por sorteio. Toque numa das licitações empatadas para escolher quem ganha.`); });
+        return a;
+      }
+      case 4: return [S.tar
+        ? "Quem fica com menos trabalho do que a sua parte justa paga a diferença; quem fica com mais recebe."
+        : "Quem recebe bens que valem mais do que a parte justa paga a diferença; quem recebe menos recebe a diferença.",
+        n.map((x, p) => `${x}: ${S.tar ? fmt(R.pj[p]) + " − " + fmt(R.val[p]) : fmt(R.val[p]) + " − " + fmt(R.pj[p])} → ${pay(R.ini[p])}`).join(" · ")];
+      case 5: {
+        const ent = R.ini.filter(x => x > 0).reduce((a, x) => a + x, 0), sai = -R.ini.filter(x => x < 0).reduce((a, x) => a + x, 0);
+        return [`Excedente = o que entra − o que sai = ${fmt(ent)} − ${fmt(sai)} = ${fmt(R.E)}${u}.`,
+          eqQ ? `Divide-se em partes iguais: ${fmt(R.E)} : ${N} = ${fmt(R.E / N)} para cada um.` : "Divide-se pelas quotas: " + n.map((x, p) => `${x} ${fmt(R.q[p] * R.E)}`).join(" · "),
+          S.tar ? "O excedente nunca é negativo: o mínimo dos pedidos de cada tarefa nunca é maior do que a média."
+                : "O excedente nunca é negativo: o máximo das licitações de cada bem nunca é menor do que a média."];
+      }
+      case 6: return ["Alocação final: a alocação provisória com a parte do excedente de cada um.",
+        n.map((x, p) => `${x}: ${pay(R.fin[p])}`).join(" · "),
+        `Confirma: o que se paga (${fmt(R.fin.filter(v => v > 0).reduce((a, v) => a + v, 0))}) é igual ao que se recebe (${fmt(-R.fin.filter(v => v < 0).reduce((a, v) => a + v, 0))}).`];
+      case 7: return ["Cada um fica, na sua avaliação, com a parte justa mais a sua parte do excedente.",
+        n.map((x, p) => `${x}: ${fmt(R.pj[p])} + ${fmt(R.q[p] * R.E)} = ${fmt(R.prop[p])}`).join(" · "),
+        "O método é proporcional: todos recebem pelo menos a sua parte justa."];
+      case 8: {
+        const inv = [];
+        n.forEach((a, i) => n.forEach((b, j) => { if (i !== j && R.env[i][j] > R.env[i][i] + 1e-9) inv.push(`${a} inveja ${b} (${fmt(R.env[i][j])} > ${fmt(R.env[i][i])})`); }));
+        return [inv.length ? "Há inveja: o método é proporcional, mas não é livre de inveja." : "Ninguém tem inveja nesta partilha.",
+          "Cada linha «Para …» mostra quanto vale, para essa pessoa, a parte de cada um (bens − o que paga, ou + o que recebe).",
+          ...inv];
+      }
+    }
+    return [];
+  }
+
+  // ---------- em baixo: passos, opções e exemplos ----------
+  function optGroups(fs) {
+    const f = fs * 0.8, bh = 1.35 * fs, gap = 0.5 * fs, bs = 0.72 * fs;
+    const bw = t => tw(t, f, FONT, 700) + 1.2 * fs;
+    const cw = t => bs + 0.4 * fs + tw(t, fs * 0.85);
+    const exLab = "Exemplos:";
+    const stepLab = "◀  Passo  ▶";
+    return [
+      { w: bw("◀") + gap + bw("▶") + gap + bw("Tudo"), draw: (x, y, h) => {
+        const by = y + (h - bh) / 2;
+        button(x, by, bw("◀"), bh, "◀", false, "prev", {}, C.muted, f, S.all || S.step > 1); x += bw("◀") + gap;
+        button(x, by, bw("▶"), bh, "▶", false, "next", {}, C.d, f, !S.all && S.step < NSTEPS()); x += bw("▶") + gap;
+        button(x, by, bw("Tudo"), bh, "Tudo", S.all, "all", {}, C.muted, f);
+      } },
+      { w: cw("Tarefas (leilão inverso)") + 1.1 * fs + cw("Partes diferentes (%)") + 1.1 * fs + cw("Inveja"), draw: (x, y, h) => {
+        x = cbox(x, y, h, bs, fs, S.tar, "Tarefas (leilão inverso)", { kind: "box", k: "tar" }) + 1.1 * fs;
+        x = cbox(x, y, h, bs, fs, S.quotas, "Partes diferentes (%)", { kind: "box", k: "quotas" }) + 1.1 * fs;
+        if (!S.tar) cbox(x, y, h, bs, fs, S.inv, "Inveja", { kind: "box", k: "inv" });
+      } },
+      // exemplos: um grupo por botão (o primeiro com «Exemplos:»), para se arrumarem em várias linhas
+      ...EXAMPLES.map((e, i) => {
+        const lab = i === 0 ? tw(exLab, fs * 0.8) + 0.5 * fs : 0;
+        return { w: lab + bw(e.label), ex: true, draw: (x, y, h) => {
+          if (i === 0) x += text(exLab, x, y + h / 2 + 1, fs * 0.8, C.muted) + 0.5 * fs;
+          button(x, y + (h - bh) / 2, bw(e.label), bh, e.label, S.ex === i, "example", { i }, C.muted, f);
+        } };
+      }),
+    ];
+  }
+  function options(b, fs) {
+    const G = optGroups(fs);
+    b.rows.forEach((row, r) => {
+      const y = b.y + r * (b.h + 0.3 * fs);
+      let x = b.x;
+      row.forEach((gi, k) => {
+        if (k > 0) x += G[gi].ex && G[gi - 1] && G[gi - 1].ex ? 0.5 * fs : 1.5 * fs;
+        G[gi].draw(x, y, b.h); x += G[gi].w;
+      });
+    });
+  }
+
+  // ---------- ações ----------
+  function loadExample(i) {
+    const e = EXAMPLES[i];
+    S.ex = i; S.j = [...e.j]; S.b = [...e.b]; S.v = e.v.map(r => [...r]); S.u = e.u;
+    S.tar = !!e.tar; S.quotas = !!e.q; S.q = e.q ? [...e.q] : e.j.map(() => Math.round(10000 / e.j.length) / 100);
+    S.tie = {}; S.step = 1; S.all = false;
+    changed(true);
+  }
+  function edit(fn) { fn(); S.ex = null; changed(true); }
+  const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  cv.addEventListener("pointerdown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+    const h = hits.find(h => inRect(h.rect, e.clientX, e.clientY));
+    if (!h) return;
+    if (window.gcEvt) gcEvt(h);
+    e.preventDefault();
+    if (h.kind === "theme") { setDark(!dark, true); buildInputs(); draw(); return; }
+    if (h.kind === "next") { S.step = Math.min(NSTEPS(), S.step + 1); changed(); return; }
+    if (h.kind === "prev") { if (S.all) S.all = false; else S.step = Math.max(1, S.step - 1); changed(); return; }
+    if (h.kind === "all") { S.all = !S.all; changed(); return; }
+    if (h.kind === "box") {
+      S[h.k] = !S[h.k];
+      if (h.k === "quotas" && S.quotas && S.q.length !== S.j.length) S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100);
+      if (h.k === "tar" && S.tar) S.inv = false;
+      S.ex = null; changed(true); return;
+    }
+    if (h.kind === "example") { loadExample(h.i); return; }
+    if (h.kind === "tie") { S.tie[h.i] = h.p; changed(); return; }
+    if (h.kind === "addJ") return edit(() => { S.j.push("J" + (S.j.length + 1)); S.v.forEach(r => r.push(0)); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
+    if (h.kind === "delJ") return edit(() => { S.j.pop(); S.v.forEach(r => r.pop()); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
+    if (h.kind === "addB") return edit(() => { S.b.push((S.tar ? "Tarefa " : "Bem ") + (S.b.length + 1)); S.v.push(S.j.map(() => 0)); });
+    if (h.kind === "delB") return edit(() => { S.b.pop(); S.v.pop(); });
+  });
+  cv.addEventListener("pointermove", e => {
+    const h = hits.find(h => inRect(h.rect, e.clientX, e.clientY));
+    cv.style.cursor = h ? "pointer" : "default";
+  });
+  // teclado (fora das caixas): → / espaço = passo seguinte, ← = anterior, t = tudo
+  window.addEventListener("keydown", e => {
+    if (document.activeElement && document.activeElement.classList.contains("inp")) return;
+    if (e.key === "ArrowRight" || e.key === " ") S.step = Math.min(NSTEPS(), S.step + 1), S.all = false;
+    else if (e.key === "ArrowLeft") S.step = Math.max(1, S.step - 1), S.all = false;
+    else if (e.key === "t") S.all = !S.all;
+    else return;
+    e.preventDefault(); changed();
+  });
+
+  // ---------- endereço: #m=lic&j=Afonso;Beatriz&b=Casa;Iate&v=100,180;200,150&u=€&passo=3&tar&q=50,50&inv&tudo ----------
+  function writeHash() {
+    const p = [`m=${S.m}`, "j=" + S.j.join(";"), "b=" + S.b.join(";"), "v=" + S.v.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";"),
+      "u=" + S.u, "passo=" + S.step];
+    if (S.tar) p.push("tar");
+    if (S.quotas) p.push("q=" + S.q.join(","));
+    if (S.inv) p.push("inv");
+    if (S.all) p.push("tudo");
+    const t = Object.entries(S.tie); if (t.length) p.push("emp=" + t.map(([i, q]) => i + ":" + q).join(","));
+    history.replaceState(null, "", "#" + p.map(s => s.replace(/=(.*)$/, (m, v) => "=" + encodeURIComponent(v))).join("&"));
+  }
+  function readHash() {
+    const hp = new URLSearchParams(location.hash.slice(1));
+    const ex = hp.get("ex");
+    if (ex != null && EXAMPLES[+ex]) { loadExample(+ex); }
+    else if (hp.get("j") && hp.get("b") && hp.get("v")) {
+      const j = hp.get("j").split(";").slice(0, MAXJ), b = hp.get("b").split(";").slice(0, MAXB);
+      const v = hp.get("v").split(";").map(r => r.split(",").map(parseNum));
+      if (j.length >= 2 && v.length === b.length && v.every(r => r.length === j.length)) {
+        S.j = j; S.b = b; S.v = v; S.u = hp.get("u") ?? "€";
+        S.tar = hp.has("tar"); S.inv = hp.has("inv"); S.all = hp.has("tudo");
+        S.quotas = hp.has("q"); S.q = S.quotas ? hp.get("q").split(",").map(parseNum) : j.map(() => Math.round(10000 / j.length) / 100);
+        (hp.get("emp") || "").split(",").filter(Boolean).forEach(s => { const [i, q] = s.split(":").map(Number); S.tie[i] = q; });
+        S.ex = EXAMPLES.findIndex(e => JSON.stringify([e.j, e.b, e.v]) === JSON.stringify([j, b, v]));
+        if (S.ex < 0) S.ex = null;
+      } else { loadExample(0); }
+    } else { loadExample(0); }
+    if (ex != null) { if (hp.has("inv")) S.inv = true; if (hp.has("tudo")) S.all = true; }
+    if (+hp.get("passo") >= 1) S.step = +hp.get("passo");
+    buildInputs();
+  }
+  readHash();
+  writeHash();
+  window.addEventListener("hashchange", () => { readHash(); draw(); });
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  if (document.fonts) document.fonts.ready.then(draw);
+  resize();
+})();
+</script>
+</body>
+</html>
