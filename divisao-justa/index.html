@@ -93,7 +93,7 @@
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
   // ---------- exemplos: os das apresentações do MACS A...Z (karlosgomes.github.io/macs-a-z) ----------
-  // v: licitações por bem (linhas) e por jogador (colunas)
+  // v: licitações por item (linhas) e por jogador (colunas)
   const EXAMPLES = [
     { label: "Herança dos avós", j: ["Afonso", "Beatriz", "Carlos"], b: ["🏠 Casa", "⛵ Iate"], v: [[100, 180, 150], [200, 150, 90]], u: "milhares de €" },
     { label: "Jornal da escola (Exame 2026)", j: ["Ana", "Bruno", "Carlos"], b: ["📱 Tablet", "📷 Máquina fotográfica"], v: [[100, 180, 75], [140, 30, 75]], u: "€" },
@@ -137,7 +137,7 @@
     }
     const tot = S.j.map((_, p) => S.v.reduce((a, row) => a + row[p], 0));
     const pj = tot.map((t, p) => q[p] * t);
-    // cada bem vai para quem licitou mais (tarefas: para quem pede menos); empate → sorteio (S.tie)
+    // cada item vai para quem licitou mais (tarefas: para quem pede menos); empate → sorteio (S.tie)
     const owner = [], tied = [];
     S.v.forEach((row, i) => {
       const best = S.tar ? Math.min(...row) : Math.max(...row);
@@ -146,19 +146,19 @@
       owner[i] = ws.length > 1 && ws.includes(S.tie[i]) ? S.tie[i] : ws[0];
     });
     const val = S.j.map((_, p) => S.v.reduce((a, row, i) => a + (owner[i] === p ? row[p] : 0), 0));
-    // positivo = paga; bens: quem recebe mais do que a parte justa paga; tarefas: quem trabalha menos paga
+    // positivo = paga; itens: quem recebe mais do que a parte justa paga; tarefas: quem trabalha menos paga
     const ini = val.map((x, p) => S.tar ? pj[p] - x : x - pj[p]);
     const E = ini.reduce((a, x) => a + x, 0);
     const fin = ini.map((x, p) => x - q[p] * E);
     const prop = pj.map((x, p) => x + q[p] * E);
-    // inveja: quanto vale, para a, a parte de b (bens recebidos − o que paga, ou + o que recebe)
+    // inveja: quanto vale, para a, a parte de b (itens recebidos − o que paga, ou + o que recebe)
     const env = S.j.map((_, a) => S.j.map((_, b) => S.v.reduce((s, row, i) => s + (owner[i] === b ? row[a] : 0), 0) - fin[b]));
     return { N, M, q, tot, pj, owner, tied, val, ini, E, fin, prop, env };
   }
 
 
   // ---------- Ajuste na Partilha (Adjusted Winner): 2 jogadores, 100 pontos cada ----------
-  // v: pontos por bem (linhas) e por jogador (colunas); r: pontos verdadeiros (opcional: para ver o efeito de mentir)
+  // v: pontos por item (linhas) e por jogador (colunas); r: pontos verdadeiros (opcional: para ver o efeito de mentir)
   const AW_EX = [
     { label: "Madalena e Gonçalo", j: ["Madalena", "Gonçalo"], b: ["⛵ Iate", "🐈 Gato", "🏢 Apartamento", "🖼️ Quadro"], v: [[10, 30], [50, 20], [30, 20], [10, 30]] },
     { label: "Camp David", j: ["Israel", "Egito"], b: ["🏜️ Sinai", "🤝 Reconhecimento", "🗺️ Cisjordânia e Gaza", "🔗 Ligação dos acordos", "⚖️ Direitos palestinianos", "🕌 Jerusalém"], v: [[35, 55], [10, 5], [20, 10], [10, 5], [5, 20], [20, 5]] },
@@ -186,7 +186,7 @@
   // inteiro; decimal exato (até 2 casas); senão fração ≈ decimal
   const ffmt = a => a.d === 1 ? fmt(a.n) : (a.n * 100) % a.d === 0 ? fmt(a.n / a.d) : `${a.n}/${a.d} ≈ ${fmt(a.n / a.d, 1)}`;
   const ffr = a => a.d === 1 ? String(a.n) : `${a.n}/${a.d}`;
-  // nome curto de um bem: o emoji, se for único; senão o nome todo
+  // nome curto de um item: o emoji, se for único; senão o nome todo
   function sh(i) {
     const first = n => n.split(" ")[0];
     const n = AJ.b[i], e = first(n);
@@ -216,12 +216,12 @@
     return res;
   }
   // o método, com os pontos v: 1.ª fase (empates para quem tem menos pontos nesse momento), ordem pelas razões,
-  // passagens por inteiro e, se for preciso, a divisão de um bem: x = fração que PASSA do dador para o outro
+  // passagens por inteiro e, se for preciso, a divisão de um item: x = fração que PASSA do dador para o outro
   function awRun(v) {
     const owner = [], ties = [], t1 = [0, 0];
     v.forEach((r, i) => { if (r[0] !== r[1]) { const d = r[0] > r[1] ? 0 : 1; owner[i] = d; t1[d] += r[d]; } else ties.push(i); });
     const tieInfo = ties.map(i => { const d = t1[0] <= t1[1] ? 0 : 1, before = [...t1]; owner[i] = d; t1[d] += v[i][d]; return { i, d, before }; });
-    const keep = v.map(() => Fr(1));            // fração de cada bem que fica com quem o recebeu na 1.ª fase
+    const keep = v.map(() => Fr(1));            // fração de cada item que fica com quem o recebeu na 1.ª fase
     const t = [Fr(t1[0]), Fr(t1[1])];
     let G = null, Q = null, order = [], tests = [], div = null, x = null;
     if (t1[0] !== t1[1]) {
@@ -332,11 +332,11 @@
 
   // passos (estados da tabela): 1 licitações · 2 total e parte justa · 3 atribuição · 4 alocação provisória
   // 5 excedente · 6 alocação final · 7 valor para o próprio · 8 inveja (opcional)
-  // Ajuste: 1 pontos · 2 1.ª fase · 3 ordem · 4 passagens por inteiro · 5 bem dividido · 6 partilha final · 7 inveja · 8 pontos verdadeiros
+  // Ajuste: 1 pontos · 2 1.ª fase · 3 ordem · 4 passagens por inteiro · 5 item dividido · 6 partilha final · 7 inveja · 8 pontos verdadeiros
   // Marcadores (N jogadores): 1 itens · 2 marcas · 3 … N+1 cada volta · N+2 o último · N+3 sobras · N+4 escolha das sobras (com valores)
   const NSTEPS = () => S.m === "mk" ? AM.j.length + 3 + (AM.val ? 1 : 0) : S.m === "aw" ? (AJ.r ? 8 : 7) : S.tar ? 6 : (S.inv ? 8 : 7);
-  const STEPNAME = ["", "Licitações", "Parte justa", "Quem fica com cada bem", "Alocação provisória", "Excedente", "Alocação final", "Valor para o próprio", "Há inveja?"];
-  const STEPNAME_AW = ["", "Pontos", "1.ª fase", "Ordem do ajuste", "Passar bens inteiros", "Dividir um bem", "Partilha final", "Há inveja?", "E se alguém mentir?"];
+  const STEPNAME = ["", "Licitações", "Parte justa", "Quem fica com cada item", "Alocação provisória", "Excedente", "Alocação final", "Valor para o próprio", "Há inveja?"];
+  const STEPNAME_AW = ["", "Pontos", "1.ª fase", "Ordem do ajuste", "Passar itens inteiros", "Dividir um item", "Partilha final", "Há inveja?", "E se alguém mentir?"];
   function stepNameMK(k) {
     const N = AM.j.length;
     if (k === 1) return "Itens em linha";
@@ -362,7 +362,7 @@
     draw();
   }
 
-  // caixas de texto: nomes dos jogadores, nomes dos bens, licitações e quotas (refeitas quando muda o tamanho)
+  // caixas de texto: nomes dos jogadores, nomes dos itens, licitações e quotas (refeitas quando muda o tamanho)
   let IN = { j: [], b: [], v: [], q: [], u: null };
   function mkInput(cls, val, onInput, label, mode = "text") {
     const el = document.createElement("input");
@@ -387,7 +387,7 @@
     if (S.m === "aw") return buildInputsAW();
     if (S.m === "mk") return buildInputsMK();
     S.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { S.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
-    S.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { S.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
+    S.b.forEach((n, i) => IN.b.push(mkInput("nome item", n, el => { S.b[i] = el.value.trim() || "Item " + (i + 1); changed(); }, `Nome do item ${i + 1}`)));
     S.v.forEach((row, i) => IN.v.push(row.map((x, p) => mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
       const y = parseNum(el.value); S.v[i][p] = y; el.classList.toggle("bad", !(y >= 0)); changed();
     }, `Licitação de ${S.j[p]} por ${S.b[i]}`, "decimal"))));
@@ -399,7 +399,7 @@
   function buildInputsAW() {
     const isInt = y => Number.isInteger(y) && y >= 0;
     AJ.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { AJ.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
-    AJ.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { AJ.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
+    AJ.b.forEach((n, i) => IN.b.push(mkInput("nome item", n, el => { AJ.b[i] = el.value.trim() || "Item " + (i + 1); changed(); }, `Nome do item ${i + 1}`)));
     const num = (m, key, lab) => m.map((row, i) => row.map((x, p) => mkInput("num", isFinite(x) ? String(x) : "", el => {
       const y = parseNum(el.value); m[i][p] = y; el.classList.toggle("bad", !isInt(y)); changed();
     }, `${lab} de ${AJ.j[p]} para ${AJ.b[i]}`, "numeric")));
@@ -448,7 +448,7 @@
     const main = { x: pad, y, w, h: yb - gap - y };
     const aw = S.m === "aw", mk = S.m === "mk";
     const N = aw ? (AJ.r ? 4 : 2) : S.j.length, M = aw ? AJ.b.length : S.b.length;
-    const rowsIn = mk ? 2 + AM.j.length + 1 : aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas/soma, botões
+    const rowsIn = mk ? 2 + AM.j.length + 1 : aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, itens, quotas/soma, botões
     const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : mk ? 1.2 : 2.4) * fs;
     const inW = mk ? Math.min(main.w * (land ? 0.42 : 1), Math.max(26, 7.5 + (AM.j.length - 1) * 3.2 + (AM.val ? AM.t.length * 3.6 + 0.6 : 0)) * fs + 1.4 * fs)
       : Math.min(main.w * (land ? 0.42 : 1), (aw && !AJ.r ? 12 : 9) * fs + N * 6.2 * fs);
@@ -565,9 +565,9 @@
     button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, C.muted, fs * 1.05);
   }
 
-  // à esquerda: as licitações em caixas (bens nas linhas, jogadores nas colunas), as quotas e os botões ±
+  // à esquerda: as licitações em caixas (itens nas linhas, jogadores nas colunas), as quotas e os botões ±
   function inputs(b, fs) {
-    const c = panel(b, fs, S.tar ? "Licitações: quanto cada um pede por cada tarefa" : "Licitações: quanto vale cada bem para cada um");
+    const c = panel(b, fs, S.tar ? "Licitações: quanto cada um pede por cada tarefa" : "Licitações: quanto vale cada item para cada um");
     const N = S.j.length, M = S.b.length;
     const rh = 1.75 * fs, ih = 1.4 * fs, px = fs * 0.85;
     const labW = Math.min(c.w * 0.38, 9 * fs), cw = (c.w - labW) / N;
@@ -591,11 +591,11 @@
       S.j.forEach((_, p) => place(IN.q[p], { x: c.x + labW + p * cw + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px));
       y += rh;
     }
-    // botões: + − jogador, + − bem
+    // botões: + − jogador, + − item
     const f = fs * 0.75, bh = 1.3 * fs;
     let x = c.x;
-    const bens = S.tar ? "tarefa" : "bem";
-    [["addJ", "+ jogador", N < MAXJ], ["delJ", "− jogador", N > 2], ["addB", "+ " + bens, M < MAXB], ["delB", "− " + bens, M > 1]].forEach(([k, lab, ok]) => {
+    const itens = S.tar ? "tarefa" : "item";
+    [["addJ", "+ jogador", N < MAXJ], ["delJ", "− jogador", N > 2], ["addB", "+ " + itens, M < MAXB], ["delB", "− " + itens, M > 1]].forEach(([k, lab, ok]) => {
       const bw = tw(lab, f, FONT, 700) + 1 * fs;
       button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
       x += bw + 0.4 * fs;
@@ -603,10 +603,10 @@
   }
 
 
-  // Ajuste: os pontos em caixas (bens nas linhas, os dois jogadores nas colunas), a soma de cada um e os botões ±;
+  // Ajuste: os pontos em caixas (itens nas linhas, os dois jogadores nas colunas), a soma de cada um e os botões ±;
   // com «Pontos verdadeiros», mais duas colunas
   function inputsAW(b, fs) {
-    const c = panel(b, fs, "Pontos: cada um distribui 100 pontos pelos bens");
+    const c = panel(b, fs, "Pontos: cada um distribui 100 pontos pelos itens");
     const M = AJ.b.length, nc = AJ.r ? 4 : 2;
     const rh = 1.75 * fs, ih = 1.4 * fs, px = fs * 0.85;
     const labW = AJ.r ? Math.min(c.w * 0.3, 9 * fs) : Math.min(c.w * 0.46, 12 * fs), cw = (c.w - labW) / nc;
@@ -639,7 +639,7 @@
     y += rh;
     const f = fs * 0.75, bh = 1.3 * fs;
     let x = c.x;
-    [["addB", "+ bem", M < MAXB_AW], ["delB", "− bem", M > 2]].forEach(([k, lab, ok]) => {
+    [["addB", "+ item", M < MAXB_AW], ["delB", "− item", M > 2]].forEach(([k, lab, ok]) => {
       const bw = tw(lab, f, FONT, 700) + 1 * fs;
       button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
       x += bw + 0.4 * fs;
@@ -757,7 +757,7 @@
     }) }));
     rows.push({ st: 2, badge: 2, lab: "Total", cells: R.tot.map(x => C1(fmt(x), C.ink)) });
     rows.push({ st: 2, lab: S.tar ? "Parte justa de trabalho" : "Parte justa", cells: R.pj.map(x => C1(fmt(x), C.ink)), bold: true });
-    rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Bens recebidos", cells: S.j.map((_, p) => C1(R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink)) });
+    rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Itens recebidos", cells: S.j.map((_, p) => C1(R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink)) });
     rows.push({ st: 4, badge: 4, lab: "Alocação provisória", cells: R.ini.map(pay) });
     rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => C1("+" + fmt(q * R.E), C.ink)) });
     rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
@@ -778,26 +778,26 @@
     switch (step) {
       case 1: return [S.tar
         ? "Cada um escreve, em segredo, quanto quer receber para fazer cada tarefa: a sua licitação."
-        : "Cada um escreve, em segredo, quanto acha que vale cada bem: a sua licitação.",
-        "Os valores são subjetivos: cada um avalia os bens à sua maneira."];
+        : "Cada um escreve, em segredo, quanto acha que vale cada item: a sua licitação.",
+        "Os valores são subjetivos: cada um avalia os itens à sua maneira."];
       case 2: return [eqQ ? `Parte justa = total das licitações : ${N} (o número de jogadores).` : "Porção justa = quota × total das licitações de cada um.",
         n.map((x, p) => eqQ ? `${x}: ${fmt(R.tot[p])} : ${N} = ${fmt(R.pj[p])}` : `${x}: ${fmt(R.q[p] * 100)} % × ${fmt(R.tot[p])} = ${fmt(R.pj[p])}`).join(" · ")];
       case 3: {
-        const a = [S.tar ? "Cada tarefa vai para quem pede menos." : "Cada bem vai para quem fez a licitação mais alta.",
+        const a = [S.tar ? "Cada tarefa vai para quem pede menos." : "Cada item vai para quem fez a licitação mais alta.",
           S.b.map((b, i) => `${b} → ${n[R.owner[i]]} (${fmt(S.v[i][R.owner[i]])})`).join(" · ")];
         S.b.forEach((b, i) => { if (R.tied[i]) a.push(`Empate em ${b} (${R.tied[i].map(p => n[p]).join(" e ")}): decide-se por sorteio. Toque numa das licitações empatadas para escolher quem ganha.`); });
         return a;
       }
       case 4: return [S.tar
         ? "Quem fica com menos trabalho do que a sua parte justa paga a diferença; quem fica com mais recebe."
-        : "Quem recebe bens que valem mais do que a parte justa paga a diferença; quem recebe menos recebe a diferença.",
+        : "Quem recebe itens que valem mais do que a parte justa paga a diferença; quem recebe menos recebe a diferença.",
         n.map((x, p) => `${x}: ${S.tar ? fmt(R.pj[p]) + " − " + fmt(R.val[p]) : fmt(R.val[p]) + " − " + fmt(R.pj[p])} → ${pay(R.ini[p])}`).join(" · ")];
       case 5: {
         const ent = R.ini.filter(x => x > 0).reduce((a, x) => a + x, 0), sai = -R.ini.filter(x => x < 0).reduce((a, x) => a + x, 0);
         return [`Excedente = o que entra − o que sai = ${fmt(ent)} − ${fmt(sai)} = ${fmt(R.E)}${u}.`,
           eqQ ? `Divide-se em partes iguais: ${fmt(R.E)} : ${N} = ${fmt(R.E / N)} para cada um.` : "Divide-se pelas quotas: " + n.map((x, p) => `${x} ${fmt(R.q[p] * R.E)}`).join(" · "),
           S.tar ? "O excedente nunca é negativo: o mínimo dos pedidos de cada tarefa nunca é maior do que a média."
-                : "O excedente nunca é negativo: o máximo das licitações de cada bem nunca é menor do que a média."];
+                : "O excedente nunca é negativo: o máximo das licitações de cada item nunca é menor do que a média."];
       }
       case 6: return ["Alocação final: a alocação provisória com a parte do excedente de cada um.",
         n.map((x, p) => `${x}: ${pay(R.fin[p])}`).join(" · "),
@@ -809,7 +809,7 @@
         const inv = [];
         n.forEach((a, i) => n.forEach((b, j) => { if (i !== j && R.env[i][j] > R.env[i][i] + 1e-9) inv.push(`${a} inveja ${b} (${fmt(R.env[i][j])} > ${fmt(R.env[i][i])})`); }));
         return [inv.length ? "Há inveja: o método é proporcional, mas não é livre de inveja." : "Ninguém tem inveja nesta partilha.",
-          "Cada linha «Para …» mostra quanto vale, para essa pessoa, a parte de cada um (bens − o que paga, ou + o que recebe).",
+          "Cada linha «Para …» mostra quanto vale, para essa pessoa, a parte de cada um (itens − o que paga, ou + o que recebe).",
           ...inv];
       }
     }
@@ -836,7 +836,7 @@
       const d = R.div;
       rows.push({ st: 5, badge: 5, lab: d ? `Divide-se ${sh(d.i)}` : "Divide-se", span: d
         ? `${ffmt(d.V)} − ${d.v}x = ${ffmt(d.P)} + ${d.p}x   ⟹   x = ${ffr(R.x)}`
-        : "Nenhum bem: as passagens por inteiro já igualam os pontos" });
+        : "Nenhum item: as passagens por inteiro já igualam os pontos" });
     }
     const fica = q => AJ.b.map((_, i) => { const f = R.part[q][i]; return f.n === 0 ? null : f.n === f.d ? sh(i) : `${ffr(f)} ${sh(i)}`; }).filter(Boolean).join(" + ") || "—";
     rows.push({ st: 6, badge: 6, lab: "Fica com", cells: [0, 1].map(q => C1(fica(q), C.ink)) });
@@ -855,29 +855,29 @@
     const n = AJ.j, G = R.G, Q = R.Q;
     const pts = i => `${AJ.v[i][0]} e ${AJ.v[i][1]}`;
     switch (step) {
-      case 1: return ["Cada um distribui, em segredo, 100 pontos pelos bens: mais pontos para o que lhe interessa mais.",
-        "Os pontos não são dinheiro: dizem a importância que cada um dá a cada bem."];
+      case 1: return ["Cada um distribui, em segredo, 100 pontos pelos itens: mais pontos para o que lhe interessa mais.",
+        "Os pontos não são dinheiro: dizem a importância que cada um dá a cada item."];
       case 2: {
-        const a = ["1.ª fase: cada bem vai, por agora, para quem lhe deu mais pontos.",
+        const a = ["1.ª fase: cada item vai, por agora, para quem lhe deu mais pontos.",
           AJ.b.map((_, i) => R.tieInfo.some(e => e.i === i) ? null : `${sh(i)} → ${n[R.owner[i]]} (${AJ.v[i][R.owner[i]]})`).filter(Boolean).join(" · ")];
         R.tieInfo.forEach(e => a.push(`Empate em ${sh(e.i)} (${AJ.v[e.i][0]} pontos para cada um): vai para quem tem menos pontos nesse momento, ${n[e.d]} (${e.before[e.d]} contra ${e.before[1 - e.d]})${e.before[0] === e.before[1] ? "; como estavam iguais, para " + n[e.d] : ""}.`));
         a.push(n.map((x, q) => `${x}: ${R.t1[q]} pontos`).join(" · "));
         a.push(G == null ? "Os totais são iguais: a partilha está feita, sem ajuste."
-          : `${n[G]} tem mais pontos (${R.t1[G]} > ${R.t1[Q]}): é o dador, vai ceder bens a ${n[Q]} até os pontos ficarem iguais.`);
+          : `${n[G]} tem mais pontos (${R.t1[G]} > ${R.t1[Q]}): é o dador, vai ceder itens a ${n[Q]} até os pontos ficarem iguais.`);
         return a;
       }
       case 3: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
-        return [`Ordenam-se os bens de ${n[G]} pela razão: pontos de ${n[G]} : pontos de ${n[Q]}, da menor para a maior.`,
+        return [`Ordenam-se os itens de ${n[G]} pela razão: pontos de ${n[G]} : pontos de ${n[Q]}, da menor para a maior.`,
           R.order.map(i => `${sh(i)}: ${AJ.v[i][G]} : ${AJ.v[i][Q]} = ${AJ.v[i][Q] ? fmt(AJ.v[i][G] / AJ.v[i][Q]) : "∞"}`).join(" · "),
           `O primeiro é o que custa menos a ${n[G]} ceder, comparado com o que vale para ${n[Q]}.`];
       case 4: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
-        return [`Passam-se bens inteiros, por esta ordem, enquanto ${n[G]} continuar com pelo menos tantos pontos como ${n[Q]}.`,
+        return [`Passam-se itens inteiros, por esta ordem, enquanto ${n[G]} continuar com pelo menos tantos pontos como ${n[Q]}.`,
           ...R.tests.map(t => `Passar ${sh(t.i)} todo: ${n[G]} ${ffmt(t.before[G])} − ${AJ.v[t.i][G]} = ${ffmt(t.tg)}, ${n[Q]} ${ffmt(t.before[Q])} + ${AJ.v[t.i][Q]} = ${ffmt(t.tq)} → ` +
             (t.ok ? "passa." : `inverte (${n[G]} ficaria com menos): ${sh(t.i)} vai ser dividido.`))];
       case 5: {
         if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
         const d = R.div;
-        if (!d) return ["Nenhum bem precisa de ser dividido: as passagens por inteiro já deixaram os pontos iguais."];
+        if (!d) return ["Nenhum item precisa de ser dividido: as passagens por inteiro já deixaram os pontos iguais."];
         const pc = R.x.n * 100 / R.x.d;
         return [`x = fração de ${sh(d.i)} que passa de ${n[G]} para ${n[Q]}. Os pontos ficam iguais:`,
           `${ffmt(d.V)} − ${d.v}x = ${ffmt(d.P)} + ${d.p}x  ⟺  ${d.v + d.p}x = ${ffmt(fsub(d.V, d.P))}  ⟺  x = ${ffr(R.x)}` + (Number.isInteger(pc * 100) ? ` = ${fmt(pc)} %` : ""),
@@ -1107,7 +1107,7 @@
       if (h.kind === "delJ") return edit(() => { AM.j.pop(); if (AM.val) AM.val.pop(); AM.m.pop(); AM.ord = null; AM.tie = {}; AM.m = evenM(); });
     }
     if (h.kind === "real") { AJ.r = AJ.r ? null : AJ.v.map(r => [...r]); AJ.ex = null; changed(true); return; }
-    if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Bem " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; });
+    if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Item " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; });
     if (S.m === "aw" && h.kind === "delB") return edit(() => { AJ.b.pop(); AJ.v.pop(); if (AJ.r) AJ.r.pop(); AJ.ex = null; });
     if (h.kind === "theme") { setDark(!dark, true); buildInputs(); draw(); return; }
     if (h.kind === "next") { S.step = Math.min(NSTEPS(), S.step + 1); changed(); return; }
@@ -1123,7 +1123,7 @@
     if (h.kind === "tie") { S.tie[h.i] = h.p; changed(); return; }
     if (h.kind === "addJ") return edit(() => { S.j.push("J" + (S.j.length + 1)); S.v.forEach(r => r.push(0)); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
     if (h.kind === "delJ") return edit(() => { S.j.pop(); S.v.forEach(r => r.pop()); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
-    if (h.kind === "addB") return edit(() => { S.b.push((S.tar ? "Tarefa " : "Bem ") + (S.b.length + 1)); S.v.push(S.j.map(() => 0)); });
+    if (h.kind === "addB") return edit(() => { S.b.push((S.tar ? "Tarefa " : "Item ") + (S.b.length + 1)); S.v.push(S.j.map(() => 0)); });
     if (h.kind === "delB") return edit(() => { S.b.pop(); S.v.pop(); });
   });
   cv.addEventListener("pointermove", e => {
