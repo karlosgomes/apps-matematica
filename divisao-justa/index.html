@@ -59,7 +59,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
-<canvas id="cv" aria-label="Divisão Justa: método das licitações secretas, passo a passo, com a tabela de cálculos"></canvas>
+<canvas id="cv" aria-label="Divisão Justa: métodos das licitações secretas e do Ajuste na Partilha, passo a passo, com a tabela de cálculos"></canvas>
 <div id="caixas"></div>
 <script>
 (() => {
@@ -156,10 +156,109 @@
     return { N, M, q, tot, pj, owner, tied, val, ini, E, fin, prop, env };
   }
 
+
+  // ---------- Ajuste na Partilha (Adjusted Winner): 2 jogadores, 100 pontos cada ----------
+  // v: pontos por bem (linhas) e por jogador (colunas); r: pontos verdadeiros (opcional: para ver o efeito de mentir)
+  const AW_EX = [
+    { label: "Madalena e Gonçalo", j: ["Madalena", "Gonçalo"], b: ["⛵ Iate", "🐈 Gato", "🏢 Apartamento", "🖼️ Quadro"], v: [[10, 30], [50, 20], [30, 20], [10, 30]] },
+    { label: "Camp David", j: ["Israel", "Egito"], b: ["🏜️ Sinai", "🤝 Reconhecimento", "🗺️ Cisjordânia e Gaza", "🔗 Ligação dos acordos", "⚖️ Direitos palestinianos", "🕌 Jerusalém"], v: [[35, 55], [10, 5], [20, 10], [10, 5], [5, 20], [20, 5]] },
+    { label: "Animais dos irmãos", j: ["Irmã", "Irmão"], b: ["🐈 Gato", "🐕 Cão", "🦎 Iguana", "🦜 Papagaio"], v: [[40, 10], [30, 50], [10, 30], [20, 10]] },
+    { label: "Empate (divórcio)", j: ["Marido", "Esposa"], b: ["🏠 Casa", "🚗 Automóvel", "🛖 Cabana", "🚤 Barco", "📺 Televisão", "🔊 Som"], v: [[30, 15], [25, 25], [20, 40], [16, 15], [5, 3], [4, 2]] },
+    { label: "Leonido e Marco", j: ["Leonido", "Marco"], b: ["📣 Campanha de promoção", "💲 Preço inicial", "🎨 Design do produto", "🧾 Custo da promoção", "🛠️ Protótipo", "📊 Custo do produto", "🧪 Teste de mercado"], v: [[40, 32], [13, 20], [18, 16], [6, 9], [16, 14], [5, 6], [2, 3]] },
+    { label: "Paulo e Rosa", j: ["Paulo", "Rosa"], b: ["🏺 Porcelana", "🪑 Mesa", "🎹 Piano", "🏖️ Casa de férias", "🚤 Barco", "⌚ Relógios"], v: [[25, 30], [20, 9], [20, 23], [10, 28], [10, 5], [15, 5]] },
+    { label: "A Ana mente", j: ["Ana", "Bruno"], b: ["🖼️ Matisse", "🖼️ Picasso"], v: [[26, 25], [74, 75]], r: [[75, 25], [25, 75]] },
+    { label: "Prémios (Exame 2023)", j: ["Augusto", "Joaquim"], b: ["🎁 Prémio X", "🎁 Prémio Y", "🎁 Prémio Z"], v: [[32, 24], [38, 51], [30, 25]] },
+    { label: "Presentes (Exame 2018)", j: ["Mary", "Paul"], b: ["💿 CD de fado", "🍬 Doces regionais", "🚩 Bandeira"], v: [[33, 56], [20, 24], [47, 20]] },
+    { label: "Estádio (Exame 2021)", j: ["BT", "WT"], b: ["Setor S1", "Setor S2", "Setor S3", "Setor S4"], v: [[30, 24], [40, 45], [8, 24], [22, 7]] },
+  ];
+  const MAXB_AW = 8;
+  const AJ = { j: [], b: [], v: [], r: null, ex: null };
+
+  // frações exatas (os pontos são inteiros; os denominadores são pequenos)
+  const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
+  const Fr = (n, d = 1) => { if (d < 0) { n = -n; d = -d; } const g = gcd(n, d); return { n: n / g, d: d / g }; };
+  const fadd = (a, b) => Fr(a.n * b.d + b.n * a.d, a.d * b.d);
+  const fsub = (a, b) => Fr(a.n * b.d - b.n * a.d, a.d * b.d);
+  const fmul = (a, b) => Fr(a.n * b.n, a.d * b.d);
+  const fdiv = (a, b) => Fr(a.n * b.d, a.d * b.n);
+  const fcmp = (a, b) => a.n * b.d - b.n * a.d;
+  const fsum = a => a.reduce(fadd, Fr(0));
+  // inteiro; decimal exato (até 2 casas); senão fração ≈ decimal
+  const ffmt = a => a.d === 1 ? fmt(a.n) : (a.n * 100) % a.d === 0 ? fmt(a.n / a.d) : `${a.n}/${a.d} ≈ ${fmt(a.n / a.d, 1)}`;
+  const ffr = a => a.d === 1 ? String(a.n) : `${a.n}/${a.d}`;
+  // nome curto de um bem: o emoji, se for único; senão o nome todo
+  function sh(i) {
+    const first = n => n.split(" ")[0];
+    const n = AJ.b[i], e = first(n);
+    if (/^[\p{L}\p{N}]/u.test(n) || AJ.b.filter(m => first(m) === e).length > 1) return n;
+    return e;
+  }
+
+  function computeAW() {
+    const ok = m => m.every(r => r.every(x => Number.isInteger(x) && x >= 0));
+    if (!ok(AJ.v)) return { err: "Há pontos por preencher ou inválidos (só números inteiros ≥ 0)." };
+    const soma = m => [0, 1].map(p => m.reduce((a, r) => a + r[p], 0));
+    const s = soma(AJ.v);
+    if (s[0] !== 100 || s[1] !== 100) return { err: `Cada um distribui 100 pontos: ${AJ.j[0]} deu ${s[0]} e ${AJ.j[1]} deu ${s[1]}.` };
+    if (AJ.r) {
+      if (!ok(AJ.r)) return { err: "Há pontos verdadeiros por preencher ou inválidos (só números inteiros ≥ 0)." };
+      const t = soma(AJ.r);
+      if (t[0] !== 100 || t[1] !== 100) return { err: `Os pontos verdadeiros também somam 100: ${AJ.j[0]} tem ${t[0]} e ${AJ.j[1]} tem ${t[1]}.` };
+    }
+    const res = awRun(AJ.v);
+    if (AJ.r) {
+      // quanto vale, de verdade, o que cada um recebe; e quanto receberia se todos declarassem os pontos verdadeiros
+      const val = (part, q) => fsum(AJ.r.map((r, i) => fmul(Fr(r[q]), part[q][i])));
+      const hon = awRun(AJ.r);
+      res.real = [0, 1].map(q => val(res.part, q));
+      res.honest = [0, 1].map(q => val(hon.part, q));
+    }
+    return res;
+  }
+  // o método, com os pontos v: 1.ª fase (empates para quem tem menos pontos nesse momento), ordem pelas razões,
+  // passagens por inteiro e, se for preciso, a divisão de um bem: x = fração que PASSA do dador para o outro
+  function awRun(v) {
+    const owner = [], ties = [], t1 = [0, 0];
+    v.forEach((r, i) => { if (r[0] !== r[1]) { const d = r[0] > r[1] ? 0 : 1; owner[i] = d; t1[d] += r[d]; } else ties.push(i); });
+    const tieInfo = ties.map(i => { const d = t1[0] <= t1[1] ? 0 : 1, before = [...t1]; owner[i] = d; t1[d] += v[i][d]; return { i, d, before }; });
+    const keep = v.map(() => Fr(1));            // fração de cada bem que fica com quem o recebeu na 1.ª fase
+    const t = [Fr(t1[0]), Fr(t1[1])];
+    let G = null, Q = null, order = [], tests = [], div = null, x = null;
+    if (t1[0] !== t1[1]) {
+      G = t1[0] > t1[1] ? 0 : 1; Q = 1 - G;
+      // razão pontos do dador : pontos do outro, comparada sem divisões
+      order = v.map((_, i) => i).filter(i => owner[i] === G).sort((a, b) => (v[a][G] * v[b][Q] - v[b][G] * v[a][Q]) || a - b);
+      for (const i of order) {
+        const gv = v[i][G], qv = v[i][Q], before = [t[0], t[1]];
+        const tg = fsub(t[G], Fr(gv)), tq = fadd(t[Q], Fr(qv));
+        if (fcmp(tg, tq) >= 0) {
+          tests.push({ i, before, tg, tq, ok: true });
+          t[G] = tg; t[Q] = tq; keep[i] = Fr(0);
+          if (fcmp(tg, tq) === 0) break;
+        } else {
+          tests.push({ i, before, tg, tq, ok: false });
+          x = fdiv(fsub(t[G], t[Q]), Fr(gv + qv));
+          div = { i, V: t[G], P: t[Q], v: gv, p: qv };
+          t[G] = fsub(t[G], fmul(Fr(gv), x)); t[Q] = fadd(t[Q], fmul(Fr(qv), x));
+          keep[i] = fsub(Fr(1), x);
+          break;
+        }
+      }
+    }
+    const part = [0, 1].map(q => v.map((_, i) => owner[i] === q ? keep[i] : fsub(Fr(1), keep[i])));
+    const fin = [0, 1].map(q => fsum(v.map((r, i) => fmul(Fr(r[q]), part[q][i]))));
+    const other = [0, 1].map(q => fsum(v.map((r, i) => fmul(Fr(r[q]), part[1 - q][i]))));
+    if (fcmp(fin[0], t[0]) || fcmp(fin[1], t[1]) || fcmp(fin[0], fin[1])) console.error("Ajuste: os pontos finais não batem certo", fin, t);
+    return { owner, tieInfo, t1, G, Q, order, tests, div, x, part, fin, other };
+  }
+
   // passos (estados da tabela): 1 licitações · 2 total e parte justa · 3 atribuição · 4 alocação provisória
   // 5 excedente · 6 alocação final · 7 valor para o próprio · 8 inveja (opcional)
-  const NSTEPS = () => S.tar ? 6 : (S.inv ? 8 : 7);
+  // Ajuste: 1 pontos · 2 1.ª fase · 3 ordem · 4 passagens por inteiro · 5 bem dividido · 6 partilha final · 7 inveja · 8 pontos verdadeiros
+  const NSTEPS = () => S.m === "aw" ? (AJ.r ? 8 : 7) : S.tar ? 6 : (S.inv ? 8 : 7);
   const STEPNAME = ["", "Licitações", "Parte justa", "Quem fica com cada bem", "Alocação provisória", "Excedente", "Alocação final", "Valor para o próprio", "Há inveja?"];
+  const STEPNAME_AW = ["", "Pontos", "1.ª fase", "Ordem do ajuste", "Passar bens inteiros", "Dividir um bem", "Partilha final", "Há inveja?", "E se alguém mentir?"];
+  const stepName = k => (S.m === "aw" ? STEPNAME_AW : STEPNAME)[k];
 
   // ---------- canvas e caixas ----------
   const cv = document.getElementById("cv");
@@ -196,7 +295,8 @@
   const fmtIn = x => String(Math.round(x * 100) / 100).replace(".", ",");
   function buildInputs() {
     box.innerHTML = "";
-    IN = { j: [], b: [], v: [], q: [], u: null };
+    IN = { j: [], b: [], v: [], q: [], r: [], u: null };
+    if (S.m === "aw") return buildInputsAW();
     S.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { S.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
     S.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { S.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
     S.v.forEach((row, i) => IN.v.push(row.map((x, p) => mkInput("num", isFinite(x) ? fmtIn(x) : "", el => {
@@ -206,6 +306,16 @@
       const y = parseNum(el.value); S.q[p] = y; el.classList.toggle("bad", !(y >= 0)); changed();
     }, `Quota de ${S.j[p]} em percentagem`, "decimal")));
     IN.u = mkInput("nome unidade", S.u, el => { S.u = el.value.trim(); changed(false); }, "Unidade das licitações");
+  }
+  function buildInputsAW() {
+    const isInt = y => Number.isInteger(y) && y >= 0;
+    AJ.j.forEach((n, p) => IN.j.push(mkInput("nome", n, el => { AJ.j[p] = el.value.trim() || "J" + (p + 1); changed(); }, `Nome do jogador ${p + 1}`)));
+    AJ.b.forEach((n, i) => IN.b.push(mkInput("nome bem", n, el => { AJ.b[i] = el.value.trim() || "Bem " + (i + 1); changed(); }, `Nome do bem ${i + 1}`)));
+    const num = (m, key, lab) => m.map((row, i) => row.map((x, p) => mkInput("num", isFinite(x) ? String(x) : "", el => {
+      const y = parseNum(el.value); m[i][p] = y; el.classList.toggle("bad", !isInt(y)); changed();
+    }, `${lab} de ${AJ.j[p]} para ${AJ.b[i]}`, "numeric")));
+    IN.v = num(AJ.v, "v", "Pontos");
+    if (AJ.r) IN.r = num(AJ.r, "r", "Pontos verdadeiros");
   }
   function changed(rebuild) {
     S.tie = Object.fromEntries(Object.entries(S.tie).filter(([i]) => +i < S.b.length));
@@ -235,10 +345,11 @@
     const yb = H - pad - (rowO * nr + 0.3 * fs * (nr - 1));
     L.opt = { x: pad, y: yb, w, h: rowO, rows };
     const main = { x: pad, y, w, h: yb - gap - y };
-    const N = S.j.length, M = S.b.length;
-    const rowsIn = 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas, botões
-    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + 2.4 * fs;
-    const inW = Math.min(main.w * (land ? 0.42 : 1), 9 * fs + N * 6.2 * fs);
+    const aw = S.m === "aw";
+    const N = aw ? (AJ.r ? 4 : 2) : S.j.length, M = aw ? AJ.b.length : S.b.length;
+    const rowsIn = aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, bens, quotas/soma, botões
+    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : 2.4) * fs;
+    const inW = Math.min(main.w * (land ? 0.42 : 1), (aw && !AJ.r ? 12 : 9) * fs + N * 6.2 * fs);
     if (land) {
       L.IN = { x: main.x, y: main.y, w: inW, h: Math.min(main.h, inNeedH) };
       L.EX = { x: main.x, y: main.y + L.IN.h + gap, w: inW, h: main.h - L.IN.h - gap };
@@ -327,11 +438,12 @@
     L = layout(); hits = [];
     const { fs } = L;
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-    R = compute();
+    const aw = S.m === "aw";
+    R = aw ? computeAW() : compute();
     S.step = clamp(S.step, 1, NSTEPS());
     topBar(fs);
-    inputs(L.IN, fs);
-    table(L.T, fs);
+    if (aw) { inputsAW(L.IN, fs); tableAW(L.T, fs); }
+    else { inputs(L.IN, fs); table(L.T, fs); }
     options(L.opt, fs);
   }
 
@@ -341,7 +453,7 @@
     const modes = [["lic", "Licitações secretas"], ["aw", "Ajuste na Partilha"], ["mk", "Marcadores"]];
     const f = fs * 0.85, bh = t.h * 0.85;
     modes.forEach(([m, lab]) => {
-      const ready = m === "lic";
+      const ready = m !== "mk";
       const bw = tw(lab, f, FONT, 700) + 1.2 * fs;
       if (x + bw > L.theme.x - fs) return;
       button(x, t.y + (t.h - bh) / 2, bw, bh, lab, S.m === m, "mode", { m }, C.muted, f, ready);
@@ -387,31 +499,58 @@
     });
   }
 
+
+  // Ajuste: os pontos em caixas (bens nas linhas, os dois jogadores nas colunas), a soma de cada um e os botões ±;
+  // com «Pontos verdadeiros», mais duas colunas
+  function inputsAW(b, fs) {
+    const c = panel(b, fs, "Pontos: cada um distribui 100 pontos pelos bens");
+    const M = AJ.b.length, nc = AJ.r ? 4 : 2;
+    const rh = 1.75 * fs, ih = 1.4 * fs, px = fs * 0.85;
+    const labW = AJ.r ? Math.min(c.w * 0.3, 9 * fs) : Math.min(c.w * 0.46, 12 * fs), cw = (c.w - labW) / nc;
+    const colX = k => c.x + labW + k * cw;
+    let y = c.y + 0.1 * fs;
+    if (AJ.r) {
+      textFit("declarados", colX(1), y + 0.3 * fs, fs * 0.7, 2 * cw, C.muted, "center", FONT, 700);
+      textFit("verdadeiros", colX(3), y + 0.3 * fs, fs * 0.7, 2 * cw, C.muted, "center", FONT, 700);
+      y += 0.6 * rh;
+    }
+    AJ.j.forEach((n, p) => {
+      place(IN.j[p], { x: colX(p) + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px);
+      IN.j[p].style.color = C.L[p];
+      if (AJ.r) textFit(n, colX(p + 2) + cw / 2, y + ih / 2, px, cw - 0.3 * fs, C.L[p], "center", FONT, 700);
+    });
+    y += rh;
+    AJ.b.forEach((_, i) => {
+      place(IN.b[i], { x: c.x, y, w: labW - 0.3 * fs, h: ih }, px);
+      [0, 1].forEach(p => place(IN.v[i][p], { x: colX(p) + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px));
+      if (AJ.r) [0, 1].forEach(p => place(IN.r[i][p], { x: colX(p + 2) + 0.15 * fs, y, w: cw - 0.3 * fs, h: ih }, px));
+      y += rh;
+    });
+    // soma de cada coluna (tem de dar 100)
+    text("Soma", c.x, y + ih / 2, px, C.ink, "left", FONT, 700);
+    const cols = AJ.r ? [[AJ.v, 0], [AJ.v, 1], [AJ.r, 0], [AJ.r, 1]] : [[AJ.v, 0], [AJ.v, 1]];
+    cols.forEach(([m, p], k) => {
+      const t = m.reduce((a, r) => a + (isFinite(r[p]) ? r[p] : 0), 0);
+      text(fmt(t) + (t === 100 ? " ✔" : " ✘"), colX(k) + cw / 2, y + ih / 2, px, t === 100 ? C.ok : C.bad, "center", MONO, 600);
+    });
+    y += rh;
+    const f = fs * 0.75, bh = 1.3 * fs;
+    let x = c.x;
+    [["addB", "+ bem", M < MAXB_AW], ["delB", "− bem", M > 2]].forEach(([k, lab, ok]) => {
+      const bw = tw(lab, f, FONT, 700) + 1 * fs;
+      button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
+      x += bw + 0.4 * fs;
+    });
+  }
+
   // à direita: a tabela de cálculos sempre presente, com as linhas do passo atual destacadas, e a explicação do passo
-  function table(b, fs) {
-    const c = panel(b, fs, `Cálculos (${S.u || "valores"}) · passo ${S.all ? "—" : S.step} de ${NSTEPS()}: ${S.all ? "tudo" : STEPNAME[S.step]}`);
-    if (R.err) { wrap(R.err, c.x, c.y + fs, c.w, fs * 0.9, C.bad, 700); return; }
-    const N = R.N, M = R.M;
-    const step = S.all ? NSTEPS() : S.step;
-    const cur = st => S.all ? false : st === step;
-    const state = st => cur(st) ? "atual" : st <= step ? "feito" : "futuro";
-    const rows = [];
-    const bensRec = p => S.b.map((n, i) => R.owner[i] === p ? n.split(" ")[0] : null).filter(Boolean).join(" ");
-    const pay = x => Math.abs(x) < 1e-9 ? ["0", C.ink] : x > 0 ? ["paga " + fmt(x), C.bad] : ["recebe " + fmt(-x), C.ok];
-    S.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n, cells: S.v[i].map(x => [fmt(x), C.ink]), item: i }));
-    rows.push({ st: 2, badge: 2, lab: "Total", cells: R.tot.map(x => [fmt(x), C.ink]) });
-    rows.push({ st: 2, lab: S.tar ? "Parte justa de trabalho" : "Parte justa", cells: R.pj.map(x => [fmt(x), C.ink]), bold: true });
-    rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Bens recebidos", cells: S.j.map((_, p) => [R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink]) });
-    rows.push({ st: 4, badge: 4, lab: "Alocação provisória", cells: R.ini.map(pay) });
-    rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => ["+" + fmt(q * R.E), C.ink]) });
-    rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
-    if (!S.tar) rows.push({ st: 7, badge: "✔", lab: "Valor para o próprio", cells: R.prop.map(x => [fmt(x), C.ink]), bold: true });
-    if (!S.tar && S.inv) S.j.forEach((n, a) => rows.push({ st: 8, badge: a === 0 ? "?" : null, lab: "Para " + n, cells: S.j.map((_, bb) => {
-      const v = R.env[a][bb], envy = bb !== a && v > R.env[a][a] + 1e-9;
-      return [fmt(v), envy ? C.bad : bb === a ? C.L[a] : C.ink, envy];
-    }) }));
-    // explicação: no quadro da esquerda (ecrã deitado) ou por baixo da tabela
-    const expl = explain(step);
+  // (desenho comum aos modos; cada modo constrói as linhas). Célula: { t, col, bold, box: "max" | "tie" | "tiewin" | "bad", hit }
+  function renderTable(b, fs, o) {
+    const c = panel(b, fs, o.title);
+    if (o.err) { wrap(o.err, c.x, c.y + fs, c.w, fs * 0.9, C.bad, 700); return; }
+    const N = o.players.length, step = o.step, rows = o.rows;
+    const state = st => !S.all && st === step ? "atual" : st <= step ? "feito" : "futuro";
+    const expl = o.expl;
     const exPx = fs * 0.85, exLines = L.EX ? 0 : Math.min(7, expl.length + 1);
     const avail = c.h - 1.6 * fs - exLines * exPx * 1.35 - 0.6 * fs;
     const rh = clamp(avail / rows.length, 1.05 * fs, 1.9 * fs), px = clamp(rh * 0.52, 11, fs * 1.0);
@@ -419,9 +558,8 @@
     const labW = Math.min(c.w * 0.32, Math.max(...rows.map(r => tw(r.lab, px, FONT, 700))) + 0.6 * fs);
     const cw = (c.w - badgeW - labW) / N;
     const cx = p => c.x + badgeW + labW + cw * (p + 0.5);
-    // cabeçalho
     let y = c.y + 0.6 * fs;
-    S.j.forEach((n, p) => textFit(n, cx(p), y, px, cw - 0.3 * fs, C.L[p], "center", FONT, 700));
+    o.players.forEach((n, p) => textFit(n, cx(p), y, px, cw - 0.3 * fs, C.L[p], "center", FONT, 700));
     y += 0.8 * fs;
     line(c.x, y, c.x + c.w, y, C.line, 1.5);
     rows.forEach(r => {
@@ -433,23 +571,23 @@
       const ym = y + rh / 2, vis = r.st <= step;
       if (r.badge != null) badge(r.badge, c.x + 0.75 * fs, ym, 0.55 * px, s);
       textFit(r.lab, c.x + badgeW, ym, px, labW - 0.3 * fs, s === "atual" ? C.d : s === "futuro" ? C.future : C.ink, "left", FONT, r.bold || s === "atual" ? 700 : 400);
-      if (vis) r.cells.forEach(([t, col, mark], p) => {
-        // licitação vencedora (a partir do passo 3) e empates
-        if (r.item != null && step >= 3) {
-          const winner = R.owner[r.item] === p, isTied = R.tied[r.item] && R.tied[r.item].includes(p);
-          if (winner || isTied) rrect(cx(p) - cw / 2 + 0.15 * fs, y + 0.12 * rh, cw - 0.3 * fs, rh * 0.76, 6, winner ? C.max : null, isTied ? C.d : null, 2, isTied && !winner ? [4, 3] : null);
-          if (isTied) hits.push({ kind: "tie", i: r.item, p, rect: { x: cx(p) - cw / 2, y, w: cw, h: rh } });
-        }
-        if (mark) rrect(cx(p) - cw / 2 + 0.15 * fs, y + 0.12 * rh, cw - 0.3 * fs, rh * 0.76, 6, null, C.bad, 2);
-        textFit(t, cx(p), ym, px, cw - 0.4 * fs, col, "center", MONO, r.bold || r.item != null && R.owner[r.item] === p && step >= 3 ? 600 : 400);
+      if (vis && r.span != null) textFit(r.span, c.x + badgeW + labW, ym, px, c.w - badgeW - labW, r.spanCol || C.ink, "left", MONO, 400);
+      if (vis && r.cells) r.cells.forEach((cell, p) => {
+        const bx = cx(p) - cw / 2 + 0.15 * fs, by = y + 0.12 * rh, bw = cw - 0.3 * fs, bh = rh * 0.76;
+        if (cell.box === "max") rrect(bx, by, bw, bh, 6, C.max);
+        if (cell.box === "tiewin") rrect(bx, by, bw, bh, 6, C.max, C.d, 2);
+        if (cell.box === "tie") rrect(bx, by, bw, bh, 6, null, C.d, 2, [4, 3]);
+        if (cell.box === "bad") rrect(bx, by, bw, bh, 6, null, C.bad, 2);
+        if (cell.hit) hits.push({ ...cell.hit, rect: { x: cx(p) - cw / 2, y, w: cw, h: rh } });
+        textFit(cell.t, cx(p), ym, px, cw - 0.4 * fs, cell.col || C.ink, "center", MONO, cell.bold || r.bold ? 600 : 400);
       });
       y += rh;
       line(c.x, y, c.x + c.w, y, s === "futuro" ? C.grid : C.grid2, 1, s === "futuro" ? [3, 3] : null);
     });
-    // explicação do passo
+    // explicação do passo: no quadro da esquerda (ecrã deitado) ou por baixo da tabela
     let box = { x: c.x, y: y + 0.7 * fs, w: c.w, h: c.y + c.h - y - 0.7 * fs };
     if (L.EX) {
-      const e = panel(L.EX, fs, S.all ? "Explicação" : `Passo ${step}: ${STEPNAME[step]}`);
+      const e = panel(L.EX, fs, S.all ? "Explicação" : `Passo ${step}: ${o.stepName}`);
       box = { x: e.x, y: e.y + 0.3 * fs, w: e.w, h: e.h };
     }
     y = box.y;
@@ -464,6 +602,35 @@
       });
       y += 0.25 * fs;
     });
+  }
+
+  // modo das licitações: as linhas da tabela
+  function table(b, fs) {
+    const step = S.all ? NSTEPS() : S.step;
+    const o = { title: `Cálculos (${S.u || "valores"}) · passo ${S.all ? "—" : S.step} de ${NSTEPS()}: ${S.all ? "tudo" : stepName(S.step)}`,
+      players: S.j, step, stepName: stepName(step), rows: [], expl: [] };
+    if (R.err) { o.err = R.err; return renderTable(b, fs, o); }
+    const rows = o.rows, C1 = (t, col, extra = {}) => ({ t, col, ...extra });
+    const bensRec = p => S.b.map((n, i) => R.owner[i] === p ? n.split(" ")[0] : null).filter(Boolean).join(" ");
+    const pay = x => Math.abs(x) < 1e-9 ? C1("0", C.ink) : x > 0 ? C1("paga " + fmt(x), C.bad) : C1("recebe " + fmt(-x), C.ok);
+    S.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n, cells: S.v[i].map((x, p) => {
+      const winner = R.owner[i] === p, isTied = R.tied[i] && R.tied[i].includes(p);
+      return C1(fmt(x), C.ink, step >= 3 ? { box: isTied ? (winner ? "tiewin" : "tie") : winner ? "max" : null, bold: winner,
+        hit: isTied ? { kind: "tie", i, p } : null } : {});
+    }) }));
+    rows.push({ st: 2, badge: 2, lab: "Total", cells: R.tot.map(x => C1(fmt(x), C.ink)) });
+    rows.push({ st: 2, lab: S.tar ? "Parte justa de trabalho" : "Parte justa", cells: R.pj.map(x => C1(fmt(x), C.ink)), bold: true });
+    rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Bens recebidos", cells: S.j.map((_, p) => C1(R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink)) });
+    rows.push({ st: 4, badge: 4, lab: "Alocação provisória", cells: R.ini.map(pay) });
+    rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => C1("+" + fmt(q * R.E), C.ink)) });
+    rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
+    if (!S.tar) rows.push({ st: 7, badge: "✔", lab: "Valor para o próprio", cells: R.prop.map(x => C1(fmt(x), C.ink)), bold: true });
+    if (!S.tar && S.inv) S.j.forEach((n, a) => rows.push({ st: 8, badge: a === 0 ? "?" : null, lab: "Para " + n, cells: S.j.map((_, bb) => {
+      const v = R.env[a][bb], envy = bb !== a && v > R.env[a][a] + 1e-9;
+      return C1(fmt(v), envy ? C.bad : bb === a ? C.L[a] : C.ink, { box: envy ? "bad" : null });
+    }) }));
+    o.expl = explain(step);
+    renderTable(b, fs, o);
   }
 
   // frases que explicam o passo (a primeira em destaque)
@@ -512,6 +679,93 @@
     return [];
   }
 
+
+  // modo do Ajuste: as linhas da tabela
+  function tableAW(b, fs) {
+    const step = S.all ? NSTEPS() : S.step;
+    const o = { title: `Cálculos (pontos) · passo ${S.all ? "—" : S.step} de ${NSTEPS()}: ${S.all ? "tudo" : stepName(S.step)}`,
+      players: AJ.j, step, stepName: stepName(step), rows: [], expl: [] };
+    if (R.err) { o.err = R.err; return renderTable(b, fs, o); }
+    const rows = o.rows, C1 = (t, col, extra = {}) => ({ t, col, ...extra });
+    AJ.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n + (R.tieInfo.some(e => e.i === i) && step >= 2 ? " (empate)" : ""),
+      cells: [0, 1].map(p => C1(String(AJ.v[i][p]), C.ink, step >= 2 && R.owner[i] === p ? { box: "max", bold: true } : {})) }));
+    rows.push({ st: 2, badge: 2, lab: "1.ª fase", bold: true, cells: [0, 1].map(p => C1(R.t1[p] + (R.G === p ? "  → dador" : ""), C.ink)) });
+    if (R.G == null) rows.push({ st: 3, badge: 3, lab: "Ajuste", span: "Totais iguais: não há ajuste" });
+    else {
+      const G = R.G, Q = R.Q;
+      rows.push({ st: 3, badge: 3, lab: "Ordem (razão)", span: R.order.map(i => `${sh(i)} ${AJ.v[i][G]}/${AJ.v[i][Q]}`).join("  <  ") });
+      R.tests.forEach((t, k) => rows.push({ st: 4, badge: k === 0 ? 4 : null, lab: `Passar ${sh(t.i)} todo?`,
+        cells: [0, 1].map(p => p === G ? C1(ffmt(t.tg), C.ink) : C1(ffmt(t.tq) + (t.ok ? "  ✔ passa" : "  ✘ inverte"), t.ok ? C.ok : C.bad)) }));
+      const d = R.div;
+      rows.push({ st: 5, badge: 5, lab: d ? `Divide-se ${sh(d.i)}` : "Divide-se", span: d
+        ? `${ffmt(d.V)} − ${d.v}x = ${ffmt(d.P)} + ${d.p}x   ⟹   x = ${ffr(R.x)}`
+        : "Nenhum bem: as passagens por inteiro já igualam os pontos" });
+    }
+    const fica = q => AJ.b.map((_, i) => { const f = R.part[q][i]; return f.n === 0 ? null : f.n === f.d ? sh(i) : `${ffr(f)} ${sh(i)}`; }).filter(Boolean).join(" + ") || "—";
+    rows.push({ st: 6, badge: 6, lab: "Fica com", cells: [0, 1].map(q => C1(fica(q), C.ink)) });
+    rows.push({ st: 6, lab: "Pontos finais", bold: true, cells: R.fin.map(f => C1(ffmt(f), C.ink)) });
+    rows.push({ st: 7, badge: "✔", lab: "Parte do outro vale", cells: R.other.map(f => C1(ffmt(f), C.ink)) });
+    if (AJ.r) {
+      rows.push({ st: 8, badge: "?", lab: "Pontos verdadeiros", bold: true, cells: R.real.map((f, q) => {
+        const c = fcmp(f, R.honest[q]); return C1(ffmt(f), c > 0 ? C.ok : c < 0 ? C.bad : C.ink); }) });
+      rows.push({ st: 8, lab: "Se todos fossem honestos", cells: R.honest.map(f => C1(ffmt(f), C.ink)) });
+    }
+    o.expl = explainAW(step);
+    renderTable(b, fs, o);
+  }
+
+  function explainAW(step) {
+    const n = AJ.j, G = R.G, Q = R.Q;
+    const pts = i => `${AJ.v[i][0]} e ${AJ.v[i][1]}`;
+    switch (step) {
+      case 1: return ["Cada um distribui, em segredo, 100 pontos pelos bens: mais pontos para o que lhe interessa mais.",
+        "Os pontos não são dinheiro: dizem a importância que cada um dá a cada bem."];
+      case 2: {
+        const a = ["1.ª fase: cada bem vai, por agora, para quem lhe deu mais pontos.",
+          AJ.b.map((_, i) => R.tieInfo.some(e => e.i === i) ? null : `${sh(i)} → ${n[R.owner[i]]} (${AJ.v[i][R.owner[i]]})`).filter(Boolean).join(" · ")];
+        R.tieInfo.forEach(e => a.push(`Empate em ${sh(e.i)} (${AJ.v[e.i][0]} pontos para cada um): vai para quem tem menos pontos nesse momento, ${n[e.d]} (${e.before[e.d]} contra ${e.before[1 - e.d]})${e.before[0] === e.before[1] ? "; como estavam iguais, para " + n[e.d] : ""}.`));
+        a.push(n.map((x, q) => `${x}: ${R.t1[q]} pontos`).join(" · "));
+        a.push(G == null ? "Os totais são iguais: a partilha está feita, sem ajuste."
+          : `${n[G]} tem mais pontos (${R.t1[G]} > ${R.t1[Q]}): é o dador, vai ceder bens a ${n[Q]} até os pontos ficarem iguais.`);
+        return a;
+      }
+      case 3: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
+        return [`Ordenam-se os bens de ${n[G]} pela razão: pontos de ${n[G]} : pontos de ${n[Q]}, da menor para a maior.`,
+          R.order.map(i => `${sh(i)}: ${AJ.v[i][G]} : ${AJ.v[i][Q]} = ${AJ.v[i][Q] ? fmt(AJ.v[i][G] / AJ.v[i][Q]) : "∞"}`).join(" · "),
+          `O primeiro é o que custa menos a ${n[G]} ceder, comparado com o que vale para ${n[Q]}.`];
+      case 4: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
+        return [`Passam-se bens inteiros, por esta ordem, enquanto ${n[G]} continuar com pelo menos tantos pontos como ${n[Q]}.`,
+          ...R.tests.map(t => `Passar ${sh(t.i)} todo: ${n[G]} ${ffmt(t.before[G])} − ${AJ.v[t.i][G]} = ${ffmt(t.tg)}, ${n[Q]} ${ffmt(t.before[Q])} + ${AJ.v[t.i][Q]} = ${ffmt(t.tq)} → ` +
+            (t.ok ? "passa." : `inverte (${n[G]} ficaria com menos): ${sh(t.i)} vai ser dividido.`))];
+      case 5: {
+        if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
+        const d = R.div;
+        if (!d) return ["Nenhum bem precisa de ser dividido: as passagens por inteiro já deixaram os pontos iguais."];
+        const pc = R.x.n * 100 / R.x.d;
+        return [`x = fração de ${sh(d.i)} que passa de ${n[G]} para ${n[Q]}. Os pontos ficam iguais:`,
+          `${ffmt(d.V)} − ${d.v}x = ${ffmt(d.P)} + ${d.p}x  ⟺  ${d.v + d.p}x = ${ffmt(fsub(d.V, d.P))}  ⟺  x = ${ffr(R.x)}` + (Number.isInteger(pc * 100) ? ` = ${fmt(pc)} %` : ""),
+          `${n[Q]} fica com ${ffr(R.x)} de ${sh(d.i)} e ${n[G]} com ${ffr(fsub(Fr(1), R.x))}.`];
+      }
+      case 6: {
+        const fica = q => AJ.b.map((_, i) => { const f = R.part[q][i]; return f.n === 0 ? null : f.n === f.d ? AJ.b[i] : `${ffr(f)} de ${AJ.b[i]}`; }).filter(Boolean).join(", ");
+        return ["Partilha final: cada um fica com o mesmo número de pontos.",
+          n.map((x, q) => `${x}: ${fica(q)} (${ffmt(R.fin[q])} pontos)`).join(" · "),
+          "O método é equitativo (pontos iguais) e eficiente: não há outra partilha melhor para um sem ser pior para o outro."];
+      }
+      case 7: return ["Quanto vale a parte do outro, para cada um?",
+        n.map((x, q) => `${x}: a do outro vale ${ffmt(R.other[q])}, a sua ${ffmt(R.fin[q])}`).join(" · "),
+        "Cada um acha que a sua parte vale pelo menos tanto como a do outro: o método é livre de inveja."];
+      case 8: {
+        const won = [0, 1].filter(q => fcmp(R.real[q], R.honest[q]) > 0);
+        return ["Os pontos verdadeiros dizem quanto vale, de verdade, o que cada um recebeu.",
+          n.map((x, q) => `${x}: ${ffmt(R.real[q])} (se todos fossem honestos: ${ffmt(R.honest[q])})`).join(" · "),
+          won.length ? `${won.map(q => n[q]).join(" e ")} ganhou ao mentir: o método não é à prova de manipulação. Mas é arriscado: é preciso conhecer os pontos do outro.`
+                     : "Ninguém ganhou ao mentir."];
+      }
+    }
+    return [];
+  }
+
   // ---------- em baixo: passos, opções e exemplos ----------
   function optGroups(fs) {
     const f = fs * 0.8, bh = 1.35 * fs, gap = 0.5 * fs, bs = 0.72 * fs;
@@ -526,17 +780,18 @@
         button(x, by, bw("▶"), bh, "▶", false, "next", {}, C.d, f, !S.all && S.step < NSTEPS()); x += bw("▶") + gap;
         button(x, by, bw("Tudo"), bh, "Tudo", S.all, "all", {}, C.muted, f);
       } },
+      S.m === "aw" ? { w: cw("Pontos verdadeiros"), draw: (x, y, h) => cbox(x, y, h, bs, fs, !!AJ.r, "Pontos verdadeiros", { kind: "real" }) } :
       { w: cw("Tarefas (leilão inverso)") + 1.1 * fs + cw("Partes diferentes (%)") + 1.1 * fs + cw("Inveja"), draw: (x, y, h) => {
         x = cbox(x, y, h, bs, fs, S.tar, "Tarefas (leilão inverso)", { kind: "box", k: "tar" }) + 1.1 * fs;
         x = cbox(x, y, h, bs, fs, S.quotas, "Partes diferentes (%)", { kind: "box", k: "quotas" }) + 1.1 * fs;
         if (!S.tar) cbox(x, y, h, bs, fs, S.inv, "Inveja", { kind: "box", k: "inv" });
       } },
       // exemplos: um grupo por botão (o primeiro com «Exemplos:»), para se arrumarem em várias linhas
-      ...EXAMPLES.map((e, i) => {
+      ...(S.m === "aw" ? AW_EX : EXAMPLES).map((e, i) => {
         const lab = i === 0 ? tw(exLab, fs * 0.8) + 0.5 * fs : 0;
         return { w: lab + bw(e.label), ex: true, draw: (x, y, h) => {
           if (i === 0) x += text(exLab, x, y + h / 2 + 1, fs * 0.8, C.muted) + 0.5 * fs;
-          button(x, y + (h - bh) / 2, bw(e.label), bh, e.label, S.ex === i, "example", { i }, C.muted, f);
+          button(x, y + (h - bh) / 2, bw(e.label), bh, e.label, (S.m === "aw" ? AJ.ex : S.ex) === i, "example", { i }, C.muted, f);
         } };
       }),
     ];
@@ -554,14 +809,22 @@
   }
 
   // ---------- ações ----------
-  function loadExample(i) {
+  function setLic(i) {
     const e = EXAMPLES[i];
     S.ex = i; S.j = [...e.j]; S.b = [...e.b]; S.v = e.v.map(r => [...r]); S.u = e.u;
     S.tar = !!e.tar; S.quotas = !!e.q; S.q = e.q ? [...e.q] : e.j.map(() => Math.round(10000 / e.j.length) / 100);
-    S.tie = {}; S.step = 1; S.all = false;
+    S.tie = {};
+  }
+  function setAW(i) {
+    const e = AW_EX[i];
+    AJ.ex = i; AJ.j = [...e.j]; AJ.b = [...e.b]; AJ.v = e.v.map(r => [...r]); AJ.r = e.r ? e.r.map(r => [...r]) : null;
+  }
+  function loadExample(i) {
+    if (S.m === "aw") setAW(i); else setLic(i);
+    S.step = 1; S.all = false;
     changed(true);
   }
-  function edit(fn) { fn(); S.ex = null; changed(true); }
+  function edit(fn) { fn(); if (S.m !== "aw") S.ex = null; changed(true); }
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   cv.addEventListener("pointerdown", e => {
     if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
@@ -569,6 +832,16 @@
     if (!h) return;
     if (window.gcEvt) gcEvt(h);
     e.preventDefault();
+    if (h.kind === "mode") {
+      if (S.m === h.m) return;
+      S.m = h.m; S.step = 1; S.all = false;
+      if (S.m === "aw" && !AJ.j.length) setAW(0);
+      if (S.m === "lic" && !S.j.length) setLic(0);
+      changed(true); return;
+    }
+    if (h.kind === "real") { AJ.r = AJ.r ? null : AJ.v.map(r => [...r]); AJ.ex = null; changed(true); return; }
+    if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Bem " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; });
+    if (S.m === "aw" && h.kind === "delB") return edit(() => { AJ.b.pop(); AJ.v.pop(); if (AJ.r) AJ.r.pop(); AJ.ex = null; });
     if (h.kind === "theme") { setDark(!dark, true); buildInputs(); draw(); return; }
     if (h.kind === "next") { S.step = Math.min(NSTEPS(), S.step + 1); changed(); return; }
     if (h.kind === "prev") { if (S.all) S.all = false; else S.step = Math.max(1, S.step - 1); changed(); return; }
@@ -602,6 +875,14 @@
 
   // ---------- endereço: #m=lic&j=Afonso;Beatriz&b=Casa;Iate&v=100,180;200,150&u=€&passo=3&tar&q=50,50&inv&tudo ----------
   function writeHash() {
+    if (S.m === "aw") {
+      const m = M => M.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";");
+      const p = ["m=aw", "j=" + AJ.j.join(";"), "b=" + AJ.b.join(";"), "v=" + m(AJ.v), "passo=" + S.step];
+      if (AJ.r) p.push("vr=" + m(AJ.r));
+      if (S.all) p.push("tudo");
+      history.replaceState(null, "", "#" + p.map(s => s.replace(/=(.*)$/, (m, v) => "=" + encodeURIComponent(v))).join("&"));
+      return;
+    }
     const p = [`m=${S.m}`, "j=" + S.j.join(";"), "b=" + S.b.join(";"), "v=" + S.v.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";"),
       "u=" + S.u, "passo=" + S.step];
     if (S.tar) p.push("tar");
@@ -614,6 +895,23 @@
   function readHash() {
     const hp = new URLSearchParams(location.hash.slice(1));
     const ex = hp.get("ex");
+    if (hp.get("m") === "aw") {
+      S.m = "aw"; S.all = hp.has("tudo"); S.step = 1;
+      if (!S.j.length) setLic(0);
+      const rd = k => (hp.get(k) || "").split(";").map(r => r.split(",").map(parseNum));
+      const j = (hp.get("j") || "").split(";"), b = (hp.get("b") || "").split(";").slice(0, MAXB_AW), v = rd("v"), r = hp.has("vr") ? rd("vr") : null;
+      const fits = M => M && M.length === b.length && M.every(row => row.length === 2);
+      if (ex != null && AW_EX[+ex]) setAW(+ex);
+      else if (hp.get("j") && hp.get("b") && j.length === 2 && b.length >= 2 && fits(v) && (!r || fits(r))) {
+        AJ.j = j; AJ.b = b; AJ.v = v; AJ.r = r;
+        AJ.ex = AW_EX.findIndex(e => JSON.stringify([e.j, e.b, e.v, e.r || null]) === JSON.stringify([j, b, v, r]));
+        if (AJ.ex < 0) AJ.ex = null;
+      } else setAW(0);
+      if (+hp.get("passo") >= 1) S.step = +hp.get("passo");
+      buildInputs();
+      return;
+    }
+    S.m = "lic";
     if (ex != null && EXAMPLES[+ex]) { loadExample(+ex); }
     else if (hp.get("j") && hp.get("b") && hp.get("v")) {
       const j = hp.get("j").split(";").slice(0, MAXJ), b = hp.get("b").split(";").slice(0, MAXB);
