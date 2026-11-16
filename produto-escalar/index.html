@@ -120,7 +120,8 @@
               sph: false,   // Esfera (botão «Esfera»; por dentro é o modo Espaço só com u, v e a esfera de raio ‖v‖; pedido do utilizador, 2026-11-16)
               sL: false, sM: true, sP: false,
               sG: false, sRun: false,
-              sK: false,   // Esfera: cone dos vetores com o mesmo θ que v (caixa; o resto fica translúcido)
+              sK: false,
+              sR: false,   // Esfera, com o cone: v a rodar à volta de u (na circunferência de nível; θ e u·v constantes)   // Esfera: cone dos vetores com o mesmo θ que v (caixa; o resto fica translúcido)
               sC: false,   // Esfera: pré-visualizar a circunferência máxima que v percorre com o ▶ (botão direito)   // Esfera: v a percorrer uma circunferência máxima pela direção de u (▶) e o gráfico de f(t) = u·v(t)   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
@@ -397,7 +398,7 @@
     return boxItems0(mode, withS, withDir);   // «Mostrar texto» passou para o menu do botão direito (pedido do utilizador, 2026-11-14)
   }
   function boxItems0(mode, withS, withDir) {
-    if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano ⊥ ${VEC}u por ${VEC}v`, "sP"], ["Cone de θ", "sK"]];
+    if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano ⊥ ${VEC}u por ${VEC}v`, "sP"], ["Cone de θ", "sK"], ...(S.sK ? [[`${VEC}v em torno de ${VEC}u`, "sR"]] : [])];
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], [`${VEC}v a rodar`, "rot"]]
@@ -1219,7 +1220,7 @@
     el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off"; el.value = d;
     el.setAttribute("aria-label", "Coordenadas de " + k);
     el.style.display = "none";
-    el.addEventListener("input", () => { ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
+    el.addEventListener("input", () => { if (S.sR) rotVOff(false); ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
     document.body.appendChild(el);
     INP[k] = el;
@@ -1240,9 +1241,13 @@
   const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
   // produto escalar, normas e ângulo de u e v (Espaço, caixa «Vetores u e v», e Esfera)
   const nT3 = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
-  function uvGroup(u, v) {
+  // curto: sem as contas pelas coordenadas (Esfera, enquanto v roda à volta de u: as coordenadas mudam, os valores não)
+  function uvGroup(u, v, curto = false) {
     const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v)), nT = nT3;
-    const g = [
+    const g = curto ? [
+      `${VV()} \\text{ roda à volta de } ${UU()}\\text{: } ${UU()}\\cdot${VV()} = ${clr(sc, fT(d))}\\ \\text{(não muda)}`,
+      `\\|${UU()}\\| = ${nT(u)}`, { cont: true, sep: 1, t: `\\|${VV()}\\| = ${nT(v)}` },
+    ] : [
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
       { cont: true, t: `= ${u.map((c, i) => `${U(fP(c))}\\times${V(fP(v[i]))}`).join(" + ")} = ${clr(sc, fT(d))}` },
       `\\|${UU()}\\| = \\sqrt{${u.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(u)}`,
@@ -1262,7 +1267,7 @@
     const nu = fval(dot3(u, u)), nv = fval(dot3(v, v));
     if (!(nu > 0) || !(nv > 0)) return [[`${UU()} \\ne \\vec 0 \\text{ e } ${VV()} \\ne \\vec 0`]];
     const G = [[`\\text{Esfera de centro } O \\text{ e raio } \\|${VV()}\\| = ${nT3(v)}`]];
-    G.push(uvGroup(u, v));
+    G.push(uvGroup(u, v, !!RV));
     // ‖u‖‖v‖: exato se for a raiz de um inteiro, senão aproximado
     const pr = Math.round(nu * nv * 1e6) / 1e6, M = Math.sqrt(nu * nv);
     const MT = isInt(pr) ? sqrtTex(pr) + (isInt(Math.round(M * 1e6) / 1e6) ? "" : ` \\approx ${apx(M)}`) : `\\approx ${apx(M)}`;
@@ -1420,6 +1425,52 @@
   let HAND = [], hover3 = null, drag3 = null;
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
+  // «v a rodar à volta de u» (Esfera, com o cone; pedido do utilizador, 2026-11-16): v percorre a sua circunferência de nível,
+  // v(φ) = C + r(cos φ·e₁ + sin φ·e₂), com C = (v·û)û; θ e u·v não mudam. O campo de v mostra as coordenadas (centésimas),
+  // mas ESP.vS só muda quando a rotação acaba (as contas do texto ficam exatas); ao parar, v vai para o ponto inteiro do mesmo nível mais perto, se houver
+  let RV = null, rvRaf = 0;
+  function rotVOn() {
+    const V = espVals(); if (!V.uS || !V.vS) return false;
+    const u = vnum(V.uS), v = vnum(V.vS), lu = Math.hypot(...u); if (lu < 1e-9) return false;
+    const uh = u.map(x => x / lu), k = uh.reduce((a, x, i) => a + x * v[i], 0), Cp = uh.map(x => x * k);
+    const w = v.map((x, i) => x - Cp[i]), r = Math.hypot(...w); if (r < 1e-9) { toast("v está na reta de u: não tem por onde rodar"); return false; }
+    const e1 = w.map(x => x / r), e2 = [uh[1] * e1[2] - uh[2] * e1[1], uh[2] * e1[0] - uh[0] * e1[2], uh[0] * e1[1] - uh[1] * e1[0]];
+    RV = { Cp, r, e1, e2, phi: 0, R: Math.hypot(...v), u, dot: u.reduce((a, x, i) => a + x * v[i], 0) };
+    return true;
+  }
+  const rvNow = () => RV.Cp.map((x, i) => x + RV.r * (Math.cos(RV.phi) * RV.e1[i] + Math.sin(RV.phi) * RV.e2[i]));
+  const fmtV = v => `(${v.map(x => (+(Math.round(x * 100) / 100).toFixed(2)).toString()).join(", ")})`;
+  function rotVOff(write = true) {
+    if (!RV) { S.sR = false; return; }
+    if (write) {
+      const p = rvNow(), N2 = Math.round(RV.R * RV.R);
+      let q = null;
+      if (S.int && Math.abs(RV.R * RV.R - N2) < 1e-6) {   // ponto inteiro da esfera no mesmo nível (mesmo u·v), o mais perto
+        const m = Math.floor(Math.sqrt(N2) + 1e-9); let bd = Infinity;
+        for (let x = -m; x <= m; x++) for (let y = -m; y <= m; y++) {
+          const z2 = N2 - x * x - y * y; if (z2 < 0) continue; const z0 = Math.round(Math.sqrt(z2)); if (z0 * z0 !== z2) continue;
+          for (const z of z0 ? [z0, -z0] : [0]) {
+            if (Math.abs(RV.u[0] * x + RV.u[1] * y + RV.u[2] * z - RV.dot) > 1e-9) continue;
+            const d = Math.hypot(x - p[0], y - p[1], z - p[2]); if (d < bd) { bd = d; q = [x, y, z]; }
+          }
+        }
+      }
+      ESP.vS = q ? `(${q.join(", ")})` : fmtV(p);
+    }
+    INP.vS.value = ESP.vS; RV = null; S.sR = false; built = "";
+  }
+  function rotVAnim() {
+    if (rvRaf) return;
+    let last = performance.now();
+    const step = now => {
+      rvRaf = 0;
+      if (!S.sR || !RV || !S.sph || S.mode !== "esp") return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      RV.phi = (RV.phi + 0.8 * dt) % TAU; INP.vS.value = fmtV(rvNow()); draw();
+      rvRaf = requestAnimationFrame(step);
+    };
+    rvRaf = requestAnimationFrame(step);
+  }
   // «Cone de θ» (Esfera): tK de 0 a 1 em 0,6 s — o cone aparece e o resto esbate-se aos poucos (pedido do utilizador, 2026-11-16)
   let tK = 0, animK = 0;
   function animCone() {
@@ -1884,7 +1935,7 @@
     let lvHex = c => sgnCol(c);   // cor de um nível cos θ = c (definida a sério com a esfera)
     const kE = ease(tK);   // «Cone de θ»: 0 → 1 (o cone aparece, o resto esbate-se)
     if (!V3.uS || !V3.vS) return;
-    const u = vnum(V3.uS), v = vnum(V3.vS), lu = Math.hypot(...u);
+    const u = vnum(V3.uS), v = RV ? rvNow() : vnum(V3.vS), lu = Math.hypot(...u);
     const R = drag3 && drag3.key === "vS" && drag3.R ? drag3.R : Math.hypot(...v);
     const tip = (key, p, col, r) => {
       const m = add(ball(p, col, r * 0.85)); HAND.push({ key, p, base: [0, 0, 0], mesh: m, r });
@@ -2023,7 +2074,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2218,7 +2269,7 @@
       draw(); return true;
     }
     if (h.kind === "mode") {
-      const was = S.sph; S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = ""; S.sRun = false;
+      const was = S.sph; S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = ""; S.sRun = false; if (S.sR) rotVOff();
       if (S.mode === "esp" && was !== S.sph) home3();   // Esfera começa com zoom; o Espaço volta à sua vista inicial
       draw(); return true;
     }
@@ -2228,19 +2279,24 @@
       return true;
     }
     if (h.kind === "reset") {
-      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } home3(); S.sRun = false; S.sG = false; SP3 = null; }
+      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } home3(); S.sRun = false; S.sG = false; SP3 = null; RV = null; S.sR = false; }
       else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
     }
     if (h.kind === "box" && h.k === "rot") { S.rot = !S.rot; rotOn(S.rot); draw(); return true; }
+    if (h.kind === "sphPlay" && S.sR) rotVOff();
     if (h.kind === "sphPlay") {
       if (!SP3 || SP3.key !== sphKey()) SP3 = sphPath();
       if (!SP3) { toast("Escreve u e v (não nulos)"); return true; }
       S.sG = true; S.sRun = !S.sRun; if (S.sRun) sphAnim(); draw(); return true;
     }
     if (h.kind === "rotPlay") { S.run = !S.run; if (S.run) rotAnim(); draw(); return true; }
-    if (h.kind === "box" && h.k === "sK") { S.sK = !S.sK; animCone(); draw(); return true; }
+    if (h.kind === "box" && h.k === "sK") { S.sK = !S.sK; if (!S.sK && S.sR) rotVOff(); animCone(); draw(); return true; }
+    if (h.kind === "box" && h.k === "sR") {
+      if (S.sR) rotVOff(); else { S.sRun = false; S.sG = false; SP3 = null; if (rotVOn()) { S.sR = true; rotVAnim(); } }
+      draw(); return true;
+    }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
     return false;
   }
@@ -2276,6 +2332,7 @@
         drag3 = { key: g.key, base: g.base, p0: g.p.slice(), x: e.clientX, y: e.clientY, moved: false, shift: e.shiftKey, id: e.pointerId };
         if (S.sph && g.key === "vS") drag3.R = Math.hypot(...g.p);   // Esfera: v desliza sobre a esfera
         if (S.sph) S.sRun = false;   // arrastar u ou v para o ▶
+        if (S.sR) { rotVOff(); g.p = vnum(espVals().vS || [[0, 1], [0, 1], [0, 1]]); drag3.p0 = g.p.slice(); if (g.key === "vS") drag3.R = Math.hypot(...g.p); }   // e a rotação de v
         cv.style.cursor = "grabbing";
         draw();
       }
