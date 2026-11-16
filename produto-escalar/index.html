@@ -1241,11 +1241,11 @@
   const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
   // produto escalar, normas e ângulo de u e v (Espaço, caixa «Vetores u e v», e Esfera)
   const nT3 = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
-  // curto: sem as contas pelas coordenadas (Esfera, enquanto v roda à volta de u: as coordenadas mudam, os valores não)
+  // curto: sem as contas pelas coordenadas (Esfera, enquanto v anda em torno de u: as coordenadas mudam, os valores não)
   function uvGroup(u, v, curto = false) {
     const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v)), nT = nT3;
     const g = curto ? [
-      `${VV()} \\text{ roda à volta de } ${UU()}\\text{: } ${UU()}\\cdot${VV()} = ${clr(sc, fT(d))}\\ \\text{(não muda)}`,
+      `${VV()} \\text{ em torno de } ${UU()}\\text{: } ${UU()}\\cdot${VV()} = ${clr(sc, fT(d))}\\ \\text{(não muda)}`,
       `\\|${UU()}\\| = ${nT(u)}`, { cont: true, sep: 1, t: `\\|${VV()}\\| = ${nT(v)}` },
     ] : [
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
