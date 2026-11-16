@@ -394,7 +394,7 @@
     return boxItems0(mode, withS, withDir);   // «Mostrar texto» passou para o menu do botão direito (pedido do utilizador, 2026-11-14)
   }
   function boxItems0(mode, withS, withDir) {
-    if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano perpendicular a ${VEC}u`, "sP"]];
+    if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano ⊥ ${VEC}u por ${VEC}v`, "sP"]];
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], [`${VEC}v a rodar`, "rot"]]
@@ -1192,8 +1192,17 @@
       `${clr(C.neg, "\\text{mínimo}")}\\text{: } ${UU()}\\cdot${VV()} = -${nUV}`, { cont: true, sep: 1, t: `\\text{com } ${VV()} \\text{ com o sentido oposto ao de } ${UU()}\\ (\\theta = 180^\\circ)` },
     ]);
     const z = [`${UU()}\\cdot${VV()} = ${clr(C.zero, "0")} \\text{ na circunferência máxima perpendicular a } ${UU()}`];
-    if (S.sP) z.push(`\\text{(no plano } ${linTex([...u, [0, 1]])} = 0 \\text{, que passa em } O \\text{ e tem vetor normal } ${UU()}\\text{)}`);
     G.push(z);
+    // «Plano ⊥ u por v»: o plano u·X = u·v (perpendicular a u, pela ponta de v) corta a esfera na circunferência de nível de v
+    if (S.sP) {
+      const k = dot3(u, v), uu = dot3(u, u), Cc = u.map(c => fmul(fdiv(k, uu), c)), r2 = fsub(dot3(v, v), fdiv(fmul(k, k), uu));
+      const rT = r2[1] === 1 ? sqrtTex(r2[0]) : `\\sqrt{${fT(r2)}}`, kc = sgnCol(fval(k));
+      G.push([
+        `\\text{Plano} \\perp ${UU()} \\text{ pela ponta de } ${VV()}\\text{: } ${linTex([...u, [0, 1]])} = ${clr(kc, fT(k))}`,
+        `\\text{corta a esfera na circunferência de nível de } ${VV()}\\text{:}`,
+        { cont: true, t: `\\text{centro } C${p3T(Cc)}\\text{, raio } r = ${rT}` },
+      ]);
+    }
     if (S.sL) G.push([`\\text{Em cada circunferência de nível, } \\theta \\text{ e } ${UU()}\\cdot${VV()} \\text{ são constantes}`]);
     return G;
   }
@@ -1823,11 +1832,21 @@
           add(ball(Mx, C.pos, 0.12)); lab("\\text{máx.}", Mx, C.pos, -1, 1, 0.75);
           add(ball(Mn, C.neg, 0.12)); lab("\\text{mín.}", Mn, C.neg, -1, -1, 0.75);
         }
-        if (S.sP) {   // plano que passa em O e é perpendicular a u: corta a esfera na circunferência laranja
-          const q = 1.35 * R, sq = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [0, 1, 2].map(i => q * (a * e1[i] + b * e2[i])));
+        // «Plano ⊥ u por v» (pedido do utilizador, 2026-11-16): o plano u·X = u·v, perpendicular a u e pela ponta de v,
+        // na cor do sinal de u·v; acompanha v. Corta a esfera na circunferência de nível de v (a roxo), de centro C
+        if (S.sP) {
+          const k = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / lu, Cp = e.map(x => x * k), col = sgnCol(k);
+          const r = Math.sqrt(Math.max(0, R * R - k * k)), q = 1.3 * R;
+          const sq = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [0, 1, 2].map(i => Cp[i] + q * (a * e1[i] + b * e2[i])));
           const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute([...sq[0], ...sq[1], ...sq[2], ...sq[0], ...sq[2], ...sq[3]], 3));
-          const pm = new T3.Mesh(g, basic(C.zero, dark ? 0.16 : 0.18)); pm.renderOrder = 2.55; add(pm);
-          add(lines(sq.map((p, i) => [p, sq[(i + 1) % 4]]), C.zero, 0.7));
+          const pm = new T3.Mesh(g, basic(col, dark ? 0.16 : 0.18)); pm.renderOrder = 2.55; add(pm);
+          add(lines(sq.map((p, i) => [p, sq[(i + 1) % 4]]), col, 0.7));
+          if (r > 1e-6) {
+            const m = new T3.Mesh(new T3.TorusGeometry(r, 0.03, 8, 128), solid(C.v, 1));
+            m.position.set(...Cp); m.quaternion.setFromUnitVectors(vec3(0, 0, 1), vec3(...e)); m.renderOrder = 2.75; add(m);
+            add(lines([[Cp, v]], C.v, 0.9, true));   // raio da circunferência, de C à ponta de v
+          }
+          add(ball(Cp, col, 0.09)); lab("C", Cp, col, 1, -1, 0.75);
         }
       }
     }
