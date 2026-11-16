@@ -121,7 +121,7 @@
               sL: false, sM: true, sP: false,
               sG: false, sRun: false,
               sK: false,
-              sR: false,   // Esfera, com o cone: v a rodar à volta de u (na circunferência de nível; θ e u·v constantes)   // Esfera: cone dos vetores com o mesmo θ que v (caixa; o resto fica translúcido)
+              sR: false,   // Esfera, com o cone: «v em torno de u» (na circunferência de nível; θ e u·v constantes)   // Esfera: cone dos vetores com o mesmo θ que v (caixa; o resto fica translúcido)
               sC: false,   // Esfera: pré-visualizar a circunferência máxima que v percorre com o ▶ (botão direito)   // Esfera: v a percorrer uma circunferência máxima pela direção de u (▶) e o gráfico de f(t) = u·v(t)   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
@@ -1425,7 +1425,7 @@
   let HAND = [], hover3 = null, drag3 = null;
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
-  // «v a rodar à volta de u» (Esfera, com o cone; pedido do utilizador, 2026-11-16): v percorre a sua circunferência de nível,
+  // «v em torno de u» (Esfera, com o cone; pedido do utilizador, 2026-11-16): v percorre a sua circunferência de nível,
   // v(φ) = C + r(cos φ·e₁ + sin φ·e₂), com C = (v·û)û; θ e u·v não mudam. O campo de v mostra as coordenadas (centésimas),
   // mas ESP.vS só muda quando a rotação acaba (as contas do texto ficam exatas); ao parar, v vai para o ponto inteiro do mesmo nível mais perto, se houver
   let RV = null, rvRaf = 0;
