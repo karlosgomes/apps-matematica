@@ -174,7 +174,7 @@
     { label: "Estádio (Exame 2021)", j: ["BT", "WT"], b: ["Setor S1", "Setor S2", "Setor S3", "Setor S4"], v: [[30, 24], [40, 45], [8, 24], [22, 7]] },
   ];
   const MAXB_AW = 8;
-  const AJ = { j: [], b: [], v: [], r: null, ex: null, inv: true };
+  const AJ = { j: [], b: [], v: [], r: null, ex: null, inv: true, tie: {} };
 
   // frações exatas (os pontos são inteiros; os denominadores são pequenos)
   const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
@@ -207,7 +207,7 @@
       const t = soma(AJ.r);
       if (t[0] !== 100 || t[1] !== 100) return { err: `Os pontos verdadeiros também somam 100: ${AJ.j[0]} tem ${t[0]} e ${AJ.j[1]} tem ${t[1]}.` };
     }
-    const res = awRun(AJ.v);
+    const res = awRun(AJ.v, AJ.tie);
     if (AJ.r) {
       // quanto vale, de verdade, o que cada um recebe; e quanto receberia se todos declarassem os pontos verdadeiros
       const val = (part, q) => fsum(AJ.r.map((r, i) => fmul(Fr(r[q]), part[q][i])));
@@ -219,10 +219,15 @@
   }
   // o método, com os pontos v: 1.ª fase (empates para quem tem menos pontos nesse momento), ordem pelas razões,
   // passagens por inteiro e, se for preciso, a divisão de um item: x = fração que PASSA do dador para o outro
-  function awRun(v) {
+  function awRun(v, tie = {}) {
     const owner = [], ties = [], t1 = [0, 0];
     v.forEach((r, i) => { if (r[0] !== r[1]) { const d = r[0] > r[1] ? 0 : 1; owner[i] = d; t1[d] += r[d]; } else ties.push(i); });
-    const tieInfo = ties.map(i => { const d = t1[0] <= t1[1] ? 0 : 1, before = [...t1]; owner[i] = d; t1[d] += v[i][d]; return { i, d, before }; });
+    // empate num item: vai para quem tem menos pontos nesse momento; se também aí estão iguais, sorteio (tie[i]; até lá, o 1.º)
+    const tieInfo = ties.map(i => {
+      const before = [...t1], eq = before[0] === before[1];
+      const d = eq ? (tie[i] === 1 ? 1 : 0) : before[0] < before[1] ? 0 : 1;
+      owner[i] = d; t1[d] += v[i][d]; return { i, d, before, eq, drawn: eq && tie[i] != null };
+    });
     const keep = v.map(() => Fr(1));            // fração de cada item que fica com quem o recebeu na 1.ª fase
     const t = [Fr(t1[0]), Fr(t1[1])];
     let G = null, Q = null, order = [], tests = [], div = null, x = null;
@@ -654,7 +659,10 @@
     y += rh;
     const f = fs * 0.75, bh = 1.3 * fs;
     let x = c.x;
-    [["addB", "+ item", M < MAXB_AW], ["delB", "− item", M > 2]].forEach(([k, lab, ok]) => {
+    const listaB = [["addB", "+ item", M < MAXB_AW], ["delB", "− item", M > 2]];
+    // no passo da 1.ª fase, se houver empate com totais iguais, o sorteio
+    if (R && !R.err && !S.all && S.step === 2 && R.tieInfo.some(e => e.eq)) listaB.unshift(["awdraw", "🎲 Sortear empate", true]);
+    listaB.forEach(([k, lab, ok]) => {
       const bw = tw(lab, f, FONT, 700) + 1 * fs;
       button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
       x += bw + 0.4 * fs;
@@ -854,8 +862,17 @@
       players: AJ.j, step, stepName: stepName(step), rows: [], expl: [] };
     if (R.err) { o.err = R.err; return renderTable(b, fs, o); }
     const rows = o.rows, C1 = (t, col, extra = {}) => ({ t, col, ...extra });
-    AJ.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n + (R.tieInfo.some(e => e.i === i) && step >= 2 ? " (empate)" : ""),
-      cells: [0, 1].map(p => C1(String(AJ.v[i][p]), C.ink, step >= 2 && R.owner[i] === p ? { box: "max", bold: true } : {})) }));
+    AJ.b.forEach((n, i) => {
+      const e = R.tieInfo.find(e => e.i === i);
+      rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n + (e && step >= 2 ? " (empate)" : ""),
+        cells: [0, 1].map(p => {
+          const win = R.owner[i] === p;
+          if (step < 2) return C1(String(AJ.v[i][p]), C.ink);
+          // empate com totais iguais (sorteio): contorno tracejado e toque para escolher
+          if (e && e.eq) return C1(String(AJ.v[i][p]), C.ink, { box: win ? "tiewin" : "tie", bold: win, hit: { kind: "awtie", i, p } });
+          return C1(String(AJ.v[i][p]), C.ink, win ? { box: "max", bold: true } : {});
+        }) });
+    });
     rows.push({ st: 2, badge: 2, lab: "1.ª fase", bold: true, cells: [0, 1].map(p => C1(R.t1[p] + (R.G === p ? "  → dador" : ""), C.ink)) });
     if (R.G == null) rows.push({ st: 3, badge: 3, lab: "Ajuste", span: "Totais iguais: não há ajuste" });
     else {
@@ -896,7 +913,11 @@
       case 2: {
         const a = ["1.ª fase: cada item vai, por agora, para quem lhe deu mais pontos.",
           AJ.b.map((_, i) => R.tieInfo.some(e => e.i === i) ? null : `${sh(i)} → ${n[R.owner[i]]} (${AJ.v[i][R.owner[i]]})`).filter(Boolean).join(" · ")];
-        R.tieInfo.forEach(e => a.push(`Empate em ${sh(e.i)} (${AJ.v[e.i][0]} pontos para cada um): vai para quem tem menos pontos nesse momento, ${n[e.d]} (${e.before[e.d]} contra ${e.before[1 - e.d]})${e.before[0] === e.before[1] ? "; como estavam iguais, para " + n[e.d] : ""}.`));
+        R.tieInfo.forEach(e => {
+          if (!e.eq) return a.push(`Empate em ${sh(e.i)} (${AJ.v[e.i][0]} pontos para cada um): vai para quem tem menos pontos nesse momento, ${n[e.d]} (${e.before[e.d]} contra ${e.before[1 - e.d]}).`);
+          a.push(`Empate em ${sh(e.i)} (${AJ.v[e.i][0]} pontos para cada um) e, nesse momento, os dois têm ${e.before[0]} pontos: decide-se por sorteio.`);
+          a.push(e.drawn ? `No sorteio saiu ${n[e.d]}.` : `Carregue em «🎲 Sortear empate» (ou toque num dos pontos empatados para escolher). Até lá, a tabela mostra ${n[e.d]}, o primeiro.`);
+        });
         a.push(n.map((x, q) => `${x}: ${R.t1[q]} pontos`).join(" · "));
         a.push(G == null ? "Os totais são iguais: a partilha está feita, sem ajuste."
           : `${n[G]} tem mais pontos (${R.t1[G]} > ${R.t1[Q]}): é o dador, vai ceder itens a ${n[Q]} até os pontos ficarem iguais.`);
@@ -905,7 +926,10 @@
       case 3: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
         return [`Ordenam-se os itens de ${n[G]} pela razão: pontos de ${n[G]} : pontos de ${n[Q]}, da menor para a maior.`,
           R.order.map(i => `${sh(i)}: ${AJ.v[i][G]} : ${AJ.v[i][Q]} = ${AJ.v[i][Q] ? fmt(AJ.v[i][G] / AJ.v[i][Q]) : "∞"}`).join(" · "),
-          `O primeiro é o que custa menos a ${n[G]} ceder, comparado com o que vale para ${n[Q]}.`];
+          `O primeiro é o que custa menos a ${n[G]} ceder, comparado com o que vale para ${n[Q]}.`,
+          // razões iguais: a ordem entre eles não muda os pontos finais (só qual deles pode ser dividido)
+          ...R.order.slice(1).map((i, k) => [R.order[k], i]).filter(([a, b]) => AJ.v[a][G] * AJ.v[b][Q] === AJ.v[b][G] * AJ.v[a][Q])
+            .map(([a, b]) => `${sh(a)} e ${sh(b)} têm a mesma razão: tanto faz qual vem primeiro, os pontos finais são os mesmos (pode mudar só qual deles é dividido). Fica primeiro o que está mais acima na lista.`)];
       case 4: if (G == null) return ["Não há ajuste: os totais da 1.ª fase já são iguais."];
         return [`Passam-se itens inteiros, por esta ordem, enquanto ${n[G]} continuar com pelo menos tantos pontos como ${n[Q]}.`,
           ...R.tests.map(t => `Passar ${sh(t.i)} todo: ${n[G]} ${ffmt(t.before[G])} − ${AJ.v[t.i][G]} = ${ffmt(t.tg)}, ${n[Q]} ${ffmt(t.before[Q])} + ${AJ.v[t.i][Q]} = ${ffmt(t.tq)} → ` +
@@ -1124,7 +1148,7 @@
   }
   function setAW(i) {
     const e = AW_EX[i];
-    AJ.ex = i; AJ.j = [...e.j]; AJ.b = [...e.b]; AJ.v = e.v.map(r => [...r]); AJ.r = e.r ? e.r.map(r => [...r]) : null;
+    AJ.ex = i; AJ.j = [...e.j]; AJ.b = [...e.b]; AJ.v = e.v.map(r => [...r]); AJ.r = e.r ? e.r.map(r => [...r]) : null; AJ.tie = {};
   }
   function setMK(i) {
     const e = MK_EX[i];
@@ -1195,8 +1219,18 @@
       changed(); return;
     }
     if (h.kind === "real") { AJ.r = AJ.r ? null : AJ.v.map(r => [...r]); AJ.ex = null; changed(true); return; }
-    if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Item " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; });
-    if (S.m === "aw" && h.kind === "delB") return edit(() => { AJ.b.pop(); AJ.v.pop(); if (AJ.r) AJ.r.pop(); AJ.ex = null; });
+    if (h.kind === "awtie") { AJ.tie[h.i] = h.p; changed(); return; }
+    if (h.kind === "awdraw") {    // sorteio de cada empate com totais iguais, por ordem (cada um pode mudar os seguintes)
+      for (let k = 0; k < AJ.b.length; k++) {
+        const rr = computeAW(); if (rr.err) break;
+        const e = rr.tieInfo.find(e => e.eq && AJ.tie[e.i] == null);
+        if (!e) break;
+        AJ.tie[e.i] = Math.random() < 0.5 ? 0 : 1;
+      }
+      changed(); return;
+    }
+    if (S.m === "aw" && h.kind === "addB") return edit(() => { AJ.b.push("Item " + (AJ.b.length + 1)); AJ.v.push([0, 0]); if (AJ.r) AJ.r.push([0, 0]); AJ.ex = null; AJ.tie = {}; });
+    if (S.m === "aw" && h.kind === "delB") return edit(() => { AJ.b.pop(); AJ.v.pop(); if (AJ.r) AJ.r.pop(); AJ.ex = null; AJ.tie = {}; });
     if (h.kind === "theme") { setDark(!dark, true); buildInputs(); draw(); return; }
     if (h.kind === "next") { S.step = Math.min(NSTEPS(), S.step + 1); changed(); return; }
     if (h.kind === "prev") { if (S.all) S.all = false; else S.step = Math.max(1, S.step - 1); changed(); return; }
@@ -1249,6 +1283,7 @@
       const m = M => M.map(r => r.map(x => isFinite(x) ? x : "").join(",")).join(";");
       const p = ["m=aw", "j=" + AJ.j.join(";"), "b=" + AJ.b.join(";"), "v=" + m(AJ.v), "passo=" + S.step];
       if (AJ.r) p.push("vr=" + m(AJ.r));
+      const te = Object.entries(AJ.tie); if (te.length) p.push("emp=" + te.map(([i, q]) => i + ":" + q).join(","));
       if (!AJ.inv) p.push("seminv");
       if (S.all) p.push("tudo");
       history.replaceState(null, "", "#" + p.map(s => s.replace(/=(.*)$/, (m, v) => "=" + encodeURIComponent(v))).join("&"));
@@ -1293,7 +1328,8 @@
       const fits = M => M && M.length === b.length && M.every(row => row.length === 2);
       if (ex != null && AW_EX[+ex]) setAW(+ex);
       else if (hp.get("j") && hp.get("b") && j.length === 2 && b.length >= 2 && fits(v) && (!r || fits(r))) {
-        AJ.j = j; AJ.b = b; AJ.v = v; AJ.r = r;
+        AJ.j = j; AJ.b = b; AJ.v = v; AJ.r = r; AJ.tie = {};
+        (hp.get("emp") || "").split(",").filter(Boolean).forEach(s => { const [i, q] = s.split(":").map(Number); AJ.tie[i] = q; });
         AJ.ex = AW_EX.findIndex(e => JSON.stringify([e.j, e.b, e.v, e.r || null]) === JSON.stringify([j, b, v, r]));
         if (AJ.ex < 0) AJ.ex = null;
       } else setAW(0);
