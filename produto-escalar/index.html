@@ -117,6 +117,8 @@
               noAx: false,   // Espaço: esconder o referencial Oxyz (botão «Oxyz» à direita)
               tX: false,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
+              sph: false,   // Esfera (botão «Esfera»; por dentro é o modo Espaço só com u, v e a esfera de raio ‖v‖; pedido do utilizador, 2026-11-16)
+              sL: true, sM: true, sP: false,   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
@@ -392,6 +394,7 @@
     return boxItems0(mode, withS, withDir);   // «Mostrar texto» passou para o menu do botão direito (pedido do utilizador, 2026-11-14)
   }
   function boxItems0(mode, withS, withDir) {
+    if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano perpendicular a ${VEC}u`, "sP"]];
     if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], [`${VEC}v a rodar`, "rot"]]
@@ -403,7 +406,8 @@
     const bw = t => ctx.measureText(t).width + 1.3 * fs;
     out.push({ t: "btn", txt: "Vetores", on: S.mode === "vet", kind: "mode", v: "vet", w: bw("Vetores"), h: bh, f: bf, join: true });
     out.push({ t: "btn", txt: "Retas", on: S.mode === "retas", kind: "mode", v: "retas", w: bw("Retas"), h: bh, f: bf, join: true });
-    out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp", kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf });
+    out.push({ t: "btn", txt: "Espaço", on: S.mode === "esp" && !S.sph, kind: "mode", v: "esp", w: bw("Espaço"), h: bh, f: bf, join: true });
+    out.push({ t: "btn", txt: "Esfera", on: S.mode === "esp" && S.sph, kind: "mode", v: "esf", w: bw("Esfera"), h: bh, f: bf });
     out.push({ t: "btn", txt: "↺", on: false, kind: "reset", w: 2 * fs, h: bh, f: bf * 1.1, join: true });
     // ⋯ abre o menu do botão direito (para tablets, onde não há botão direito, e para se saber que existe)
     out.push({ t: "btn", txt: "⋯", on: false, kind: "menu", w: 2 * fs, h: bh, f: bf * 1.2 });
@@ -1124,8 +1128,9 @@
     ["A3", "A", "(1, 0, 3)", "r"], ["r3", "\\vec r", "(1, 1, 1)", "r"],
     ["R", "R", "(0, 0, 1)", "be"], ["m", "\\vec m", "(0, 0, 1)", "be"],
     ["u3", "\\vec u", "(2, 1, 2)", "uv"], ["v3", "\\vec v", "(0, 3, 4)", "uv"],
+    ["uS", "\\vec u", "(0, 0, 2)", "sph"], ["vS", "\\vec v", "(-1, 2, 2)", "sph"],   // Esfera
   ];
-  const GCOL = { al: () => C.al, r: () => C.rr, be: () => C.be, uv: () => C.u, v3: () => C.v };
+  const GCOL = { al: () => C.al, r: () => C.rr, be: () => C.be, uv: () => C.u, v3: () => C.v, sph: () => C.u, vS: () => C.v };
   const ESP = {};   // texto de cada campo
   const INP = {};   // elementos <input>
   for (const [k, , d] of FIELDS) {
@@ -1139,7 +1144,7 @@
     document.body.appendChild(el);
     INP[k] = el;
   }
-  const groupOn = g => (g === "al" && (S.eA || S.eC)) || (g === "r" && S.eR) || (g === "be" && S.eB) || (g === "uv" && S.eUV);
+  const groupOn = g => S.sph ? g === "sph" : (g === "al" && (S.eA || S.eC)) || (g === "r" && S.eR) || (g === "be" && S.eB) || (g === "uv" && S.eUV);
   // valores lidos (ou null se o campo estiver mal escrito)
   function espVals() {
     const o = {};
@@ -1153,9 +1158,49 @@
     return { n: nv, P: Pt, d, co: [...nv, d] };
   }
   const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
+  // produto escalar, normas e ângulo de u e v (Espaço, caixa «Vetores u e v», e Esfera)
+  const nT3 = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
+  function uvGroup(u, v) {
+    const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v)), nT = nT3;
+    const g = [
+      `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
+      { cont: true, t: `= ${u.map((c, i) => `${U(fP(c))}\\times${V(fP(v[i]))}`).join(" + ")} = ${clr(sc, fT(d))}` },
+      `\\|${UU()}\\| = \\sqrt{${u.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(u)}`,
+      `\\|${VV()}\\| = \\sqrt{${v.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(v)}`,
+    ];
+    if (nu > 0 && nv > 0) {
+      const c = clamp(dv / Math.sqrt(nu * nv), -1, 1);
+      g.push(`\\cos\\theta = \\frac{${clr(sc, fT(d))}}{${nT(u)}\\times${nT(v)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
+      g.push(`${clr(sc, dv > 0 ? "\\theta\\ \\text{é agudo}" : dv < 0 ? "\\theta\\ \\text{é obtuso}" : "\\theta\\ \\text{é reto}\\ (" + UU() + "\\perp" + VV() + ")")}`);
+    }
+    return g;
+  }
+  // Esfera: v percorre a esfera de centro O e raio ‖v‖; u·v = ‖u‖‖v‖cos θ vai do mínimo −‖u‖‖v‖ ao máximo ‖u‖‖v‖
+  function sphPieces() {
+    const V3 = espVals(), u = V3.uS, v = V3.vS;
+    if (!u || !v) return [[`\\text{Escreve as coordenadas de } ${UU()} \\text{ e de } ${VV()}`]];
+    const nu = fval(dot3(u, u)), nv = fval(dot3(v, v));
+    if (!(nu > 0) || !(nv > 0)) return [[`${UU()} \\ne \\vec 0 \\text{ e } ${VV()} \\ne \\vec 0`]];
+    const G = [[`\\text{Esfera de centro } O \\text{ e raio } \\|${VV()}\\| = ${nT3(v)}`]];
+    G.push(uvGroup(u, v));
+    // ‖u‖‖v‖: exato se for a raiz de um inteiro, senão aproximado
+    const pr = Math.round(nu * nv * 1e6) / 1e6, M = Math.sqrt(nu * nv);
+    const MT = isInt(pr) ? sqrtTex(pr) + (isInt(Math.round(M * 1e6) / 1e6) ? "" : ` \\approx ${apx(M)}`) : `\\approx ${apx(M)}`;
+    const nUV = `\\|${UU()}\\|\\,\\|${VV()}\\|`;
+    if (S.sM) G.push([
+      `${clr(C.pos, "\\text{máximo}")}\\text{: } ${UU()}\\cdot${VV()} = ${nUV} ${MT.startsWith("\\approx") ? MT : "= " + MT}`, { cont: true, sep: 1, t: `\\text{com } ${VV()} \\text{ com a direção e o sentido de } ${UU()}\\ (\\theta = 0^\\circ)` },
+      `${clr(C.neg, "\\text{mínimo}")}\\text{: } ${UU()}\\cdot${VV()} = -${nUV}`, { cont: true, sep: 1, t: `\\text{com } ${VV()} \\text{ com o sentido oposto ao de } ${UU()}\\ (\\theta = 180^\\circ)` },
+    ]);
+    const z = [`${UU()}\\cdot${VV()} = ${clr(C.zero, "0")} \\text{ na circunferência máxima perpendicular a } ${UU()}`];
+    if (S.sP) z.push(`\\text{(no plano } ${linTex([...u, [0, 1]])} = 0 \\text{, que passa em } O \\text{ e tem vetor normal } ${UU()}\\text{)}`);
+    G.push(z);
+    if (S.sL) G.push([`\\text{Em cada circunferência de nível, } \\theta \\text{ e } ${UU()}\\cdot${VV()} \\text{ são constantes}`]);
+    return G;
+  }
   function espPieces() {
     const V3 = espVals(), G = [];
     ESP_DEC = Object.values(ESP).some(t => /\d\.\d/.test(t) || (t.includes(";") && /\d,\d/.test(t)));
+    if (S.sph) return sphPieces();
     const showA = S.eA || S.eC, al = showA ? planeOf(V3.P, V3.n) : null, aC = C.al, A_ = clr(aC, "\\alpha");
     if (!showA) { /* plano α escondido */ }
     else if (!V3.P || !V3.n) G.push([`\\text{Escreve as três coordenadas de } P \\text{ e de } \\vec n\\text{, p. ex. } (2, 1, 1)`]);
@@ -1228,22 +1273,7 @@
     if (S.eUV) {
       const u = V3.u3, v = V3.v3;
       if (!u || !v) G.push([`\\text{Escreve as coordenadas de } \\vec u \\text{ e de } \\vec v`]);
-      else {
-        const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v));
-        const nT = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
-        const g = [
-          `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
-          { cont: true, t: `= ${u.map((c, i) => `${U(fP(c))}\\times${V(fP(v[i]))}`).join(" + ")} = ${clr(sc, fT(d))}` },
-          `\\|${UU()}\\| = \\sqrt{${u.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(u)}`,
-          `\\|${VV()}\\| = \\sqrt{${v.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(v)}`,
-        ];
-        if (nu > 0 && nv > 0) {
-          const c = clamp(dv / Math.sqrt(nu * nv), -1, 1);
-          g.push(`\\cos\\theta = \\frac{${clr(sc, fT(d))}}{${nT(u)}\\times${nT(v)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
-          g.push(`${clr(sc, dv > 0 ? "\\theta\\ \\text{é agudo}" : dv < 0 ? "\\theta\\ \\text{é obtuso}" : "\\theta\\ \\text{é reto}\\ (" + UU() + "\\perp" + VV() + ")")}`);
-        }
-        G.push(g);
-      }
+      else G.push(uvGroup(u, v));
     }
     if (S.eC && al) {
       const k = sectionPts(vnum(al.n), -fval(al.d), 0, CUBE).length;
@@ -1619,6 +1649,7 @@
     }
     if ((S.xs === 0 || S.xs === 2) && grid.length) add(lines(grid, C.grid2, 0.55));   // grelha de xOy (botão «xOy»)
 
+    if (S.sph) { sphere3(); return; }
     const V3 = espVals(), al = (S.eA || S.eC) ? planeOf(V3.P, V3.n) : null;
     // cubo [0, 4]³ e a secção por α
     if (S.eC) {
@@ -1723,6 +1754,86 @@
       angle3(u, v, 1);
     }
   }
+  // Esfera (pedido do utilizador, 2026-11-16): esfera de centro O e raio ‖v‖, pintada pelo valor de u·v —
+  // verde onde u·v > 0 (mais forte perto do máximo), vermelho onde u·v < 0, circunferência máxima laranja onde u·v = 0;
+  // circunferências de nível (θ constante), máximo e mínimo, e o plano perpendicular a u (caixas); v arrasta-se sobre a esfera
+  function sphere3() {
+    // (as funções add, lab, handle e angle3 são do build3: repetem-se aqui as que fazem falta)
+    const add = o => { if (o) scene.add(o); return o; };
+    const lab = (src, p, col, ux = 1, uy = 1, px = 0.85) => LAB3.push({ src, p, col, ux, uy, px });
+    const V3 = espVals();
+    if (!V3.uS || !V3.vS) return;
+    const u = vnum(V3.uS), v = vnum(V3.vS), lu = Math.hypot(...u);
+    const R = drag3 && drag3.key === "vS" && drag3.R ? drag3.R : Math.hypot(...v);
+    const tip = (key, p, col, r) => {
+      const m = add(ball(p, col, r * 0.85)); HAND.push({ key, p, base: [0, 0, 0], mesh: m, r });
+      if (key === "uS" && S.vert[key]) lab("\\updownarrow", p, col, 1.3, 0, 0.8);
+    };
+    if (R > 1e-9) {
+      const e = lu > 1e-9 ? u.map(x => x / lu) : [0, 0, 1];
+      const geo = new T3.SphereGeometry(R, 96, 64), P_ = geo.attributes.position, cols = [];
+      const cP = new T3.Color(C.pos), cN = new T3.Color(C.neg), cB = new T3.Color(dark ? "#3a4452" : "#f4f1ea"), t_ = new T3.Color();
+      for (let i = 0; i < P_.count; i++) {
+        const c = lu > 1e-9 ? (P_.getX(i) * e[0] + P_.getY(i) * e[1] + P_.getZ(i) * e[2]) / R : 0;
+        t_.copy(cB).lerp(c > 0 ? cP : cN, Math.pow(Math.abs(c), 0.75));
+        cols.push(t_.r, t_.g, t_.b);
+      }
+      geo.setAttribute("color", new T3.Float32BufferAttribute(cols, 3));
+      // primeiro a metade de trás, depois a da frente (assim a transparência não mistura as duas)
+      for (const [side, ro] of [[T3.BackSide, 1.5], [T3.FrontSide, 2.6]]) {
+        const o = { vertexColors: true, transparent: true, opacity: side === T3.BackSide ? 0.3 : (dark ? 0.45 : 0.5), side, depthWrite: false };
+        const m = new T3.Mesh(side === T3.BackSide ? geo : geo.clone(), LIT ? new T3.MeshLambertMaterial(o) : new T3.MeshBasicMaterial(o));
+        m.renderOrder = ro; add(m);
+      }
+      if (lu > 1e-9) {
+        const [e1, e2] = (() => {   // base do plano perpendicular a u
+          const N = vec3(...e); let a = N.clone().cross(vec3(0, 0, 1));
+          a = a.lengthSq() < 1e-10 ? vec3(1, 0, 0) : a.normalize();
+          return [a.toArray(), N.clone().cross(a).normalize().toArray()];
+        })();
+        // circunferência de nível cos θ = c: centro c·R·e, raio R√(1 − c²), num plano perpendicular a u (toro fino)
+        const ring = (c, col, tube, op) => {
+          const r = R * Math.sqrt(1 - c * c);
+          const m = new T3.Mesh(new T3.TorusGeometry(r, tube, 8, 128), solid(col, op));
+          m.position.set(...e.map(x => x * c * R));
+          m.quaternion.setFromUnitVectors(vec3(0, 0, 1), vec3(...e));
+          m.renderOrder = 2.7; add(m);
+        };
+        ring(0, C.zero, 0.035, 1);
+        if (S.sL) for (const c of [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75]) ring(c, c > 0 ? C.pos : C.neg, 0.012, 0.75);
+        // eixo das circunferências: a reta de u, a tracejado, do mínimo ao máximo
+        if (S.sL || S.sM) add(lines([[e.map(x => -x * R * 1.15), e.map(x => x * R * 1.15)]], C.muted, 0.8, true));
+        if (S.sM) {
+          const Mx = e.map(x => x * R), Mn = e.map(x => -x * R);
+          add(ball(Mx, C.pos, 0.12)); lab("\\text{máx.}", Mx, C.pos, -1, 1, 0.75);
+          add(ball(Mn, C.neg, 0.12)); lab("\\text{mín.}", Mn, C.neg, -1, -1, 0.75);
+        }
+        if (S.sP) {   // plano que passa em O e é perpendicular a u: corta a esfera na circunferência laranja
+          const q = 1.35 * R, sq = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [0, 1, 2].map(i => q * (a * e1[i] + b * e2[i])));
+          const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute([...sq[0], ...sq[1], ...sq[2], ...sq[0], ...sq[2], ...sq[3]], 3));
+          const pm = new T3.Mesh(g, basic(C.zero, dark ? 0.16 : 0.18)); pm.renderOrder = 2.55; add(pm);
+          add(lines(sq.map((p, i) => [p, sq[(i + 1) % 4]]), C.zero, 0.7));
+        }
+      }
+    }
+    add(arrow3([0, 0, 0], u, C.u, 0.06)); lab("\\vec u", u, C.u, 1, 1); tip("uS", u, C.u, 0.11);
+    add(arrow3([0, 0, 0], v, C.v, 0.06)); lab("\\vec v", v, C.v, 1, -1); tip("vS", v, C.v, 0.11);
+    // ângulo θ de u e v, na cor do sinal (como na caixa «Vetores u e v» do Espaço)
+    const U3 = vec3(...u), W3 = vec3(...v), lv = W3.length();
+    if (lu > 1e-9 && lv > 1e-9) {
+      const e1 = U3.clone().normalize(), dv = U3.dot(W3), th = Math.acos(clamp(dv / (lu * lv), -1, 1));
+      let e2 = W3.clone().sub(e1.clone().multiplyScalar(W3.dot(e1)));
+      if (e2.lengthSq() < 1e-12) e2 = e1.clone().cross(Math.abs(e1.z) < 0.9 ? vec3(0, 0, 1) : vec3(1, 0, 0));
+      e2.normalize();
+      const col = Math.abs(dv) < 1e-9 ? C.zero : dv > 0 ? C.pos : C.neg, rad = clamp(0.35 * Math.min(lu, lv), 0.5, 1.2);
+      const at = (a, r) => e1.clone().multiplyScalar(Math.cos(a) * r).add(e2.clone().multiplyScalar(Math.sin(a) * r)).toArray();
+      const N = 40, pos = [], arc = [];
+      for (let i = 0; i < N; i++) { const a0 = th * i / N, a1 = th * (i + 1) / N; pos.push(0, 0, 0, ...at(a0, rad), ...at(a1, rad)); arc.push([at(a0, rad), at(a1, rad)]); }
+      const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
+      const m = new T3.Mesh(g, basic(col, 0.45)); m.renderOrder = 2.8; add(m); add(lines(arc, col, 1));
+      if (th > 1e-6) lab("\\theta", at(th / 2, rad + 0.35), col, 0, 0, 0.85);
+    }
+  }
   function figure3(f, fs) {
     if (err3) { texAt("e3", "\\text{Não foi possível carregar o 3D (Three.js). Verifica a ligação à internet.}", f.x + f.w / 2, f.y + f.h / 2, fs * 0.8, C.neg); return; }
     if (!T3) { load3(); texAt("e3", "\\text{A carregar o 3D…}", f.x + f.w / 2, f.y + f.h / 2, fs * 0.9, C.muted); return; }
@@ -1740,7 +1851,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -1791,6 +1902,29 @@
       const st = [clamp(r1_(dv.dot(vec3(...XPL.e1))), -7, 7), clamp(r1_(dv.dot(vec3(...XPL.e2))), -7, 7)];
       if (st[0] !== S.xst[0] || st[1] !== S.xst[1]) { S.xst = st; draw(); }
       return;
+    }
+    // Esfera: a ponta de v desliza sobre a esfera (raio fixo durante o arrasto); com «Coordenadas inteiras» e ‖v‖² inteiro,
+    // salta entre os pontos de coordenadas inteiras da esfera; senão, centésimas
+    if (h.key === "vS" && h.R) {
+      const Rr = h.R, sp = new T3.Sphere(vec3(0, 0, 0), Rr);
+      let hit = rc.ray.intersectSphere(sp, vec3(0, 0, 0));
+      if (!hit) { hit = rc.ray.closestPointToPoint(vec3(0, 0, 0), vec3(0, 0, 0)); if (hit.lengthSq() < 1e-12) return; hit.setLength(Rr); }
+      const p = hit.toArray();
+      let q = null;
+      const N2 = Math.round(Rr * Rr);
+      if (S.int && Math.abs(Rr * Rr - N2) < 1e-6) {
+        if (!h.lat) {   // pontos de coordenadas inteiras com x² + y² + z² = N2
+          h.lat = []; const m = Math.floor(Math.sqrt(N2) + 1e-9);
+          for (let x = -m; x <= m; x++) for (let y = -m; y <= m; y++) { const z2 = N2 - x * x - y * y; if (z2 < 0) continue; const z = Math.round(Math.sqrt(z2)); if (z * z === z2) { h.lat.push([x, y, z]); if (z) h.lat.push([x, y, -z]); } }
+        }
+        let bd = Infinity;
+        for (const L_ of h.lat) { const d = Math.hypot(L_[0] - p[0], L_[1] - p[1], L_[2] - p[2]); if (d < bd) { bd = d; q = L_; } }
+      }
+      if (!q) q = p.map(v => Math.round(v * 100) / 100);
+      const txt = `(${q.map(v => (+v.toFixed(2)).toString()).join(", ")})`;
+      if (txt === ESP[h.key]) return;
+      ESP[h.key] = txt; INP[h.key].value = txt;
+      draw(); return;
     }
     const p0 = vec3(...h.p0);
     let pl;
@@ -1911,7 +2045,7 @@
       }
       draw(); return true;
     }
-    if (h.kind === "mode") { S.mode = h.v; draw(); return true; }
+    if (h.kind === "mode") { S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = ""; draw(); return true; }
     if (h.kind === "menu") {
       // o mesmo toque que fechou o menu (pointerdown em captura) não o volta a abrir
       if (performance.now() - menuClosedAt > 60) { const r = h.rect; openMenu(r.x, r.y - 4, "all"); }
@@ -1952,6 +2086,7 @@
         e.stopImmediatePropagation(); e.preventDefault();
         try { cv.setPointerCapture(e.pointerId); } catch (_) {}
         drag3 = { key: g.key, base: g.base, p0: g.p.slice(), x: e.clientX, y: e.clientY, moved: false, shift: e.shiftKey, id: e.pointerId };
+        if (S.sph && g.key === "vS") drag3.R = Math.hypot(...g.p);   // Esfera: v desliza sobre a esfera
         cv.style.cursor = "grabbing";
         draw();
       }
@@ -2083,7 +2218,8 @@
       menu.appendChild(b);
     };
     if (onde === "txt") { tog("Mostrar texto", S.txt, () => { S.txt = !S.txt; draw(); }); showMenu(x, y); return; }
-    if (S.mode === "esp") {
+    if (S.mode === "esp" && S.sph) { /* Esfera: só as opções comuns */ }
+    else if (S.mode === "esp") {
       tog("$\\vec n, \\vec m \\to O$", S.nO, () => act({ kind: "normO" }));
       // reta de interseção dos planos α e β (só com os dois planos à vista)
       const b = document.createElement("button"); b.setAttribute("role", "menuitem");
@@ -2174,7 +2310,7 @@
   const end = e => {
     if (drag3 && e.pointerId === drag3.id) {
       // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
-      if (!drag3.moved && drag3.key !== "Xa") S.vert[drag3.key] = !S.vert[drag3.key];
+      if (!drag3.moved && drag3.key !== "Xa" && drag3.key !== "vS") S.vert[drag3.key] = !S.vert[drag3.key];
       drag3 = null; cv.style.cursor = "default"; draw();
       return;
     }
@@ -2202,7 +2338,7 @@
     if (e.target.classList && e.target.classList.contains("inp")) return;
     if (e.target instanceof Node && menu.contains(e.target)) return;
     const k = e.key.toLowerCase(), vet = S.mode === "vet";
-    if (k === "e") { S.mode = "esp"; e.preventDefault(); draw(); return; }
+    if (k === "e") { S.mode = "esp"; S.sph = false; e.preventDefault(); draw(); return; }
     if (k === "t") { S.txt = !S.txt; e.preventDefault(); draw(); return; }
     if (S.mode === "esp") return;
     const tog = n => { S[n] = !S[n]; if (n === "int" && S.int) roundAll(); };
@@ -2229,7 +2365,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "gP", "tX", "xst", "vert"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
@@ -2302,6 +2438,7 @@
     if (m) { S[m[1]] = [r1(+m[2]), r1(+m[3])]; if ("CD".includes(m[1])) S.s = true; if ("ABCD".includes(m[1])) S.mode = "retas"; if (!S[m[1]].every(isInt)) INT["ABCD".includes(m[1]) ? "retas" : "vet"] = false; return; }
     if (tok === "retas") S.mode = "retas";
     else if (tok === "espaco") S.mode = "esp";
+    else if (tok === "esfera") { S.mode = "esp"; S.sph = true; }
     else if (tok === "angulo") { S.ang = true; S.angR = true; }
     else if (tok === "projecao") S.proj = true;
     else if (tok === "diretores") S.dir = true;
