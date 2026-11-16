@@ -563,7 +563,7 @@
     if (S.mode === "esp") {
       // a figura 3D está num canvas por baixo: aqui fica transparente
       ctx.clearRect(L.fig.x, L.fig.y, L.fig.w, L.fig.h);
-      if (S.sph && S.sG && (!SP3 || SP3.key !== sphKey())) { SP3 = sphPath(); if (!SP3) S.sG = false; }   // u ou v mudaram (arrasto, campos): novo caminho, pelo novo v
+      if (S.sph && S.sG && (!SP3 || SP3.vkey !== ESP.vS)) { SP3 = sphPath(); if (!SP3) S.sG = false; }   // v mudou (arrasto, campo): outra circunferência, pelo novo v (com u, fica a mesma)
       figure3(L.fig, fs);
       if (L.graph && S.sph) sphGraph(L.graph, fs);
       button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
@@ -883,29 +883,37 @@
       const st = S.int ? 1 : 0.1; S.v = S.v.map(x => r1(Math.round(x / st) * st));
     }
   }
-  // ---------- Esfera: v a percorrer a circunferência máxima que passa em v e na direção de u (▶; pedido do utilizador, 2026-11-16) ----------
-  // v(t) = R(cos t·û + sin t·ŵ), com ŵ ⊥ û unitário no plano de u e v; f(t) = u·v(t) = ‖u‖R cos t (a sinusoide do «v a rodar»)
+  // ---------- Esfera: v a percorrer uma circunferência máxima FIXA (▶; pedido do utilizador, 2026-11-16) ----------
+  // Ao primeiro ▶: â = v/‖v‖ e b̂ ⊥ â no plano de u e v (a circunferência passa em v e na direção de u nesse momento);
+  // v(t) = R(cos t·â + sin t·b̂), t = 0 em v. A circunferência fica fixa quando u muda (como no «v a rodar», em que é a de xOy):
+  // f(t) = u·v(t) = R(u·â)cos t + R(u·b̂)sin t = A cos(t − φ), com A = R × ‖projeção de u no plano da circunferência‖ —
+  // mexer em u muda a fase e, se u sair do plano, também a amplitude. Arrastar v (ou escrever v) escolhe outra circunferência.
   let SP3 = null, sphRaf = 0, sphTd = false;
-  const sphKey = () => ESP.uS + "|" + ESP.vS;
   function sphPath() {
     const V = espVals(); if (!V.uS || !V.vS) return null;
-    const u = vnum(V.uS), v = vnum(V.vS), lu = Math.hypot(...u), R = Math.hypot(...v);
-    if (lu < 1e-9 || R < 1e-9) return null;
-    const uh = u.map(x => x / lu), d = uh.reduce((a, x, i) => a + x * v[i], 0);
-    let w = v.map((x, i) => x - d * uh[i]), lw = Math.hypot(...w);
-    if (lw < 1e-9) {   // v colinear com u: escolhe-se uma direção perpendicular qualquer
-      const a = Math.abs(uh[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
-      w = [uh[1] * a[2] - uh[2] * a[1], uh[2] * a[0] - uh[0] * a[2], uh[0] * a[1] - uh[1] * a[0]]; lw = Math.hypot(...w);
+    const u = vnum(V.uS), v = vnum(V.vS), R = Math.hypot(...v);
+    if (R < 1e-9) return null;
+    const a = v.map(x => x / R), d = u.reduce((s_, x, i) => s_ + x * a[i], 0);
+    let b = u.map((x, i) => x - d * a[i]), lb = Math.hypot(...b);
+    if (lb < 1e-9) {   // u colinear com v (ou nulo): outra direção perpendicular a v
+      const w = Math.abs(a[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      b = [a[1] * w[2] - a[2] * w[1], a[2] * w[0] - a[0] * w[2], a[0] * w[1] - a[1] * w[0]]; lb = Math.hypot(...b);
     }
-    const wh = w.map(x => x / lw);
-    let t = Math.atan2(lw > 1e-9 ? w.reduce((a, x, i) => a + x * wh[i], 0) : 0, d); if (t < 0) t += TAU;
-    return { u, uh, wh, R, lu, A: lu * R, t, key: sphKey() };
+    b = b.map(x => x / lb);
+    return { a, b, R, t: 0, vkey: ESP.vS };
+  }
+  // amplitude e fase com o u atual: f(t) = R(u·â)cos t + R(u·b̂)sin t = A cos(t − φ)
+  function sphF() {
+    const p = SP3, V = espVals(); if (!p || !V.uS) return null;
+    const u = vnum(V.uS), ca = p.R * u.reduce((s_, x, i) => s_ + x * p.a[i], 0), cb = p.R * u.reduce((s_, x, i) => s_ + x * p.b[i], 0);
+    let phi = Math.atan2(cb, ca); if (phi < 0) phi += TAU;
+    return { ca, cb, A: Math.hypot(ca, cb), phi, M: Math.hypot(...u) * p.R, f: t => ca * Math.cos(t) + cb * Math.sin(t) };
   }
   function sphSetV() {
     const p = SP3, c = Math.cos(p.t), sn = Math.sin(p.t);
-    const v = p.uh.map((x, i) => p.R * (c * x + sn * p.wh[i]));
+    const v = p.a.map((x, i) => p.R * (c * x + sn * p.b[i]));
     ESP.vS = `(${v.map(x => (+(Math.round(x * 100) / 100).toFixed(2)).toString()).join(", ")})`;
-    INP.vS.value = ESP.vS; p.key = sphKey();
+    INP.vS.value = ESP.vS; p.vkey = ESP.vS;
   }
   function sphAnim() {
     if (sphRaf) return;
@@ -921,9 +929,9 @@
   }
   // gráfico de f(t) = ‖u‖R cos t em [0, 2π] por baixo da figura (o mesmo desenho do «v a rodar»)
   function sphGraph(g, fs) {
-    const p = SP3; if (!p) return;
-    const A = p.A, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
-    const top = A <= 9.5 ? 10 : Math.ceil(A * 1.07 / 10) * 10, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    const p = SP3, F_ = sphF(); if (!p || !F_) return;
+    const A = F_.A, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
+    const top = F_.M <= 9.5 ? 10 : Math.ceil(F_.M * 1.07 / 10) * 10, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
     ctx.fillStyle = C.bg; ctx.fillRect(g.x, g.y, g.w, g.h);
     rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
     line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(x0, y0, x0, y1, C.axis, 1.4);
@@ -943,15 +951,19 @@
       line(x0, TY(v), x1, TY(v), C.grid2, 1, [4, 4]);
       texAt("sg" + id, (v < 0 ? "-" : "") + apx(A), x0 - 0.25 * fs, TY(v), fs * 0.55, C.muted, 1, 0.5);
     }
-    const N = 240, f = t => A * Math.cos(t);
+    const N = 240, f = F_.f;
     for (let i = 0; i < N; i++) {
       const ta = i / N * TAU, tb = (i + 1) / N * TAU, fa = f(ta), fb = f(tb);
       line(TX(ta), TY(fa), TX(tb), TY(fb), (fa + fb) / 2 >= 0 ? C.pos : C.neg, 2.4);
     }
-    [[0, A, "máx", C.pos], [TAU, A, "", C.pos], [PI, -A, "mín", C.neg], [PI / 2, 0, "", C.zero], [3 * PI / 2, 0, "", C.zero]].forEach(([t, v, lb, col], i) => {
-      dot(TX(t), TY(v), 0.2 * fs, col, 1.5);
-      if (lb) texAt("sgm" + i, `\\text{${lb}}`, TX(t) + (t ? 0 : 0.2 * fs), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, t ? 0.5 : 0, v > 0 ? 1 : 0);
-    });
+    // pontos notáveis: máximo (t = φ), mínimo (φ + π), zeros (φ ± π/2); nada se A = 0 (u perpendicular ao plano da circunferência)
+    if (A > 1e-9) {
+      const md = t => ((t % TAU) + TAU) % TAU;
+      [[md(F_.phi), A, "máx", C.pos], [md(F_.phi + PI), -A, "mín", C.neg], [md(F_.phi + PI / 2), 0, "", C.zero], [md(F_.phi + 3 * PI / 2), 0, "", C.zero]].forEach(([t, v, lb, col], i) => {
+        dot(TX(t), TY(v), 0.2 * fs, col, 1.5);
+        if (lb) texAt("sgm" + i, `\\text{${lb}}`, clamp(TX(t), x0 + 0.9 * fs, x1 - 0.9 * fs), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, 0.5, v > 0 ? 1 : 0);
+      });
+    }
     line(TX(p.t), y0, TX(p.t), y1, C.muted, 1.2, [5, 4]);
     dot(TX(p.t), TY(f(p.t)), 0.3 * fs, C.v, 2);
     hits.push({ kind: "sphT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => clamp((px - x0) / (x1 - x0), 0, 1) * TAU });
@@ -1244,6 +1256,8 @@
   const onPlane = (pl, X) => fz(fadd(dot3(pl.n, X), pl.d));
   // produto escalar, normas e ângulo de u e v (Espaço, caixa «Vetores u e v», e Esfera)
   const nT3 = a => { const q = dot3(a, a); return q[1] === 1 ? sqrtTex(q[0]) : `\\sqrt{${fT(q)}}`; };
+  // norma com coordenadas decimais (p. ex. v parado a meio do ▶): «≈ 3» em vez de só √8,9821 (pedido do utilizador, 2026-11-16)
+  const nApx = a => { const q = dot3(a, a); if (q[1] === 1) return ""; const r = Math.sqrt(fval(q)); return Math.abs(r * 100 - Math.round(r * 100)) < 1e-9 ? "" : ` \\approx ${(+r.toFixed(2)).toString().replace(".", "{,}")}`; };
   // curto: sem as contas pelas coordenadas (Esfera, enquanto v anda em torno de u: as coordenadas mudam, os valores não)
   function uvGroup(u, v, curto = false) {
     const d = dot3(u, v), dv = fval(d), sc = sgnCol(dv), nu = fval(dot3(u, u)), nv = fval(dot3(v, v)), nT = nT3;
@@ -1254,7 +1268,7 @@
       `${UU()}\\cdot${VV()} = ${U("u_1")}${V("v_1")} + ${U("u_2")}${V("v_2")} + ${U("u_3")}${V("v_3")}`,
       { cont: true, t: `= ${u.map((c, i) => `${U(fP(c))}\\times${V(fP(v[i]))}`).join(" + ")} = ${clr(sc, fT(d))}` },
       `\\|${UU()}\\| = \\sqrt{${u.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(u)}`,
-      `\\|${VV()}\\| = \\sqrt{${v.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(v)}`,
+      `\\|${VV()}\\| = \\sqrt{${v.map(c => `${fP(c)}^2`).join(" + ")}} = ${nT(v)}${nApx(v)}`,
     ];
     if (nu > 0 && nv > 0) {
       const c = clamp(dv / Math.sqrt(nu * nv), -1, 1);
@@ -1269,7 +1283,7 @@
     if (!u || !v) return [[`\\text{Escreve as coordenadas de } ${UU()} \\text{ e de } ${VV()}`]];
     const nu = fval(dot3(u, u)), nv = fval(dot3(v, v));
     if (!(nu > 0) || !(nv > 0)) return [[`${UU()} \\ne \\vec 0 \\text{ e } ${VV()} \\ne \\vec 0`]];
-    const G = [[`\\text{Esfera de centro } O \\text{ e raio } \\|${VV()}\\| = ${nT3(v)}`]];
+    const G = [[`\\text{Esfera de centro } O \\text{ e raio } \\|${VV()}\\| ${nApx(v) || "= " + nT3(v)}`]];
     G.push(uvGroup(u, v, !!RV));
     // ‖u‖‖v‖: exato se for a raiz de um inteiro, senão aproximado
     const pr = Math.round(nu * nv * 1e6) / 1e6, M = Math.sqrt(nu * nv);
@@ -1292,11 +1306,18 @@
       ]);
     }
     // ▶: v(t) numa circunferência máxima pela direção de u e a sinusoide f(t) = ‖u‖‖v‖cos t
-    if (S.sG && SP3) G.push([
-      `${VV()}(t)\\text{ percorre a circunferência máxima}`, { cont: true, t: `\\text{que passa em } ${VV()} \\text{ e na direção de } ${UU()}\\text{:}` },
-      `f(t) = ${UU()}\\cdot${VV()}(t) = ${nUV}\\cos t ${MT.startsWith("\\approx") ? MT.replace("\\approx", "\\approx") + "\\cos t" : "= " + MT + "\\cos t"}`,
-      { cont: true, sep: 1, t: `t \\approx ${apx(SP3.t, 2)}\\ \\text{rad}` },
-    ]);
+    // ▶: v(t) numa circunferência máxima fixa; f(t) = a cos t + b sin t = A cos(t − φ)
+    const F_ = S.sG && SP3 ? sphF() : null;
+    if (F_) {
+      const inPl = F_.A > F_.M * (1 - 1e-6), zero = F_.A < 1e-9;
+      G.push([
+        `${VV()}(t)\\text{ percorre uma circunferência máxima fixa:}`,
+        `f(t) = ${UU()}\\cdot${VV()}(t) \\approx ${apx(F_.ca)}\\cos t ${F_.cb < 0 ? "-" : "+"} ${apx(Math.abs(F_.cb))}\\sin t`,
+        zero ? { cont: true, t: `= 0` } : { cont: true, t: `\\approx ${apx(F_.A)}\\cos(t - ${apx(F_.phi)})` },
+        zero ? `${UU()} \\perp \\text{ plano da circunferência: } f(t) = 0` : inPl ? `${UU()} \\text{ no plano da circunferência: amplitude } = ${nUV}` : `${UU()} \\text{ fora do plano da circunferência: amplitude } < ${nUV}`,
+        `t \\approx ${apx(SP3.t, 2)}\\ \\text{rad}`,
+      ]);
+    }
     if (S.sK) G.push([`\\text{Cone de vértice } O \\text{ e eixo na reta de } ${UU()}\\text{:}`, `\\text{os vetores da esfera que fazem com } ${UU()} \\text{ o ângulo } \\theta`, { cont: true, t: `\\text{têm todos } ${UU()}\\cdot${VV()} = ${clr(sgnCol(fval(dot3(u, v))), fT(dot3(u, v)))}` }]);
     if (S.sL) G.push([`\\text{Em cada circunferência de nível, } \\theta \\text{ e } ${UU()}\\cdot${VV()} \\text{ são constantes}`]);
     return G;
@@ -2030,7 +2051,7 @@
     // ▶: a circunferência máxima que v percorre (passa pela direção de u e por v), a roxo e fina
     const path = S.sG && SP3 ? SP3 : S.sC ? sphPath() : null;   // com «Caminho do ▶» (botão direito) aparece antes do ▶
     if (path && R > 1e-9) {
-      const n = vec3(...path.uh).cross(vec3(...path.wh)).normalize();
+      const n = vec3(...path.a).cross(vec3(...path.b)).normalize();
       const m = new T3.Mesh(new T3.TorusGeometry(R, 0.022, 8, 160), solid(C.v, S.sG ? 0.85 : 0.6));
       m.quaternion.setFromUnitVectors(vec3(0, 0, 1), n); m.renderOrder = 2.75; add(m);
     }
@@ -2077,7 +2098,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2290,7 +2311,7 @@
     if (h.kind === "box" && h.k === "rot") { S.rot = !S.rot; rotOn(S.rot); draw(); return true; }
     if (h.kind === "sphPlay" && S.sR) rotVOff();
     if (h.kind === "sphPlay") {
-      if (!SP3 || SP3.key !== sphKey()) SP3 = sphPath();
+      if (!SP3 || SP3.vkey !== ESP.vS) SP3 = sphPath();
       if (!SP3) { toast("Escreve u e v (não nulos)"); return true; }
       S.sG = true; S.sRun = !S.sRun; if (S.sRun) sphAnim(); draw(); return true;
     }
