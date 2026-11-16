@@ -1420,6 +1420,20 @@
   let HAND = [], hover3 = null, drag3 = null;
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
+  // «Cone de θ» (Esfera): tK de 0 a 1 em 0,6 s — o cone aparece e o resto esbate-se aos poucos (pedido do utilizador, 2026-11-16)
+  let tK = 0, animK = 0;
+  function animCone() {
+    if (animK) return;
+    let last = performance.now();
+    const step = now => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const goal = S.sK ? 1 : 0;
+      tK = goal > tK ? Math.min(goal, tK + dt / 0.6) : Math.max(goal, tK - dt / 0.6);
+      draw();
+      animK = tK !== goal ? requestAnimationFrame(step) : 0;
+    };
+    animK = requestAnimationFrame(step);
+  }
   // «r, s → O» (modo Retas): tD de 0 a 2 — até 1 os vetores diretores deslizam para a origem e as retas esbatem-se;
   // de 1 a 1,25 aparece o ângulo dos vetores; de 1,25 a 2 os vetores são normalizados (ficam com norma 1) — só com S.nrm (botão direito)
   let tD = 0, animD = 0;
@@ -1868,6 +1882,7 @@
     const lab = (src, p, col, ux = 1, uy = 1, px = 0.85) => LAB3.push({ src, p, col, ux, uy, px });
     const V3 = espVals();
     let lvHex = c => sgnCol(c);   // cor de um nível cos θ = c (definida a sério com a esfera)
+    const kE = ease(tK);   // «Cone de θ»: 0 → 1 (o cone aparece, o resto esbate-se)
     if (!V3.uS || !V3.vS) return;
     const u = vnum(V3.uS), v = vnum(V3.vS), lu = Math.hypot(...u);
     const R = drag3 && drag3.key === "vS" && drag3.R ? drag3.R : Math.hypot(...v);
@@ -1903,7 +1918,7 @@
       geo.setAttribute("color", new T3.Float32BufferAttribute(cols, 3));
       // primeiro a metade de trás, depois a da frente (assim a transparência não mistura as duas)
       for (const [side, ro] of [[T3.BackSide, 1.5], [T3.FrontSide, 2.6]]) {
-        const o = { vertexColors: true, transparent: true, opacity: S.sK ? (side === T3.BackSide ? 0.1 : 0.16) : side === T3.BackSide ? 0.3 : (dark ? 0.45 : 0.5), side, depthWrite: false };
+        const o = { vertexColors: true, transparent: true, opacity: (side === T3.BackSide ? 0.3 : (dark ? 0.45 : 0.5)) * (1 - kE) + (side === T3.BackSide ? 0.1 : 0.16) * kE, side, depthWrite: false };
         const m = new T3.Mesh(side === T3.BackSide ? geo : geo.clone(), LIT ? new T3.MeshLambertMaterial(o) : new T3.MeshBasicMaterial(o));
         m.renderOrder = ro; add(m);
       }
@@ -1921,19 +1936,17 @@
           m.quaternion.setFromUnitVectors(vec3(0, 0, 1), vec3(...e));
           m.renderOrder = 2.7; add(m);
         };
-        ring(0, C.zero, 0.035, S.sK ? 0.35 : 1);   // com o cone, o resto fica translúcido
-        if (S.sL) for (const c of [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75]) ring(c, lvHex(c), 0.014, S.sK ? 0.3 : 0.85);
+        ring(0, C.zero, 0.035, 1 - 0.65 * kE);   // com o cone, o resto fica translúcido
+        if (S.sL) for (const c of [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75]) ring(c, lvHex(c), 0.014, 0.85 - 0.55 * kE);
         // «Cone de θ» (pedido do utilizador, 2026-11-16): os vetores da esfera que fazem com u o mesmo ângulo θ que v —
         // cone de vértice O e eixo na reta de u, até à circunferência de nível de v; na cor do nível
-        if (S.sK) {
+        if (kE > 0) {
           const k = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / lu, c = clamp(k / R, -1, 1), col = lvHex(c);
           const Cp = e.map(x => x * k), r = R * Math.sqrt(Math.max(0, 1 - c * c)), N = 96, pos = [], at = a => Cp.map((x, i) => x + r * (Math.cos(a) * e1[i] + Math.sin(a) * e2[i]));
           for (let i = 0; i < N; i++) pos.push(0, 0, 0, ...at(i / N * TAU), ...at((i + 1) / N * TAU));
           const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
-          const cm = new T3.Mesh(g, basic(col, 0.32)); cm.renderOrder = 2.65; add(cm);
-          // algumas geratrizes, para se ver a forma
-          add(lines([0, 1, 2, 3, 4, 5, 6, 7].map(i => [[0, 0, 0], at(i / 8 * TAU)]), col, 0.7));
-          if (r > 1e-6) ring(c, col, 0.03, 1);
+          const cm = new T3.Mesh(g, basic(col, 0.32 * kE)); cm.renderOrder = 2.65; add(cm);
+          if (r > 1e-6) ring(c, col, 0.03, kE);
         }
         // eixo das circunferências: a reta de u, a tracejado, do mínimo ao máximo
         if (S.sL || S.sM) add(lines([[e.map(x => -x * R * 1.15), e.map(x => x * R * 1.15)]], C.muted, 0.8, true));
@@ -2010,7 +2023,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, S.sK, S.sC, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2227,6 +2240,7 @@
       S.sG = true; S.sRun = !S.sRun; if (S.sRun) sphAnim(); draw(); return true;
     }
     if (h.kind === "rotPlay") { S.run = !S.run; if (S.run) rotAnim(); draw(); return true; }
+    if (h.kind === "box" && h.k === "sK") { S.sK = !S.sK; animCone(); draw(); return true; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
     return false;
   }
@@ -2575,7 +2589,7 @@
     if (o.m === "retas") tD = S.dO ? (S.nrm ? 2 : 1.25) : 0;
     if (o.m === "esp") {
       for (const [k] of FIELDS) if (o.f && typeof o.f[k] === "string") { ESP[k] = o.f[k]; INP[k].value = o.f[k]; }
-      tN = S.nO ? 1 : 0;
+      tN = S.nO ? 1 : 0; tK = S.sK ? 1 : 0;
       if (o.cp && o.ct) camPend = { p: o.cp, t: o.ct };
       if (o.c3) C3F = o.c3.slice();
     }
