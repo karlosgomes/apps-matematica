@@ -118,7 +118,8 @@
               tX: false,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
               sph: false,   // Esfera (botão «Esfera»; por dentro é o modo Espaço só com u, v e a esfera de raio ‖v‖; pedido do utilizador, 2026-11-16)
-              sL: true, sM: true, sP: false,   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
+              sL: true, sM: true, sP: false,
+              sG: false, sRun: false,   // Esfera: v a percorrer uma circunferência máxima pela direção de u (▶) e o gráfico de f(t) = u·v(t)   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
@@ -413,6 +414,8 @@
     out.push({ t: "btn", txt: "⋯", on: false, kind: "menu", w: 2 * fs, h: bh, f: bf * 1.2 });
     // modo Espaço: levar os vetores normais à origem (e esbater os planos)
     // modo Vetores com «v a rodar»: ▶/❚❚ do tempo
+    // Esfera: ▶/❚❚ — v percorre a circunferência máxima que passa pela direção de u
+    if ((mode === undefined || mode === "esp") && S.mode === "esp" && S.sph) out.push({ t: "btn", txt: S.sRun ? "❚❚" : "▶", on: S.sRun, kind: "sphPlay", w: 2.2 * fs, h: bh, f: bf * 1.1 });
     if ((mode === "vet" || (mode === undefined && S.mode === "vet")) && S.rot) out.push({ t: "btn", txt: S.run ? "❚❚" : "▶", on: S.run, kind: "rotPlay", w: 2.2 * fs, h: bh, f: bf * 1.1 });
     // modo Retas: levar os vetores diretores à origem (esbatendo as retas) e depois normalizá-los
     // «r, s → O» e «n, m → O» passaram para o menu do botão direito (pedido do utilizador, 2026-11-14)
@@ -457,8 +460,8 @@
     else L.frame = { x: pad, y: pad + tx.h + gap, w: W - 2 * pad, h: Math.max(4 * fs, L.rowY - gap - (pad + tx.h + gap)) };
     // «v a rodar»: o gráfico de f(t) = u·v(t) ocupa a parte de baixo da figura
     L.graph = null;
-    if (S.mode === "vet" && S.rot) {
-      const gh = Math.round(L.frame.h * 0.36);
+    if ((S.mode === "vet" && S.rot) || (S.mode === "esp" && S.sph && S.sG && SP3)) {
+      const gh = Math.round(L.frame.h * (S.mode === "esp" ? 0.3 : 0.36));
       L.graph = { x: L.frame.x, y: L.frame.y + L.frame.h - gh, w: L.frame.w, h: gh };
       L.frame = { ...L.frame, h: L.frame.h - gh - gap };
     }
@@ -554,7 +557,9 @@
     if (S.mode === "esp") {
       // a figura 3D está num canvas por baixo: aqui fica transparente
       ctx.clearRect(L.fig.x, L.fig.y, L.fig.w, L.fig.h);
+      if (S.sph && S.sG && (!SP3 || SP3.key !== sphKey())) { SP3 = sphPath(); if (!SP3) S.sG = false; }   // u ou v mudaram (arrasto, campos): novo caminho, pelo novo v
       figure3(L.fig, fs);
+      if (L.graph && S.sph) sphGraph(L.graph, fs);
       button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
       // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
       const zy = L.theme.y + L.theme.h + 0.25 * fs, zh = 1.2 * fs;
@@ -872,6 +877,79 @@
       const st = S.int ? 1 : 0.1; S.v = S.v.map(x => r1(Math.round(x / st) * st));
     }
   }
+  // ---------- Esfera: v a percorrer a circunferência máxima que passa em v e na direção de u (▶; pedido do utilizador, 2026-11-16) ----------
+  // v(t) = R(cos t·û + sin t·ŵ), com ŵ ⊥ û unitário no plano de u e v; f(t) = u·v(t) = ‖u‖R cos t (a sinusoide do «v a rodar»)
+  let SP3 = null, sphRaf = 0, sphTd = false;
+  const sphKey = () => ESP.uS + "|" + ESP.vS;
+  function sphPath() {
+    const V = espVals(); if (!V.uS || !V.vS) return null;
+    const u = vnum(V.uS), v = vnum(V.vS), lu = Math.hypot(...u), R = Math.hypot(...v);
+    if (lu < 1e-9 || R < 1e-9) return null;
+    const uh = u.map(x => x / lu), d = uh.reduce((a, x, i) => a + x * v[i], 0);
+    let w = v.map((x, i) => x - d * uh[i]), lw = Math.hypot(...w);
+    if (lw < 1e-9) {   // v colinear com u: escolhe-se uma direção perpendicular qualquer
+      const a = Math.abs(uh[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      w = [uh[1] * a[2] - uh[2] * a[1], uh[2] * a[0] - uh[0] * a[2], uh[0] * a[1] - uh[1] * a[0]]; lw = Math.hypot(...w);
+    }
+    const wh = w.map(x => x / lw);
+    let t = Math.atan2(lw > 1e-9 ? w.reduce((a, x, i) => a + x * wh[i], 0) : 0, d); if (t < 0) t += TAU;
+    return { u, uh, wh, R, lu, A: lu * R, t, key: sphKey() };
+  }
+  function sphSetV() {
+    const p = SP3, c = Math.cos(p.t), sn = Math.sin(p.t);
+    const v = p.uh.map((x, i) => p.R * (c * x + sn * p.wh[i]));
+    ESP.vS = `(${v.map(x => (+(Math.round(x * 100) / 100).toFixed(2)).toString()).join(", ")})`;
+    INP.vS.value = ESP.vS; p.key = sphKey();
+  }
+  function sphAnim() {
+    if (sphRaf) return;
+    let last = performance.now();
+    const step = now => {
+      sphRaf = 0;
+      if (!S.sRun || !S.sph || S.mode !== "esp" || !SP3) { S.sRun = false; return; }
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      SP3.t = (SP3.t + 0.5 * dt) % TAU; sphSetV(); draw();
+      sphRaf = requestAnimationFrame(step);
+    };
+    sphRaf = requestAnimationFrame(step);
+  }
+  // gráfico de f(t) = ‖u‖R cos t em [0, 2π] por baixo da figura (o mesmo desenho do «v a rodar»)
+  function sphGraph(g, fs) {
+    const p = SP3; if (!p) return;
+    const A = p.A, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
+    const top = A <= 9.5 ? 10 : Math.ceil(A * 1.07 / 10) * 10, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    ctx.fillStyle = C.bg; ctx.fillRect(g.x, g.y, g.w, g.h);
+    rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
+    line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(x0, y0, x0, y1, C.axis, 1.4);
+    ["0", "\\frac{\\pi}{2}", "\\pi", "\\frac{3\\pi}{2}", "2\\pi"].forEach((lb, i) => {
+      const x = TX(i * PI / 2); if (i) line(x, TY(0) - 0.15 * fs, x, TY(0) + 0.15 * fs, C.axis, 1.2);
+      texAt("sg" + i, lb, x, TY(0) + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0);
+    });
+    texAt("sgt", "t", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
+    texAt("sgf", "f(t)", x0 - 0.3 * fs, g.y + 0.1 * fs, fs * 0.7, C.axis, 1, 0);
+    const stY = top <= 10 ? 2 : top <= 30 ? 10 : 30;
+    for (let v = -top; v <= top + 1e-9; v += stY) if (v) {
+      line(x0 - 0.12 * fs, TY(v), x0 + 0.12 * fs, TY(v), C.axis, 1.2);
+      line(x0, TY(v), x1, TY(v), C.grid, 1);
+      if (v < top && Math.abs(TY(Math.abs(v)) - TY(A)) > 0.7 * fs) texAt("sgy" + v, `${v}`, x0 - 0.25 * fs, TY(v), fs * 0.5, C.muted, 1, 0.5);
+    }
+    for (const [v, id] of [[A, "mx"], [-A, "mn"]]) {
+      line(x0, TY(v), x1, TY(v), C.grid2, 1, [4, 4]);
+      texAt("sg" + id, (v < 0 ? "-" : "") + apx(A), x0 - 0.25 * fs, TY(v), fs * 0.55, C.muted, 1, 0.5);
+    }
+    const N = 240, f = t => A * Math.cos(t);
+    for (let i = 0; i < N; i++) {
+      const ta = i / N * TAU, tb = (i + 1) / N * TAU, fa = f(ta), fb = f(tb);
+      line(TX(ta), TY(fa), TX(tb), TY(fb), (fa + fb) / 2 >= 0 ? C.pos : C.neg, 2.4);
+    }
+    [[0, A, "máx", C.pos], [TAU, A, "", C.pos], [PI, -A, "mín", C.neg], [PI / 2, 0, "", C.zero], [3 * PI / 2, 0, "", C.zero]].forEach(([t, v, lb, col], i) => {
+      dot(TX(t), TY(v), 0.2 * fs, col, 1.5);
+      if (lb) texAt("sgm" + i, `\\text{${lb}}`, TX(t) + (t ? 0 : 0.2 * fs), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, t ? 0.5 : 0, v > 0 ? 1 : 0);
+    });
+    line(TX(p.t), y0, TX(p.t), y1, C.muted, 1.2, [5, 4]);
+    dot(TX(p.t), TY(f(p.t)), 0.3 * fs, C.v, 2);
+    hits.push({ kind: "sphT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => clamp((px - x0) / (x1 - x0), 0, 1) * TAU });
+  }
   function rotGraph(g, fs) {
     const o = rotInfo(), pad = 1.2 * fs, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
     // escala vertical FIXA (±30, ou ±60, ±90… se a amplitude não couber), para se ver a amplitude mudar com R e com u
@@ -1139,7 +1217,7 @@
     el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off"; el.value = d;
     el.setAttribute("aria-label", "Coordenadas de " + k);
     el.style.display = "none";
-    el.addEventListener("input", () => { ESP[k] = el.value; draw(); });
+    el.addEventListener("input", () => { ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
     document.body.appendChild(el);
     INP[k] = el;
@@ -1203,6 +1281,12 @@
         { cont: true, t: `\\text{centro } C${p3T(Cc)}\\text{, raio } r = ${rT}` },
       ]);
     }
+    // ▶: v(t) numa circunferência máxima pela direção de u e a sinusoide f(t) = ‖u‖‖v‖cos t
+    if (S.sG && SP3) G.push([
+      `${VV()}(t)\\text{ percorre a circunferência máxima}`, { cont: true, t: `\\text{que passa em } ${VV()} \\text{ e na direção de } ${UU()}\\text{:}` },
+      `f(t) = ${UU()}\\cdot${VV()}(t) = ${nUV}\\cos t ${MT.startsWith("\\approx") ? MT.replace("\\approx", "\\approx") + "\\cos t" : "= " + MT + "\\cos t"}`,
+      { cont: true, sep: 1, t: `t \\approx ${apx(SP3.t, 2)}\\ \\text{rad}` },
+    ]);
     if (S.sL) G.push([`\\text{Em cada circunferência de nível, } \\theta \\text{ e } ${UU()}\\cdot${VV()} \\text{ são constantes}`]);
     return G;
   }
@@ -1861,6 +1945,12 @@
         }
       }
     }
+    // ▶: a circunferência máxima que v percorre (passa pela direção de u e por v), a roxo e fina
+    if (S.sG && SP3 && R > 1e-9) {
+      const n = vec3(...SP3.uh).cross(vec3(...SP3.wh)).normalize();
+      const m = new T3.Mesh(new T3.TorusGeometry(R, 0.022, 8, 160), solid(C.v, 0.85));
+      m.quaternion.setFromUnitVectors(vec3(0, 0, 1), n); m.renderOrder = 2.75; add(m);
+    }
     add(arrow3([0, 0, 0], u, C.u, 0.06)); lab("\\vec u", u, C.u, 1, 1); tip("uS", u, C.u, 0.11);
     add(arrow3([0, 0, 0], v, C.v, 0.06)); lab("\\vec v", v, C.v, 1, -1); tip("vS", v, C.v, 0.11);
     // ângulo θ de u e v, na cor do sinal (como na caixa «Vetores u e v» do Espaço)
@@ -1904,7 +1994,7 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, S.sG && SP3 ? SP3.uh.concat(SP3.wh).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2099,7 +2189,7 @@
       draw(); return true;
     }
     if (h.kind === "mode") {
-      const was = S.sph; S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = "";
+      const was = S.sph; S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = ""; S.sRun = false;
       if (S.mode === "esp" && was !== S.sph) home3();   // Esfera começa com zoom; o Espaço volta à sua vista inicial
       draw(); return true;
     }
@@ -2109,12 +2199,17 @@
       return true;
     }
     if (h.kind === "reset") {
-      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } home3(); }
+      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } home3(); S.sRun = false; S.sG = false; SP3 = null; }
       else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
     }
     if (h.kind === "box" && h.k === "rot") { S.rot = !S.rot; rotOn(S.rot); draw(); return true; }
+    if (h.kind === "sphPlay") {
+      if (!SP3 || SP3.key !== sphKey()) SP3 = sphPath();
+      if (!SP3) { toast("Escreve u e v (não nulos)"); return true; }
+      S.sG = true; S.sRun = !S.sRun; if (S.sRun) sphAnim(); draw(); return true;
+    }
     if (h.kind === "rotPlay") { S.run = !S.run; if (S.run) rotAnim(); draw(); return true; }
     if (h.kind === "box") { S[h.k] = !S[h.k]; if (h.k === "int" && S.int) roundAll(); draw(); return true; }
     return false;
@@ -2134,6 +2229,12 @@
     // modo Espaço: os botões e as caixas tratam-se aqui; o resto da figura é das OrbitControls (rodar, zoom, deslocar)
     if (S.mode === "esp") {
       if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
+      // gráfico da Esfera: tocar/arrastar escolhe o instante t
+      if (h && h.kind === "sphT") {
+        e.stopImmediatePropagation(); e.preventDefault();
+        if (SP3) { S.sRun = false; sphTd = h; SP3.t = h.val(e.clientX); sphSetV(); draw(); }
+        return;
+      }
       if (h) { e.stopImmediatePropagation(); e.preventDefault(); act(h); return; }
       if (!inFig(e.clientX, e.clientY)) { e.stopImmediatePropagation(); return; }
       // uma pega: arrasta-se o ponto (as OrbitControls não chegam a saber)
@@ -2144,6 +2245,7 @@
         try { cv.setPointerCapture(e.pointerId); } catch (_) {}
         drag3 = { key: g.key, base: g.base, p0: g.p.slice(), x: e.clientX, y: e.clientY, moved: false, shift: e.shiftKey, id: e.pointerId };
         if (S.sph && g.key === "vS") drag3.R = Math.hypot(...g.p);   // Esfera: v desliza sobre a esfera
+        if (S.sph) S.sRun = false;   // arrastar u ou v para o ▶
         cv.style.cursor = "grabbing";
         draw();
       }
@@ -2189,6 +2291,7 @@
   });
   cv.addEventListener("pointermove", e => {
     if (S.mode === "esp") {
+      if (sphTd) { if (e.buttons && SP3) { SP3.t = sphTd.val(e.clientX); sphSetV(); draw(); } else sphTd = false; return; }
       if (drag3) {
         if (e.pointerId !== drag3.id) return;
         if (!drag3.moved && Math.hypot(e.clientX - drag3.x, e.clientY - drag3.y) < 5) return;
@@ -2337,6 +2440,7 @@
   // no Espaço o botão direito arrastado é das OrbitControls (deslocar): o menu só abre num clique sem arrastar
   let rDown = null;
   cv.addEventListener("pointerdown", e => { if (S.mode === "esp" && e.button === 2) rDown = { x: e.clientX, y: e.clientY }; }, true);
+  window.addEventListener("pointerup", () => { sphTd = false; });
   window.addEventListener("pointerup", e => {
     if (e.button !== 2 || !rDown) return;
     const d = Math.hypot(e.clientX - rDown.x, e.clientY - rDown.y); rDown = null;
@@ -2397,6 +2501,7 @@
     const k = e.key.toLowerCase(), vet = S.mode === "vet";
     if (k === "e") { S.mode = "esp"; S.sph = false; e.preventDefault(); draw(); return; }
     if (k === "t") { S.txt = !S.txt; e.preventDefault(); draw(); return; }
+    if (k === " " && S.mode === "esp" && S.sph) { act({ kind: "sphPlay" }); e.preventDefault(); return; }
     if (S.mode === "esp") return;
     const tog = n => { S[n] = !S[n]; if (n === "int" && S.int) roundAll(); };
     if (k === "v") S.mode = "vet";
@@ -2422,7 +2527,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
