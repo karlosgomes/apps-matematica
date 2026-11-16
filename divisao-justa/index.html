@@ -25,6 +25,8 @@
   .inp.bad { border-color: var(--bad); background: var(--badbg); }
   .inp.num { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; padding: 0 0.35em; }
   .inp.nome { font-weight: 700; padding: 0 0.35em; }
+  /* marcas que o botão «Marcas justas» acabou de mudar */
+  .inp.mudou { border-color: #ef6c00; background: #ffe0bf; transition: background 1.2s, border-color 1.2s; }
 
 </style>
 <!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
@@ -457,7 +459,7 @@
     const aw = S.m === "aw", mk = S.m === "mk";
     const N = aw ? (AJ.r ? 4 : 2) : S.j.length, M = aw ? AJ.b.length : S.b.length;
     const rowsIn = mk ? 2 + AM.j.length + 1 : aw ? 1 + M + 1 + 1 + (AJ.r ? 0.6 : 0) : 1 + M + (S.quotas ? 1 : 0) + 1;      // cabeçalho, itens, quotas/soma, botões
-    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : mk ? 1.2 : 2.4) * fs;
+    const inNeedH = 1.7 * fs + rowsIn * 1.75 * fs + (aw ? 0.9 : mk ? 3.1 : 2.4) * fs;
     const inW = mk ? Math.min(main.w * (land ? 0.42 : 1), Math.max(26, 7.5 + (AM.j.length - 1) * 3.2 + (AM.val ? AM.t.length * 3.6 + 0.6 : 0)) * fs + 1.4 * fs)
       : Math.min(main.w * (land ? 0.42 : 1), (aw && !AJ.r ? 12 : 9) * fs + N * 6.2 * fs);
     if (land) {
@@ -686,6 +688,8 @@
     const list = [["addJ", "+ jogador", AM.j.length < MAXJ], ["delJ", "− jogador", AM.j.length > 2], ["fair", "Marcas justas", true]];
     if (AM.val && R && !R.err && R.left.length) list.push(["shuffle", "🎲 Sortear ordem", true]);
     btns(list, y, c.x);
+    // aviso do botão «Marcas justas» (o que mudou, ou que já estavam), alguns segundos
+    if (AM.msg) wrap(AM.msg, c.x, y + bh + 0.75 * fs, c.w, fs * 0.72, C.d, 700);
   }
 
   // à direita: a tabela de cálculos sempre presente, com as linhas do passo atual destacadas, e a explicação do passo
@@ -1125,7 +1129,20 @@
       if (h.kind === "mktie") { AM.tie[h.k] = h.p; changed(); return; }
       if (h.kind === "cyc") { AM.l[h.i - 1] = (AM.l[h.i - 1] + 1) % AM.t.length; AM.ex = null; changed(true); return; }
       if (h.kind === "mval") return edit(() => { AM.val = AM.val ? null : AM.j.map(() => AM.t.map(() => 1)); });
-      if (h.kind === "fair") return edit(() => { AM.m = evenM(); });
+      if (h.kind === "fair") {
+        // põe as marcas justas de todos, mostra o passo das marcas e diz o que mudou
+        const novo = evenM(), mud = [];
+        novo.forEach((row, p) => row.forEach((x, k) => { if (AM.m[p] && AM.m[p][k] !== x) mud.push([p, k]); }));
+        AM.msg = mud.length
+          ? `Marcas justas: ${mud.length} marca${mud.length > 1 ? "s mudaram" : " mudou"} (a laranja). ` + (AM.val ? "Cada uma fica onde o valor acumulado está mais perto de k/N do total." : "Sem «Valores», cada item vale 1: partes com o mesmo número de itens.")
+          : "As marcas já eram as justas: " + (AM.val ? "cada uma está onde o valor acumulado fica mais perto de k/N do total." : "partes com o mesmo número de itens.");
+        AM.m = novo; if (mud.length) AM.ex = null; S.step = 2; S.all = false;
+        changed(true);
+        mud.forEach(([p, k]) => IN.m[p] && IN.m[p][k] && IN.m[p][k].classList.add("mudou"));
+        clearTimeout(AM.tmsg);
+        AM.tmsg = setTimeout(() => { AM.msg = ""; IN.m.flat().forEach(el => el.classList.remove("mudou")); draw(); }, 5000);
+        return;
+      }
       if (h.kind === "shuffle") {
         const o = AM.j.map((_, p) => p);
         for (let k = o.length - 1; k > 0; k--) { const r = Math.floor(Math.random() * (k + 1)); [o[k], o[r]] = [o[r], o[k]]; }
