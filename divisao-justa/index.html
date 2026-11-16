@@ -605,7 +605,10 @@
     const f = fs * 0.75, bh = 1.3 * fs;
     let x = c.x;
     const itens = S.tar ? "tarefa" : "item";
-    [["addJ", "+ jogador", N < MAXJ], ["delJ", "− jogador", N > 2], ["addB", "+ " + itens, M < MAXB], ["delB", "− " + itens, M > 1]].forEach(([k, lab, ok]) => {
+    const listaB = [["addJ", "+ jogador", N < MAXJ], ["delJ", "− jogador", N > 2], ["addB", "+ " + itens, M < MAXB], ["delB", "− " + itens, M > 1]];
+    // no passo «quem fica com cada item», se houver empates, o sorteio
+    if (R && !R.err && !S.all && S.step === 3 && R.tied.some(Boolean)) listaB.unshift(["licdraw", "🎲 Sortear empate", true]);
+    listaB.forEach(([k, lab, ok]) => {
       const bw = tw(lab, f, FONT, 700) + 1 * fs;
       button(x, y + 0.1 * fs, bw, bh, lab, false, k, {}, C.muted, f, ok);
       x += bw + 0.4 * fs;
@@ -687,6 +690,9 @@
     });
     const list = [["addJ", "+ jogador", AM.j.length < MAXJ], ["delJ", "− jogador", AM.j.length > 2], ["fair", "Marcas justas", true]];
     if (AM.val && R && !R.err && R.left.length) list.push(["shuffle", "🎲 Sortear ordem", true]);
+    // no passo de uma volta com empate, o sorteio
+    const ronda = R && !R.err && !S.all && S.step >= 3 && S.step <= N + 1 ? R.rounds[S.step - 3] : null;
+    if (ronda && ronda.ws) list.unshift(["mkdraw", "🎲 Sortear empate", true]);
     btns(list, y, c.x);
     // aviso do botão «Marcas justas» (o que mudou, ou que já estavam), alguns segundos
     if (AM.msg) wrap(AM.msg, c.x, y + bh + 0.75 * fs, c.w, fs * 0.72, C.d, 700);
@@ -795,9 +801,18 @@
       case 2: return [eqQ ? `Parte justa = total das licitações : ${N} (o número de jogadores).` : "Porção justa = quota × total das licitações de cada um.",
         n.map((x, p) => eqQ ? `${x}: ${fmt(R.tot[p])} : ${N} = ${fmt(R.pj[p])}` : `${x}: ${fmt(R.q[p] * 100)} % × ${fmt(R.tot[p])} = ${fmt(R.pj[p])}`).join(" · ")];
       case 3: {
-        const a = [S.tar ? "Cada tarefa vai para quem pede menos." : "Cada item vai para quem fez a licitação mais alta.",
-          S.b.map((b, i) => `${b} → ${n[R.owner[i]]} (${fmt(S.v[i][R.owner[i]])})`).join(" · ")];
-        S.b.forEach((b, i) => { if (R.tied[i]) a.push(`Empate em ${b} (${R.tied[i].map(p => n[p]).join(" e ")}): decide-se por sorteio. Toque numa das licitações empatadas para escolher quem ganha.`); });
+        const a = [S.tar ? "Cada tarefa vai para quem pede menos." : "Cada item vai para quem fez a licitação mais alta."];
+        // empates: primeiro o sorteio, só depois quem fica com o item
+        const nomes = ps => ps.map(p => n[p]).join(", ").replace(/, ([^,]*)$/, " e $1");
+        let falta = false;
+        S.b.forEach((b, i) => {
+          if (!R.tied[i]) return;
+          const v = fmt(S.v[i][R.owner[i]]);
+          if (S.tie[i] != null) a.push(`Empate em ${b} (${nomes(R.tied[i])}, ${v}): decide-se por sorteio. No sorteio saiu ${n[R.owner[i]]}.`);
+          else { falta = true; a.push(`Empate em ${b} (${nomes(R.tied[i])}, ${v}): decide-se por sorteio.`); }
+        });
+        if (falta) a.push("Carregue em «🎲 Sortear empate» (ou toque numa das licitações empatadas para escolher). Até lá, a tabela mostra o primeiro da lista.");
+        a.push(S.b.map((b, i) => `${b} → ${n[R.owner[i]]} (${fmt(S.v[i][R.owner[i]])})`).join(" · "));
         return a;
       }
       case 4: return [S.tar
@@ -1008,10 +1023,15 @@
       "Com «Marcas justas», a app põe cada marca onde o valor acumulado fica mais perto da fração certa do total."];
     if (step <= N + 1) {
       const r = R.rounds[step - 3], k = r.k + 1;
-      const a = [`Percorre-se a linha da esquerda para a direita até à ${k}.ª marca de ${names(r.cand)}: a primeira é a de ${n[r.v]} (depois de ${itemName(r.mark)}).`,
-        `${n[r.v]} recebe ${k === 1 ? "tudo o que está à esquerda dessa marca" : `o que está entre a sua ${k - 1}.ª e a sua ${k}.ª marca`}: ${segTxt(R.seg[r.v])}. Sai, e as suas marcas deixam de contar.`];
-      if (r.ws) a.push(`Empate entre ${names(r.ws)}: decide-se por sorteio. Toque numa das marcas empatadas para escolher.`);
-      return a;
+      const recebe = `${k === 1 ? "tudo o que está à esquerda dessa marca" : `o que está entre a sua ${k - 1}.ª e a sua ${k}.ª marca`}: ${segTxt(R.seg[r.v])}. Sai, e as suas marcas deixam de contar.`;
+      if (!r.ws) return [`Percorre-se a linha da esquerda para a direita até à ${k}.ª marca de ${names(r.cand)}: a primeira é a de ${n[r.v]} (depois de ${itemName(r.mark)}).`,
+        `${n[r.v]} recebe ${recebe}`];
+      // empate: primeiro o sorteio, só depois quem recebe
+      const feito = AM.tie[r.k] != null;
+      const quantas = ["", "", "duas", "três", "quatro", "cinco"][r.ws.length];
+      return [`Percorre-se a linha da esquerda para a direita: a primeira das ${k}.ªs marcas de ${names(r.cand)} fica depois de ${itemName(r.mark)}, e há ${quantas} marcas nesse sítio (${names(r.ws)}). Há empate: decide-se por sorteio.`,
+        feito ? `No sorteio saiu ${n[r.v]}, que recebe ${recebe}`
+              : `Carregue em «🎲 Sortear empate» (ou toque numa das marcas empatadas para escolher). Até lá, a tabela mostra ${n[r.v]}, o primeiro da lista.`];
     }
     if (step === N + 2) {
       const a = [`${n[R.last]} é o último: recebe tudo o que está à direita da sua última marca, ${segTxt(R.seg[R.last])}.`];
@@ -1127,6 +1147,11 @@
       const evenM = () => AM.j.map((_, p) => fairMarks(p));
       const N = AM.j.length;
       if (h.kind === "mktie") { AM.tie[h.k] = h.p; changed(); return; }
+      if (h.kind === "mkdraw") {
+        const r = R && !R.err ? R.rounds[S.step - 3] : null;
+        if (r && r.ws) { AM.tie[r.k] = r.ws[Math.floor(Math.random() * r.ws.length)]; changed(); }
+        return;
+      }
       if (h.kind === "cyc") { AM.l[h.i - 1] = (AM.l[h.i - 1] + 1) % AM.t.length; AM.ex = null; changed(true); return; }
       if (h.kind === "mval") return edit(() => { AM.val = AM.val ? null : AM.j.map(() => AM.t.map(() => 1)); });
       if (h.kind === "fair") {
@@ -1175,6 +1200,10 @@
     }
     if (h.kind === "example") { loadExample(h.i); return; }
     if (h.kind === "tie") { S.tie[h.i] = h.p; changed(); return; }
+    if (h.kind === "licdraw") {    // sorteia todos os empates (um sorteio por item)
+      if (R && !R.err) R.tied.forEach((ws, i) => { if (ws) S.tie[i] = ws[Math.floor(Math.random() * ws.length)]; });
+      changed(); return;
+    }
     if (h.kind === "addJ") return edit(() => { S.j.push("J" + (S.j.length + 1)); S.v.forEach(r => r.push(0)); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
     if (h.kind === "delJ") return edit(() => { S.j.pop(); S.v.forEach(r => r.pop()); S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100); });
     if (h.kind === "addB") return edit(() => { S.b.push((S.tar ? "Tarefa " : "Item ") + (S.b.length + 1)); S.v.push(S.j.map(() => 0)); });
