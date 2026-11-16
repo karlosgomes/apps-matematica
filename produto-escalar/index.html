@@ -113,7 +113,7 @@
               eA: true, eR: false, eB: false, eUV: false, eC: false, nO: false, vert: {},
               nrm: false,   // Retas: vetores diretores normalizados (botão direito; só com «r, s → O»)
               eI: false,   // Espaço: reta de interseção de α e β (botão direito)
-              xs: 0,   // Espaço: plano xOy — 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (botão «xOy» à direita, cada toque passa ao seguinte)
+              // (xs: definido abaixo, um valor no Espaço e outro na Esfera)   // Espaço: plano xOy — 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (botão «xOy» à direita, cada toque passa ao seguinte)
               noAx: false,   // Espaço: esconder o referencial Oxyz (botão «Oxyz» à direita)
               tX: false,   // Espaço: interseção de α e β com xOy, linha cinzenta ténue (botão direito; experiência 2026-11-15)
               gP: false,   // Espaço: grelha fina nos planos α e β, de 1 em 1, estática (botão direito; desligada ao início)
@@ -134,6 +134,9 @@
   // «Coordenadas inteiras» (botão direito, antes caixa): um valor por modo (pedido do utilizador, 2026-11-14)
   const INT = { vet: true, retas: true, esp: true };
   Object.defineProperty(S, "int", { get: () => INT[S.mode], set: v => { INT[S.mode] = v; }, enumerable: true });
+  // plano xOy (botão «xOy»): um valor no Espaço (grelha ao início) e outro na Esfera (escondido ao início; pedido do utilizador, 2026-11-16)
+  const XS = { esp: 0, sph: 3 };
+  Object.defineProperty(S, "xs", { get: () => XS[S.sph ? "sph" : "esp"], set: v => { XS[S.sph ? "sph" : "esp"] = v; }, enumerable: true });
   Object.defineProperty(S, "txt", { get: () => TXT[S.mode], set: v => { TXT[S.mode] = v; }, enumerable: true });
 
   // ---------- números em LaTeX ----------
@@ -2642,6 +2645,7 @@
     S.mode = o.m;
     for (const k of ["z", "vx", "vy"]) if (typeof o[k] === "number") S[k] = o[k];
     for (const k of ["txt", "int", "noNum"]) if (typeof o[k] === "boolean") S[k] = o[k];
+    if (o.m === "esp" && "sph" in o) S.sph = !!o.sph;   // antes das outras chaves (o xs é do Espaço ou da Esfera)
     for (const k of KEYS[o.m]) if (k in o) S[k] = o[k];
     if (o.m === "retas") tD = S.dO ? (S.nrm ? 2 : 1.25) : 0;
     if (o.m === "esp") {
