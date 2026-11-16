@@ -2039,7 +2039,12 @@
     cv.style.cursor = !h ? (inFig(e.clientX, e.clientY) ? "grab" : "default") : h.kind === "pt" || h.kind === "vbody" ? "grab" : "pointer";
   });
   // duplo clique no corpo de um vetor deslocado: volta à origem
+  // em Retas, depois de «r, s → O»: duplo clique na figura recoloca os vetores diretores nas retas (pedido do utilizador, 2026-11-16)
   cv.addEventListener("dblclick", e => {
+    if (S.mode === "retas") {
+      if (S.dO && inFig(e.clientX, e.clientY)) act({ kind: "dirO" });
+      return;
+    }
     if (S.mode !== "vet") return;
     const h = hitAt(e.clientX, e.clientY);
     if (h && h.kind === "vbody") { S[h.key + "o"] = [0, 0]; draw(); }
