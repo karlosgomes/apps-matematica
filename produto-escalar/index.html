@@ -2340,6 +2340,11 @@
       if (S.dO && inFig(e.clientX, e.clientY)) act({ kind: "dirO" });
       return;
     }
+    // Espaço, com «n, m → O»: duplo clique na cena devolve os vetores aos pontos dos planos (pedido do utilizador, 2026-11-16)
+    if (S.mode === "esp") {
+      if (!S.sph && S.nO && inFig(e.clientX, e.clientY)) act({ kind: "normO" });
+      return;
+    }
     if (S.mode !== "vet") return;
     const h = hitAt(e.clientX, e.clientY);
     if (h && h.kind === "vbody") { S[h.key + "o"] = [0, 0]; draw(); }
