@@ -308,7 +308,9 @@
       while (rest.length) for (const p of ord) {
         if (!rest.length) break;
         let bi = 0; rest.forEach((i, k) => { if (val(p, i) > val(p, rest[bi]) + 1e-9) bi = k; });
-        picks.push({ p, i: rest[bi] }); rest.splice(bi, 1);
+        // outras sobras que valem o mesmo para p (fica com a mais à esquerda; para p é indiferente)
+        const iguais = rest.filter((i, k) => k !== bi && Math.abs(val(p, i) - val(p, rest[bi])) < 1e-9);
+        picks.push({ p, i: rest[bi], iguais }); rest.splice(bi, 1);
       }
       res.ord = ord; res.picks = picks;
       // inveja: quanto vale, para a, a parte de b (só a parte entre marcas, e depois com as sobras)
@@ -689,7 +691,8 @@
       y += rh;
     });
     const list = [["addJ", "+ jogador", AM.j.length < MAXJ], ["delJ", "− jogador", AM.j.length > 2], ["fair", "Marcas justas", true]];
-    if (AM.val && R && !R.err && R.left.length) list.push(["shuffle", "🎲 Sortear ordem", true]);
+    // só no passo «Escolha das sobras» (como o «Sortear empate», que só aparece no passo do empate)
+    if (AM.val && R && !R.err && R.left.length && !S.all && S.step === N + 4) list.push(["shuffle", "🎲 Sortear ordem", true]);
     // no passo de uma volta com empate, o sorteio
     const ronda = R && !R.err && !S.all && S.step >= 3 && S.step <= N + 1 ? R.rounds[S.step - 3] : null;
     if (ronda && ronda.ws) list.unshift(["mkdraw", "🎲 Sortear empate", true]);
@@ -1052,8 +1055,14 @@
         antes.length ? "Só com as partes entre marcas: " + antes.join("; ") + "." : "Só com as partes entre marcas, também ninguém tinha inveja.",
         "Cada um garante a sua parte justa, mas nada impede que a parte de outro lhe pareça maior: o método dos marcadores não é livre de inveja."];
     }
-    return [`Ordem sorteada: ${R.ord.map(p => n[p]).join(", ")}. Na sua vez, cada um escolhe o item que vale mais para si.`,
-      R.picks.map(q => `${n[q.p]} escolhe ${itemName(q.i)} ${AM.t[AM.l[q.i - 1]]}`).join(" · "),
+    // de onde vem a ordem: sorteada com o botão, a do exemplo, ou a da lista (ainda não sorteada)
+    const ordem = R.ord.map(p => n[p]).join(", ");
+    const quem = AM.ordSrc === "sorteio" ? `Ordem sorteada: ${ordem}.`
+      : AM.ordSrc === "ex" ? `Ordem do exemplo: ${ordem}. Carregue em «🎲 Sortear ordem» para sortear outra.`
+      : `Ordem: a da lista, ${ordem} (ainda não sorteada). Carregue em «🎲 Sortear ordem» para a sortear.`;
+    return [quem + " Na sua vez, cada um escolhe o item que vale mais para si.",
+      R.picks.map(q => `${n[q.p]} escolhe ${itemName(q.i)} ${AM.t[AM.l[q.i - 1]]}` + (q.iguais.length
+        ? ` (${[q.i, ...q.iguais].sort((a, b) => a - b).map(itemName).join(" e ").replace(/ e (?=.* e )/g, ", ")} valem-lhe o mesmo: fica com o mais à esquerda)` : "")).join(" · "),
       n.map((x, p) => `${x}: ${fmt(R.vale[p])} + sobras = ${fmt(R.fin[p])}`).join(" · ")];
   }
 
@@ -1120,7 +1129,7 @@
   function setMK(i) {
     const e = MK_EX[i];
     AM.ex = i; AM.j = [...e.j]; AM.t = [...e.t]; AM.l = [...e.l].map(Number); AM.m = e.m.map(r => [...r]);
-    AM.val = e.val ? e.val.map(r => [...r]) : null; AM.ord = e.ord ? [...e.ord] : null; AM.pre = e.pre || ""; AM.tie = {};
+    AM.val = e.val ? e.val.map(r => [...r]) : null; AM.ord = e.ord ? [...e.ord] : null; AM.ordSrc = e.ord ? "ex" : null; AM.pre = e.pre || ""; AM.tie = {};
   }
   function loadExample(i) {
     if (S.m === "mk") setMK(i); else if (S.m === "aw") setAW(i); else setLic(i);
@@ -1171,14 +1180,14 @@
       if (h.kind === "shuffle") {
         const o = AM.j.map((_, p) => p);
         for (let k = o.length - 1; k > 0; k--) { const r = Math.floor(Math.random() * (k + 1)); [o[k], o[r]] = [o[r], o[k]]; }
-        AM.ord = o; AM.ex = null; S.step = NSTEPS(); S.all = false; changed(); return;
+        AM.ord = o; AM.ordSrc = "sorteio"; AM.ex = null; S.step = AM.j.length + 4; S.all = false; changed(); return;   // passo «Escolha das sobras»
       }
       if (h.kind === "addT") return edit(() => { AM.t.push(["🔺", "🔷", "⭐", "🟢"][AM.t.length % 4]); if (AM.val) AM.val.forEach(r => r.push(1)); });
       if (h.kind === "delT") return edit(() => { AM.t.pop(); AM.l = AM.l.map(t => Math.min(t, AM.t.length - 1)); if (AM.val) AM.val.forEach(r => r.pop()); });
       if (h.kind === "addI") return edit(() => { AM.l.push(AM.l.length ? AM.l[AM.l.length - 1] : 0); });
       if (h.kind === "delI") return edit(() => { AM.l.pop(); AM.m = AM.m.map(r => r.map(x => Math.min(x, AM.l.length - 1))); });
-      if (h.kind === "addJ") return edit(() => { AM.j.push("J" + (N + 1)); if (AM.val) AM.val.push(AM.t.map(() => 1)); AM.m.push([]); AM.ord = null; AM.tie = {}; AM.m = evenM(); });
-      if (h.kind === "delJ") return edit(() => { AM.j.pop(); if (AM.val) AM.val.pop(); AM.m.pop(); AM.ord = null; AM.tie = {}; AM.m = evenM(); });
+      if (h.kind === "addJ") return edit(() => { AM.j.push("J" + (N + 1)); if (AM.val) AM.val.push(AM.t.map(() => 1)); AM.m.push([]); AM.ord = null; AM.ordSrc = null; AM.tie = {}; AM.m = evenM(); });
+      if (h.kind === "delJ") return edit(() => { AM.j.pop(); if (AM.val) AM.val.pop(); AM.m.pop(); AM.ord = null; AM.ordSrc = null; AM.tie = {}; AM.m = evenM(); });
     }
     if (h.kind === "inv2") {
       if (S.m === "aw") AJ.inv = !AJ.inv; else AM.inv = !AM.inv;
@@ -1270,6 +1279,7 @@
         (hp.get("emp") || "").split(",").filter(Boolean).forEach(s => { const [k, q] = s.split(":").map(Number); AM.tie[k] = q; });
         AM.ex = MK_EX.findIndex(e => JSON.stringify([e.j, e.t, [...e.l].map(Number), e.m, e.val || null]) === JSON.stringify([j, t, l, m, val]));
         if (AM.ex < 0) AM.ex = null;
+        AM.ordSrc = !AM.ord ? null : AM.ex != null && JSON.stringify(MK_EX[AM.ex].ord || null) === JSON.stringify(AM.ord) ? "ex" : "sorteio";
       } else setMK(0);
       if (+hp.get("passo") >= 1) S.step = +hp.get("passo");
       buildInputs();
