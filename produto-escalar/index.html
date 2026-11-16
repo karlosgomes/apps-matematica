@@ -1359,6 +1359,14 @@
       .then(([t, oc]) => { T3 = t; OC = oc.OrbitControls; draw(); })
       .catch(e => { err3 = String(e && e.message || e); draw(); });
   }
+  // Esfera: começa com um pequeno zoom (a câmara 30 % mais perto do alvo; pedido do utilizador, 2026-11-16)
+  function sphZoom() {
+    if (!cam || !ctl) return;
+    const d = cam.position.clone().sub(ctl.target).multiplyScalar(0.7);
+    cam.position.copy(ctl.target).add(d); ctl.update();
+  }
+  // vista inicial do modo (⌂, ↺ e ao passar entre Espaço e Esfera)
+  function home3() { if (ctl) { ctl.reset(); if (S.sph) sphZoom(); } C3F = [0, 0, 0]; }
   function init3() {
     glc = document.createElement("canvas");
     glc.style.cssText = "position:fixed;display:block;left:0;top:0";
@@ -1376,6 +1384,7 @@
     ctl.saveState();
     // vista vinda de um link «Copiar link da cena» (o ⌂ continua a voltar à vista inicial)
     if (camPend) { cam.position.set(...camPend.p); ctl.target.set(...camPend.t); ctl.update(); camPend = null; }
+    else if (S.sph) sphZoom();
     // Ctrl/⌘ + botão esquerdo: pan pela grelha (as OrbitControls já deslocam com Ctrl; aqui só se segue o alvo)
     cv.addEventListener("pointerdown", e => {
       if (S.mode === "esp" && e.button === 0 && (e.ctrlKey || e.metaKey)) panC = { t0: [ctl.target.x, ctl.target.y, ctl.target.z], c0: C3F.slice() };
@@ -1768,6 +1777,12 @@
     const tip = (key, p, col, r) => {
       const m = add(ball(p, col, r * 0.85)); HAND.push({ key, p, base: [0, 0, 0], mesh: m, r });
       if (key === "uS" && S.vert[key]) lab("\\updownarrow", p, col, 1.3, 0, 0.8);
+      // durante o arrasto: linha tracejada até xOy e a «sombra» do ponto nesse plano (como no Espaço)
+      if (drag3 && drag3.key === key && Math.abs(p[2]) > 1e-9) {
+        add(lines([[p, [p[0], p[1], 0]]], col, 0.9, true));
+        const sh = new T3.Mesh(new T3.CircleGeometry(0.16, 24), basic(col, 0.45));
+        sh.position.set(p[0], p[1], 0.001); add(sh);
+      }
     };
     if (R > 1e-9) {
       const e = lu > 1e-9 ? u.map(x => x / lu) : [0, 0, 1];
@@ -1827,6 +1842,14 @@
       e2.normalize();
       const col = Math.abs(dv) < 1e-9 ? C.zero : dv > 0 ? C.pos : C.neg, rad = clamp(0.35 * Math.min(lu, lv), 0.5, 1.2);
       const at = (a, r) => e1.clone().multiplyScalar(Math.cos(a) * r).add(e2.clone().multiplyScalar(Math.sin(a) * r)).toArray();
+      // u ⊥ v: marca de ângulo reto (quadrado), como no Espaço
+      if (Math.abs(dv) < 1e-9 * lu * lv) {
+        const q = 0.45, sq = [at(0, q), e1.clone().add(e2).multiplyScalar(q).toArray(), at(PI / 2, q)];
+        const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute([0, 0, 0, ...sq[0], ...sq[1], 0, 0, 0, ...sq[1], ...sq[2]], 3));
+        const m = new T3.Mesh(g, basic(col, 0.45)); m.renderOrder = 2.8; add(m); add(lines([[sq[0], sq[1]], [sq[1], sq[2]]], col, 1));
+        lab("\\theta", e1.clone().add(e2).multiplyScalar(0.75).toArray(), col, 0, 0, 0.85);
+        return;
+      }
       const N = 40, pos = [], arc = [];
       for (let i = 0; i < N; i++) { const a0 = th * i / N, a1 = th * (i + 1) / N; pos.push(0, 0, 0, ...at(a0, rad), ...at(a1, rad)); arc.push([at(a0, rad), at(a1, rad)]); }
       const g = new T3.BufferGeometry(); g.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
@@ -2037,7 +2060,7 @@
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
     if (h.kind === "xoy") { S.xs = (S.xs + 1) % 4; toast(["xOy: grelha", "xOy: cinzento", "xOy: grelha e cinzento", "xOy: escondido"][S.xs], 1400); draw(); return true; }
     if (h.kind === "oxyz") { S.noAx = !S.noAx; toast(S.noAx ? "Oxyz: escondido" : "Oxyz: à vista", 1400); draw(); return true; }
-    if (h.kind === "view3") { if (ctl) ctl.reset(); C3F = [0, 0, 0]; draw(); return true; }
+    if (h.kind === "view3") { home3(); draw(); return true; }
     if (h.kind === "dolly") {
       if (cam && ctl) {
         const d = cam.position.clone().sub(ctl.target), len = clamp(d.length() * h.v, ctl.minDistance, ctl.maxDistance);
@@ -2045,14 +2068,18 @@
       }
       draw(); return true;
     }
-    if (h.kind === "mode") { S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = ""; draw(); return true; }
+    if (h.kind === "mode") {
+      const was = S.sph; S.sph = h.v === "esf"; S.mode = S.sph ? "esp" : h.v; built = "";
+      if (S.mode === "esp" && was !== S.sph) home3();   // Esfera começa com zoom; o Espaço volta à sua vista inicial
+      draw(); return true;
+    }
     if (h.kind === "menu") {
       // o mesmo toque que fechou o menu (pointerdown em captura) não o volta a abrir
       if (performance.now() - menuClosedAt > 60) { const r = h.rect; openMenu(r.x, r.y - 4, "all"); }
       return true;
     }
     if (h.kind === "reset") {
-      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } if (ctl) ctl.reset(); C3F = [0, 0, 0]; }
+      if (S.mode === "esp") { for (const [k, , d] of FIELDS) { ESP[k] = d; INP[k].value = d; } home3(); }
       else for (const k of S.mode === "vet" ? ["u", "v"] : ["A", "B", "C", "D"]) S[k] = INI[k].slice();
       if (S.mode === "vet") { S.uo = [0, 0]; S.vo = [0, 0]; }
       draw(); return true;
