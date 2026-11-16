@@ -1958,6 +1958,25 @@
     const V3 = espVals();
     let lvHex = c => sgnCol(c);   // cor de um nível cos θ = c (definida a sério com a esfera)
     const kE = ease(tK);   // «Cone de θ»: 0 → 1 (o cone aparece, o resto esbate-se)
+    // circunferências máximas com a metade de trás (a que fica atrás da esfera) a tracejado (pedido do utilizador, 2026-11-16):
+    // uma esfera só de profundidade, um pouco menor (`DEP`, renderOrder 3,5, depois dos eixos), e depois a metade da frente
+    // a cheio (passa no teste de profundidade) e uma cópia tracejada que só aparece onde a esfera a tapa (GreaterDepth)
+    let depOn = false;
+    const bigCircle = (Rr, n, col, tube, op) => {
+      if (!depOn) {
+        const dm = new T3.Mesh(new T3.SphereGeometry(Math.max(0.01, Rr - 0.06), 64, 48), new T3.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 0 }));
+        dm.renderOrder = 3.5; const gd = new T3.Group(); gd.renderOrder = 3.5; gd.add(dm); add(gd); depOn = true;   // em grupo: o three ordena primeiro pela ordem do grupo (os eixos são grupos com 3)
+      }
+      const mat = solid(col, op); mat.transparent = true;   // na lista dos transparentes, para ser desenhada depois da esfera de profundidade
+      const m = new T3.Mesh(new T3.TorusGeometry(Rr, tube, 8, 160), mat);
+      m.quaternion.setFromUnitVectors(vec3(0, 0, 1), vec3(...n).normalize()); m.renderOrder = 3.6;
+      const gc = new T3.Group(); gc.renderOrder = 3.6; gc.add(m); add(gc);
+      const N = vec3(...n).normalize(); let e1_ = N.clone().cross(vec3(0, 0, 1)); if (e1_.lengthSq() < 1e-10) e1_ = vec3(1, 0, 0); e1_.normalize();
+      const e2_ = N.clone().cross(e1_), pts = [];
+      for (let i = 0; i <= 160; i++) { const a = i / 160 * TAU; pts.push(e1_.clone().multiplyScalar(Rr * Math.cos(a)).add(e2_.clone().multiplyScalar(Rr * Math.sin(a))).toArray()); }
+      const dl = lines(pts.slice(1).map((p, i) => [pts[i], p]), col, Math.min(1, op + 0.1), true);
+      dl.material.depthFunc = T3.GreaterDepth; dl.material.transparent = true; dl.material.depthWrite = false; dl.renderOrder = 3.6; gc.add(dl);
+    };
     if (!V3.uS || !V3.vS) return;
     const u = vnum(V3.uS), v = RV ? rvNow() : vnum(V3.vS), lu = Math.hypot(...u);
     const R = drag3 && drag3.key === "vS" && drag3.R ? drag3.R : Math.hypot(...v);
@@ -2011,7 +2030,7 @@
           m.quaternion.setFromUnitVectors(vec3(0, 0, 1), vec3(...e));
           m.renderOrder = 2.7; add(m);
         };
-        ring(0, C.zero, 0.035, 1 - 0.65 * kE);   // com o cone, o resto fica translúcido
+        bigCircle(R, e, C.zero, 0.035, 1 - 0.65 * kE);   // equador de u (u·v = 0); com o cone, o resto fica translúcido
         if (S.sL) for (const c of [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75]) ring(c, lvHex(c), 0.014, 0.85 - 0.55 * kE);
         // «Cone de θ» (pedido do utilizador, 2026-11-16): os vetores da esfera que fazem com u o mesmo ângulo θ que v —
         // cone de vértice O e eixo na reta de u, até à circunferência de nível de v; na cor do nível
@@ -2052,8 +2071,7 @@
     const path = S.sG && SP3 ? SP3 : S.sC ? sphPath() : null;   // com «Caminho do ▶» (botão direito) aparece antes do ▶
     if (path && R > 1e-9) {
       const n = vec3(...path.a).cross(vec3(...path.b)).normalize();
-      const m = new T3.Mesh(new T3.TorusGeometry(R, 0.022, 8, 160), solid(C.v, S.sG ? 0.85 : 0.6));
-      m.quaternion.setFromUnitVectors(vec3(0, 0, 1), n); m.renderOrder = 2.75; add(m);
+      bigCircle(R, n.toArray(), C.v, 0.022, S.sG ? 0.85 : 0.6);
     }
     add(arrow3([0, 0, 0], u, C.u, 0.06)); lab("\\vec u", u, C.u, 1, 1); tip("uS", u, C.u, 0.11);
     add(arrow3([0, 0, 0], v, C.v, 0.06)); lab("\\vec v", v, C.v, 1, -1); tip("vS", v, C.v, 0.11);
