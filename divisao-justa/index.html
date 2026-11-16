@@ -791,9 +791,11 @@
     rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => C1("+" + fmt(q * R.E), C.ink)) });
     rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
     if (!S.tar) rows.push({ st: 7, badge: "✔", lab: "Valor para o próprio", cells: R.prop.map(x => C1(fmt(x), C.ink)), bold: true });
-    if (!S.tar && S.inv) S.j.forEach((n, a) => rows.push({ st: 8, badge: a === 0 ? "?" : null, lab: "Para " + n, cells: S.j.map((_, bb) => {
-      const v = R.env[a][bb], envy = bb !== a && v > R.env[a][a] + 1e-9;
-      return C1(fmt(v), envy ? C.bad : bb === a ? C.L[a] : C.ink, { box: envy ? "bad" : null });
+    // inveja: com partes iguais compara-se o valor; com partes diferentes, o valor por cada 1 % de quota (inveja ponderada)
+    const pq = (a, bb) => S.quotas ? R.env[a][bb] / (R.q[bb] * 100) : R.env[a][bb];
+    if (!S.tar && S.inv) S.j.forEach((n, a) => rows.push({ st: 8, badge: a === 0 ? "?" : null, lab: "Para " + n + (S.quotas ? " (por 1 %)" : ""), cells: S.j.map((_, bb) => {
+      const v = pq(a, bb), envy = bb !== a && v > pq(a, a) + 1e-9;
+      return C1(fmt(v, S.quotas ? 3 : 2), envy ? C.bad : bb === a ? C.L[a] : C.ink, { box: envy ? "bad" : null });
     }) }));
     o.expl = explain(step);
     renderTable(b, fs, o);
@@ -833,9 +835,10 @@
       case 5: {
         const ent = R.ini.filter(x => x > 0).reduce((a, x) => a + x, 0), sai = -R.ini.filter(x => x < 0).reduce((a, x) => a + x, 0);
         return [`Excedente = o que entra − o que sai = ${fmt(ent)} − ${fmt(sai)} = ${fmt(R.E)}${u}.`,
-          eqQ ? `Divide-se em partes iguais: ${fmt(R.E)} : ${N} = ${fmt(R.E / N)} para cada um.` : "Divide-se pelas quotas: " + n.map((x, p) => `${x} ${fmt(R.q[p] * R.E)}`).join(" · "),
-          S.tar ? "O excedente nunca é negativo: o mínimo dos pedidos de cada tarefa nunca é maior do que a média."
-                : "O excedente nunca é negativo: o máximo das licitações de cada item nunca é menor do que a média."];
+          (eqQ ? `Divide-se em partes iguais: ${fmt(R.E)} : ${N} = ${fmt(R.E / N)} para cada um.` : "Divide-se pelas quotas: " + n.map((x, p) => `${x} ${fmt(R.q[p] * R.E)}`).join(" · "))
+            + (R.q.some(q => Math.abs(q * R.E * 100 - Math.round(q * R.E * 100)) > 1e-6) ? " (valores arredondados às centésimas)" : ""),
+          (S.tar ? "O excedente nunca é negativo: o mínimo dos pedidos de cada tarefa nunca é maior do que a média" : "O excedente nunca é negativo: o máximo das licitações de cada item nunca é menor do que a média")
+            + (eqQ ? "." : " ponderada pelas quotas.")];
       }
       case 6: return ["Alocação final: a alocação provisória com a parte do excedente de cada um.",
         n.map((x, p) => `${x}: ${pay(R.fin[p])}`).join(" · "),
@@ -844,11 +847,14 @@
         n.map((x, p) => `${x}: ${fmt(R.pj[p])} + ${fmt(R.q[p] * R.E)} = ${fmt(R.prop[p])}`).join(" · "),
         "O método é proporcional: todos recebem pelo menos a sua parte justa."];
       case 8: {
-        const inv = [];
-        n.forEach((a, i) => n.forEach((b, j) => { if (i !== j && R.env[i][j] > R.env[i][i] + 1e-9) inv.push(`${a} inveja ${b} (${fmt(R.env[i][j])} > ${fmt(R.env[i][i])})`); }));
-        return [inv.length ? "Há inveja: o método é proporcional, mas não é livre de inveja." : "Ninguém tem inveja nesta partilha.",
-          "Cada linha «Para …» mostra quanto vale, para essa pessoa, a parte de cada um (itens − o que paga, ou + o que recebe).",
-          ...inv];
+        const inv = [], pq = (i, j) => S.quotas ? R.env[i][j] / (R.q[j] * 100) : R.env[i][j];
+        n.forEach((a, i) => n.forEach((b, j) => { if (i !== j && pq(i, j) > pq(i, i) + 1e-9) inv.push(S.quotas
+          ? `${a} inveja ${b}: para ${a}, a parte de ${b} vale ${fmt(R.env[i][j])} (${fmt(pq(i, j), 3)} por 1 %) e a sua ${fmt(R.env[i][i])} (${fmt(pq(i, i), 3)} por 1 %)`
+          : `${a} inveja ${b} (${fmt(R.env[i][j])} > ${fmt(R.env[i][i])})`); }));
+        const a = [inv.length ? "Há inveja: o método é proporcional, mas não é livre de inveja." : "Ninguém tem inveja nesta partilha."];
+        if (S.quotas) a.push("Com partes diferentes, é natural que a parte de quem tem quota maior valha mais. Por isso compara-se o valor de cada parte a dividir pela quota de quem a recebe: quanto vale por cada 1 % de quota.");
+        a.push("Cada linha «Para …» mostra quanto vale, para essa pessoa, a parte de cada um (itens − o que paga, ou + o que recebe)" + (S.quotas ? ", por cada 1 % de quota." : "."));
+        return [...a, ...inv];
       }
     }
     return [];
@@ -1143,7 +1149,7 @@
   function setLic(i) {
     const e = EXAMPLES[i];
     S.ex = i; S.j = [...e.j]; S.b = [...e.b]; S.v = e.v.map(r => [...r]); S.u = e.u;
-    S.tar = !!e.tar; S.quotas = !!e.q; S.q = e.q ? [...e.q] : e.j.map(() => Math.round(10000 / e.j.length) / 100);
+    S.tar = !!e.tar; if (S.tar) S.inv = false; S.quotas = !!e.q; S.q = e.q ? [...e.q] : e.j.map(() => Math.round(10000 / e.j.length) / 100);
     S.tie = {};
   }
   function setAW(i) {
@@ -1239,6 +1245,7 @@
       S[h.k] = !S[h.k];
       if (h.k === "quotas" && S.quotas && S.q.length !== S.j.length) S.q = S.j.map(() => Math.round(10000 / S.j.length) / 100);
       if (h.k === "tar" && S.tar) S.inv = false;
+      if (h.k === "inv") { if (S.inv) { S.step = NSTEPS(); S.all = false; } changed(); return; }   // ao ligar, mostra o passo da inveja
       S.ex = null; changed(true); return;
     }
     if (h.kind === "example") { loadExample(h.i); return; }
@@ -1338,7 +1345,7 @@
       return;
     }
     S.m = "lic";
-    if (ex != null && EXAMPLES[+ex]) { loadExample(+ex); }
+    if (ex != null && EXAMPLES[+ex]) { setLic(+ex); S.step = 1; S.all = false; }   // sem escrever o endereço antes de ler o passo
     else if (hp.get("j") && hp.get("b") && hp.get("v")) {
       const j = hp.get("j").split(";").slice(0, MAXJ), b = hp.get("b").split(";").slice(0, MAXB);
       const v = hp.get("v").split(";").map(r => r.split(",").map(parseNum));
@@ -1357,7 +1364,7 @@
   }
   readHash();
   writeHash();
-  window.addEventListener("hashchange", () => { readHash(); draw(); });
+  window.addEventListener("hashchange", () => { readHash(); writeHash(); draw(); });
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
   if (document.fonts) document.fonts.ready.then(draw);
