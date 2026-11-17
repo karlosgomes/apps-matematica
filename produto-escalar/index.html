@@ -477,13 +477,13 @@
       L.graph = { x: L.frame.x, y: L.frame.y + L.frame.h - gh, w: L.frame.w, h: gh };
       L.frame = { ...L.frame, h: L.frame.h - gh - gap };
     }
-    // modo Espaço: os campos das coordenadas no topo da coluna do texto
-    if (S.mode === "esp") {
+    // campos das coordenadas no topo da coluna do texto (Espaço; Vetores e Retas desde 2026-11-17)
+    {
       const il = inputsLayout(tx, fs);
       L.inp = { ...il, x0: tx.x, y0: tx.y };
       const used_ = il.rows.length * il.rh + 0.3 * fs;
-      tx.y += used_; tx.h -= used_;
-    } else L.inp = null;
+      if (il.rows.length) { tx.y += used_; tx.h -= used_; }
+    }
     const G = S.mode === "vet" ? vecPieces() : S.mode === "retas" ? retasPieces() : espPieces();
     let px = fs * 0.95, lines, lhs, tot;
     for (let it = 0; it < 8; it++) {
@@ -1243,6 +1243,49 @@
     el.style.display = "none";
     el.addEventListener("input", () => { if (S.sR) rotVOff(false); ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    document.body.appendChild(el);
+    INP[k] = el;
+  }
+  // campos de texto em Vetores (u, v) e em Retas (ponto e vetor diretor de r e de s) (pedido do utilizador, 2026-11-17)
+  // [chave, rótulo, cor, grupo]; o vetor diretor é B − A (D − C): mudar o ponto mantém o vetor
+  const F2 = [
+    ["u2", "\\vec u", () => C.u, "vet"], ["v2", "\\vec v", () => C.v, "vet"],
+    ["A2", "A", () => C.u, "rr"], ["r2", "\\vec r", () => C.u, "rr"],
+    ["C2", "C", () => C.v, "ss"], ["s2", "\\vec s", () => C.v, "ss"],
+  ];
+  const sub2 = (a, b) => [r1(a[0] - b[0]), r1(a[1] - b[1])], add2 = (a, b) => [r1(a[0] + b[0]), r1(a[1] + b[1])];
+  function get2(k) {
+    return k === "u2" ? S.u : k === "v2" ? S.v : k === "A2" ? S.A : k === "r2" ? sub2(S.B, S.A) : k === "C2" ? S.C : sub2(S.D, S.C);
+  }
+  const fmt2 = p => `(${p.map(x => (+r1(x).toFixed(1)).toString()).join(", ")})`;
+  function parse2(s, k) {
+    s = s.trim().replace(/^\(|\)$/g, "");
+    const parts = s.includes(";") ? s.split(";").map(x => x.replace(",", ".")) : s.split(",");
+    if (parts.length !== 2) return null;
+    const v = parts.map(parseNum);
+    if (!v.every(Boolean)) return null;
+    const q = v.map(a => r1(fval(a)));
+    if (q.some(x => Math.abs(x) > 99)) return null;
+    if ((k === "r2" || k === "s2") && Math.abs(q[0]) < EPS && Math.abs(q[1]) < EPS) return null;   // vetor diretor nulo
+    return q;
+  }
+  function set2(k, q) {
+    if (S.int && !q.every(isInt)) S.int = false;   // escreveu decimais: deixa de arredondar ao arrastar
+    if (k === "u2") S.u = q;
+    else if (k === "v2") { S.v = q; if (S.rot) rotOn(true); }
+    else if (k === "A2") { const d = sub2(S.B, S.A); S.A = q; S.B = add2(q, d); }
+    else if (k === "r2") S.B = add2(S.A, q);
+    else if (k === "C2") { const d = sub2(S.D, S.C); S.C = q; S.D = add2(q, d); }
+    else S.D = add2(S.C, q);
+  }
+  for (const [k] of F2) {
+    const el = document.createElement("input");
+    el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off";
+    el.setAttribute("aria-label", "Coordenadas de " + k[0]);
+    el.style.display = "none";
+    el.addEventListener("input", () => { const q = parse2(el.value, k); el.classList.toggle("bad", !q); if (q) { set2(k, q); draw(); } });
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    el.addEventListener("blur", () => { el.classList.remove("bad"); el.value = fmt2(get2(k)); draw(); });
     document.body.appendChild(el);
     INP[k] = el;
   }
@@ -2220,7 +2263,8 @@
   function hide3() { if (glc) glc.style.display = "none"; if (ctl) ctl.enabled = false; }
   // campos de texto em linhas (dois por linha se couberem), no topo da coluna do texto
   function inputsLayout(tx, fs) {
-    const vis = FIELDS.filter(f => S.mode === "esp" && groupOn(f[3]));
+    const vis = S.mode === "esp" ? FIELDS.filter(f => groupOn(f[3]))
+      : F2.filter(f => S.mode === "vet" ? f[3] === "vet" : f[3] === "rr" || (f[3] === "ss" && S.s));
     const rows = [], lw = 2.0 * fs, iw = 6.2 * fs, two = tx.w >= 2 * (lw + iw) + fs;
     const byG = {};
     for (const f of vis) (byG[f[3]] = byG[f[3]] || []).push(f);
@@ -2231,16 +2275,21 @@
   }
   function inputs(fs) {
     const shown = new Set();
-    if (S.mode === "esp" && L.inp) {
+    if (L.inp) {
       const { rows, lw, iw, rh, x0, y0 } = L.inp;
-      rows.forEach((row, j) => row.forEach(([k, lab, , g], i) => {
+      rows.forEach((row, j) => row.forEach(([k, lab, cf, g], i) => {
         const x = x0 + i * (lw + iw + fs), y = y0 + j * rh, el = INP[k];
-        const col = (GCOL[k] || GCOL[g])();
+        const two = S.mode !== "esp", col = two ? cf() : (GCOL[k] || GCOL[g])();
         texAt("il" + k, clr(col, lab + " ="), x + lw - 0.25 * fs, y + rh / 2, fs * 0.9, col, 1, 0.5, false);
         el.style.left = x + lw + "px"; el.style.top = y + (rh - 1.5 * fs) / 2 + "px"; el.style.width = iw + "px"; el.style.height = 1.5 * fs + "px";
         el.style.fontSize = fs * 0.8 + "px"; el.style.display = "";
-        el.classList.toggle("bad", !parseVec(ESP[k]));
-        el.style.borderColor = parseVec(ESP[k]) ? col : "";
+        if (two) {   // Vetores/Retas: o campo acompanha o arrasto (menos quando se está a escrever nele)
+          if (document.activeElement !== el) { const v = fmt2(get2(k)); if (el.value !== v) el.value = v; }
+          el.style.borderColor = el.classList.contains("bad") ? "" : col;
+        } else {
+          el.classList.toggle("bad", !parseVec(ESP[k]));
+          el.style.borderColor = parseVec(ESP[k]) ? col : "";
+        }
         shown.add(k);
       }));
     }
