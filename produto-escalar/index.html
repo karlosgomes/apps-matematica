@@ -307,6 +307,13 @@
         const c = clamp(Math.abs(d) / Math.sqrt(nr * ns), 0, 1);
         const rv = U("\\vec r"), sv = V("\\vec s");
         g.push(`${rv}\\cdot${sv} = ${U(par(r.dx))}\\times${V(par(s.dx))} + ${U(par(r.dy))}\\times${V(par(s.dy))} = ${num(d)}`);
+        // com os vetores diretores à vista: primeiro o ângulo β dos vetores, depois o das retas (pedido do utilizador, 2026-11-17)
+        if (S.dir) {
+          const cb = clamp(d / Math.sqrt(nr * ns), -1, 1);
+          g.push(`\\cos\\beta = \\frac{${rv}\\cdot${sv}}{\\|${rv}\\|\\,\\|${sv}\\|} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(cb)}`, { cont: true, sep: 1, t: degTex(Math.acos(cb), "\\beta") });
+          // β obtuso: o ângulo das retas é o suplementar
+          if (d < -EPS) g.push(`\\beta > 90^\\circ \\;\\Rightarrow\\; \\theta = 180^\\circ - \\beta`);
+        }
         g.push(`\\cos\\theta = \\frac{|${rv}\\cdot${sv}|}{\\|${rv}\\|\\,\\|${sv}\\|} = \\frac{${num(Math.abs(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`);
         g.push({ cont: true, sep: 1, t: degTex(Math.acos(c), "\\theta") });
       }
@@ -322,9 +329,8 @@
       if (S.s) {
         const s_ = lines_[1], rv = U("\\vec r"), sv = V("\\vec s"), d = Math.round((r.dx * s_.dx + r.dy * s_.dy) * 100) / 100;
         const nr = r.dx ** 2 + r.dy ** 2, ns = s_.dx ** 2 + s_.dy ** 2, c = clamp(d / Math.sqrt(nr * ns), -1, 1);
-        g.push(`\\cos\\beta = ${S.nrm ? `\\frac{${rv}}{\\|${rv}\\|}\\cdot\\frac{${sv}}{\\|${sv}\\|}` : `\\frac{${rv}\\cdot${sv}}{\\|${rv}\\|\\,\\|${sv}\\|}`} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\beta") });
-        // β obtuso: o ângulo das retas é o suplementar
-        if (S.angR && d < -EPS) g.push(`\\beta > 90^\\circ \\;\\Rightarrow\\; \\theta = 180^\\circ - \\beta`, { cont: true, t: degTex(PI - Math.acos(c), "").replace(/^ /, "") });
+        // sem normalizar e com «Ângulo das retas», cos β já aparece no grupo da reta s (antes do ângulo das retas)
+        if (S.nrm || !S.angR) g.push(`\\cos\\beta = ${S.nrm ? `\\frac{${rv}}{\\|${rv}\\|}\\cdot\\frac{${sv}}{\\|${sv}\\|}` : `\\frac{${rv}\\cdot${sv}}{\\|${rv}\\|\\,\\|${sv}\\|}`} = \\frac{${clr(sgnCol(d), num(d))}}{${sqrtTex(nr)}\\times${sqrtTex(ns)}} ${cosTex(c)}`, { cont: true, sep: 1, t: degTex(Math.acos(c), "\\beta") });
       }
       if (g.length) G.push(g);
     }
