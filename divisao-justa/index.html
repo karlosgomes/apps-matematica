@@ -149,7 +149,7 @@
       owner[i] = ws.length > 1 && ws.includes(S.tie[i]) ? S.tie[i] : ws[0];
     });
     const val = S.j.map((_, p) => S.v.reduce((a, row, i) => a + (owner[i] === p ? row[p] : 0), 0));
-    // positivo = paga; itens: quem recebe mais do que a parte justa paga; tarefas: quem trabalha menos paga
+    // internamente positivo = paga (no ecrã mostra-se com o sinal trocado: + recebe, − paga); itens: quem recebe mais do que a parte justa paga; tarefas: quem trabalha menos paga
     const ini = val.map((x, p) => S.tar ? pj[p] - x : x - pj[p]);
     const E = ini.reduce((a, x) => a + x, 0);
     const fin = ini.map((x, p) => x - q[p] * E);
@@ -788,7 +788,8 @@
     if (R.err) { o.err = R.err; return renderTable(b, fs, o); }
     const rows = o.rows, C1 = (t, col, extra = {}) => ({ t, col, ...extra });
     const bensRec = p => S.b.map((n, i) => R.owner[i] === p ? n.split(" ")[0] : null).filter(Boolean).join(" ");
-    const pay = x => Math.abs(x) < 1e-9 ? C1("0", C.ink) : x > 0 ? C1("paga " + fmt(x), C.bad) : C1("recebe " + fmt(-x), C.ok);
+    // ponto de vista do jogador: − (vermelho) paga, + (verde) recebe; internamente x > 0 é o que paga
+    const pay = x => Math.abs(x) < 1e-9 ? C1("0", C.ink) : x > 0 ? C1("−" + fmt(x), C.bad) : C1("+" + fmt(-x), C.ok);
     S.b.forEach((n, i) => rows.push({ st: 1, badge: i === 0 ? 1 : null, lab: n, cells: S.v[i].map((x, p) => {
       const winner = R.owner[i] === p, isTied = R.tied[i] && R.tied[i].includes(p);
       return C1(fmt(x), C.ink, step >= 3 ? { box: isTied ? (winner ? "tiewin" : "tie") : winner ? "max" : null, bold: winner,
@@ -798,7 +799,7 @@
     rows.push({ st: 2, lab: S.tar ? "Parte justa de trabalho" : "Parte justa", cells: R.pj.map(x => C1(fmt(x), C.ink)), bold: true });
     rows.push({ st: 3, badge: 3, lab: S.tar ? "Tarefas atribuídas" : "Itens recebidos", cells: S.j.map((_, p) => C1(R.val[p] || bensRec(p) ? (bensRec(p) + " " + fmt(R.val[p])).trim() : "—", C.ink)) });
     rows.push({ st: 4, badge: 4, lab: "Alocação provisória", cells: R.ini.map(pay) });
-    rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => C1("+" + fmt(q * R.E), C.ink)) });
+    rows.push({ st: 5, badge: 5, lab: "Excedente", cells: R.q.map(q => C1("+" + fmt(q * R.E), C.ok)) });
     rows.push({ st: 6, lab: "Alocação final", cells: R.fin.map(pay), bold: true });
     if (!S.tar) rows.push({ st: 7, badge: "✔", lab: "Valor para o próprio", cells: R.prop.map(x => C1(fmt(x), C.ink)), bold: true });
     // inveja: com partes iguais compara-se o valor; com partes diferentes, o valor por cada 1 % de quota (inveja ponderada)
@@ -815,7 +816,8 @@
   function explain(step) {
     const n = S.j, u = S.u ? " " + S.u : "";
     const N = R.N, eqQ = !S.quotas;
-    const pay = x => Math.abs(x) < 1e-9 ? "fica a 0" : x > 0 ? "paga " + fmt(x) : "recebe " + fmt(-x);
+    const sg = x => Math.abs(x) < 1e-9 ? "0" : x > 0 ? "−" + fmt(x) : "+" + fmt(-x);   // com o sinal do jogador
+    const pay = x => Math.abs(x) < 1e-9 ? "fica a 0" : x > 0 ? sg(x) + " (paga)" : sg(x) + " (recebe)";
     switch (step) {
       case 1: return [S.tar
         ? "Cada um escreve, em segredo, quanto quer receber para fazer cada tarefa: a sua licitação."
@@ -839,19 +841,18 @@
         return a;
       }
       case 4: return [S.tar
-        ? "Quem fica com menos trabalho do que a sua parte justa paga a diferença; quem fica com mais recebe."
-        : "Quem recebe itens que valem mais do que a parte justa paga a diferença; quem recebe menos recebe a diferença.",
-        n.map((x, p) => `${x}: ${S.tar ? fmt(R.pj[p]) + " − " + fmt(R.val[p]) : fmt(R.val[p]) + " − " + fmt(R.pj[p])} → ${pay(R.ini[p])}`).join(" · ")];
+        ? "Cada um calcula tarefas atribuídas − parte justa de trabalho: + recebe do fundo comum (fica com mais trabalho), − paga para o fundo comum (fica com menos)."
+        : "Cada um calcula parte justa − valor dos itens recebidos: + recebe do fundo comum (recebeu menos do que a parte justa), − paga para o fundo comum (recebeu mais).",
+        n.map((x, p) => `${x}: ${S.tar ? fmt(R.val[p]) + " − " + fmt(R.pj[p]) : fmt(R.pj[p]) + " − " + fmt(R.val[p])} = ${pay(R.ini[p])}`).join(" · ")];
       case 5: {
-        const ent = R.ini.filter(x => x > 0).reduce((a, x) => a + x, 0), sai = -R.ini.filter(x => x < 0).reduce((a, x) => a + x, 0);
-        return [`Excedente = o que entra − o que sai = ${fmt(ent)} − ${fmt(sai)} = ${fmt(R.E)}${u}.`,
+        return [`Excedente: no fundo comum os sinais trocam (o que se paga entra, o que se recebe sai): ${R.ini.map((x, i) => Math.abs(x) < 1e-9 ? null : (x > 0 ? (i && R.ini.slice(0, i).some(y => Math.abs(y) >= 1e-9) ? "+ " : "") : "− ") + fmt(Math.abs(x))).filter(Boolean).join(" ").replace(/^− /, "−")} = ${fmt(R.E)}${u}.`,
           (eqQ ? `Divide-se em partes iguais: ${fmt(R.E)} : ${N} = ${fmt(R.E / N)} para cada um.` : "Divide-se pelas quotas: " + n.map((x, p) => `${x} ${fmt(R.q[p] * R.E)}`).join(" · "))
             + (R.q.some(q => Math.abs(q * R.E * 100 - Math.round(q * R.E * 100)) > 1e-6) ? " (valores arredondados às centésimas)" : ""),
           (S.tar ? "O excedente nunca é negativo: o mínimo dos pedidos de cada tarefa nunca é maior do que a média" : "O excedente nunca é negativo: o máximo das licitações de cada item nunca é menor do que a média")
             + (eqQ ? "." : " ponderada pelas quotas.")];
       }
-      case 6: return ["Alocação final: a alocação provisória com a parte do excedente de cada um.",
-        n.map((x, p) => `${x}: ${pay(R.fin[p])}`).join(" · "),
+      case 6: return ["Alocação final: soma-se à alocação provisória de cada um a sua parte do excedente.",
+        n.map((x, p) => `${x}: ${sg(R.ini[p])} + ${fmt(R.q[p] * R.E)} = ${pay(R.fin[p])}`).join(" · "),
         `Confirma: o que se paga (${fmt(R.fin.filter(v => v > 0).reduce((a, v) => a + v, 0))}) é igual ao que se recebe (${fmt(-R.fin.filter(v => v < 0).reduce((a, v) => a + v, 0))}).`];
       case 7: return ["Cada um fica, na sua avaliação, com a parte justa mais a sua parte do excedente.",
         n.map((x, p) => `${x}: ${fmt(R.pj[p])} + ${fmt(R.q[p] * R.E)} = ${fmt(R.prop[p])}`).join(" · "),
