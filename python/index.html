@@ -25,13 +25,13 @@
 <style>
   :root { --banner: #170C3A; --bg: #ffffff; --ink: #17202b; --muted: #5b6475; --panel: #f6f7fa; --line: #d5dae2;
           --accent: #EE6A24; --hover: #FB9E07; --err: #c62828; --ok: #2e7d32;
-          --kw: #7b1fa2; --str: #2e7d32; --num: #1565c0; --com: #8a94a3; --def: #c75000; }
+          --kw: #9723B4; --kw2: #0000FF; --fn: #6A5221; --tipo: #257693; --str: #A31515; --num: #116644; --com: #008000; --cod: #000000; --b0: #0431FA; --b1: #319331; --b2: #7B3814; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
-          --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
+          --err: #ef7070; --ok: #7fcf85; --kw: #C99CC6; --kw2: #569CD6; --fn: #DCDCAA; --tipo: #4EC9B0; --str: #CE9178; --num: #B5CEA8; --com: #82B76C; --cod: #D4D4D4; --b0: #FFD700; --b1: #DA70D6; --b2: #179FFF; }
   }
   :root[data-theme="dark"] { --bg: #1e1f24; --ink: #e3e6eb; --muted: #a3abb8; --panel: #26282f; --line: #3b3e48;
-          --err: #ef7070; --ok: #7fcf85; --kw: #d39cf0; --str: #9ad48f; --num: #82b6f5; --com: #7d8592; --def: #ffb070; }
+          --err: #ef7070; --ok: #7fcf85; --kw: #C99CC6; --kw2: #569CD6; --fn: #DCDCAA; --tipo: #4EC9B0; --str: #CE9178; --num: #B5CEA8; --com: #82B76C; --cod: #D4D4D4; --b0: #FFD700; --b1: #DA70D6; --b2: #179FFF; }
   /* janela do PDF (não modal, para o teclado matemático do MathLive aparecer por cima) */
   #rel-back { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.35); }
   #rel-back[hidden] { display: none; }
@@ -98,10 +98,13 @@
   .CodeMirror-hint { color: var(--ink); padding: 0 8px; }
   li.CodeMirror-hint-active { background: var(--accent); color: #fff; }
   /* .cm-s-default: para se sobrepor às cores do tema do CodeMirror */
-  .cm-s-default .cm-keyword { color: var(--kw); font-weight: 500; } .cm-s-default .cm-builtin { color: var(--def); }
-  .cm-s-default .cm-string { color: var(--str); } .cm-s-default .cm-number { color: var(--num); }
-  .cm-s-default .cm-comment { color: var(--com); font-style: italic; } .cm-s-default .cm-def { color: var(--def); font-weight: 500; }
-  .cm-s-default .cm-operator, .cm-s-default .cm-variable, .cm-s-default .cm-variable-2, .cm-s-default .cm-property { color: var(--ink); }
+  /* cores do Google Colab (modo «python-colab», definido no script) */
+  .CodeMirror { color: var(--cod); }
+  .cm-s-default .cm-keyword { color: var(--kw); } .cm-s-default .cm-kw2 { color: var(--kw2); }
+  .cm-s-default .cm-funcao, .cm-s-default .cm-def { color: var(--fn); } .cm-s-default .cm-tipo { color: var(--tipo); }
+  .cm-s-default .cm-string { color: var(--str); } .cm-s-default .cm-number { color: var(--num); } .cm-s-default .cm-comment { color: var(--com); }
+  .cm-s-default .cm-par0 { color: var(--b0); } .cm-s-default .cm-par1 { color: var(--b1); } .cm-s-default .cm-par2 { color: var(--b2); }
+  .cm-s-default .cm-operator, .cm-s-default .cm-variable, .cm-s-default .cm-variable-2, .cm-s-default .cm-property, .cm-s-default .cm-builtin, .cm-s-default .cm-punctuation { color: var(--cod); }
   #saida-caixa { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
   .barra { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--line);
            font-size: .88rem; color: var(--muted); }
@@ -388,8 +391,37 @@ plt.show()
   }
   dados.atual = Math.min(Math.max(-1, dados.atual | 0), dados.programas.length - 1);
 
+  // Modo «python-colab»: o python do CodeMirror com as cores do Google Colab: palavras de controlo (if, for, return, import…)
+  // a roxo, def/class/lambda/in/and/or/not/is/True/False/None a azul, funções chamadas (print, ordem(), x.append()) a
+  // castanho, tipos (int, list…) a verde-azulado e parênteses coloridos por nível (azul, verde, castanho)
+  CodeMirror.defineMode("python-colab", config => {
+    const py = CodeMirror.getMode(config, { name: "python", version: 3 });
+    const AZUL = new Set(["def", "class", "lambda", "in", "is", "and", "or", "not", "True", "False", "None", "global", "nonlocal", "async", "await"]);
+    const TIPOS = new Set(["int", "float", "str", "list", "dict", "set", "tuple", "bool", "complex", "bytes", "object", "type", "frozenset"]);
+    return {
+      startState: () => ({ py: CodeMirror.startState(py), nivel: 0 }),
+      copyState: s => ({ py: CodeMirror.copyState(py, s.py), nivel: s.nivel }),
+      token(stream, s) {
+        const est = py.token(stream, s.py), t = stream.current();
+        if (est && /string|comment/.test(est)) return est;
+        if (t.length === 1 && "([{".includes(t)) return "par" + (s.nivel++ % 3);
+        if (t.length === 1 && ")]}".includes(t)) { s.nivel = Math.max(0, s.nivel - 1); return "par" + (s.nivel % 3); }
+        if (est === "keyword") return AZUL.has(t) ? "kw2" : "keyword";
+        if (/^[A-Za-z_]\w*$/.test(t) && est !== "def") {
+          if (TIPOS.has(t)) return "tipo";
+          if (stream.match(/^\s*\(/, false)) return "funcao";
+          if (est === "builtin") return "funcao";
+        }
+        return est;
+      },
+      indent: (s, depois, linha) => py.indent(s.py, depois, linha),
+      blankLine: s => py.blankLine && py.blankLine(s.py),
+      innerMode: s => ({ state: s.py, mode: py }),
+      electricInput: py.electricInput, lineComment: py.lineComment, closeBrackets: py.closeBrackets, fold: py.fold
+    };
+  });
   const editor = CodeMirror.fromTextArea($("codigo"), {
-    mode: "python", lineNumbers: true, indentUnit: 4, tabSize: 4, matchBrackets: true, autofocus: true,
+    mode: "python-colab", lineNumbers: true, indentUnit: 4, tabSize: 4, matchBrackets: true, autofocus: true,
     extraKeys: {
       Tab: cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
       "Shift-Tab": cm => cm.indentSelection("subtract"),
@@ -462,7 +494,7 @@ plt.show()
   // código com as cores do CodeMirror (runMode), linha a linha
   function codigoHTML(src) {
     const linhas = [[]];
-    CodeMirror.runMode(src, "python", (txt, estilo) => {
+    CodeMirror.runMode(src, "python-colab", (txt, estilo) => {
       if (txt === "\n") { linhas.push([]); return; }
       linhas[linhas.length - 1].push(estilo ? `<span class="${estilo.split(" ").map(c => "cm-" + c).join(" ")}">${escH(txt)}</span>` : escH(txt));
     });
@@ -518,9 +550,11 @@ plt.show()
   .code .n { text-align: right; padding-right: .55em; color: #888; border-right: .6px solid #bbb; font-size: 8pt; user-select: none; }
   .code .c { padding-left: .7em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .code.nonum .l { grid-template-columns: 1fr; } .code.nonum .n { display: none; }
-  .cm-keyword { color: #7b1fa2; font-weight: 600; } .cm-builtin { color: #c75000; } .cm-def { color: #c75000; font-weight: 600; }
-  .cm-string, .cm-string-2 { color: #2e7d32; } .cm-number { color: #1565c0; } .cm-comment { color: #6b7685; font-style: italic; }
-  .code.pb .cm-keyword, .code.pb .cm-def { color: #000; font-weight: 700; } .code.pb .cm-builtin, .code.pb .cm-string, .code.pb .cm-string-2, .code.pb .cm-number { color: #000; }
+  .cm-keyword { color: #9723B4; } .cm-kw2 { color: #0000FF; } .cm-funcao, .cm-def { color: #6A5221; } .cm-tipo { color: #257693; }
+  .cm-string, .cm-string-2 { color: #A31515; } .cm-number { color: #116644; } .cm-comment { color: #008000; }
+  .cm-par0 { color: #0431FA; } .cm-par1 { color: #319331; } .cm-par2 { color: #7B3814; }
+  .code.pb .cm-keyword, .code.pb .cm-kw2, .code.pb .cm-def { color: #000; font-weight: 700; }
+  .code.pb .cm-funcao, .code.pb .cm-tipo, .code.pb .cm-string, .code.pb .cm-string-2, .code.pb .cm-number, .code.pb [class*="cm-par"] { color: #000; }
   .code.pb .cm-comment { color: #555; font-style: italic; }
   /* saída: caixa ao estilo de um terminal */
   pre.out { font: 9pt/1.42 "IBM Plex Mono", "DejaVu Sans Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: .3cm 0; padding: .18cm .3cm;
@@ -689,6 +723,7 @@ ${body}
     lista = lista.filter(p => p.startsWith(inicio) && p !== inicio).sort((a, b) => a.localeCompare(b, "pt"));
     return { list: lista, from: CodeMirror.Pos(cur.line, cur.ch - inicio.length), to: cur };
   }
+
 
   let timer = null;
   // Texto colado de PDF/Word traz sósias dos caracteres do Python (p. ex. ∗ U+2217 do listings em vez de *): trocam-se ao colar
