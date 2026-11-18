@@ -691,8 +691,18 @@ ${body}
   }
 
   let timer = null;
+  // Texto colado de PDF/Word traz sósias dos caracteres do Python (p. ex. ∗ U+2217 do listings em vez de *): trocam-se ao colar
+  const SOSIAS = { "\u2217": "*", "\u22C6": "*", "\u00D7": "*", "\u00F7": "/", "\u2212": "-", "\u2013": "-", "\u2014": "-",
+    "\u201C": '"', "\u201D": '"', "\u201E": '"', "\u00AB": '"', "\u00BB": '"', "\u2018": "'", "\u2019": "'", "\u00B4": "'", "\u2032": "'",
+    "\u00A0": " ", "\u2009": " ", "\u202F": " ", "\u200B": "", "\uFEFF": "", "\u2264": "<=", "\u2265": ">=", "\u2260": "!=" };
+  const RE_SOSIAS = new RegExp("[" + Object.keys(SOSIAS).join("") + "]", "g");
+  const limparSosias = t => t.replace(RE_SOSIAS, c => SOSIAS[c]);
   editor.on("beforeChange", (cm, ch) => {
-    if (exemplo() && ch.origin !== "setValue") { ch.cancel(); aviso("O exemplo não se pode alterar. Carregue em «Novo» para escrever um programa seu."); }
+    if (exemplo() && ch.origin !== "setValue") { ch.cancel(); aviso("O exemplo não se pode alterar. Carregue em «Novo» para escrever um programa seu."); return; }
+    if ((ch.origin === "paste" || ch.origin === "drop") && ch.update) {
+      const txt = ch.text.join("\n"), novo = limparSosias(txt);
+      if (novo !== txt) ch.update(ch.from, ch.to, novo.split("\n"));
+    }
   });
   editor.on("change", () => {
     if (exemplo()) return;
@@ -879,6 +889,7 @@ ${body}
     ["SyntaxError", /Maybe you meant '==' or ':=' instead of '='/, "Para comparar usa-se ==", `${C("=")} guarda um valor numa variável; para comparar dois valores (por exemplo num ${C("if")}) escreve-se ${C("==")}: ${C("if x == 0:")}.`],
     ["SyntaxError", /Perhaps you forgot a comma/, "Falta uma vírgula (ou um operador)", `Entre os valores de um ${C("print(…)")} ou de uma lista põe-se uma vírgula. Se for uma conta, falta talvez um ${C("*")}, ${C("+")} ou ${C("-")}.`],
     ["SyntaxError", /invalid decimal literal/, "Número seguido de letras", `Para multiplicar escreve-se sempre ${C("*")}: ${C("2*x")} e não ${C("2x")}. Os nomes das variáveis também não podem começar por um algarismo.`],
+    ["SyntaxError", /invalid character '(.)' \(U\+(2217|22C6|2212|201C|201D|2018|2019)\)/, "Carácter parecido mas diferente", `O ${C("$1")} desta linha parece-se com um carácter do Python mas não é (código U+$2): costuma vir de texto copiado de um PDF ou do Word. Apague-o e escreva-o de novo no teclado (${C("*")}, ${C("-")} ou aspas direitas ${C('"')}). Ao colar texto nesta app, estes caracteres já são trocados automaticamente.`],
     ["SyntaxError", /invalid character '(.)'/, "Carácter que o Python não conhece", `O carácter ${C("$1")} não pode ser usado aqui. Use ${C("*")} para multiplicar, ${C("/")} para dividir, ${C("**")} para potências (${C("x**2")}) e aspas direitas ${C('"')}.`],
     ["SyntaxError", /invalid non-printable character/, "Carácter invisível", "Há um carácter invisível na linha (muitas vezes vem de um texto copiado). Apague a linha e escreva-a de novo."],
     ["SyntaxError", /cannot assign to (expression|literal|function call)/, "Do lado esquerdo do = tem de estar uma variável", `Escreve-se ${C("y = 2*x + 1")} (a variável à esquerda, a conta à direita) e não ${C("2*x + 1 = y")}. Para comparar use ${C("==")}.`],
