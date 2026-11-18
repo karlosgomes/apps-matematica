@@ -733,6 +733,60 @@ ${body}
     "\u00A0": " ", "\u2009": " ", "\u202F": " ", "\u200B": "", "\uFEFF": "", "\u2264": "<=", "\u2265": ">=", "\u2260": "!=" };
   const RE_SOSIAS = new RegExp("[" + Object.keys(SOSIAS).join("") + "]", "g");
   const limparSosias = t => t.replace(RE_SOSIAS, c => SOSIAS[c]);
+  // Texto copiado de PDF perde os recuos (fica tudo com 0 ou 1 espaço). Se o texto colado tiver um bloco sem recuo
+  // (linha acabada em «:» seguida de outra que não está mais à direita), refazem-se os recuos de 4 em 4:
+  // a linha a seguir a «:» entra no bloco; else/elif/except/finally alinham com o seu if/try/for;
+  // as outras saem dos blocos cujo cabeçalho tinha recuo igual ou maior. Devolve null se não houver nada a corrigir.
+  function corrigirRecuos(txt) {
+    const info = txt.replace(/\t/g, "    ").split("\n").map(l => { const s = l.trimStart().replace(/\s+$/, ""); return { o: l.length - l.trimStart().length, s }; });
+    let prof = 0, tripla = null;
+    for (const it of info) {
+      it.dentro = prof > 0 || !!tripla;
+      let i = 0, sem = ""; const s = it.s;
+      while (i < s.length) {
+        if (tripla) { const k = s.indexOf(tripla, i); if (k < 0) break; i = k + 3; tripla = null; continue; }
+        const c = s[i];
+        if (c === "#") break;
+        if (c === '"' || c === "'") {
+          if (s.substr(i, 3) === c.repeat(3)) { tripla = c.repeat(3); i += 3; continue; }
+          let j = i + 1; while (j < s.length && s[j] !== c) { if (s[j] === "\\") j++; j++; }
+          i = j + 1; sem += "s"; continue;
+        }
+        if ("([{".includes(c)) prof++; else if (")]}".includes(c)) prof = Math.max(0, prof - 1);
+        sem += c; i++;
+      }
+      it.cod = !it.dentro && s !== "" && !s.startsWith("#");
+      it.kw = (s.match(/^[A-Za-z_]\w*/) || [""])[0];
+      it.abre = it.cod && prof === 0 && !tripla && /:\s*$/.test(sem) &&
+        /^(if|elif|else|for|while|def|class|try|except|finally|with|match|case|async)$/.test(it.kw);
+    }
+    const cods = info.filter(it => it.cod);
+    if (!cods.some((it, k) => it.abre && cods[k + 1] && cods[k + 1].o <= it.o)) return null;
+    const base = cods.length ? cods[0].o : 0;
+    const pilha = [{ orig: -1, corpo: base, kw: "", cab: base }];
+    const PAR = { elif: ["if", "elif"], else: ["if", "elif", "for", "while", "try", "except"], except: ["try", "except"], finally: ["try", "except", "else"] };
+    let pend = null, ultNovo = base, ultO = base;
+    const out = info.map(it => {
+      if (it.s === "") return "";
+      if (it.dentro) return " ".repeat(Math.max(0, ultNovo + it.o - ultO)) + it.s;
+      const topo = () => pilha[pilha.length - 1];
+      if (!it.cod) return " ".repeat(pend ? pend.corpo : topo().corpo) + it.s;   // comentário
+      let novo;
+      if (pend) { pilha.push(pend); novo = pend.corpo; pend = null; }
+      else if (PAR[it.kw] && it.abre) {
+        let k = -1;
+        for (let j = pilha.length - 1; j > 0; j--) if (PAR[it.kw].includes(pilha[j].kw)) { if (k < 0) k = j; if (pilha[j].orig <= it.o) { k = j; break; } }
+        if (k > 0) { novo = pilha[k].cab; pilha.length = k; } else novo = topo().corpo;
+      } else {
+        while (pilha.length > 1 && it.o <= topo().orig) pilha.pop();
+        novo = topo().corpo;
+      }
+      if (it.abre) pend = { orig: it.o, corpo: novo + 4, kw: it.kw, cab: novo };
+      ultNovo = novo; ultO = it.o;
+      return " ".repeat(novo) + it.s;
+    });
+    return out.join("\n");
+  }
   editor.on("beforeChange", (cm, ch) => {
     if (exemplo() && ch.origin !== "setValue") { ch.cancel(); aviso("O exemplo não se pode alterar. Carregue em «Novo» para escrever um programa seu."); return; }
     if ((ch.origin === "paste" || ch.origin === "drop") && ch.update) {
@@ -740,8 +794,19 @@ ${body}
       if (novo !== txt) ch.update(ch.from, ch.to, novo.split("\n"));
     }
   });
-  editor.on("change", () => {
+  editor.on("change", (cm, ch) => {
     if (exemplo()) return;
+    if (ch.origin === "paste" || ch.origin === "drop") {
+      // corrige os recuos numa operação à parte, para que Ctrl+Z volte ao texto tal como foi colado
+      const l0 = ch.from.line, l1 = ch.from.line + ch.text.length - 1;
+      if (l1 > l0 && /^\s*$/.test(cm.getLine(l0).slice(0, ch.from.ch))) setTimeout(() => {
+        const ate = CodeMirror.Pos(l1, cm.getLine(l1).length);
+        const novo = corrigirRecuos(cm.getRange(CodeMirror.Pos(l0, 0), ate));
+        if (novo === null) return;
+        cm.replaceRange(novo, CodeMirror.Pos(l0, 0), ate, "+recuos");
+        aviso("Os recuos do texto colado estavam desfeitos (acontece ao copiar de PDF) e foram refeitos. Confirme os blocos; Ctrl+Z desfaz.");
+      }, 0);
+    }
     dados.programas[dados.atual].codigo = editor.getValue();
     clearTimeout(timer); timer = setTimeout(guardar, 400);
   });
