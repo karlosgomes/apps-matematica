@@ -13,6 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
@@ -427,7 +428,7 @@ plt.show()
       Tab: cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
       "Shift-Tab": cm => cm.indentSelection("subtract"),
       "Ctrl-Enter": () => executar(), "Cmd-Enter": () => executar(),
-      "Ctrl-/": "toggleComment",
+      "Ctrl-/": "toggleComment", "Cmd-/": "toggleComment", "Shift-Ctrl-7": "toggleComment",   // Ctrl+/ (teclado PT: Ctrl+Shift+7)
       "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
     },
   });
@@ -904,7 +905,7 @@ ${body}
   function receber(m) {
     if (m.tipo === "pronto") {
       pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
-      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome.");
+      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome; Ctrl+/ comenta as linhas selecionadas.");
     }
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
     else if (m.tipo === "out") escrever(m.t);
