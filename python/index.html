@@ -438,6 +438,13 @@ plt.show()
     extraKeys: {
       Tab: cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
       "Shift-Tab": cm => cm.indentSelection("subtract"),
+      // Backspace no recuo (só espaços antes do cursor): apaga até ao nível anterior, 4 espaços de cada vez (como o VS Code/Thonny)
+      Backspace: cm => {
+        if (cm.somethingSelected() || cm.getOption("readOnly")) return CodeMirror.Pass;
+        const { line, ch } = cm.getCursor(), antes = cm.getLine(line).slice(0, ch);
+        if (!ch || !/^ +$/.test(antes)) return CodeMirror.Pass;
+        cm.replaceRange("", { line, ch: (Math.ceil(ch / 4) - 1) * 4 }, { line, ch }, "+delete");
+      },
       "Ctrl-Enter": () => executar(), "Cmd-Enter": () => executar(),
       "Ctrl-/": "toggleComment", "Cmd-/": "toggleComment", "Shift-Ctrl-7": "toggleComment",   // Ctrl+/ (teclado PT: Ctrl+Shift+7)
       "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
