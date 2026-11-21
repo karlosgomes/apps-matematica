@@ -117,6 +117,10 @@
   #saida { flex: 1; overflow: auto; margin: 0; padding: 12px 14px; font: var(--letra-s, 15px)/1.5 "IBM Plex Mono", ui-monospace, monospace;
            white-space: pre-wrap; word-break: break-word; }
   #saida .err { color: var(--err); }
+  /* histórico das execuções (como a Shell do IDLE): cada execução começa com uma linha com o nome e a hora */
+  #saida .sep { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; color: var(--muted); font-size: .85em; white-space: nowrap; }
+  #saida .sep:first-child { margin-top: 0; }
+  #saida .sep::before, #saida .sep::after { content: ""; flex: 1; border-top: 3px double var(--line); }
   #saida .info { color: var(--muted); font-style: italic; }
   #saida .ajuda { display: block; margin: 10px 0 4px; padding: 8px 12px; border-left: 4px solid var(--accent); border-radius: 0 6px 6px 0;
                   background: var(--bg); font: 15px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif; white-space: normal; }
@@ -507,7 +511,8 @@ plt.show()
   function saidaHTML() {
     let html = "", bloco = "", nfig = 0;
     const fecha = () => { if (bloco.replace(/<[^>]*>/g, "").trim()) html += `<pre class="out">${bloco.replace(/\n+$/, "")}</pre>`; bloco = ""; };
-    for (const el of saida.childNodes) {
+    const nos = [...saida.childNodes], k = nos.findLastIndex(el => el.classList && el.classList.contains("sep"));
+    for (const el of nos.slice(k + 1)) {
       if (el.nodeName === "IMG") { fecha(); nfig++; html += `<figure><img src="${el.src}" alt="Figura ${nfig}"><figcaption><b>Figura ${nfig}:</b> gráfico produzido pelo programa.</figcaption></figure>`; }
       else if (el.classList && el.classList.contains("ajuda")) continue;
       else { const cls = el.classList && el.classList.contains("err") ? "err" : el.classList && el.classList.contains("info") ? "info" : ""; bloco += cls ? `<span class="${cls}">${escH(el.textContent)}</span>` : escH(el.textContent); }
@@ -868,6 +873,16 @@ ${body}
   $("limpar").onclick = () => { saida.innerHTML = ""; };
 
   // ---------- saída ----------
+  // histórico (pedido do utilizador, 2026-11-21, modelo da Shell do IDLE): a saída não se apaga ao executar;
+  // cada execução começa com um separador «nome · hora»; ficam as últimas MAX_EXEC; «Limpar» apaga tudo
+  const MAX_EXEC = 30;
+  function separador() {
+    const seps = saida.querySelectorAll(".sep");
+    if (seps.length >= MAX_EXEC) { const corte = seps[seps.length - MAX_EXEC + 1]; while (saida.firstChild !== corte) saida.removeChild(saida.firstChild); }
+    const d = document.createElement("div"); d.className = "sep";
+    d.textContent = `${nomeAtual()} · ${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    saida.appendChild(d); saida.scrollTop = saida.scrollHeight;
+  }
   function escrever(texto, classe) {
     const ultimo = saida.lastChild;
     if (ultimo && ultimo.nodeName === "SPAN" && ultimo.className === (classe || "")) ultimo.textContent += texto;
@@ -924,7 +939,7 @@ ${body}
     if (!pronto || aCorrer) return;
     aCorrer = true; guardar();
     btnExec.hidden = true; btnParar.hidden = false;
-    saida.innerHTML = ""; setEstado("A executar…"); tirarMarca();
+    separador(); setEstado("A executar…"); tirarMarca();
     t0 = performance.now();
     if (sab) interromper[0] = 0;
     codigoExecutado = editor.getValue();
