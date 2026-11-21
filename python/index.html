@@ -102,6 +102,13 @@
   /* .cm-s-default: para se sobrepor às cores do tema do CodeMirror */
   /* cores do Google Colab (modo «python-colab», definido no script) */
   .CodeMirror { color: var(--cod); }
+  /* recuos visíveis (como o «renderWhitespace: boundary» + guias de recuo do VS Code): um ponto por espaço no início
+     da linha, uma linha vertical a cada 4 espaços (um nível) e os tabs a laranja com uma seta */
+  .cm-esp { background: radial-gradient(circle, rgba(128,128,128,.55) 0 1.3px, transparent 1.6px) center / 100% 100% no-repeat; }
+  .cm-nivel { box-shadow: inset 1px 0 0 rgba(128,128,128,.35); }
+  .cm-tabul { background: rgba(239,108,0,.22); }
+  .cm-tabul .cm-tab { position: relative; }
+  .cm-tabul .cm-tab::before { content: "→"; position: absolute; left: 1px; color: #ef6c00; }
   .cm-s-default .cm-keyword { color: var(--kw); } .cm-s-default .cm-kw2 { color: var(--kw2); }
   .cm-s-default .cm-funcao, .cm-s-default .cm-def { color: var(--fn); } .cm-s-default .cm-tipo { color: var(--tipo); }
   .cm-s-default .cm-string { color: var(--str); } .cm-s-default .cm-number { color: var(--num); } .cm-s-default .cm-comment { color: var(--com); }
@@ -436,6 +443,17 @@ plt.show()
       "Ctrl-Space": cm => cm.showHint({ hint: sugestoes }),
     },
   });
+  // ---------- recuos visíveis: só no início das linhas (pedido do utilizador, 2026-11-21) ----------
+  editor.addOverlay({
+    token(stream) {
+      const recuo = stream.string.match(/^[ \t]*/)[0].length;
+      if (stream.pos >= recuo) { stream.skipToEnd(); return null; }
+      const col = stream.column(), ch = stream.next();
+      if (ch === "\t") return "tabul";
+      return col % 4 === 0 ? "esp nivel" : "esp e" + (col % 4);   // classes diferentes: o CodeMirror não junta os espaços num só span
+    }
+  });
+
   // ---------- tamanho da letra do código (A− / A+, Ctrl+− / Ctrl++ no editor; guardado em apps-mat-python-letra) ----------
   {
     const CL = "apps-mat-python-letra", MIN = 11, MAX = 32, NORMAL = 15;
