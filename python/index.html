@@ -1193,7 +1193,7 @@ ${body}
     if (m.tipo === "pronto") {
       pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
       if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez."
-        : motor === "casio" ? "Pronto (MicroPython, como na calculadora: só os módulos da calculadora). Ctrl+Enter executa."
+        : motor === "casio" ? "Pronto (MicroPython 1.9.4, como na calculadora CASIO: só os módulos da calculadora). Ctrl+Enter executa."
         : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome; Ctrl+/ comenta as linhas selecionadas.");
     }
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
