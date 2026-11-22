@@ -213,7 +213,7 @@
   </div>
   <div class="grupo motor" role="radiogroup" aria-label="Que Python usar">
     <button id="motor-py" role="radio" aria-checked="true" title="Python completo (o mesmo do computador)">Python</button>
-    <button id="motor-casio" role="radio" aria-checked="false" title="MicroPython como na calculadora CASIO fx-CG50: só os módulos da calculadora (math, random, casioplot, turtle, matplotlib.pyplot)">CASIO</button>
+    <button id="motor-casio" role="radio" aria-checked="false" title="MicroPython como nas calculadoras gráficas: só os módulos da calculadora (math, random, casioplot, turtle, matplotlib.pyplot)">MicroPython</button>
   </div>
   <button id="tema" aria-label="Alternar modo claro/escuro"></button>
   <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
@@ -480,14 +480,14 @@ function verificar(cod) {
       let j = i - 1, pre = "";
       while (j >= 0 && /[A-Za-z]/.test(cod[j])) pre = cod[j--] + pre;
       if (/^[rRbBuU]?[fF][rR]?$/.test(pre)) return { linha, titulo: "A calculadora não conhece f-strings",
-        texto: 'A fx-CG50 usa o MicroPython 1.9.4, que ainda não tem textos do tipo <code>f"…{x}…"</code>. Use vírgulas no <code>print</code>: <code>print("x =", x)</code>, ou <code>"x = {}".format(x)</code>.' };
+        texto: 'A calculadora usa o MicroPython 1.9.4, que ainda não tem textos do tipo <code>f"…{x}…"</code>. Use vírgulas no <code>print</code>: <code>print("x =", x)</code>, ou <code>"x = {}".format(x)</code>.' };
       const tri = cod.substr(i, 3) === c.repeat(3), fim = tri ? c.repeat(3) : c;
       i += fim.length;
       while (i < n && cod.substr(i, fim.length) !== fim) { if (cod[i] === "\\") i++; else if (cod[i] === "\n") { linha++; if (!tri) break; } i++; }
       i += fim.length; continue;
     }
     if (c === ":" && cod[i + 1] === "=") return { linha, titulo: "A calculadora não conhece :=",
-      texto: "O operador <code>:=</code> (morsa) não existe no MicroPython 1.9.4 da fx-CG50. Faça a atribuição numa linha à parte." };
+      texto: "O operador <code>:=</code> (morsa) não existe no MicroPython 1.9.4 da calculadora. Faça a atribuição numa linha à parte." };
     i++;
   }
   return null;
@@ -1142,7 +1142,7 @@ ${body}
     const seps = saida.querySelectorAll(".sep");
     if (seps.length >= MAX_EXEC) { const corte = seps[seps.length - MAX_EXEC + 1]; while (saida.firstChild !== corte) saida.removeChild(saida.firstChild); }
     const d = document.createElement("div"); d.className = "sep";
-    d.textContent = `${nomeAtual()}${motor === "casio" ? " · CASIO" : ""} · ${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    d.textContent = `${nomeAtual()}${motor === "casio" ? " · MicroPython" : ""} · ${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
     saida.appendChild(d); saida.scrollTop = saida.scrollHeight;
   }
   function escrever(texto, classe) {
@@ -1194,7 +1194,7 @@ ${body}
     if (m.tipo === "pronto") {
       pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
       if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez."
-        : motor === "casio" ? "Pronto (modo CASIO fx-CG50: MicroPython, só os módulos da calculadora). Ctrl+Enter executa."
+        : motor === "casio" ? "Pronto (MicroPython, como na calculadora: só os módulos da calculadora). Ctrl+Enter executa."
         : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome; Ctrl+/ comenta as linhas selecionadas.");
     }
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
@@ -1320,7 +1320,7 @@ ${body}
     ["ZeroDivisionError", /.*/, "Divisão por zero", "O programa dividiu por 0 (com /, // ou %). Verifique o valor do divisor nesta linha."],
     ["IndexError", /.*/, "Posição que não existe", `As posições de uma lista com n elementos vão de 0 a n − 1. Por exemplo, numa lista de 3 elementos ${C("lista[3]")} já não existe.`],
     ["KeyError", /.*/, "Chave que não existe", "O dicionário não tem esta chave. Verifique se está bem escrita."],
-    ["AttributeError", /'module' object has no attribute '(\w+)'/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na CASIO fx-CG50 (por exemplo, o ${C("math")} da calculadora não tem ${C("radians")} nem ${C("degrees")}: use ${C("x*pi/180")} e ${C("x*180/pi")}).`],
+    ["AttributeError", /'module' object has no attribute '(\w+)'/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na calculadora (por exemplo, o ${C("math")} da calculadora não tem ${C("radians")} nem ${C("degrees")}: use ${C("x*pi/180")} e ${C("x*180/pi")}).`],
     ["AttributeError", /module '(\w+)' has no attribute '(\w+)'\. Did you mean: '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Queria escrever ${C("$3")}?`],
     ["AttributeError", /module '(\w+)' has no attribute '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Verifique se está bem escrito (maiúsculas e minúsculas contam).`],
     ["AttributeError", /'(\w+)' object has no attribute '(\w+)'/, "$2 não existe", `Um valor do tipo ${C("$1")} não tem ${C(".$2")}. Verifique se está bem escrito ou se a variável tem o valor que pensa.`],
@@ -1333,8 +1333,8 @@ ${body}
     ["TypeError", /unsupported types for __\w+__: .*'str'/, "Conta com texto", `Um dos valores é texto (${C("str")}). Atenção: ${C("input()")} devolve sempre texto; para obter um número use ${C('int(input("…"))')} ou ${C('float(input("…"))')}.`],
     ["ValueError", /invalid syntax for integer with base 10: '(-?\d+[.,]\d+)'/, "Não é um número inteiro", `${C("int(…)")} só aceita inteiros. Para números com casas decimais use ${C("float(…)")} (e ponto decimal).`],
     ["ValueError", /invalid syntax for (integer|number)/, "Não é um número", `O valor não é um número, por isso não pode ser convertido. Nos números com casas decimais usa-se ponto, não vírgula: ${C("3.5")}.`],
-    ["ImportError", /no module named '([\w.]+)'/, "A calculadora não tem o módulo $1", `Na CASIO fx-CG50 só se podem importar os módulos ${C("math")}, ${C("random")} e ${C("casioplot")} (e ${C("turtle")} e ${C("matplotlib.pyplot")}, que vêm de série na Graph 90+E e se copiam para a fx-CG50 como ${C("turtle.py")} e ${C("matplotl.py")}).`],
-    ["ImportError", /can't import name (\w+)/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na CASIO fx-CG50. No ${C("math")} da calculadora há: e, pi, sqrt, pow, exp, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, floor, ceil, fabs, fmod, frexp, modf.`],
+    ["ImportError", /no module named '([\w.]+)'/, "A calculadora não tem o módulo $1", `Na calculadora só se podem importar os módulos ${C("math")}, ${C("random")}, ${C("casioplot")}, ${C("turtle")} e ${C("matplotlib.pyplot")} (em alguns modelos, ${C("turtle.py")} e ${C("matplotl.py")} têm de ser copiados para a calculadora).`],
+    ["ImportError", /can't import name (\w+)/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na calculadora. No ${C("math")} da calculadora há: e, pi, sqrt, pow, exp, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, floor, ceil, fabs, fmod, frexp, modf.`],
     ["RuntimeError", /pystack exhausted|maximum recursion depth/, "A função não para de se chamar", "A função chama-se a si própria demasiadas vezes (na calculadora o limite anda pelas 80 chamadas). Falta um caso de paragem, ou ele nunca é atingido."],
     ["MemoryError", /.*/, "Memória esgotada", "O programa usou memória demais: talvez uma lista que cresce sem parar dentro de um ciclo."],
   ];
@@ -1376,7 +1376,7 @@ ${body}
     clearTimeout(timerParar);
     if (worker) worker.terminate();
     if (aCorrer) { fecharCampo(); escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
-    setEstado(motor === "casio" ? "A carregar o MicroPython (modo CASIO)…" : "A carregar o Python…");
+    setEstado(motor === "casio" ? "A carregar o MicroPython…" : "A carregar o Python…");
     criarWorker();
   }
   $("motor-py").onclick = () => trocarMotor("py");
