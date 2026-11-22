@@ -895,10 +895,11 @@
     else {
       const G = R.G, Q = R.Q;
       rows.push({ st: 3, badge: 3, lab: "Ordem (razão)", span: R.order.map(i => `${sh(i)} ${AJ.v[i][G]}/${AJ.v[i][Q]}`).join("  <  ") });
-      R.tests.forEach((t, k) => rows.push({ st: 4, badge: k === 0 ? 4 : null, lab: `Passar ${sh(t.i)} todo?`,
+      // os rótulos das linhas ainda por fazer não revelam o item (2026-11-22): «Passar … todo?», «Divide-se …»
+      R.tests.forEach((t, k) => rows.push({ st: 4, badge: k === 0 ? 4 : null, lab: step >= 4 ? `Passar ${sh(t.i)} todo?` : "Passar … todo?",
         cells: [0, 1].map(p => p === G ? C1(ffmt(t.tg), C.ink) : C1(ffmt(t.tq) + (t.ok ? "  ✔ passa" : "  ✘ inverte"), t.ok ? C.ok : C.bad)) }));
       const d = R.div;
-      rows.push({ st: 5, badge: 5, lab: d ? `Divide-se ${sh(d.i)}` : "Divide-se", span: d
+      rows.push({ st: 5, badge: 5, lab: d && step >= 5 ? `Divide-se ${sh(d.i)}` : "Divide-se …", span: d
         ? `${ffmt(d.V)} − ${d.v}x = ${ffmt(d.P)} + ${d.p}x   ⟹   x = ${ffr(R.x)}`
         : "Nenhum item: as passagens por inteiro já igualam os pontos" });
     }
