@@ -1,0 +1,58 @@
+# De 6 em 6 meses (1 de janeiro e 1 de julho), verifica se há versões novas do Pyodide e do MicroPython
+# usados na app Python. Se houver, testa a app com elas (Chrome headless) e abre um pull request com o
+# resultado dos testes. Nada é publicado sem o dono aceitar o pull request («Merge»).
+# Também se pode correr à mão: separador Actions → «Atualizar o Python da app» → Run workflow.
+name: Atualizar o Python da app
+on:
+  schedule:
+    - cron: "0 7 1 1,7 *"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Procurar versões novas
+        id: versoes
+        run: node .github/testes-python/atualizar.mjs >> "$GITHUB_OUTPUT"
+      - name: Testar a app com as versões novas
+        id: testes
+        if: steps.versoes.outputs.mudou == 'true'
+        continue-on-error: true
+        run: node .github/testes-python/testar.mjs relatorio.md
+      - name: Abrir o pull request
+        if: steps.versoes.outputs.mudou == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESCRICAO: ${{ steps.versoes.outputs.descricao }}
+          RESULTADO: ${{ steps.testes.outcome }}
+        run: |
+          ramo="atualizar-python/${{ steps.versoes.outputs.sufixo }}"
+          if git ls-remote --exit-code --heads origin "$ramo" > /dev/null; then
+            echo "Já há um pull request para estas versões ($ramo)."; exit 0
+          fi
+          if [ "$RESULTADO" = "success" ]; then estado="✅ testes passaram"; else estado="❌ há testes que falharam"; fi
+          {
+            echo "Há versões novas do Python usado na app: **$DESCRICAO**."
+            echo
+            if [ "$RESULTADO" = "success" ]; then
+              echo "A app foi testada com elas e **todos os testes passaram**. Para publicar, carregue em **Merge pull request** (o site atualiza em cerca de 1 minuto)."
+            else
+              echo "A app foi testada com elas e **há testes que falharam** (ver a tabela). Não convém publicar assim: é preciso ajustar a app primeiro. Para ignorar esta versão, carregue em **Close pull request**."
+            fi
+            echo
+            cat relatorio.md 2>/dev/null || echo "(sem relatório: os testes não chegaram a correr)"
+          } > corpo.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$ramo"
+          git add python/index.html
+          git commit -m "Python: $DESCRICAO"
+          git push origin "$ramo"
+          gh pr create --base main --head "$ramo" --title "Python: $DESCRICAO ($estado)" --body-file corpo.md

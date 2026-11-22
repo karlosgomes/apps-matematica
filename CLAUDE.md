@@ -66,3 +66,10 @@ Testar também numa largura de telemóvel (ex.: 420 px).
 - Repositório público https://github.com/karlosgomes/apps-matematica (ramo `main`, raiz) → GitHub Pages: https://karlosgomes.github.io/apps-matematica/
 - Publicar = `git commit` + `git push`; o site atualiza em ~1 min. **Perguntar sempre antes de fazer push** («commit e push?»); depois do push, confirmar online com `curl` e lembrar Ctrl+Shift+R.
 - Só as apps são públicas (fichas e soluções não).
+
+## Atualização do Pyodide e do MicroPython (app Python, 2026-11-22, pedido do utilizador)
+- As versões estão fixadas em `python/index.html` (Pyodide `pyodide/vX/full/`, 2 sítios; MicroPython `micropython-webassembly-pyscript@X/`).
+- `.github/workflows/atualizar-python.yml` corre de 6 em 6 meses (1 de janeiro e 1 de julho, 07:00 UTC) ou à mão (Actions → Run workflow): `.github/testes-python/atualizar.mjs` vê a versão `latest` no npm e troca-a; `.github/testes-python/testar.mjs` testa a app num Chrome headless (18 testes: print/input, explicações de erros, sleep, numpy, matplotlib, Parar; MicroPython: f-strings, módulos, casioplot, turtle, pyplot) e o workflow abre um pull request com a tabela dos testes. Nada é publicado sem o utilizador aceitar («Merge»).
+- Os testes também correm à mão, na raiz do repositório: `node .github/testes-python/testar.mjs relatorio.md` (precisa do google-chrome e do python3).
+- Precisa de «Allow GitHub Actions to create and approve pull requests» ligado nas definições do repositório. O GitHub desliga os workflows agendados ao fim de 60 dias sem atividade no repositório: se isso acontecer, voltar a ligá-lo no separador Actions.
+- Estado em 2026-11-22: a app usa o Pyodide 0.26.4; a 314.0.8 (Python 3.14) ainda não carrega na app (o `importScripts` do worker falha), por isso o primeiro pull request vai sair com ❌ até a app ser adaptada.
