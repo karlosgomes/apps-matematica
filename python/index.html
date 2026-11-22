@@ -623,10 +623,9 @@ plt.show()
   // programa enviado num link (#codigo=...): abre como programa novo
   const m = location.hash.match(/^#codigo=([^&]*)(?:&nome=([^&]*))?(&casio)?$/);
   // Python a usar: «py» (Pyodide) ou «casio» (MicroPython, como na fx-CG50); um link com &casio abre neste modo
-  const CHAVE_MOTOR = "apps-mat-python-motor";
-  let motor = "py";
-  try { if (localStorage.getItem(CHAVE_MOTOR) === "casio") motor = "casio"; } catch (e) {}
-  if (m && m[3]) { motor = "casio"; try { localStorage.setItem(CHAVE_MOTOR, motor); } catch (e) {} }
+  // a app abre sempre em Python; só um link com &casio abre em MicroPython (pedido do utilizador, 2026-11-22: a escolha não fica guardada)
+  try { localStorage.removeItem("apps-mat-python-motor"); } catch (e) {}   // apaga a escolha guardada pelas versões anteriores
+  let motor = m && m[3] ? "casio" : "py";
   if (m) {
     try {
       const codigo = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1])), c => c.charCodeAt(0)));
@@ -1372,7 +1371,6 @@ ${body}
   function trocarMotor(novo) {
     if (novo === motor) return;
     motor = novo; marcarMotor();
-    try { localStorage.setItem(CHAVE_MOTOR, motor); } catch (e) {}
     clearTimeout(timerParar);
     if (worker) worker.terminate();
     if (aCorrer) { fecharCampo(); escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
