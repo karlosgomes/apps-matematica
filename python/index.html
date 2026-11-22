@@ -80,6 +80,15 @@
   button:disabled { opacity: .5; cursor: default; }
   #executar { background: var(--accent); border-color: var(--accent); font-weight: 700; padding: 5px 16px; }
   #executar:hover:not(:disabled) { background: var(--hover); border-color: var(--hover); }
+  /* escolha do Python: completo (Pyodide) ou como na CASIO fx-CG50 (MicroPython) */
+  .motor { gap: 0; }
+  .motor button { border-radius: 0; }
+  .motor button:first-child { border-radius: 6px 0 0 6px; }
+  .motor button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+  .motor button[aria-checked="true"] { background: #fff; color: var(--banner); font-weight: 700; }
+  /* ecrã da calculadora (casioplot, turtle, matplotlib no modo CASIO): 384 × 192 píxeis, ampliado sem esbater */
+  #saida canvas.tela { display: block; width: 100%; max-width: 768px; aspect-ratio: 2 / 1; image-rendering: pixelated; margin: 8px 0;
+                       background: #fff; border: 6px solid #2b2f36; border-radius: 6px; }
   #parar { background: #c62828; border-color: #c62828; font-weight: 700; padding: 5px 16px; }
   #parar:hover { background: #e53935; border-color: #e53935; }
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--esq, 1fr)) 8px minmax(0, 1fr); }
@@ -201,6 +210,10 @@
   <div class="grupo" role="group" aria-label="Tamanho da letra do código">
     <button id="letra-menos" title="Letra do código mais pequena (Ctrl+−)">A−</button>
     <button id="letra-mais" title="Letra do código maior (Ctrl++); duplo clique num dos dois volta ao tamanho normal">A+</button>
+  </div>
+  <div class="grupo motor" role="radiogroup" aria-label="Que Python usar">
+    <button id="motor-py" role="radio" aria-checked="true" title="Python completo (o mesmo do computador)">Python</button>
+    <button id="motor-casio" role="radio" aria-checked="false" title="MicroPython como na calculadora CASIO fx-CG50: só os módulos da calculadora (math, random, casioplot, turtle, matplotlib.pyplot)">CASIO</button>
   </div>
   <button id="tema" aria-label="Alternar modo claro/escuro"></button>
   <button id="executar" disabled title="Executar (Ctrl+Enter)">A carregar…</button>
@@ -335,6 +348,222 @@ onmessage = async e => {
   }
 };
 </script>
+<script type="text/plain" id="worker-casio">
+// Modo CASIO (fx-CG50): MicroPython (WebAssembly oficial) num worker de módulo.
+// Mesmas mensagens que o worker do Pyodide: pronto, falhou, out, err, input, executar, fim, erro, e «tela» (ecrã de 384×192).
+const MP = "https://cdn.jsdelivr.net/npm/@micropython/micropython-webassembly-pyscript@1.29.0-6/";
+let mp = null, ctl = null, bytes = null, codigoAtual = "";
+
+// ---- saída: o MicroPython escreve byte a byte; junta-se e envia-se por linhas (no máx. a cada 40 ms)
+const dec = new TextDecoder();
+let pend = "", ultEnvio = 0;
+function despejar() { if (pend) { postMessage({ tipo: "out", t: pend }); pend = ""; ultEnvio = performance.now(); } }
+function escreve(d) {
+  pend += dec.decode(d, { stream: true });
+  if (pend.length > 4000 || (pend.includes("\n") && performance.now() - ultEnvio > 40)) despejar();
+}
+
+// ---- input(): como no worker do Pyodide (Atomics.wait no SharedArrayBuffer)
+function pedirInput(msg) {
+  despejar();
+  if (!ctl) return false;
+  Atomics.store(ctl, 0, 0);
+  postMessage({ tipo: "input", msg: msg.length > 16 ? msg.slice(0, 15) + "~" : msg });   // a calculadora corta os pedidos com mais de 16 caracteres
+  Atomics.wait(ctl, 0, 0);
+  if (Atomics.load(ctl, 0) === 2) return null;
+  return new TextDecoder().decode(bytes.slice(0, ctl[1]));
+}
+
+// ---- ecrã da calculadora (casioplot, turtle, matplotlib): 384 × 192 píxeis, desenhado aqui e enviado à página
+const LT = 384, AT = 192;
+const tela = new Uint8ClampedArray(LT * AT * 4).fill(255);
+let telaUsada = false;
+function pixel(x, y, r, g, b) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || y < 0 || x >= LT || y >= AT) return;
+  const i = (y * LT + x) * 4; tela[i] = r; tela[i + 1] = g; tela[i + 2] = b; tela[i + 3] = 255;
+  telaUsada = true;
+}
+function lerPixel(x, y) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || y < 0 || x >= LT || y >= AT) return null;
+  const i = (y * LT + x) * 4; return [tela[i], tela[i + 1], tela[i + 2]];
+}
+function linha(x0, y0, x1, y1, r, g, b) {             // Bresenham
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let e = dx + dy, n = 0;
+  for (;;) {
+    pixel(x0, y0, r, g, b);
+    if ((x0 === x1 && y0 === y1) || ++n > 5000) break;
+    const e2 = 2 * e;
+    if (e2 >= dy) { e += dy; x0 += sx; }
+    if (e2 <= dx) { e += dx; y0 += sy; }
+  }
+}
+// texto: desenhado num OffscreenCanvas e copiado para o ecrã (só os píxeis escuros, como a letra da calculadora)
+const oc = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(LT, 40) : null, octx = oc && oc.getContext("2d", { willReadFrequently: true });
+const TAM = { small: 10, medium: 16, large: 22 };
+function texto(x, y, s, r, g, b, tam) {
+  if (!octx) return;
+  const px = TAM[tam] || TAM.medium;
+  octx.clearRect(0, 0, LT, 40);
+  octx.font = `${px}px sans-serif`; octx.textBaseline = "top"; octx.fillStyle = "#000";
+  octx.fillText(String(s), 0, 2);
+  const w = Math.min(LT, Math.ceil(octx.measureText(String(s)).width) + 1), h = px + 6;
+  const img = octx.getImageData(0, 0, w, h).data;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (img[(j * w + i) * 4 + 3] > 110) pixel(x + i, y + j - 2, r, g, b);
+}
+function limparTela(r = 255, g = 255, b = 255) {
+  for (let i = 0; i < tela.length; i += 4) { tela[i] = r; tela[i + 1] = g; tela[i + 2] = b; tela[i + 3] = 255; }
+}
+function retangulo(x0, y0, x1, y1, r, g, b) {
+  for (let y = Math.round(Math.min(y0, y1)); y <= Math.round(Math.max(y0, y1)); y++)
+    for (let x = Math.round(Math.min(x0, x1)); x <= Math.round(Math.max(x0, x1)); x++) pixel(x, y, r, g, b);
+}
+// novo = true (plt.show): ecrã novo na saída; senão (show_screen, turtle) atualiza o desta execução
+function mostrar(novo) { despejar(); postMessage({ tipo: "tela", px: comTartaruga(), novo: !!novo }); telaUsada = false; }
+// ---- tartaruga (turtle): posição desenhada por cima do ecrã quando se mostra; pausa entre movimentos (speed)
+let tart = null;                                       // { x, y, h, cor } em píxeis do ecrã, ou null se escondida
+const esperaSab = typeof SharedArrayBuffer !== "undefined" && self.crossOriginIsolated ? new Int32Array(new SharedArrayBuffer(4)) : null;
+function dormirMs(ms) {
+  if (ms <= 0) return;
+  if (esperaSab) Atomics.wait(esperaSab, 0, 0, ms);
+  else { const t = performance.now() + ms; while (performance.now() < t) {} }
+}
+let ultTela = 0;
+function tartaruga(x, y, h, r, g, b, vis, ms) {
+  tart = vis ? { x, y, h, cor: [r, g, b] } : null;
+  if (ms > 0) {                                        // animação: mostra no máx. a cada 30 ms e espera
+    if (performance.now() - ultTela > 30) { mostrar(); ultTela = performance.now(); }
+    dormirMs(ms);
+  }
+}
+function comTartaruga() {
+  const px = tela.slice();
+  if (!tart) return px;
+  const a = tart.h * Math.PI / 180, ca = Math.cos(a), sa = -Math.sin(a);   // y do ecrã para baixo
+  const P = [[9, 0], [-5, 5], [-5, -5]].map(([u, v]) => [tart.x + u * ca - v * sa, tart.y + u * sa + v * ca]);
+  // triângulo cheio (teste de semiplanos)
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  const lado = (p, q, x, y) => (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]);
+  for (let y = Math.floor(Math.min(...ys)); y <= Math.ceil(Math.max(...ys)); y++)
+    for (let x = Math.floor(Math.min(...xs)); x <= Math.ceil(Math.max(...xs)); x++) {
+      const d1 = lado(P[0], P[1], x, y), d2 = lado(P[1], P[2], x, y), d3 = lado(P[2], P[0], x, y);
+      if ((d1 >= 0 && d2 >= 0 && d3 >= 0) || (d1 <= 0 && d2 <= 0 && d3 <= 0)) {
+        if (x < 0 || y < 0 || x >= LT || y >= AT) continue;
+        const i = (y * LT + x) * 4; px[i] = tart.cor[0]; px[i + 1] = tart.cor[1]; px[i + 2] = tart.cor[2];
+      }
+    }
+  return px;
+}
+
+
+// ---- módulos escritos em Python (casioplot) e o módulo math reduzido (preenchido na preparação)
+const CASIOPLOT = "# casioplot (fx-CG50): ecr\u00e3 de 384 x 192 p\u00edxeis; cores (r, g, b) de 0 a 255\nimport _tela\ndef _cor(c):\n    try:\n        r, g, b = c\n    except Exception:\n        raise TypeError(\"color must be (r, g, b)\")\n    return int(r), int(g), int(b)\ndef set_pixel(x, y, color=(0, 0, 0)):\n    r, g, b = _cor(color)\n    _tela.pixel(int(x), int(y), r, g, b)\ndef get_pixel(x, y):\n    p = _tela.lerPixel(int(x), int(y))\n    return None if p is None else (p[0], p[1], p[2])\ndef clear_screen():\n    _tela.limpar(255, 255, 255)\ndef show_screen():\n    _tela.mostrar()\ndef draw_string(x, y, text, color=(0, 0, 0), size=\"medium\"):\n    if size not in (\"small\", \"medium\", \"large\"):\n        raise ValueError(\"size must be 'small', 'medium' or 'large'\")\n    r, g, b = _cor(color)\n    _tela.texto(int(x), int(y), str(text), r, g, b, size)\n";
+const TURTLE = "# turtle (como na Graph 90+E / fx-CG50 com turtle.py): origem no centro do ecr\u00e3 de 384 x 192, y para cima, graus\nimport _tela, math\n_COR = {\"black\": (0, 0, 0), \"blue\": (0, 0, 255), \"red\": (255, 0, 0), \"green\": (0, 128, 0), \"yellow\": (255, 255, 0),\n        \"brown\": (165, 42, 42), \"grey\": (128, 128, 128), \"gray\": (128, 128, 128), \"orange\": (255, 165, 0),\n        \"purple\": (128, 0, 128), \"pink\": (255, 192, 203), \"white\": (255, 255, 255), \"cyan\": (0, 255, 255), \"magenta\": (255, 0, 255)}\n_e = {}\ndef _reiniciar():\n    _e.update({\"x\": 0.0, \"y\": 0.0, \"h\": 0.0, \"baixo\": True, \"cor\": (0, 0, 0), \"larg\": 1, \"vis\": True, \"vel\": 6, \"usada\": False})\n_reiniciar()\ndef _px(x, y):\n    return 192 + x, 96 - y\ndef _rgb(c):\n    if isinstance(c, str):\n        if c not in _COR:\n            raise ValueError(\"invalid color\")\n        return _COR[c]\n    r, g, b = c\n    if max(r, g, b) <= 1:\n        r, g, b = r * 255, g * 255, b * 255\n    return int(r), int(g), int(b)\ndef _mostra():\n    x, y = _px(_e[\"x\"], _e[\"y\"])\n    r, g, b = _e[\"cor\"]\n    v = _e[\"vel\"]\n    _tela.tartaruga(x, y, _e[\"h\"], r, g, b, _e[\"vis\"], 0 if v == 0 else (11 - v) * 4)\ndef _seg(x0, y0, x1, y1):\n    r, g, b = _e[\"cor\"]\n    a0, b0 = _px(x0, y0); a1, b1 = _px(x1, y1)\n    w = _e[\"larg\"]\n    for d in range(-((w - 1) // 2), w // 2 + 1):\n        if abs(x1 - x0) >= abs(y1 - y0):\n            _tela.linha(a0, b0 + d, a1, b1 + d, r, g, b)\n        else:\n            _tela.linha(a0 + d, b0, a1 + d, b1, r, g, b)\ndef goto(x, y=None):\n    if y is None:\n        x, y = x\n    _e[\"usada\"] = True\n    if _e[\"baixo\"]:\n        _seg(_e[\"x\"], _e[\"y\"], x, y)\n    _e[\"x\"], _e[\"y\"] = float(x), float(y)\n    _mostra()\nsetpos = setposition = goto\ndef setx(x):\n    goto(x, _e[\"y\"])\ndef sety(y):\n    goto(_e[\"x\"], y)\ndef forward(d):\n    a = math.radians(_e[\"h\"])\n    goto(_e[\"x\"] + d * math.cos(a), _e[\"y\"] + d * math.sin(a))\nfd = forward\ndef backward(d):\n    forward(-d)\nback = bk = backward\ndef left(a):\n    _e[\"h\"] = (_e[\"h\"] + a) % 360\n    _e[\"usada\"] = True\n    _mostra()\nlt = left\ndef right(a):\n    left(-a)\nrt = right\ndef setheading(a):\n    _e[\"h\"] = a % 360\n    _mostra()\nseth = setheading\ndef heading():\n    return _e[\"h\"]\ndef position():\n    return (_e[\"x\"], _e[\"y\"])\npos = position\ndef xcor():\n    return _e[\"x\"]\ndef ycor():\n    return _e[\"y\"]\ndef distance(x, y=None):\n    if y is None:\n        x, y = x\n    return math.sqrt((x - _e[\"x\"]) ** 2 + (y - _e[\"y\"]) ** 2)\ndef towards(x, y=None):\n    if y is None:\n        x, y = x\n    return math.degrees(math.atan2(y - _e[\"y\"], x - _e[\"x\"])) % 360\ndef home():\n    goto(0, 0)\n    setheading(0)\ndef penup():\n    _e[\"baixo\"] = False\npu = up = penup\ndef pendown():\n    _e[\"baixo\"] = True\npd = down = pendown\ndef isdown():\n    return _e[\"baixo\"]\ndef pensize(w=None):\n    if w is None:\n        return _e[\"larg\"]\n    _e[\"larg\"] = max(1, int(w))\nwidth = pensize\ndef pencolor(*c):\n    if not c:\n        return _e[\"cor\"]\n    _e[\"cor\"] = _rgb(c[0] if len(c) == 1 else c)\ncolor = pencolor\ndef circle(r, extent=360):\n    n = max(6, int(abs(extent) / 10))\n    passo = 2 * math.pi * abs(r) * abs(extent) / 360 / n\n    ang = extent / n if r > 0 else -extent / n\n    v = _e[\"vel\"]\n    for k in range(n):\n        _e[\"h\"] = (_e[\"h\"] + ang / 2) % 360\n        a = math.radians(_e[\"h\"])\n        nx, ny = _e[\"x\"] + passo * math.cos(a), _e[\"y\"] + passo * math.sin(a)\n        if _e[\"baixo\"]:\n            _seg(_e[\"x\"], _e[\"y\"], nx, ny)\n        _e[\"x\"], _e[\"y\"] = nx, ny\n        _e[\"h\"] = (_e[\"h\"] + ang / 2) % 360\n        _e[\"usada\"] = True\n        if v and k % 3 == 2:\n            _mostra()\n    _mostra()\ndef dot(size=None, *c):\n    r = max(1, int(size or max(_e[\"larg\"] + 4, 2 * _e[\"larg\"])) // 2)\n    cor = _rgb(c[0] if len(c) == 1 else c) if c else _e[\"cor\"]\n    x, y = _px(_e[\"x\"], _e[\"y\"])\n    for i in range(-r, r + 1):\n        for j in range(-r, r + 1):\n            if i * i + j * j <= r * r:\n                _tela.pixel(x + i, y + j, cor[0], cor[1], cor[2])\n    _mostra()\ndef write(texto, *a, **k):\n    x, y = _px(_e[\"x\"], _e[\"y\"])\n    r, g, b = _e[\"cor\"]\n    _tela.texto(x, y - 16, str(texto), r, g, b, \"medium\")\n    _mostra()\ndef clear():\n    _tela.limpar(255, 255, 255)\n    _mostra()\ndef reset():\n    _tela.limpar(255, 255, 255)\n    _reiniciar()\n    _mostra()\ndef speed(s=None):\n    if s is None:\n        return _e[\"vel\"]\n    _e[\"vel\"] = max(0, min(10, int(s)))\ndef hideturtle():\n    _e[\"vis\"] = False\n    _mostra()\nht = hideturtle\ndef showturtle():\n    _e[\"vis\"] = True\n    _mostra()\nst = showturtle\ndef isvisible():\n    return _e[\"vis\"]\ndef shape(nome=None):\n    return \"classic\"\ndef done():\n    _tela.mostrar()\nmainloop = done\n";
+const PYPLOT = "# matplotlib.pyplot (como na Graph 90+E / fx-CG50 com matplotl.py): axis, plot, scatter, text, arrow, bar, hist, boxplot, show\nimport _tela, math\n_COR = {\"b\": (0, 0, 255), \"blue\": (0, 0, 255), \"r\": (255, 0, 0), \"red\": (255, 0, 0), \"g\": (0, 128, 0), \"green\": (0, 128, 0),\n        \"k\": (0, 0, 0), \"black\": (0, 0, 0), \"c\": (0, 191, 191), \"cyan\": (0, 191, 191), \"m\": (191, 0, 191), \"magenta\": (191, 0, 191),\n        \"y\": (191, 191, 0), \"yellow\": (191, 191, 0), \"w\": (255, 255, 255), \"white\": (255, 255, 255), \"orange\": (255, 165, 0),\n        \"grey\": (128, 128, 128), \"gray\": (128, 128, 128), \"purple\": (128, 0, 128), \"brown\": (165, 42, 42), \"pink\": (255, 105, 180)}\n_ST = {}\ndef _reiniciar():\n    _ST.update({\"win\": None, \"eixos\": True, \"objs\": []})\n_reiniciar()\n# \u00e1rea do gr\u00e1fico no ecr\u00e3 (o resto fica para as marcas dos eixos)\n_X0, _X1, _Y0, _Y1 = 44, 378, 8, 168\ndef _cor(c):\n    if c is None:\n        return (0, 0, 255)\n    if isinstance(c, str):\n        k = \"\".join(ch for ch in c if ch.isalpha())\n        if k in _COR:\n            return _COR[k]\n        if len(c) and c[0] in _COR:\n            return _COR[c[0]]\n        raise ValueError(\"invalid color\")\n    r, g, b = c\n    if max(r, g, b) <= 1:\n        r, g, b = r * 255, g * 255, b * 255\n    return int(r), int(g), int(b)\ndef _lista(v):\n    if isinstance(v, (int, float)):\n        return [v]\n    return list(v)\ndef axis(*a):\n    if a:\n        v = a[0]\n        if v == \"off\":\n            _ST[\"eixos\"] = False\n        elif v == \"on\":\n            _ST[\"eixos\"] = True\n        elif v == \"auto\":\n            _ST[\"win\"] = None\n        else:\n            v = list(v)\n            if len(v) != 4:\n                raise ValueError(\"axis needs [xmin, xmax, ymin, ymax]\")\n            _ST[\"win\"] = [float(t) for t in v]\n    return _janela()\ndef plot(*a, color=None, **k):\n    a = list(a)\n    fmt = None\n    if a and isinstance(a[-1], str):\n        fmt = a.pop()\n    if len(a) == 1:\n        ys = _lista(a[0]); xs = list(range(len(ys)))\n    elif len(a) == 2:\n        xs, ys = _lista(a[0]), _lista(a[1])\n    else:\n        raise TypeError(\"plot needs 1 or 2 lists\")\n    if len(xs) != len(ys):\n        raise ValueError(\"x and y must have the same length\")\n    so_pontos = fmt is not None and any(ch in fmt for ch in \"o.+x*\") and \"-\" not in fmt\n    _ST[\"objs\"].append((\"p\" if so_pontos or len(xs) == 1 else \"l\", xs, ys, _cor(color or fmt)))\ndef scatter(x, y, color=None, **k):\n    xs, ys = _lista(x), _lista(y)\n    if len(xs) != len(ys):\n        raise ValueError(\"x and y must have the same length\")\n    _ST[\"objs\"].append((\"p\", xs, ys, _cor(color)))\ndef text(x, y, s, **k):\n    _ST[\"objs\"].append((\"t\", [x], [y], str(s)))\ndef arrow(x, y, dx, dy, color=None, **k):\n    _ST[\"objs\"].append((\"a\", [x, x + dx], [y, y + dy], _cor(color)))\ndef bar(x, height, width=0.8, color=None, **k):\n    xs, hs = _lista(x), _lista(height)\n    if len(hs) == 1 and len(xs) > 1:\n        hs = hs * len(xs)\n    _ST[\"objs\"].append((\"b\", xs, hs, (_cor(color), float(width))))\ndef hist(x, bins=10, color=None, **k):\n    v = sorted(_lista(x))\n    if isinstance(bins, int):\n        a, b = v[0], v[-1]\n        if a == b:\n            a, b = a - 0.5, b + 0.5\n        lim = [a + (b - a) * i / bins for i in range(bins + 1)]\n    else:\n        lim = sorted(bins)\n    cont = [0] * (len(lim) - 1)\n    for t in v:\n        for i in range(len(cont)):\n            if lim[i] <= t < lim[i + 1] or (i == len(cont) - 1 and t == lim[-1]):\n                cont[i] += 1\n                break\n    meio = [(lim[i] + lim[i + 1]) / 2 for i in range(len(cont))]\n    larg = min(lim[i + 1] - lim[i] for i in range(len(cont)))\n    _ST[\"objs\"].append((\"b\", meio, cont, (_cor(color), larg)))\n    return cont, lim\ndef _quartis(v):\n    v = sorted(v); n = len(v)\n    def med(w):\n        m = len(w)\n        return w[m // 2] if m % 2 else (w[m // 2 - 1] + w[m // 2]) / 2\n    return v[0], med(v[:n // 2]), med(v), med(v[(n + 1) // 2:]), v[-1]\ndef boxplot(L, **k):\n    L = _lista(L)\n    grupos = L if L and isinstance(L[0], (list, tuple)) else [L]\n    for i, g in enumerate(grupos):\n        _ST[\"objs\"].append((\"x\", [i + 1], list(_quartis(g)), (0, 0, 0)))\ndef _janela():\n    if _ST[\"win\"]:\n        return list(_ST[\"win\"])\n    xs, ys = [], []\n    for o in _ST[\"objs\"]:\n        if o[0] == \"b\":\n            w = o[3][1]\n            xs += [t - w / 2 for t in o[1]] + [t + w / 2 for t in o[1]]\n            ys += list(o[2]) + [0]\n        elif o[0] == \"x\":\n            xs += [o[1][0] - 0.5, o[1][0] + 0.5]; ys += o[2]\n        else:\n            xs += o[1]; ys += o[2]\n    if not xs:\n        return [0.0, 1.0, 0.0, 1.0]\n    a, b, c, d = min(xs), max(xs), min(ys), max(ys)\n    if a == b:\n        a, b = a - 1, b + 1\n    if c == d:\n        c, d = c - 1, d + 1\n    mx, my = (b - a) * 0.05, (d - c) * 0.05\n    return [a - mx, b + mx, c - my, d + my]\ndef _marcas(a, b):\n    passo = (b - a) / 5\n    e = 10 ** math.floor(math.log10(passo))\n    for m in (1, 2, 5, 10):\n        if m * e >= passo:\n            passo = m * e\n            break\n    t = math.ceil(a / passo) * passo\n    r = []\n    while t <= b + passo * 1e-9:\n        r.append(0.0 if abs(t) < passo * 1e-9 else t)\n        t += passo\n    return r\ndef _fmt(t):\n    if t == int(t) and abs(t) < 1e6:\n        return str(int(t))\n    s = \"%.4g\" % t\n    return s\ndef show():\n    a, b, c, d = _janela()\n    X = lambda x: _X0 + (x - a) / (b - a) * (_X1 - _X0)\n    Y = lambda y: _Y1 - (y - c) / (d - c) * (_Y1 - _Y0)\n    _tela.limpar(255, 255, 255)\n    if _ST[\"eixos\"]:\n        _tela.linha(_X0, _Y1, _X1, _Y1, 0, 0, 0)\n        _tela.linha(_X0, _Y0, _X0, _Y1, 0, 0, 0)\n        for t in _marcas(a, b):\n            x = X(t)\n            _tela.linha(x, _Y1, x, _Y1 + 3, 0, 0, 0)\n            s = _fmt(t)\n            _tela.texto(int(x - 3 * len(s)), _Y1 + 6, s, 0, 0, 0, \"small\")\n        for t in _marcas(c, d):\n            y = Y(t)\n            _tela.linha(_X0 - 3, y, _X0, y, 0, 0, 0)\n            s = _fmt(t)\n            _tela.texto(_X0 - 6 - 6 * len(s), int(y - 5), s, 0, 0, 0, \"small\")\n    for o in _ST[\"objs\"]:\n        k, xs, ys, z = o\n        if k == \"l\":\n            for i in range(len(xs) - 1):\n                _tela.linha(X(xs[i]), Y(ys[i]), X(xs[i + 1]), Y(ys[i + 1]), *z)\n        elif k == \"p\":\n            for x, y in zip(xs, ys):\n                px, py = int(X(x)), int(Y(y))\n                _tela.retangulo(px - 1, py - 1, px + 1, py + 1, *z)\n        elif k == \"t\":\n            _tela.texto(int(X(xs[0])), int(Y(ys[0])) - 12, z, 0, 0, 0, \"small\")\n        elif k == \"a\":\n            x0, y0, x1, y1 = X(xs[0]), Y(ys[0]), X(xs[1]), Y(ys[1])\n            _tela.linha(x0, y0, x1, y1, *z)\n            ang = math.atan2(y1 - y0, x1 - x0)\n            for s in (2.6, -2.6):\n                _tela.linha(x1, y1, x1 + 7 * math.cos(ang + s), y1 + 7 * math.sin(ang + s), *z)\n        elif k == \"b\":\n            cor, w = z\n            for x, h in zip(xs, ys):\n                xa, xb = X(x - w / 2), X(x + w / 2)\n                ya, yb = Y(0), Y(h)\n                _tela.retangulo(int(min(xa, xb)), int(min(ya, yb)), int(max(xa, xb)), int(max(ya, yb)), *cor)\n                _tela.linha(xa, ya, xa, yb, 0, 0, 0); _tela.linha(xb, ya, xb, yb, 0, 0, 0); _tela.linha(xa, yb, xb, yb, 0, 0, 0)\n        elif k == \"x\":\n            x = xs[0]\n            mn, q1, me, q3, mx = ys\n            xa, xb, xm = X(x - 0.25), X(x + 0.25), X(x)\n            _tela.linha(xm, Y(mn), xm, Y(q1), 0, 0, 0); _tela.linha(xm, Y(q3), xm, Y(mx), 0, 0, 0)\n            _tela.linha(X(x - 0.12), Y(mn), X(x + 0.12), Y(mn), 0, 0, 0); _tela.linha(X(x - 0.12), Y(mx), X(x + 0.12), Y(mx), 0, 0, 0)\n            for y0, y1 in ((q1, q3),):\n                _tela.linha(xa, Y(y0), xb, Y(y0), 0, 0, 255); _tela.linha(xa, Y(y1), xb, Y(y1), 0, 0, 255)\n                _tela.linha(xa, Y(y0), xa, Y(y1), 0, 0, 255); _tela.linha(xb, Y(y0), xb, Y(y1), 0, 0, 255)\n            _tela.linha(xa, Y(me), xb, Y(me), 255, 0, 0)\n    _tela.mostrar(True)\n    _reiniciar()\n";
+// turtle e matplotlib.pyplot: de série na Graph 90+E; na fx-CG50 copiam-se os ficheiros turtle.py e matplotl.py (pedido do utilizador)
+const FICHEIROS = { "casio_math.py": "", "casioplot.py": CASIOPLOT, "turtle.py": TURTLE, "matplotlib/__init__.py": "",
+  "matplotlib/pyplot.py": PYPLOT, "matplotl.py": "from matplotlib.pyplot import *\n" };
+
+// ---- o que a fx-CG50 (MicroPython 1.9.4) não aceita mas o MicroPython recente aceita: f-strings e :=
+// percorre o código a saltar textos e comentários; devolve { linha, titulo, texto } do primeiro problema
+function verificar(cod) {
+  let i = 0, linha = 1;
+  const n = cod.length;
+  while (i < n) {
+    const c = cod[i];
+    if (c === "\n") { linha++; i++; continue; }
+    if (c === "#") { while (i < n && cod[i] !== "\n") i++; continue; }
+    if (c === '"' || c === "'") {
+      let j = i - 1, pre = "";
+      while (j >= 0 && /[A-Za-z]/.test(cod[j])) pre = cod[j--] + pre;
+      if (/^[rRbBuU]?[fF][rR]?$/.test(pre)) return { linha, titulo: "A calculadora não conhece f-strings",
+        texto: 'A fx-CG50 usa o MicroPython 1.9.4, que ainda não tem textos do tipo <code>f"…{x}…"</code>. Use vírgulas no <code>print</code>: <code>print("x =", x)</code>, ou <code>"x = {}".format(x)</code>.' };
+      const tri = cod.substr(i, 3) === c.repeat(3), fim = tri ? c.repeat(3) : c;
+      i += fim.length;
+      while (i < n && cod.substr(i, fim.length) !== fim) { if (cod[i] === "\\") i++; else if (cod[i] === "\n") { linha++; if (!tri) break; } i++; }
+      i += fim.length; continue;
+    }
+    if (c === ":" && cod[i + 1] === "=") return { linha, titulo: "A calculadora não conhece :=",
+      texto: "O operador <code>:=</code> (morsa) não existe no MicroPython 1.9.4 da fx-CG50. Faça a atribuição numa linha à parte." };
+    i++;
+  }
+  return null;
+}
+
+// ---- preparação do MicroPython: input(), módulos da calculadora e import só desses módulos
+const PREPARAR = `
+import builtins, math, casio_math, casioplot, random, turtle, matplotlib.pyplot, matplotl, _app
+# math da fx-CG50 (catálogo do OS 3.60): só estas funções
+for _n in "e pi acos asin atan atan2 ceil cos cosh exp fabs floor fmod frexp log log10 modf pow sin sinh sqrt tan tanh".split():
+    setattr(casio_math, _n, getattr(math, _n))
+_MODULOS = {"math": "casio_math", "random": "random", "casioplot": "casioplot", "turtle": "turtle",
+            "matplotlib": "matplotlib", "matplotlib.pyplot": "matplotlib.pyplot", "matplotl": "matplotl"}
+_imp = builtins.__import__
+def _importar(nome, g=None, l=None, lista=(), nivel=0):
+    if nome not in _MODULOS:
+        raise ImportError("no module named '" + nome + "'")
+    return _imp(_MODULOS[nome], g, l, lista, nivel)
+builtins.__import__ = _importar
+def _input(msg=""):
+    r = _app.input(str(msg))
+    if r is False:
+        raise RuntimeError("input() não funciona neste navegador: recarregue a página.")
+    if r is None:
+        raise KeyboardInterrupt
+    return r
+`;
+// tira do traceback as linhas da preparação (<stdin>) e põe as do programa do aluno no formato do Pyodide (<exec>)
+function limparTraceback(t) {
+  const L0 = String(t).split("\n").filter(l => !/File "<stdin>"/.test(l) && !/, in _(importar|input)$/.test(l));
+  // na recursão, a mesma linha repete-se dezenas de vezes: ficam 3 e uma nota (como no Python completo)
+  const L = [];
+  for (let i = 0; i < L0.length;) {
+    let k = i; while (k < L0.length && L0[k] === L0[i]) k++;
+    const n = k - i;
+    L.push(...L0.slice(i, i + Math.min(n, 3)));
+    if (n > 3) L.push(`  [Previous line repeated ${n - 3} more times]`);
+    i = k;
+  }
+  return L.join("\n").replace(/File "<string>"/g, 'File "<exec>"').replace(/module 'casio_math'/g, "'module' object");
+}
+onmessage = async e => {
+  const m = e.data;
+  if (m.tipo === "iniciar") {
+    try {
+      const { loadMicroPython } = await import(MP + "micropython.mjs");
+      // pystack 860: a recursão para à volta dos 82 níveis, com «pystack exhausted», como na calculadora
+      mp = await loadMicroPython({ url: MP + "micropython.wasm", stdout: escreve, stderr: escreve, linebuffer: false, pystack: 860 });
+      if (m.sab) { ctl = new Int32Array(m.sab, 0, 2); bytes = new Uint8Array(m.sab, 16); }
+      mp.registerJsModule("_app", { input: pedirInput, codigo: () => codigoAtual });
+      mp.registerJsModule("_tela", { pixel, lerPixel, linha, texto, retangulo, tartaruga, limpar: limparTela, mostrar, usada: () => telaUsada });
+      mp.FS.mkdir("matplotlib");
+      for (const [nome, src] of Object.entries(FICHEIROS)) mp.FS.writeFile(nome, src);
+      mp.runPython(PREPARAR);
+      postMessage({ tipo: "pronto" });
+    } catch (err) { postMessage({ tipo: "falhou", t: String(err && (err.stack || err)) }); }
+  }
+  else if (m.tipo === "executar") {
+    codigoAtual = m.codigo;
+    postMessage({ tipo: "executar" });
+    limparTela(); telaUsada = false; tart = null;
+    const prob = verificar(m.codigo);
+    if (prob) { postMessage({ tipo: "erro", t: `Traceback (most recent call last):\n  File "<exec>", line ${prob.linha}\nSyntaxError: invalid syntax\n`, ajuda: prob }); return; }
+    try {
+      // cada execução num dicionário novo (como na calculadora, as variáveis da execução anterior não ficam)
+      mp.runPython(`turtle._reiniciar()\nmatplotlib.pyplot._reiniciar()\n_g = {"__name__": "__main__", "input": _input}\nexec(_app.codigo(), _g)\ndel _g`);
+      despejar();
+      if (telaUsada) mostrar();            // como na calculadora: o ecrã também se atualiza quando o programa acaba
+      postMessage({ tipo: "fim" });
+    } catch (err) {
+      despejar();
+      postMessage({ tipo: "erro", t: limparTraceback(err.message || err) });
+    }
+  }
+};
+</script>
 <script>
 (() => {
   const CHAVE = "apps-mat-python";
@@ -392,7 +621,12 @@ plt.show()
   const comPy = nome => (nome = nome.trim().replace(/[\\/:*?"<>|]/g, "_")) && (/\.py$/i.test(nome) ? nome : nome + ".py");
 
   // programa enviado num link (#codigo=...): abre como programa novo
-  const m = location.hash.match(/^#codigo=([^&]*)(?:&nome=(.*))?$/);
+  const m = location.hash.match(/^#codigo=([^&]*)(?:&nome=([^&]*))?(&casio)?$/);
+  // Python a usar: «py» (Pyodide) ou «casio» (MicroPython, como na fx-CG50); um link com &casio abre neste modo
+  const CHAVE_MOTOR = "apps-mat-python-motor";
+  let motor = "py";
+  try { if (localStorage.getItem(CHAVE_MOTOR) === "casio") motor = "casio"; } catch (e) {}
+  if (m && m[3]) { motor = "casio"; try { localStorage.setItem(CHAVE_MOTOR, motor); } catch (e) {} }
   if (m) {
     try {
       const codigo = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1])), c => c.charCodeAt(0)));
@@ -540,7 +774,8 @@ plt.show()
     const fecha = () => { if (bloco.replace(/<[^>]*>/g, "").trim()) html += `<pre class="out">${bloco.replace(/\n+$/, "")}</pre>`; bloco = ""; };
     const nos = [...saida.childNodes], k = nos.findLastIndex(el => el.classList && el.classList.contains("sep"));
     for (const el of nos.slice(k + 1)) {
-      if (el.nodeName === "IMG") { fecha(); nfig++; html += `<figure><img src="${el.src}" alt="Figura ${nfig}"><figcaption><b>Figura ${nfig}:</b> gráfico produzido pelo programa.</figcaption></figure>`; }
+      if (el.nodeName === "CANVAS") { fecha(); nfig++; html += `<figure><img src="${el.toDataURL()}" alt="Figura ${nfig}" style="image-rendering:pixelated;width:12cm"><figcaption><b>Figura ${nfig}:</b> ecrã da calculadora.</figcaption></figure>`; }
+      else if (el.nodeName === "IMG") { fecha(); nfig++; html += `<figure><img src="${el.src}" alt="Figura ${nfig}"><figcaption><b>Figura ${nfig}:</b> gráfico produzido pelo programa.</figcaption></figure>`; }
       else if (el.classList && el.classList.contains("ajuda")) continue;
       else { const cls = el.classList && el.classList.contains("err") ? "err" : el.classList && el.classList.contains("info") ? "info" : ""; bloco += cls ? `<span class="${cls}">${escH(el.textContent)}</span>` : escH(el.textContent); }
     }
@@ -893,7 +1128,7 @@ ${body}
   };
   $("partilhar").onclick = async () => {
     const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(editor.getValue())));
-    const url = `${location.origin}${location.pathname}#codigo=${encodeURIComponent(b64)}&nome=${encodeURIComponent(nomeAtual())}`;
+    const url = `${location.origin}${location.pathname}#codigo=${encodeURIComponent(b64)}&nome=${encodeURIComponent(nomeAtual())}${motor === "casio" ? "&casio" : ""}`;
     try { await navigator.clipboard.writeText(url); aviso("Link copiado: quem o abrir recebe uma cópia deste programa."); }
     catch (e) { prompt("Copie este link:", url); }
   };
@@ -907,7 +1142,7 @@ ${body}
     const seps = saida.querySelectorAll(".sep");
     if (seps.length >= MAX_EXEC) { const corte = seps[seps.length - MAX_EXEC + 1]; while (saida.firstChild !== corte) saida.removeChild(saida.firstChild); }
     const d = document.createElement("div"); d.className = "sep";
-    d.textContent = `${nomeAtual()} · ${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    d.textContent = `${nomeAtual()}${motor === "casio" ? " · CASIO" : ""} · ${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
     saida.appendChild(d); saida.scrollTop = saida.scrollHeight;
   }
   function escrever(texto, classe) {
@@ -924,6 +1159,16 @@ ${body}
     saida.appendChild(img); img.onload = () => { saida.scrollTop = saida.scrollHeight; };
     figAnim = subst ? img : null;
   }
+  // modo CASIO: o ecrã da calculadora (384 × 192); dentro da mesma execução, cada show_screen() atualiza o mesmo ecrã
+  let telaAtual = null;
+  function mostrarTela(px) {
+    if (!telaAtual || !telaAtual.isConnected) {
+      telaAtual = document.createElement("canvas"); telaAtual.className = "tela"; telaAtual.width = 384; telaAtual.height = 192;
+      saida.appendChild(telaAtual);
+    }
+    telaAtual.getContext("2d").putImageData(new ImageData(px, 384, 192), 0, 0);
+    saida.scrollTop = saida.scrollHeight;
+  }
   const setEstado = (t, c) => { estado.textContent = t; estado.className = c || ""; };
 
   // ---------- Python (Pyodide num worker, para se poder parar) ----------
@@ -939,7 +1184,8 @@ ${body}
   function criarWorker() {
     pronto = false; btnExec.disabled = true; btnExec.textContent = "A carregar…";
     if (sab) interromper[0] = 0;   // pedido de paragem que o worker anterior não chegou a ler
-    worker = new Worker(URL.createObjectURL(new Blob([$("worker").textContent], { type: "text/javascript" })));
+    const casio = motor === "casio";
+    worker = new Worker(URL.createObjectURL(new Blob([$(casio ? "worker-casio" : "worker").textContent], { type: "text/javascript" })), casio ? { type: "module" } : undefined);
     worker.onmessage = e => receber(e.data);
     worker.onerror = e => { console.error("worker:", e.message); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); };
     worker.postMessage({ tipo: "iniciar", sab });
@@ -947,26 +1193,29 @@ ${body}
   function receber(m) {
     if (m.tipo === "pronto") {
       pronto = true; btnExec.disabled = false; btnExec.textContent = "▶ Executar";
-      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez." : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome; Ctrl+/ comenta as linhas selecionadas.");
+      if (!aCorrer) setEstado(/Interrompido/.test(estado.textContent) ? "Interrompido. Pronto para executar outra vez."
+        : motor === "casio" ? "Pronto (modo CASIO fx-CG50: MicroPython, só os módulos da calculadora). Ctrl+Enter executa."
+        : "Pronto. Ctrl+Enter executa; Ctrl+Espaço completa o nome; Ctrl+/ comenta as linhas selecionadas.");
     }
     else if (m.tipo === "falhou") { console.error("Pyodide:", m.t); setEstado("Não foi possível carregar o Python. Verifique a ligação à Internet e recarregue a página.", "erro"); }
     else if (m.tipo === "out") escrever(m.t);
     else if (m.tipo === "err") escrever(m.t, "err");
     else if (m.tipo === "fig") mostrarFigura(m.png, m.subst);
+    else if (m.tipo === "tela") { if (m.novo) telaAtual = null; mostrarTela(m.px); }
     else if (m.tipo === "instalar") setEstado("A instalar bibliotecas… (só da primeira vez)");
     else if (m.tipo === "executar") setEstado("A executar…");
     else if (m.tipo === "input") pedir(m.msg);
     else if (m.tipo === "fim") acabar(`Terminado em ${((performance.now() - t0) / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 2 })} s.`, "ok");
     else if (m.tipo === "erro") {
       if (/KeyboardInterrupt/.test(m.t)) { escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
-      else { escrever(limparErro(m.t), "err"); explicarErro(m.t); acabar("O programa tem um erro.", "erro"); }
+      else { escrever(limparErro(m.t), "err"); explicarErro(m.t, m.ajuda); acabar("O programa tem um erro.", "erro"); }
     }
   }
   function executar() {
     if (!pronto || aCorrer) return;
     aCorrer = true; guardar();
     btnExec.hidden = true; btnParar.hidden = false;
-    separador(); setEstado("A executar…"); tirarMarca();
+    separador(); setEstado("A executar…"); tirarMarca(); telaAtual = null;
     t0 = performance.now();
     if (sab) interromper[0] = 0;
     codigoExecutado = editor.getValue();
@@ -992,7 +1241,7 @@ ${body}
       escrever("Programa interrompido.\n", "info");
       acabar("Interrompido. A recarregar o Python…");
       criarWorker();
-    }, sab ? 1500 : 0);
+    }, sab && motor !== "casio" ? 1500 : 0);
   }
 
   // input(): campo de texto na própria saída
@@ -1046,13 +1295,13 @@ ${body}
     ["IndentationError", /expected an indented block after '(\w+)'/, "Falta recuar as linhas do bloco", `As linhas que estão dentro do ${C("$1")} têm de começar mais à direita (4 espaços, ou a tecla Tab) do que a linha do ${C("$1")}.`],
     ["IndentationError", /expected an indented block/, "Falta recuar as linhas do bloco", "Depois de uma linha que acaba em : as linhas seguintes têm de começar mais à direita (4 espaços ou Tab)."],
     ["IndentationError", /unexpected indent/, "Linha recuada sem razão", "Esta linha começa mais à direita do que a anterior, mas não está dentro de nenhum if/for/while/def. Tire os espaços do início."],
-    ["IndentationError", /unindent does not match/, "Recuo desalinhado", "Esta linha não está alinhada com nenhuma das linhas de cima. As linhas do mesmo bloco têm de começar exatamente na mesma coluna."],
+    ["IndentationError", /unindent (does not|doesn't) match/, "Recuo desalinhado", "Esta linha não está alinhada com nenhuma das linhas de cima. As linhas do mesmo bloco têm de começar exatamente na mesma coluna."],
     ["TabError", /.*/, "Tabs misturados com espaços", "O recuo mistura Tabs e espaços. Apague os espaços do início das linhas e recue-as de novo."],
-    ["NameError", /name '(true|false|none)' is not defined/i, "Maiúscula em falta", `Em Python escreve-se ${C("True")}, ${C("False")} e ${C("None")}, com maiúscula.`],
-    ["NameError", new RegExp(`name '(${MATH.join("|")})' is not defined`), "Falta importar o módulo math", `${C("$1")} está no módulo ${C("math")}. Escreva no início do programa ${C("from math import *")} (ou ${C("import math")} e depois ${C("math.$1")}).`],
-    ["NameError", /name '(np|plt)' is not defined/, "Falta importar a biblioteca", `Escreva no início do programa ${C("import numpy as np")} ou ${C("import matplotlib.pyplot as plt")}.`],
+    ["NameError", /name '(true|false|none)' (?:is not|isn't) defined/i, "Maiúscula em falta", `Em Python escreve-se ${C("True")}, ${C("False")} e ${C("None")}, com maiúscula.`],
+    ["NameError", new RegExp(`name '(${MATH.join("|")})' (?:is not|isn't) defined`), "Falta importar o módulo math", `${C("$1")} está no módulo ${C("math")}. Escreva no início do programa ${C("from math import *")} (ou ${C("import math")} e depois ${C("math.$1")}).`],
+    ["NameError", /name '(np|plt)' (?:is not|isn't) defined/, "Falta importar a biblioteca", `Escreva no início do programa ${C("import numpy as np")} ou ${C("import matplotlib.pyplot as plt")}.`],
     ["NameError", /name '(\w+)' is not defined\. Did you mean: '(\w+)'/, "Nome desconhecido: $1", `O Python não conhece ${C("$1")}. Queria escrever ${C("$2")}? Repare nas maiúsculas e minúsculas.`],
-    ["NameError", /name '(\w+)' is not defined/, "Nome desconhecido: $1", `O Python não conhece ${C("$1")}. Verifique se está bem escrito, se a variável recebeu um valor <i>antes</i> desta linha, ou, se é um texto, se faltam as aspas: ${C('"$1"')}.`],
+    ["NameError", /name '(\w+)' (?:is not|isn't) defined/, "Nome desconhecido: $1", `O Python não conhece ${C("$1")}. Verifique se está bem escrito, se a variável recebeu um valor <i>antes</i> desta linha, ou, se é um texto, se faltam as aspas: ${C('"$1"')}.`],
     ["UnboundLocalError", /'(\w+)'/, "Variável usada antes de ter valor", `Dentro da função usa-se ${C("$1")} antes de lhe dar um valor. Passe o valor como argumento da função (ou dê-lhe um valor dentro dela).`],
     ["TypeError", /can only concatenate str \(not "(\w+)"\) to str/, "Texto + número", `Não se pode juntar texto e números com ${C("+")}. No ${C("print")} separe-os por vírgulas: ${C('print("x =", x)')}, ou converta o número com ${C("str(x)")}.`],
     ["TypeError", /unsupported operand type\(s\) for .*'str'|'[<>]=?' not supported between instances of 'str'|can't multiply sequence by non-int/, "Conta com texto", `Um dos valores é texto (${C("str")}). Atenção: ${C("input()")} devolve sempre texto; para obter um número use ${C('int(input("…"))')} ou ${C('float(input("…"))')}.`],
@@ -1071,6 +1320,7 @@ ${body}
     ["ZeroDivisionError", /.*/, "Divisão por zero", "O programa dividiu por 0 (com /, // ou %). Verifique o valor do divisor nesta linha."],
     ["IndexError", /.*/, "Posição que não existe", `As posições de uma lista com n elementos vão de 0 a n − 1. Por exemplo, numa lista de 3 elementos ${C("lista[3]")} já não existe.`],
     ["KeyError", /.*/, "Chave que não existe", "O dicionário não tem esta chave. Verifique se está bem escrita."],
+    ["AttributeError", /'module' object has no attribute '(\w+)'/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na CASIO fx-CG50 (por exemplo, o ${C("math")} da calculadora não tem ${C("radians")} nem ${C("degrees")}: use ${C("x*pi/180")} e ${C("x*180/pi")}).`],
     ["AttributeError", /module '(\w+)' has no attribute '(\w+)'\. Did you mean: '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Queria escrever ${C("$3")}?`],
     ["AttributeError", /module '(\w+)' has no attribute '(\w+)'/, "$2 não existe em $1", `O módulo ${C("$1")} não tem nada chamado ${C("$2")}. Verifique se está bem escrito (maiúsculas e minúsculas contam).`],
     ["AttributeError", /'(\w+)' object has no attribute '(\w+)'/, "$2 não existe", `Um valor do tipo ${C("$1")} não tem ${C(".$2")}. Verifique se está bem escrito ou se a variável tem o valor que pensa.`],
@@ -1078,16 +1328,25 @@ ${body}
     ["ImportError", /cannot import name '(\w+)' from '(\w+)'/, "$1 não existe em $2", `Verifique se ${C("$1")} está bem escrito.`],
     ["RecursionError", /.*/, "A função não para de se chamar", "A função chama-se a si própria sem parar. Falta um caso de paragem (por exemplo, «se n == 0, devolve 1») ou ele nunca é atingido."],
     ["OverflowError", /.*/, "Número grande demais", "O resultado é grande demais para um número decimal (float). Experimente valores mais pequenos."],
+    // mensagens do MicroPython (modo CASIO)
+    ["TypeError", /can't convert '(int|float)' object to str implicitly|unsupported types for __add__: 'str', '(int|float)'|unsupported types for __add__: '(int|float)', 'str'/, "Texto + número", `Não se pode juntar texto e números com ${C("+")}. No ${C("print")} separe-os por vírgulas: ${C('print("x =", x)')}, ou converta o número com ${C("str(x)")}.`],
+    ["TypeError", /unsupported types for __\w+__: .*'str'/, "Conta com texto", `Um dos valores é texto (${C("str")}). Atenção: ${C("input()")} devolve sempre texto; para obter um número use ${C('int(input("…"))')} ou ${C('float(input("…"))')}.`],
+    ["ValueError", /invalid syntax for integer with base 10: '(-?\d+[.,]\d+)'/, "Não é um número inteiro", `${C("int(…)")} só aceita inteiros. Para números com casas decimais use ${C("float(…)")} (e ponto decimal).`],
+    ["ValueError", /invalid syntax for (integer|number)/, "Não é um número", `O valor não é um número, por isso não pode ser convertido. Nos números com casas decimais usa-se ponto, não vírgula: ${C("3.5")}.`],
+    ["ImportError", /no module named '([\w.]+)'/, "A calculadora não tem o módulo $1", `Na CASIO fx-CG50 só se podem importar os módulos ${C("math")}, ${C("random")} e ${C("casioplot")} (e ${C("turtle")} e ${C("matplotlib.pyplot")}, que vêm de série na Graph 90+E e se copiam para a fx-CG50 como ${C("turtle.py")} e ${C("matplotl.py")}).`],
+    ["ImportError", /can't import name (\w+)/, "$1 não existe na calculadora", `O módulo não tem ${C("$1")} na CASIO fx-CG50. No ${C("math")} da calculadora há: e, pi, sqrt, pow, exp, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, floor, ceil, fabs, fmod, frexp, modf.`],
+    ["RuntimeError", /pystack exhausted|maximum recursion depth/, "A função não para de se chamar", "A função chama-se a si própria demasiadas vezes (na calculadora o limite anda pelas 80 chamadas). Falta um caso de paragem, ou ele nunca é atingido."],
     ["MemoryError", /.*/, "Memória esgotada", "O programa usou memória demais: talvez uma lista que cresce sem parar dentro de um ciclo."],
   ];
   const esc = t => t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  function explicarErro(msg) {
+  function explicarErro(msg, ajuda) {
     const linhas = msg.trim().split("\n");
     const ultima = linhas[linhas.length - 1].match(/^(\w+): ?(.*)$/);
     if (!ultima) return;
     const [, tipo, texto] = ultima;
     let regra = null, g = null;
-    for (const r of REGRAS) if (r[0] === tipo && (g = texto.match(r[1]))) { regra = r; break; }
+    if (ajuda) { regra = [tipo, null, ajuda.titulo, ajuda.texto]; g = []; }
+    else for (const r of REGRAS) if (r[0] === tipo && (g = texto.match(r[1]))) { regra = r; break; }
     if (!regra) return;
     const troca = t => t.replace(/\$(\d)/g, (_, i) => esc(g[i] || ""));
     const n = [...msg.matchAll(/File "<exec>", line (\d+)/g)].pop();   // a linha mais funda do programa do aluno
@@ -1104,6 +1363,25 @@ ${body}
   let marca = null;
   function tirarMarca() { if (marca) { editor.removeLineClass(marca, "background", "linha-erro"); marca = null; } }
   editor.on("change", tirarMarca);
+
+  // escolher o Python: troca o worker (o programa que estiver a correr para)
+  function marcarMotor() {
+    $("motor-py").setAttribute("aria-checked", motor === "py");
+    $("motor-casio").setAttribute("aria-checked", motor === "casio");
+  }
+  function trocarMotor(novo) {
+    if (novo === motor) return;
+    motor = novo; marcarMotor();
+    try { localStorage.setItem(CHAVE_MOTOR, motor); } catch (e) {}
+    clearTimeout(timerParar);
+    if (worker) worker.terminate();
+    if (aCorrer) { fecharCampo(); escrever("Programa interrompido.\n", "info"); acabar("Interrompido."); }
+    setEstado(motor === "casio" ? "A carregar o MicroPython (modo CASIO)…" : "A carregar o Python…");
+    criarWorker();
+  }
+  $("motor-py").onclick = () => trocarMotor("py");
+  $("motor-casio").onclick = () => trocarMotor("casio");
+  marcarMotor();
 
   btnExec.onclick = executar;
   btnParar.onclick = parar;
