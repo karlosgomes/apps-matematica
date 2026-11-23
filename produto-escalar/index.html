@@ -134,8 +134,11 @@
   const NONUM = { vet: false, retas: false, esp: false };
   Object.defineProperty(S, "noNum", { get: () => NONUM[S.mode], set: v => { NONUM[S.mode] = v; }, enumerable: true });
   // «Coordenadas inteiras» (botão direito, antes caixa): um valor por modo (pedido do utilizador, 2026-11-14)
-  const INT = { vet: true, retas: true, esp: true };
-  Object.defineProperty(S, "int", { get: () => INT[S.mode], set: v => { INT[S.mode] = v; }, enumerable: true });
+  // no Espaço começa desligada (os saltos de 1 em 1 no 3D eram grandes demais; pedido do utilizador, 2026-11-23);
+  // a Esfera tem o seu próprio valor, ligado (pontos inteiros da esfera)
+  const INT = { vet: true, retas: true, esp: false, sph: true };
+  const intK = () => S.mode === "esp" && S.sph ? "sph" : S.mode;
+  Object.defineProperty(S, "int", { get: () => INT[intK()], set: v => { INT[intK()] = v; }, enumerable: true });
   // plano xOy (botão «xOy»): um valor no Espaço (grelha ao início) e outro na Esfera (escondido ao início; pedido do utilizador, 2026-11-16)
   const XS = { esp: 0, sph: 3 };
   Object.defineProperty(S, "xs", { get: () => XS[S.sph ? "sph" : "esp"], set: v => { XS[S.sph ? "sph" : "esp"] = v; }, enumerable: true });
@@ -2777,8 +2780,8 @@
     if (!["vet", "retas", "esp"].includes(o.m)) return;
     S.mode = o.m;
     for (const k of ["z", "vx", "vy"]) if (typeof o[k] === "number") S[k] = o[k];
+    if (o.m === "esp" && "sph" in o) S.sph = !!o.sph;   // antes das outras chaves (o xs e o int são do Espaço ou da Esfera)
     for (const k of ["txt", "int", "noNum"]) if (typeof o[k] === "boolean") S[k] = o[k];
-    if (o.m === "esp" && "sph" in o) S.sph = !!o.sph;   // antes das outras chaves (o xs é do Espaço ou da Esfera)
     for (const k of KEYS[o.m]) if (k in o) S[k] = o[k];
     if (o.m === "retas") tD = S.dO ? (S.nrm ? 2 : 1.25) : 0;
     if (o.m === "esp") {
