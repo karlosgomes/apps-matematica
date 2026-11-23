@@ -1774,7 +1774,7 @@
     const dmat = new T3.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, side: T3.DoubleSide });
     const depth = new T3.Mesh(geo, dmat);
     depth.renderOrder = 2.5;
-    if (fade < 0.5) g.add(depth);   // com os planos quase transparentes («n, m → O») os eixos voltam a cheio
+    g.add(depth);   // também com os planos esbatidos («n, m → O»): as partes dos eixos atrás dos planos continuam a tracejado (pedido do utilizador, 2026-11-23)
     g.add(lines(P.map((p, i) => [p, P[(i + 1) % P.length]]), col, 0.9 + (0.4 - 0.9) * fade));   // esbatidos: 8 % de preenchimento e 40 % de contorno (visíveis no projetor)
     return g;
   }
