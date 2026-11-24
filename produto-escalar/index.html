@@ -126,6 +126,7 @@
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xR: false,   // Espaço: rasto do ponto X em α (botão direito; pedido do utilizador, 2026-11-23)
               eT: false,
+              eK: false, kv: 0,   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
               esc: 0,   // Espaço: escala dos eixos (Shift + roda; pedido do utilizador, 2026-11-24): 0 → ±5, 1 → ±10, 2 → ±20   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
@@ -414,7 +415,7 @@
   }
   function boxItems0(mode, withS, withDir) {
     if (mode === "esp" && S.sph) return [["Circunferências de nível", "sL"], ["Máximo e mínimo", "sM"], [`Plano ⊥ ${VEC}u por ${VEC}v`, "sP"], ["Cone de θ", "sK"], ...(S.sK ? [[`${VEC}v em torno de ${VEC}u`, "sR"]] : [])];
-    if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"]];
+    if (mode === "esp") return [["Plano α", "eA"], ["Reta r", "eR"], ["Plano β", "eB"], [`Vetores ${VEC}u e ${VEC}v`, "eUV"], ["Cubo cortado por α", "eC"], ["Ponto Q(k)", "eK"]];
     return mode === "vet"
       ? [["Normas e ângulo", "ang"], [`Projeção de ${VEC}v sobre ${VEC}u`, "proj"], [`${VEC}v a rodar`, "rot"]]
       : [["Reta s", "s"], ["Inclinação", "incl"], ["Vetores diretores", "dir"], ...(withS ? [["Ângulo das retas", "angR"]] : [])];
@@ -1238,6 +1239,213 @@
     const v = parts.map(parseNum);
     return v.every(Boolean) && v.every(a => Math.abs(fval(a)) <= 1000) ? v : null;
   }
+  // ---------- Ponto P(k) (Espaço, caixa «Ponto P(k)»; pedido do utilizador, 2026-11-24) ----------
+  // coordenadas escritas como expressões em k: k^2, (k-1)^2, 2k, k/2, sqrt(k), sen/cos/tg, π; multiplicação implícita.
+  // Cada expressão dá uma função (para desenhar) e, se for um polinómio em k, os coeficientes exatos (frações),
+  // para a equação P(k) ∈ α sair com valores exatos.
+  function kTokens(s) {
+    s = s.replace(/−/g, "-").replace(/[·×]/g, "*").replace(/²/g, "^2").replace(/³/g, "^3").replace(/\s+/g, "");
+    const out = [];
+    for (let i = 0; i < s.length;) {
+      const r = s.slice(i);
+      let m = r.match(/^(\d+(?:\.\d+)?|\.\d+)/);
+      if (m) { out.push({ t: "n", v: m[0] }); i += m[0].length; continue; }
+      m = r.match(/^(sqrt|raiz|sen|sin|cos|tg|tan)/i);
+      if (m) { out.push({ t: "f", v: m[0].toLowerCase() }); i += m[0].length; continue; }
+      m = r.match(/^(pi|π)/i);
+      if (m) { out.push({ t: "pi" }); i += m[0].length; continue; }
+      if (r[0] === "√") { out.push({ t: "f", v: "sqrt" }); i++; continue; }
+      if (r[0] === "k" || r[0] === "K") { out.push({ t: "k" }); i++; continue; }
+      if ("+-*/^()".includes(r[0])) { out.push({ t: r[0] }); i++; continue; }
+      return null;
+    }
+    return out;
+  }
+  function kParse(s) {
+    const tk = kTokens(s);
+    if (!tk || !tk.length) return null;
+    let i = 0;
+    const peek = () => tk[i], eat = t => (tk[i] && tk[i].t === t) ? tk[i++] : null;
+    const starts = x => x && (x.t === "n" || x.t === "k" || x.t === "pi" || x.t === "f" || x.t === "(");
+    function expr() {
+      let a = term(); if (!a) return null;
+      for (;;) {
+        if (eat("+")) { const b = term(); if (!b) return null; a = { o: "+", a, b }; }
+        else if (eat("-")) { const b = term(); if (!b) return null; a = { o: "-", a, b }; }
+        else return a;
+      }
+    }
+    function term() {
+      let a = unary(); if (!a) return null;
+      for (;;) {
+        if (eat("*")) { const b = unary(); if (!b) return null; a = { o: "*", a, b }; }
+        else if (eat("/")) { const b = unary(); if (!b) return null; a = { o: "/", a, b }; }
+        else if (starts(peek())) { const b = power(); if (!b) return null; a = { o: "*", a, b, imp: true }; }
+        else return a;
+      }
+    }
+    function unary() {
+      if (eat("-")) { const a = unary(); return a && { o: "neg", a }; }
+      if (eat("+")) return unary();
+      return power();
+    }
+    function power() {
+      const a = atom(); if (!a) return null;
+      if (eat("^")) { const b = unary(); return b && { o: "^", a, b }; }
+      return a;
+    }
+    function atom() {
+      const x = tk[i++];
+      if (!x) return null;
+      if (x.t === "n") { const q = parseNum(x.v); return q && { o: "n", v: q, s: x.v }; }
+      if (x.t === "k") return { o: "k" };
+      if (x.t === "pi") return { o: "pi" };
+      if (x.t === "f") { const a = eat("(") ? (() => { const e = expr(); return e && eat(")") ? e : null; })() : power(); return a && { o: "f", f: x.v, a }; }
+      if (x.t === "(") { const e = expr(); return e && eat(")") ? e : null; }
+      return null;
+    }
+    const e = expr();
+    return e && i === tk.length ? e : null;
+  }
+  const kNum = (e, k) => {
+    switch (e.o) {
+      case "n": return fval(e.v);
+      case "k": return k;
+      case "pi": return PI;
+      case "+": return kNum(e.a, k) + kNum(e.b, k);
+      case "-": return kNum(e.a, k) - kNum(e.b, k);
+      case "*": return kNum(e.a, k) * kNum(e.b, k);
+      case "/": return kNum(e.a, k) / kNum(e.b, k);
+      case "^": return Math.pow(kNum(e.a, k), kNum(e.b, k));
+      case "neg": return -kNum(e.a, k);
+      case "f": { const v = kNum(e.a, k); return e.f === "sqrt" || e.f === "raiz" ? Math.sqrt(v) : e.f === "cos" ? Math.cos(v) : e.f === "tg" || e.f === "tan" ? Math.tan(v) : Math.sin(v); }
+    }
+    return NaN;
+  };
+  // polinómios em k: listas de frações [c0, c1, c2, …]
+  const pTrim = a => { a = a.slice(); while (a.length > 1 && fz(a[a.length - 1])) a.pop(); return a; };
+  const pAdd = (a, b) => pTrim(Array.from({ length: Math.max(a.length, b.length) }, (_, i) => fadd(a[i] || Fr(0), b[i] || Fr(0))));
+  const pScale = (a, c) => pTrim(a.map(x => fmul(x, c)));
+  const pMul = (a, b) => { const r = Array.from({ length: a.length + b.length - 1 }, () => Fr(0)); a.forEach((x, i) => b.forEach((y, j) => { r[i + j] = fadd(r[i + j], fmul(x, y)); })); return pTrim(r); };
+  function kPoly(e) {
+    switch (e.o) {
+      case "n": return [e.v];
+      case "k": return [Fr(0), Fr(1)];
+      case "+": case "-": { const a = kPoly(e.a), b = kPoly(e.b); return a && b ? pAdd(a, e.o === "+" ? b : pScale(b, Fr(-1))) : null; }
+      case "*": { const a = kPoly(e.a), b = kPoly(e.b); return a && b && a.length + b.length < 12 ? pMul(a, b) : null; }
+      case "/": { const a = kPoly(e.a), b = kPoly(e.b); return a && b && b.length === 1 && !fz(b[0]) ? pScale(a, fdiv(Fr(1), b[0])) : null; }
+      case "^": {
+        const a = kPoly(e.a), b = kPoly(e.b);
+        if (!a || !b || b.length !== 1 || b[0][1] !== 1 || b[0][0] < 0 || b[0][0] > 8) return null;
+        let r = [Fr(1)]; for (let j = 0; j < b[0][0]; j++) r = pMul(r, a); return r;
+      }
+      case "neg": { const a = kPoly(e.a); return a && pScale(a, Fr(-1)); }
+    }
+    return null;   // π, funções: não é polinómio
+  }
+  // LaTeX de uma expressão (precedência: + − 1, × ÷ 2, sinal 2, potência 3, átomos 4)
+  const kPrec = e => e.o === "+" || e.o === "-" ? 1 : e.o === "*" || e.o === "/" || e.o === "neg" ? 2 : e.o === "^" ? 3 : 4;
+  function kTex(e) {
+    const par = (x, p) => kPrec(x) < p ? `\\left(${kTex(x)}\\right)` : kTex(x);
+    switch (e.o) {
+      case "n": return e.s.replace(".", "{,}");
+      case "k": return "k";
+      case "pi": return "\\pi";
+      case "+": return `${kTex(e.a)} + ${par(e.b, 1)}`;
+      case "-": return `${kTex(e.a)} - ${par(e.b, 2)}`;
+      case "*": {
+        const juntos = e.a.o === "n" && e.b.o !== "n" && e.b.o !== "neg";
+        return juntos ? `${kTex(e.a)}${par(e.b, 3)}` : `${par(e.a, 2)} \\times ${par(e.b, 3)}`;
+      }
+      case "/": return `\\frac{${kTex(e.a)}}{${kTex(e.b)}}`;
+      case "^": return `${e.a.o === "f" ? `\\left(${kTex(e.a)}\\right)` : par(e.a, 4)}^{${kTex(e.b)}}`;
+      case "neg": return `-${par(e.a, 3)}`;
+      case "f": return e.f === "sqrt" || e.f === "raiz" ? `\\sqrt{${kTex(e.a)}}` : `\\${e.f === "sen" || e.f === "sin" ? "operatorname{sen}" : e.f === "cos" ? "cos" : "operatorname{tg}"}\\left(${kTex(e.a)}\\right)`;
+    }
+    return "?";
+  }
+  // as três coordenadas: separadas por vírgulas fora de parênteses (ou por «;», e então a vírgula é decimal)
+  function parseKVec(s) {
+    s = (s || "").trim();
+    if (s.startsWith("(") && s.endsWith(")")) {
+      let d = 0, outer = true;
+      for (let i = 0; i < s.length - 1; i++) { if (s[i] === "(") d++; else if (s[i] === ")") d--; if (d === 0) { outer = false; break; } }
+      if (outer) s = s.slice(1, -1);
+    }
+    let parts;
+    if (s.includes(";")) parts = s.split(";").map(t => t.replace(/,/g, "."));
+    else { parts = []; let d = 0, cur = ""; for (const c of s) { if (c === "(") d++; if (c === ")") d--; if (c === "," && d === 0) { parts.push(cur); cur = ""; } else cur += c; } parts.push(cur); }
+    if (parts.length !== 3) return null;
+    const E = parts.map(kParse);
+    return E.every(Boolean) ? E : null;
+  }
+  // polinómio em LaTeX (potências de k de cima para baixo)
+  function polyTex(p) {
+    let out = "";
+    for (let i = p.length - 1; i >= 0; i--) {
+      const c = p[i]; if (fz(c)) continue;
+      const neg = c[0] < 0, a = [Math.abs(c[0]), c[1]], one = a[0] === 1 && a[1] === 1;
+      const v = i === 0 ? "" : i === 1 ? "k" : `k^{${i}}`;
+      const body = v ? (one ? v : fT(a) + v) : fT(a);
+      out += out ? (neg ? " - " : " + ") + body : (neg ? "-" : "") + body;
+    }
+    return out || "0";
+  }
+  // soluções exatas de p(k) = 0 com grau 1 ou 2: { tex: [...], vals: [...] }; null se não der
+  function polyRoots(p) {
+    p = pTrim(p);
+    const deg = p.length - 1;
+    if (deg === 0) return { tex: [], vals: [], all: fz(p[0]) };
+    if (deg > 2) return null;
+    const L = p.reduce((m, c) => m / gcd(m, c[1]) * c[1], 1);
+    let I = p.map(c => c[0] * (L / c[1]));
+    const g0 = I.reduce((g, v) => gcd(g, v), 0) || 1; I = I.map(v => v / g0);
+    if (deg === 1) return { tex: [frac(-I[0], I[1])], vals: [-I[0] / I[1]] };
+    const [c, b, a] = I, D = b * b - 4 * a * c;
+    if (D < 0) return { tex: [], vals: [] };
+    if (D === 0) return { tex: [frac(-b, 2 * a)], vals: [-b / (2 * a)] };
+    let s = 1, t = D;
+    for (let f = 2; f * f <= t; f++) while (t % (f * f) === 0) { t /= f * f; s *= f; }
+    const vals = [(-b - Math.sqrt(D)) / (2 * a), (-b + Math.sqrt(D)) / (2 * a)].sort((x, y) => x - y);
+    if (t === 1) return { tex: vals.map(v => frac(Math.round(v * 2 * a), 2 * a)), vals };
+    let B = -b, S_ = s, Q = 2 * a; if (Q < 0) { B = -B; Q = -Q; }
+    const g = gcd(gcd(Math.abs(B), S_), Q) || 1; B /= g; S_ /= g; Q /= g;
+    const rt = `${S_ === 1 ? "" : S_}\\sqrt{${t}}`;
+    const one = sg => Q === 1 ? (B ? `${B} ${sg} ${rt}` : `${sg === "-" ? "-" : ""}${rt}`) : `\\frac{${B ? B + " " + sg + " " : sg === "-" ? "-" : ""}${rt}}{${Q}}`;
+    return { tex: [one("-"), one("+")], vals };
+  }
+  const kTxt = v => isInt(v) ? `${Math.round(v)}` : apx(v, Math.abs(v * 10 - Math.round(v * 10)) < 1e-9 ? 1 : 2);
+  // tudo o que se sabe de P(k) para o plano pl (pode ser null): funções, equação em k e soluções
+  function pkInfo(pl) {
+    const E = parseKVec(ESP.Pk);
+    if (!E) return null;
+    const fn = k => E.map(e => kNum(e, k));
+    const o = { E, fn, tex: E.map(kTex) };
+    if (!pl) return o;
+    const P = E.map(kPoly), g = k => fn(k).reduce((s, v, i) => s + fval(pl.n[i]) * v, 0) + fval(pl.d);
+    o.g = g;
+    if (P.every(Boolean)) {
+      o.poly = pAdd(pAdd(pAdd(pScale(P[0], pl.n[0]), pScale(P[1], pl.n[1])), pScale(P[2], pl.n[2])), [pl.d]);
+      o.ex = polyRoots(o.poly);
+    }
+    if (o.ex && !o.ex.all) o.roots = o.ex.vals.map((v, i) => ({ v, tex: o.ex.tex[i] }));
+    else if (!o.ex) {   // sem valores exatos: zeros de g aproximados (mudanças de sinal numa grelha fina)
+      o.roots = [];
+      const K = 60 * SK, N = 6000;
+      let k0 = -K, g0 = g(k0);
+      for (let j = 1; j <= N && o.roots.length < 8; j++) {
+        const k1 = -K + 2 * K * j / N, g1 = g(k1);
+        if (isFinite(g0) && isFinite(g1) && (g0 === 0 || g0 * g1 < 0)) {
+          let a = k0, b = k1;
+          if (g0 !== 0) for (let it = 0; it < 60; it++) { const m = (a + b) / 2; if (g(a) * g(m) <= 0) b = m; else a = m; }
+          const v = g0 === 0 ? k0 : (a + b) / 2;
+          if (!o.roots.length || Math.abs(o.roots[o.roots.length - 1].v - v) > 1e-6) o.roots.push({ v, tex: "\\approx " + apx(v), apx: true });
+        }
+        k0 = k1; g0 = g1;
+      }
+    }
+    return o;
+  }
   // a x + b y + c z + d (= 0)
   function linTex(co, vars = ["x", "y", "z"]) {
     let out = "";
@@ -1256,8 +1464,9 @@
     ["R", "R", "(0, 0, 1)", "be"], ["m", "\\vec m", "(0, 0, 1)", "be"],
     ["u3", "\\vec u", "(2, 1, 2)", "uv"], ["v3", "\\vec v", "(0, 3, 4)", "uv"],
     ["uS", "\\vec u", "(0, 0, 2)", "sph"], ["vS", "\\vec v", "(-1, 2, 2)", "sph"],   // Esfera
+    ["Pk", "Q(k)", "(k, -2, k + 1)", "pk"],   // Ponto P(k): expressões em k (não é um vetor numérico)
   ];
-  const GCOL = { al: () => C.al, r: () => C.rr, be: () => C.be, uv: () => C.u, v3: () => C.v, sph: () => C.u, vS: () => C.v };
+  const GCOL = { al: () => C.al, r: () => C.rr, be: () => C.be, uv: () => C.u, v3: () => C.v, sph: () => C.u, vS: () => C.v, pk: () => C.w };
   const ESP = {};   // texto de cada campo
   const INP = {};   // elementos <input>
   for (const [k, , d] of FIELDS) {
@@ -1314,7 +1523,7 @@
     document.body.appendChild(el);
     INP[k] = el;
   }
-  const groupOn = g => S.sph ? g === "sph" : (g === "al" && (S.eA || S.eC)) || (g === "r" && S.eR) || (g === "be" && S.eB) || (g === "uv" && S.eUV);
+  const groupOn = g => S.sph ? g === "sph" : (g === "al" && (S.eA || S.eC)) || (g === "r" && S.eR) || (g === "be" && S.eB) || (g === "uv" && S.eUV) || (g === "pk" && S.eK);
   // valores lidos (ou null se o campo estiver mal escrito)
   function espVals() {
     const o = {};
@@ -1478,6 +1687,39 @@
       const k = sectionPts(vnum(al.n), -fval(al.d), 0, CUBE).length;
       const nome = ["", "um vértice", "uma aresta", "um triângulo", "um quadrilátero", "um pentágono", "um hexágono"][k] || "";
       G.push([k === 0 ? `${A_}\\ \\text{não corta o cubo}` : k < 3 ? `${A_}\\ \\text{toca o cubo só em ${nome}}` : `\\text{A secção do cubo por}\\ ${A_}\\ \\text{é ${nome}}`]);
+    }
+    // Ponto P(k): substituir as coordenadas na equação de α dá uma equação em k (pedido do utilizador, 2026-11-24)
+    if (S.eK) {
+      const pk = pkInfo(al), Pn = clr(C.w, "Q");
+      if (!pk) G.push([`\\text{Escreve as coordenadas de } ${Pn}(k)\\text{, p. ex. } (k,\\ -2,\\ k + 1) \\text{ ou } (k^2,\\ k,\\ (k - 1)^2)`]);
+      else {
+        const g = [`${Pn}(k) = \\left(${pk.tex.join(",\\ ")}\\right)`];
+        const q = pk.fn(S.kv), ri = (PKR || []).find(r => Math.abs(r.v - S.kv) < 1e-9);
+        if (q.every(isFinite)) g.push(`k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)}\\text{: } ${Pn} \\approx (${q.map(v => apx(v)).join(",\\ ")})`);
+        if (!al) g.push(`\\text{Liga o plano } \\alpha \\text{ para ver para que valores de } k \\text{ o ponto } ${Pn} \\text{ está em } \\alpha`);
+        else {
+          let sub = "";
+          pk.E.forEach((e, i) => {
+            const c = al.n[i]; if (fz(c)) return;
+            const t = pk.tex[i], neg = c[0] < 0, a = [Math.abs(c[0]), c[1]], one = a[0] === 1 && a[1] === 1;
+            const atom = ["k", "^", "f", "pi"].includes(e.o), inner = atom || e.o === "n" ? t : `\\left(${t}\\right)`;
+            const body = one ? inner : e.o === "n" ? `${fT(a)} \\times ${t}` : fT(a) + inner;
+            sub += sub ? (neg ? " - " : " + ") + body : (neg ? "-" : "") + body;
+          });
+          if (!fz(al.d)) sub += (al.d[0] < 0 ? " - " : " + ") + fT([Math.abs(al.d[0]), al.d[1]]);
+          g.push(`${Pn}(k) \\in ${A_} \\Leftrightarrow ${sub || "0"} = 0`);
+          if (pk.poly) g.push({ cont: true, t: `\\Leftrightarrow ${polyTex(pk.poly)} = 0` });
+          const R_ = pk.roots || [];
+          if (pk.ex && pk.ex.all) g.push(`\\text{verdade para todo o } k\\text{: o caminho de } ${Pn} \\text{ está contido em } ${A_}`);
+          else if (!R_.length) g.push(pk.ex ? `\\text{equação impossível: } ${Pn}(k) \\text{ nunca está em } ${A_}` : `\\text{nenhum valor de } k \\text{ entre } -${60 * SK} \\text{ e } ${60 * SK}`);
+          else {
+            g.push({ cont: !!pk.poly, t: `\\Leftrightarrow ${R_.map(r => "k " + (r.apx ? "" : "= ") + r.tex).join(" \\;\\vee\\; ")}` });
+            if (R_.some(r => !r.apx && r.tex.includes("sqrt"))) g.push({ cont: true, sep: 1, t: `(${R_.map(r => "k \\approx " + apx(r.v)).join(" \\;\\vee\\; ")})` });
+            if (R_.some(r => r.apx)) g.push(`\\text{(valores aproximados: as coordenadas não são polinómios em } k\\text{)}`);
+          }
+        }
+        G.push(g);
+      }
     }
     if (!G.length) G.push([`\\text{Escolhe o que mostrar nas caixas de baixo.}`]);
     return G;
@@ -2012,6 +2254,61 @@
       }
       if (S.eA) lab("\\alpha", rect.reduce((best, p) => p[2] + 0.01 * p[1] > best[2] + 0.01 * best[1] ? p : best), C.al, 0, -1, 1);
     }
+    // Ponto P(k): o caminho de P quando k varia (a cheio à vista, a tracejado atrás dos planos), o ponto P (arrasta-se
+    // ao longo do caminho) e os pontos do caminho que estão em α (pedido do utilizador, 2026-11-24)
+    PKS = null;
+    if (S.eK) {
+      const pk = pkInfo(S.eA || S.eC ? al : null);
+      if (pk) {
+        const dentro = q => q.every((v, i) => isFinite(v) && v >= lo3(i) - 1e-9 && v <= hi3(i) + 1e-9);
+        const K = 60 * SK, N = 3000, runs = [], smp = [];
+        let cur = null;
+        for (let j = 0; j <= N; j++) {
+          const t = -1 + 2 * j / N, k = K * t * t * t, q = pk.fn(k);   // mais pontos perto de k = 0
+          if (dentro(q)) {
+            smp.push({ k, q });
+            const last = cur && cur[cur.length - 1];
+            if (!cur) { cur = [q]; runs.push(cur); }
+            else if (Math.hypot(q[0] - last[0], q[1] - last[1], q[2] - last[2]) >= 0.03 * SK) cur.push(q);
+          } else cur = null;
+        }
+        PKS = smp;
+        const vis = solid(C.w); vis.transparent = true; vis.depthWrite = false;
+        const hid = new T3.MeshBasicMaterial({ color: C.w, transparent: true, opacity: 0.85, depthFunc: T3.GreaterDepth, depthWrite: false });
+        const tubo = (pts, mat) => {
+          if (pts.length < 2) return;
+          const m = new T3.Mesh(new T3.TubeGeometry(new T3.CatmullRomCurve3(pts.map(q => vec3(...q)), false, "centripetal"), Math.max(2, pts.length * 2), 0.03 * SK, 6, false), mat);
+          m.renderOrder = 3; add(m);
+        };
+        for (const run of runs) {
+          tubo(run, vis);
+          // tracejado (traços de 0,22 com intervalos de 0,16, como os eixos), só visível onde os planos tapam o caminho
+          let sAcc = 0, dash = [run[0]];
+          for (let j = 1; j < run.length; j++) {
+            sAcc += Math.hypot(run[j][0] - run[j - 1][0], run[j][1] - run[j - 1][1], run[j][2] - run[j - 1][2]);
+            const on = (sAcc % (0.38 * SK)) < 0.22 * SK;
+            if (on) dash.push(run[j]); else { tubo(dash, hid); dash = [run[j]]; }
+          }
+          tubo(dash, hid);
+        }
+        // os pontos do caminho em α
+        PKR = (pk.roots || []);
+        for (const r of PKR) {
+          const q = pk.fn(r.v);
+          if (!dentro(q)) continue;
+          add(ball(q, C.ink, 0.09));
+          lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6);
+        }
+        // o ponto P: se o valor de k o deixar fora da vista, passa para o ponto visível mais perto
+        if (smp.length) {
+          let q = pk.fn(S.kv);
+          if (!dentro(q)) { const b = smp.reduce((m, x) => Math.abs(x.k - S.kv) < Math.abs(m.k - S.kv) ? x : m); S.kv = +b.k.toFixed(1); q = pk.fn(S.kv); if (!dentro(q)) q = b.q; }
+          handle("Pk", q, C.w, null, 0.13);
+          const ri = PKR.find(r => Math.abs(r.v - S.kv) < 1e-9);
+          lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.8);
+        }
+      }
+    }
     if (S.eR && V3.A3 && V3.r3 && !isNull(V3.r3)) {
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
       // com «n, m → O», a reta esbate-se como os planos e o vetor diretor também vai para a origem (pedido do utilizador)
@@ -2240,7 +2537,7 @@
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
     setEsc();
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2278,12 +2575,27 @@
   }
   // arrastar: na horizontal (plano z = z₀) ou, com a pega em modo ↕ ou com Shift, na vertical (plano vertical virado para a câmara)
   let XPL = null;   // plano α para o ponto X: { P, n, e1, e2 }
+  let PKS = null, PKR = [];   // Ponto P(k): amostras {k, q} do caminho dentro da vista e os valores de k com P(k) em α
   let XTR = [], XTN = 0;   // rasto de X: lista de traços, cada um uma lista de (s, t); XTN = n.º de pontos
   const apagarRasto = () => { XTR = []; XTN = 0; };
   function move3(x, y, vertical) {
     const h = drag3, f = L.fig;
     const ndc = new T3.Vector2((x - f.x) / f.w * 2 - 1, -((y - f.y) / f.h) * 2 + 1);
     const rc = new T3.Raycaster(); rc.setFromCamera(ndc, cam);
+    // ponto P(k): segue o caminho (a amostra mais perto do ponteiro no ecrã); k de 0,1 em 0,1 (de 1 em 1 com
+    // «Coordenadas inteiras») e íman nos valores de k em que P está em α
+    if (h.key === "Pk" && PKS && PKS.length) {
+      let best = null, bd = Infinity;
+      for (const a of PKS) {
+        const v = vec3(...a.q).project(cam), d = Math.hypot(f.x + (v.x + 1) / 2 * f.w - x, f.y + (1 - v.y) / 2 * f.h - y);
+        if (d < bd) { bd = d; best = a; }
+      }
+      const st = S.int ? 1 : 0.1;
+      let k = +(Math.round(best.k / st) * st).toFixed(1);
+      for (const r of PKR) if (Math.abs(r.v - best.k) < 0.12 * SK) k = r.v;
+      if (k !== S.kv) { S.kv = k; draw(); }
+      return;
+    }
     // ponto X: desliza no plano α (coordenadas s, t na base e1, e2 do plano, de 0,1 em 0,1)
     if (h.key === "Xa" && XPL) {
       const pa = new T3.Plane().setFromNormalAndCoplanarPoint(vec3(...XPL.n).normalize(), vec3(...XPL.P));
@@ -2350,7 +2662,7 @@
   function inputsLayout(tx, fs) {
     const vis = S.mode === "esp" ? FIELDS.filter(f => groupOn(f[3]))
       : F2.filter(f => S.mode === "vet" ? f[3] === "vet" : f[3] === "rr" || (f[3] === "ss" && S.s));
-    const rows = [], lw = 2.0 * fs, iw = 6.2 * fs, two = tx.w >= 2 * (lw + iw) + fs;
+    const rows = [], lw = (vis.some(f => f[0] === "Pk") ? 2.9 : 2.0) * fs, iw = 6.2 * fs, two = tx.w >= 2 * (lw + iw) + fs;
     const byG = {};
     for (const f of vis) (byG[f[3]] = byG[f[3]] || []).push(f);
     for (const g of Object.values(byG)) {
@@ -2372,8 +2684,9 @@
           if (document.activeElement !== el) { const v = fmt2(get2(k)); if (el.value !== v) el.value = v; }
           el.style.borderColor = el.classList.contains("bad") ? "" : col;
         } else {
-          el.classList.toggle("bad", !parseVec(ESP[k]));
-          el.style.borderColor = parseVec(ESP[k]) ? col : "";
+          const ok = k === "Pk" ? !!parseKVec(ESP[k]) : !!parseVec(ESP[k]);
+          el.classList.toggle("bad", !ok);
+          el.style.borderColor = ok ? col : "";
         }
         shown.add(k);
       }));
@@ -2753,7 +3066,7 @@
   const end = e => {
     if (drag3 && e.pointerId === drag3.id) {
       // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
-      if (!drag3.moved && drag3.key !== "Xa" && drag3.key !== "vS") S.vert[drag3.key] = !S.vert[drag3.key];
+      if (!drag3.moved && drag3.key !== "Xa" && drag3.key !== "vS" && drag3.key !== "Pk") S.vert[drag3.key] = !S.vert[drag3.key];
       drag3 = null; cv.style.cursor = "default"; draw();
       return;
     }
@@ -2823,7 +3136,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
