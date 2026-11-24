@@ -125,7 +125,8 @@
               sC: false,   // Esfera: pré-visualizar a circunferência máxima que v percorre com o ▶ (botão direito)   // Esfera: v a percorrer uma circunferência máxima pela direção de u (▶) e o gráfico de f(t) = u·v(t)   // Esfera: circunferências de nível, máximo e mínimo, plano perpendicular a u
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xR: false,   // Espaço: rasto do ponto X em α (botão direito; pedido do utilizador, 2026-11-23)
-              eT: false,   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
+              eT: false,
+              esc: 0,   // Espaço: escala dos eixos (Shift + roda; pedido do utilizador, 2026-11-24): 0 → ±5, 1 → ±10, 2 → ±20   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
   // «Mostrar texto»: um valor por modo; os três começam sem texto (pedido do utilizador)
@@ -1489,7 +1490,17 @@
   }
 
   // ---------- desenho 3D ----------
-  const B3 = 5;   // os planos e as retas ficam recortados no cubo de aresta 2·B3 centrado em C3 (que não se desenha)
+  // escala dos eixos no Espaço (Shift + roda): SK multiplica o cubo da vista (B3 = 5·SK), a distância da câmara e as espessuras
+  // (rod, ball, cones, tracejados), para a figura ocupar o mesmo no ecrã com os eixos de −5·SK a 5·SK; TK = passo dos números
+  const ESC = [[1, 1], [2, 2], [4, 5]];
+  let SK = 1, TK = 1;
+  let B3 = 5;   // os planos e as retas ficam recortados no cubo de aresta 2·B3 centrado em C3 (que não se desenha)
+  function setEsc() {
+    const [k, t] = S.mode === "esp" && !S.sph ? ESC[S.esc] : [1, 1];
+    if (cam && ctl && k !== SK) { const d = cam.position.clone().sub(ctl.target).multiplyScalar(k / SK); cam.position.copy(ctl.target).add(d); }
+    SK = k; TK = t; B3 = 5 * SK;
+    if (ctl) { ctl.minDistance = 8 * SK; ctl.maxDistance = 90 * SK; ctl.update(); }
+  }
   // centro da vista: o alvo das OrbitControls arredondado a inteiros (só muda ao deslocar a vista; a origem não sai do sítio).
   // Eixos, quadrícula, planos e retas desenham-se no cubo [C3 − B3, C3 + B3], para a vista deslocada não ficar sem nada
   let C3 = [0, 0, 0];
@@ -1605,7 +1616,7 @@
     cam.position.copy(ctl.target).add(d); ctl.update();
   }
   // vista inicial do modo (⌂, ↺ e ao passar entre Espaço e Esfera)
-  function home3() { if (ctl) { ctl.reset(); if (S.sph) sphZoom(); } C3F = [0, 0, 0]; }
+  function home3() { S.esc = 0; SK = 1; TK = 1; B3 = 5; if (ctl) { ctl.minDistance = 8; ctl.maxDistance = 90; ctl.reset(); if (S.sph) sphZoom(); } C3F = [0, 0, 0]; }
   function init3() {
     glc = document.createElement("canvas");
     glc.style.cssText = "position:fixed;display:block;left:0;top:0";
@@ -1659,7 +1670,7 @@
   function rod(a, b, r, mat) {
     const A = vec3(...a), Bv = vec3(...b), d = Bv.clone().sub(A), len = d.length();
     if (len < 1e-6) return null;
-    const m = new T3.Mesh(new T3.CylinderGeometry(r, r, len, 12), mat);
+    const m = new T3.Mesh(new T3.CylinderGeometry(r * SK, r * SK, len, 12), mat);
     m.position.copy(A.clone().add(Bv).multiplyScalar(0.5));
     m.quaternion.setFromUnitVectors(vec3(0, 1, 0), d.normalize());
     return m;
@@ -1674,10 +1685,10 @@
     const g = new T3.Group(), mat = solid(col);
     const A = vec3(...a), Bv = vec3(...b), d = Bv.clone().sub(A), len = d.length();
     if (len < 1e-6) { g.add(ball(a, col, 0.12)); return g; }
-    const hl = Math.min(0.45, len * 0.45), u = d.clone().normalize();
+    const hl = Math.min(0.45 * SK, len * 0.45), u = d.clone().normalize();
     const mid = Bv.clone().sub(u.clone().multiplyScalar(hl));
     const s = rod(a, mid.toArray(), r, mat); if (s) g.add(s);
-    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), mat);
+    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2 * SK, hl, 16), mat);
     cone.position.copy(mid.clone().add(u.clone().multiplyScalar(hl / 2)));
     cone.quaternion.setFromUnitVectors(vec3(0, 1, 0), u);
     g.add(cone);
@@ -1688,16 +1699,16 @@
     const g = new T3.Group();
     const solid_ = solid(col); solid_.transparent = true;
     const hidden = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthFunc: T3.GreaterDepth, depthWrite: false });
-    const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A), hl = 0.45;
+    const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A), hl = 0.45 * SK;
     const mid = Bv.clone().sub(u.clone().multiplyScalar(hl));
     const s_ = rod(a, mid.toArray(), r, solid_); if (s_) g.add(s_);
-    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2, hl, 16), solid_);
+    const cone = new T3.Mesh(new T3.ConeGeometry(r * 3.2 * SK, hl, 16), solid_);
     cone.position.copy(mid.clone().add(u.clone().multiplyScalar(hl / 2)));
     cone.quaternion.setFromUnitVectors(vec3(0, 1, 0), u);
     g.add(cone);
     // tracejado: traços de 0,22 com intervalos de 0,16
-    for (let t = 0; t < len - hl; t += 0.38) {
-      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22, len - hl)));
+    for (let t = 0; t < len - hl; t += 0.38 * SK) {
+      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22 * SK, len - hl)));
       const d = rod(p0.toArray(), p1.toArray(), r, hidden); if (d) g.add(d);
     }
     g.traverse(o => { o.renderOrder = 3; });
@@ -1711,15 +1722,15 @@
     const hidden = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 * op, depthFunc: T3.GreaterDepth, depthWrite: false });
     const s_ = rod(a, b, r, vis); if (s_) g.add(s_);
     const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A);
-    for (let t = 0; t < len; t += 0.38) {
-      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22, len)));
+    for (let t = 0; t < len; t += 0.38 * SK) {
+      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22 * SK, len)));
       const d = rod(p0.toArray(), p1.toArray(), r, hidden); if (d) g.add(d);
     }
     g.traverse(o => { o.renderOrder = 3; });
     return g;
   }
   function ball(p, col, r = 0.13) {
-    const m = new T3.Mesh(new T3.SphereGeometry(r, 24, 16), solid(col));
+    const m = new T3.Mesh(new T3.SphereGeometry(r * SK, 24, 16), solid(col));
     m.position.set(...p);
     return m;
   }
@@ -1767,7 +1778,7 @@
     E1.normalize(); E2.normalize();
     const q = vec3(...Q).sub(X0), segs = [];
     const at = (s, t) => X0.clone().add(E1.clone().multiplyScalar(s)).add(E2.clone().multiplyScalar(t)).toArray();
-    const run = (q0, h, f) => { for (let k = Math.ceil(-h - q0 + 1e-6); q0 + k < h - 1e-6; k++) segs.push(f(q0 + k)); };
+    const run = (q0, h, f) => { for (let k = Math.ceil((-h - q0) / TK + 1e-6); q0 + k * TK < h - 1e-6; k++) segs.push(f(q0 + k * TK)); };
     run(q.dot(E1), a, s => [at(s, -b), at(s, b)]);
     run(q.dot(E2), b, t => [at(-a, t), at(a, t)]);
     return segs.length ? lines(segs, col, op) : null;
@@ -1835,7 +1846,7 @@
     };
     // marca de ângulo reto em Q entre a direção do vetor a e a direção unitária d (quadrado de lado 0,35)
     const rightMark3 = (Q, a, d, col, op = 1) => {
-      const ua = vec3(...a).normalize().toArray(), q = 0.35;   // lado 0,35 (antes 0,5; pedido do utilizador, 2026-11-15)
+      const ua = vec3(...a).normalize().toArray(), q = 0.35 * SK;   // lado 0,35 (antes 0,5; pedido do utilizador, 2026-11-15)
       const A_ = Q.map((v, i) => v + q * ua[i]), D_ = Q.map((v, i) => v + q * d[i]), M_ = Q.map((v, i) => v + q * (ua[i] + d[i]));
       const mat = solid(col, op);
       for (const [p0, p1] of [[A_, M_], [M_, D_]]) { const m = rod(p0, p1, 0.02, mat); if (m) add(m); }
@@ -1847,14 +1858,14 @@
         let e2 = W3.clone().sub(e1.clone().multiplyScalar(W3.dot(e1)));
         if (e2.lengthSq() < 1e-12) { e2 = e1.clone().cross(Math.abs(e1.z) < 0.9 ? vec3(0, 0, 1) : vec3(1, 0, 0)); }
         e2.normalize();
-        const col = Math.abs(dv) < 1e-9 ? C.zero : dv > 0 ? C.pos : C.neg, rad = clamp(0.6 * Math.min(lu, lv), 0.5, 1.3);
+        const col = Math.abs(dv) < 1e-9 ? C.zero : dv > 0 ? C.pos : C.neg, rad = clamp(0.6 * Math.min(lu, lv), 0.5 * SK, 1.3 * SK);
         const at = (a, r) => e1.clone().multiplyScalar(Math.cos(a) * r).add(e2.clone().multiplyScalar(Math.sin(a) * r)).toArray();
         if (Math.abs(dv) < 1e-9) {
-          const q = 0.45, sq = [at(0, q), e1.clone().add(e2).multiplyScalar(q).toArray(), at(PI / 2, q)];
+          const q = 0.45 * SK, sq = [at(0, q), e1.clone().add(e2).multiplyScalar(q).toArray(), at(PI / 2, q)];
           const pos = [0, 0, 0, ...sq[0], ...sq[1], 0, 0, 0, ...sq[1], ...sq[2]];
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
           add(new T3.Mesh(geo, basic(col, 0.35 * op))); add(lines([[sq[0], sq[1]], [sq[1], sq[2]]], col, op));
-          if (op > 0.5) lab(sym, e1.clone().add(e2).multiplyScalar(0.75).toArray(), col, 0, 0, 0.85);
+          if (op > 0.5) lab(sym, e1.clone().add(e2).multiplyScalar(0.75 * SK).toArray(), col, 0, 0, 0.85);
         } else if (th > 1e-6) {
           const N = 40, pos = [], arc = [];
           for (let i = 0; i < N; i++) {
@@ -1864,7 +1875,7 @@
           }
           const geo = new T3.BufferGeometry(); geo.setAttribute("position", new T3.Float32BufferAttribute(pos, 3));
           add(new T3.Mesh(geo, basic(col, 0.3 * op))); add(lines(arc, col, op));
-          if (op > 0.5) lab(sym, at(th / 2, rad + 0.35), col, 0, 0, 0.85);
+          if (op > 0.5) lab(sym, at(th / 2, rad + 0.35 * SK), col, 0, 0, 0.85);
         }
       }
     };
@@ -1876,7 +1887,7 @@
       // durante o arrasto: linha tracejada até xOy e a «sombra» do ponto nesse plano
       if (drag3 && drag3.key === key && Math.abs(p[2]) > 1e-9) {
         add(lines([[p, [p[0], p[1], 0]]], col, 0.9, true));
-        const sh = new T3.Mesh(new T3.CircleGeometry(0.16, 24), basic(col, 0.45));
+        const sh = new T3.Mesh(new T3.CircleGeometry(0.16 * SK, 24), basic(col, 0.45));
         sh.position.set(p[0], p[1], 0.001); add(sh);
       }
     };
@@ -1889,12 +1900,12 @@
     for (let i = 0; i < 3; i++) {
       if (S.noAx) break;   // «Esconder Oxyz»
       if (!inB((i + 1) % 3) || !inB((i + 2) % 3)) continue;
-      const E = hi3(i) + 1;
+      const E = hi3(i) + SK;
       add(axis3(at(i, lo3(i)), at(i, E), ax));
-      lab("xyz"[i], at(i, E + 0.35), C.axis, 0, 0, 0.9);
-      for (let k = Math.ceil(lo3(i)); k <= Math.floor(hi3(i)); k++) if (k) {
+      lab("xyz"[i], at(i, E + 0.35 * SK), C.axis, 0, 0, 0.9);
+      for (let k = Math.ceil(lo3(i) / TK) * TK; k <= Math.floor(hi3(i)); k += TK) if (k) {
         const p = at(i, k), o = tkOff[i];
-        tk.push([p.map((v, j) => v - 0.12 * o[j]), p.map((v, j) => v + 0.12 * o[j])]);
+        tk.push([p.map((v, j) => v - 0.12 * SK * o[j]), p.map((v, j) => v + 0.12 * SK * o[j])]);
         if (!S.noNum) lab(`${k}`, p, C.muted, tkLab[i][0], tkLab[i][1], 0.55);
       }
     }
@@ -1902,8 +1913,8 @@
     if (tk.length) add(lines(tk, ax));
     const grid = [];
     if (inB(2)) {
-      for (let i = Math.ceil(lo3(0)); i <= Math.floor(hi3(0)); i++) if (i) grid.push([[i, lo3(1), 0], [i, hi3(1), 0]]);
-      for (let i = Math.ceil(lo3(1)); i <= Math.floor(hi3(1)); i++) if (i) grid.push([[lo3(0), i, 0], [hi3(0), i, 0]]);
+      for (let i = Math.ceil(lo3(0) / TK) * TK; i <= Math.floor(hi3(0)); i += TK) if (i) grid.push([[i, lo3(1), 0], [i, hi3(1), 0]]);
+      for (let i = Math.ceil(lo3(1) / TK) * TK; i <= Math.floor(hi3(1)); i += TK) if (i) grid.push([[lo3(0), i, 0], [hi3(0), i, 0]]);
     }
     if ((S.xs === 1 || S.xs === 2) && inB(2)) {   // xOy a cinzento (botão «xOy»): quadrado cinzento suave
       const q = [[lo3(0), lo3(1), 0], [hi3(0), lo3(1), 0], [hi3(0), hi3(1), 0], [lo3(0), hi3(1), 0]];
@@ -1959,7 +1970,7 @@
               if (tr.length < 2) continue;
               const pts = tr.map(([a, b]) => vec3(...P.map((v, i) => v + a * e1[i] + b * e2[i] + lift[i])));
               const curve = new T3.CatmullRomCurve3(pts, false, "catmullrom", 0);
-              add(new T3.Mesh(new T3.TubeGeometry(curve, Math.min(4000, pts.length * 2), 0.03, 6, false), solid(C.al)));
+              add(new T3.Mesh(new T3.TubeGeometry(curve, Math.min(4000, pts.length * 2), 0.03 * SK, 6, false), solid(C.al)));
             }
           }
         }
@@ -2079,7 +2090,7 @@
       // durante o arrasto: linha tracejada até xOy e a «sombra» do ponto nesse plano (como no Espaço)
       if (drag3 && drag3.key === key && Math.abs(p[2]) > 1e-9) {
         add(lines([[p, [p[0], p[1], 0]]], col, 0.9, true));
-        const sh = new T3.Mesh(new T3.CircleGeometry(0.16, 24), basic(col, 0.45));
+        const sh = new T3.Mesh(new T3.CircleGeometry(0.16 * SK, 24), basic(col, 0.45));
         sh.position.set(p[0], p[1], 0.001); add(sh);
       }
     };
@@ -2209,7 +2220,8 @@
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    setEsc();
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2306,7 +2318,7 @@
     // íman: inteiros com «Coordenadas inteiras» (a mesma caixa dos outros modos), senão décimas
     const st = S.int ? 1 : 0.1, snap = v => +(Math.round(v / st) * st).toFixed(1);
     let q = vertical ? [h.p0[0], h.p0[1], snap(hit.z)] : [snap(hit.x), snap(hit.y), h.p0[2]];
-    q = q.map((v, i) => clamp(v, C3[i] - 9, C3[i] + 9));   // até 9 unidades do centro da vista
+    q = q.map((v, i) => clamp(v, C3[i] - 9 * SK, C3[i] + 9 * SK));   // até 9 unidades do centro da vista (×SK)
     // ponta de um vetor: o vetor é ponta − origem
     const val = (h.base ? q.map((v, i) => v - h.base[i]) : q).map(v => +v.toFixed(4));
     const txt = `(${val.map(v => (+v.toFixed(4)).toString()).join(", ")})`;
@@ -2734,6 +2746,20 @@
     if (!ptrs.size) { drag = null; cv.style.cursor = "default"; }
   };
   ["pointerup", "pointercancel"].forEach(ev => cv.addEventListener(ev, end));
+  // Espaço: Shift + roda muda a escala dos eixos (±5 → ±10 → ±20), um degrau por movimento da roda
+  // (pedido do utilizador, 2026-11-24); apanhado antes das OrbitControls, que fariam zoom
+  let escT = 0;
+  window.addEventListener("wheel", e => {
+    if (!e.shiftKey || S.mode !== "esp" || S.sph || e.target !== cv || !inFig(e.clientX, e.clientY)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const dl = e.deltaY || e.deltaX;   // com Shift, alguns sistemas mandam a roda em deltaX
+    if (!dl || performance.now() - escT < 300) return;
+    escT = performance.now();
+    const n = clamp(S.esc + (dl > 0 ? 1 : -1), 0, ESC.length - 1);
+    if (n === S.esc) return;
+    S.esc = n; draw();
+    toast("Eixos de −" + 5 * ESC[n][0] + " a " + 5 * ESC[n][0], 1400);
+  }, { capture: true, passive: false });
   // roda do rato (ou pinça no trackpad) na figura: zoom à volta do cursor
   cv.addEventListener("wheel", e => {
     if (S.mode === "esp") { if (!inFig(e.clientX, e.clientY)) e.stopImmediatePropagation(); return; }
@@ -2776,7 +2802,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
@@ -2803,6 +2829,8 @@
       for (const [k] of FIELDS) if (o.f && typeof o.f[k] === "string") { ESP[k] = o.f[k]; INP[k].value = o.f[k]; }
       tN = S.nO ? 1 : 0; tK = S.sK ? 1 : 0;
       if (o.cp && o.ct) camPend = { p: o.cp, t: o.ct };
+      if (typeof S.esc !== "number" || !ESC[S.esc]) S.esc = 0;
+      if (!S.sph) { [SK, TK] = ESC[S.esc]; B3 = 5 * SK; }   // a câmara do link já vem com a distância desta escala
       if (o.c3) C3F = o.c3.slice();
     }
   }
