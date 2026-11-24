@@ -1703,6 +1703,21 @@
     g.traverse(o => { o.renderOrder = 3; });
     return g;
   }
+  // segmento (reta): a parte à vista a cheio e a parte tapada pelos planos a tracejado, como os eixos (axis3)
+  // (pedido do utilizador, 2026-11-24: a reta r atrás dos planos não aparecia a tracejado)
+  function rodDash(a, b, r, col, op = 1) {
+    const g = new T3.Group();
+    const vis = solid(col); vis.transparent = true; vis.opacity = op; vis.depthWrite = false;
+    const hidden = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 * op, depthFunc: T3.GreaterDepth, depthWrite: false });
+    const s_ = rod(a, b, r, vis); if (s_) g.add(s_);
+    const A = vec3(...a), Bv = vec3(...b), u = Bv.clone().sub(A).normalize(), len = Bv.distanceTo(A);
+    for (let t = 0; t < len; t += 0.38) {
+      const p0 = A.clone().add(u.clone().multiplyScalar(t)), p1 = A.clone().add(u.clone().multiplyScalar(Math.min(t + 0.22, len)));
+      const d = rod(p0.toArray(), p1.toArray(), r, hidden); if (d) g.add(d);
+    }
+    g.traverse(o => { o.renderOrder = 3; });
+    return g;
+  }
   function ball(p, col, r = 0.13) {
     const m = new T3.Mesh(new T3.SphereGeometry(r, 24, 16), solid(col));
     m.position.set(...p);
@@ -1971,7 +1986,7 @@
       const A = vnum(V3.A3), r = vnum(V3.r3), sgm = clipLine(A, r);
       // com «n, m → O», a reta esbate-se como os planos e o vetor diretor também vai para a origem (pedido do utilizador)
       const eN3 = ease(tN), Ar = A.map(v => v * (1 - eN3));
-      if (sgm) { add(rod(sgm[0], sgm[1], 0.035, solid(C.rr, 1 - 0.6 * eN3))); lab("r", sgm[1], C.rr, 1, 1, 1); }
+      if (sgm) { add(rodDash(sgm[0], sgm[1], 0.035, C.rr, 1 - 0.6 * eN3)); lab("r", sgm[1], C.rr, 1, 1, 1); }
       handle("A3", A, C.rr); lab("A", A, C.rr, -1, 1);
       add(arrow3(Ar, Ar.map((v, i) => v + r[i]), C.rr, 0.05)); lab("\\vec r", Ar.map((v, i) => v + r[i]), C.rr, 1, -1);
       handle("r3", Ar.map((v, i) => v + r[i]), C.rr, Ar, 0.1);
