@@ -18,6 +18,9 @@
   .inp { position: fixed; z-index: 2; box-sizing: border-box; margin: 0; padding: 0 0.45em; border: 2px solid var(--line); border-radius: 8px;
          background: var(--bg); color: var(--ink); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; outline: none; }
   .inp.bad { border-color: var(--bad) !important; background: var(--badbg); }
+  /* cursor de k à direita do campo Q(k) (pedido do utilizador, 2026-11-24) */
+  .kslider { position: fixed; z-index: 2; margin: 0; accent-color: #00838f; cursor: pointer; }
+  :root[data-theme="dark"] .kslider { accent-color: #4dd0e1; }
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
   #tex { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
   .tx { position: absolute; white-space: nowrap; line-height: 1.1; }
@@ -25,6 +28,8 @@
   .tx.halo { text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 6px var(--bg); }
   /* Espaço: contorno fino em vez do halo difuso, que fazia uma «nuvem» clara/escura sobre os planos (pedido do utilizador, 2026-11-13) */
   :root[data-mode="esp"] .tx.halo { text-shadow: 0 0 1px var(--bg), 0 0 1px var(--bg); }
+  /* etiqueta do ponto Q(k): halo forte, para se ler por cima do caminho e dos planos (pedido do utilizador, 2026-11-24) */
+  :root[data-mode="esp"] .tx.halo.hforte { text-shadow: 0 0 2px var(--bg), 0 0 4px var(--bg); background: color-mix(in srgb, var(--bg) 82%, transparent); border-radius: 0.35em; padding: 0 0.25em; box-shadow: 0 0 6px 3px color-mix(in srgb, var(--bg) 70%, transparent); }
   /* menu do botão direito (modo Vetores): soma e diferença */
   #menu { position: fixed; z-index: 3; display: none; flex-direction: column; min-width: 9em; padding: 3px; border: 1.5px solid var(--line); border-radius: 8px;
           background: var(--bg); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 14px; }
@@ -487,7 +492,7 @@
     // campos das coordenadas no topo da coluna do texto (Espaço; Vetores e Retas desde 2026-11-17)
     {
       const il = inputsLayout(tx, fs);
-      L.inp = { ...il, x0: tx.x, y0: tx.y };
+      L.inp = { ...il, x0: tx.x, y0: tx.y, w: tx.w };
       const used_ = il.rows.length * il.rh + 0.3 * fs;
       if (il.rows.length) { tx.y += used_; tx.h -= used_; }
     }
@@ -580,6 +585,7 @@
       figure3(L.fig, fs);
       if (L.graph && S.sph) sphGraph(L.graph, fs);
       if (L.graph && !S.sph) pkGraph(L.graph, fs);
+      kSlider(fs);
       button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
       // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
       const zy = L.theme.y + L.theme.h + 0.25 * fs, zh = 1.2 * fs;
@@ -1539,6 +1545,18 @@
     document.body.appendChild(el);
     INP[k] = el;
   }
+  // cursor de k (Ponto Q(k)): à direita do campo Q(k); limites = valores de k com Q na vista (PKS); de 0,1 em 0,1
+  // (1 em 1 com «Coordenadas inteiras») e íman nos valores de k com Q em α
+  const KSL = document.createElement("input");
+  KSL.type = "range"; KSL.className = "kslider"; KSL.setAttribute("aria-label", "Valor de k"); KSL.style.display = "none";
+  KSL.addEventListener("input", () => {
+    const kr = +KSL.value, st = S.int ? 1 : 0.1, span = (+KSL.max) - (+KSL.min);
+    let k = +(Math.round(kr / st) * st).toFixed(1);
+    for (const r of PKR || []) if (Math.abs(r.v - kr) < 0.015 * span) k = r.v;
+    if (k !== S.kv) { S.kv = k; draw(); }
+  });
+  KSL.addEventListener("change", () => KSL.blur());
+  document.body.appendChild(KSL);
   // campos de texto em Vetores (u, v) e em Retas (ponto e vetor diretor de r e de s) (pedido do utilizador, 2026-11-17)
   // [chave, rótulo, cor, grupo]; o vetor diretor é B − A (D − C): mudar o ponto mantém o vetor
   const F2 = [
@@ -2362,9 +2380,20 @@
         if (smp.length) {
           let q = pk.fn(S.kv);
           if (!dentro(q)) { const b = smp.reduce((m, x) => Math.abs(x.k - S.kv) < Math.abs(m.k - S.kv) ? x : m); S.kv = +b.k.toFixed(1); q = pk.fn(S.kv); if (!dentro(q)) q = b.q; }
+          // halo à volta de Q: um disco esbatido na cor do fundo, atrás da bolinha (pedido do utilizador, 2026-11-24)
+          if (!HALO_TX) {
+            const c = document.createElement("canvas"); c.width = c.height = 64;
+            const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 8, 32, 32, 32);
+            gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.55, "rgba(255,255,255,0.85)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+            g.fillStyle = gr; g.fillRect(0, 0, 64, 64); HALO_TX = new T3.CanvasTexture(c);
+          }
+          // halo e bolinha por cima de tudo (também atrás dos planos), para Q se ver sempre
+          const hs = new T3.Sprite(new T3.SpriteMaterial({ map: HALO_TX, color: C.bg, transparent: true, depthWrite: false, depthTest: false }));
+          hs.position.set(...q); hs.scale.setScalar(0.75 * SK); hs.renderOrder = 4; add(hs);
           handle("Pk", q, C.w, null, 0.13);
+          { const m = HAND[HAND.length - 1].mesh; m.material.depthTest = false; m.material.transparent = true; m.renderOrder = 5; }
           const ri = PKR.find(r => Math.abs(r.v - S.kv) < 1e-9);
-          lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.8);
+          lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.8); LAB3[LAB3.length - 1].hf = true;
         }
       }
     }
@@ -2609,7 +2638,8 @@
       if (x < f.x || x > f.x + f.w || y < f.y || y > f.y + f.h) return;
       const off = 0.45 * fs;
       const col = deep(l.col);   // etiquetas mais escuras (claro) / mais claras (escuro), para se lerem melhor sobre os planos
-      texAt("l3" + i, clr(col, l.src), x + l.ux * off, y - l.uy * off, fs * l.px, col, 0.5 - 0.5 * l.ux, 0.5 + 0.5 * l.uy);
+      const el = texAt("l3" + i, clr(col, l.src), x + l.ux * off, y - l.uy * off, fs * l.px, col, 0.5 - 0.5 * l.ux, 0.5 + 0.5 * l.uy);
+      if (el) el.classList.toggle("hforte", !!l.hf);
     });
   }
   // cor da etiqueta mais funda: no tema claro aproxima-se do preto, no escuro do branco (pedido do utilizador, 2026-11-13)
@@ -2634,7 +2664,7 @@
   }
   // arrastar: na horizontal (plano z = z₀) ou, com a pega em modo ↕ ou com Shift, na vertical (plano vertical virado para a câmara)
   let XPL = null;   // plano α para o ponto X: { P, n, e1, e2 }
-  let PKS = null, PKR = [];   // Ponto P(k): amostras {k, q} do caminho dentro da vista e os valores de k com P(k) em α
+  let PKS = null, PKR = [], HALO_TX = null;   // Ponto P(k): amostras {k, q} do caminho dentro da vista e os valores de k com P(k) em α
   let XTR = [], XTN = 0;   // rasto de X: lista de traços, cada um uma lista de (s, t); XTN = n.º de pontos
   const apagarRasto = () => { XTR = []; XTN = 0; };
   function move3(x, y, vertical) {
@@ -2729,6 +2759,21 @@
     }
     return { rows, lw, iw: two ? Math.min(iw * 1.3, (tx.w - fs) / 2 - lw) : Math.min(tx.w - lw, iw * 1.6), rh: 1.85 * fs };
   }
+  function kSlider(fs) {
+    // cursor de k ao lado do campo Q(k) (depois da figura 3D, que calcula PKS)
+    const el = INP.Pk;
+    if (L.inp && el.style.display !== "none" && PKS && PKS.length > 1) {
+      const x = parseFloat(el.style.left) + parseFloat(el.style.width) + 1.6 * fs, xr = L.inp.x0 + L.inp.w, w = xr - x;
+      if (w > 3 * fs) {
+        texAt("kslab", "k", x - 0.45 * fs, parseFloat(el.style.top) + 0.75 * fs, fs * 0.9, C.w, 1, 0.5, false);
+        const k0 = PKS[0].k, k1 = PKS[PKS.length - 1].k;
+        KSL.min = k0; KSL.max = k1; KSL.step = "any";
+        if (document.activeElement !== KSL) KSL.value = S.kv;
+        Object.assign(KSL.style, { display: "", left: x + "px", top: el.style.top, width: w + "px", height: el.style.height });
+        return;
+      }
+    }
+  }
   function inputs(fs) {
     const shown = new Set();
     if (L.inp) {
@@ -2751,6 +2796,8 @@
       }));
     }
     for (const k in INP) if (!shown.has(k)) INP[k].style.display = "none";
+    KSL.style.display = "none";   // o kSlider() volta a mostrá-lo (só no Espaço, com Q(k))
+    KSL.style.display = "none";
   }
 
   // ---------- toque e rato ----------
