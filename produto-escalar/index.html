@@ -1278,7 +1278,9 @@
   const cross3 = (a, b) => [fsub(fmul(a[1], b[2]), fmul(a[2], b[1])), fsub(fmul(a[2], b[0]), fmul(a[0], b[2])), fsub(fmul(a[0], b[1]), fmul(a[1], b[0]))];
   const isNull = a => a.every(fz);
   const vnum = a => a.map(fval);
-  const p3T = a => `(${a.map(fT).join(",\\ ")})`;
+  // coordenadas: vírgula decimal; se algum valor tiver casas decimais, separam-se por «;» (como em Vetores e Retas; pedido do utilizador, 2026-11-24)
+  const coordSep = ts => ts.some(t => t.includes("{,}")) ? ";\\ " : ",\\ ";
+  const p3T = a => { const ts = a.map(fT); return `(${ts.join(coordSep(ts))})`; };
   // número escrito pelo utilizador: inteiro, decimal (ponto, ou vírgula se as coordenadas estiverem separadas por «;») ou fração a/b
   function parseNum(s) {
     s = s.trim().replace("−", "-");
@@ -1750,9 +1752,9 @@
       const pk = pkInfo(al), Pn = clr(C.w, "Q");
       if (!pk) G.push([`\\text{Escreve as coordenadas de } ${Pn}(k)\\text{, p. ex. } (k,\\ -2,\\ k + 1) \\text{ ou } (k^2,\\ k,\\ (k - 1)^2)`]);
       else {
-        const g = [`${Pn}(k) = \\left(${pk.tex.join(",\\ ")}\\right)`];
+        const g = [`${Pn}(k) = \\left(${pk.tex.join(coordSep(pk.tex))}\\right)`];
         const q = pk.fn(S.kv), ri = (PKR || []).find(r => Math.abs(r.v - S.kv) < 1e-9);
-        if (q.every(isFinite)) g.push(`k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)}\\text{: } ${Pn} \\approx (${q.map(v => apx(v)).join(",\\ ")})`);
+        if (q.every(isFinite)) g.push(`k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)}\\text{: } ${Pn} \\approx (${q.map(v => apx(v)).join(";\\ ")})`);   // valores aproximados (com vírgula decimal): coordenadas separadas por «;»
         if (!al) g.push(`\\text{Liga o plano } \\alpha \\text{ para ver para que valores de } k \\text{ o ponto } ${Pn} \\text{ está em } \\alpha`);
         else {
           let sub = "";
