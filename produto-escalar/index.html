@@ -126,7 +126,7 @@
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xR: false,   // Espaço: rasto do ponto X em α (botão direito; pedido do utilizador, 2026-11-23)
               eT: false,
-              eK: false, kv: 0,   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
+              eK: false, kv: 0, kG: false,   // kG: gráfico de f(k) por baixo da figura (botão direito)   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
               esc: 0,   // Espaço: escala dos eixos (Shift + roda; pedido do utilizador, 2026-11-24): 0 → ±5, 1 → ±10, 2 → ±20   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
@@ -479,7 +479,7 @@
     else L.frame = { x: pad, y: pad + tx.h + gap, w: W - 2 * pad, h: Math.max(4 * fs, L.rowY - gap - (pad + tx.h + gap)) };
     // «v a rodar»: o gráfico de f(t) = u·v(t) ocupa a parte de baixo da figura
     L.graph = null;
-    if ((S.mode === "vet" && S.rot) || (S.mode === "esp" && S.sph && S.sG && SP3)) {
+    if ((S.mode === "vet" && S.rot) || (S.mode === "esp" && S.sph && S.sG && SP3) || (S.mode === "esp" && !S.sph && S.eK && S.kG && (S.eA || S.eC))) {
       const gh = Math.round(L.frame.h * (S.mode === "esp" ? 0.3 : 0.36));
       L.graph = { x: L.frame.x, y: L.frame.y + L.frame.h - gh, w: L.frame.w, h: gh };
       L.frame = { ...L.frame, h: L.frame.h - gh - gap };
@@ -579,6 +579,7 @@
       if (S.sph && S.sG && (!SP3 || SP3.vkey !== ESP.vS)) { SP3 = sphPath(); if (!SP3) S.sG = false; }   // v mudou (arrasto, campo): outra circunferência, pelo novo v (com u, fica a mesma)
       figure3(L.fig, fs);
       if (L.graph && S.sph) sphGraph(L.graph, fs);
+      if (L.graph && !S.sph) pkGraph(L.graph, fs);
       button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
       // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
       const zy = L.theme.y + L.theme.h + 0.25 * fs, zh = 1.2 * fs;
@@ -999,6 +1000,62 @@
     line(TX(p.t), y0, TX(p.t), y1, C.muted, 1.2, [5, 4]);
     dot(TX(p.t), TY(f(p.t)), 0.3 * fs, C.v, 2);
     hits.push({ kind: "sphT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => clamp((px - x0) / (x1 - x0), 0, 1) * TAU });
+  }
+  // Ponto Q(k): gráfico de f(k) = a·x(k) + b·y(k) + c·z(k) + d (o 1.º membro da equação Q(k) ∈ α), com a cor do sinal,
+  // os zeros (os k em que Q está em α) e o k atual; arrastar no gráfico move Q (pedido do utilizador, 2026-11-24)
+  let pkTd = false;
+  const niceStep = r => { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; };
+  function pkGraph(g, fs) {
+    const V3 = espVals(), al = planeOf(V3.P, V3.n), pk = al && pkInfo(al);
+    rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
+    if (!pk || !pk.g || !PKS || !PKS.length) return;
+    const ka = PKS[0].k, kb = PKS[PKS.length - 1].k, k0 = ka === kb ? ka - 1 : ka, k1 = ka === kb ? kb + 1 : kb;
+    const x0 = g.x + 2.6 * fs, x1 = g.x + g.w - 1.0 * fs, y0 = g.y + 0.6 * fs, y1 = g.y + g.h - 1.3 * fs;
+    const N = 400, F = [];
+    let M = 0;
+    for (let i = 0; i <= N; i++) { const k = k0 + (k1 - k0) * i / N, v = pk.g(k); F.push([k, v]); if (isFinite(v)) M = Math.max(M, Math.abs(v)); }
+    const stY = niceStep(Math.max(M, 1e-9) * 1.07 / 3), top = M < 1e-9 ? 1 : Math.ceil(M * 1.07 / stY) * stY;
+    const TX = k => x0 + (k - k0) / (k1 - k0) * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    const xa = k0 <= 0 && k1 >= 0 ? TX(0) : x0;
+    // eixos e marcas
+    line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(xa, y0, xa, y1, C.axis, 1.4);
+    const stK = niceStep((k1 - k0) / 8);
+    for (let k = Math.ceil(k0 / stK) * stK; k <= k1 + 1e-9; k += stK) if (Math.abs(k) > 1e-9) {
+      line(TX(k), TY(0) - 0.12 * fs, TX(k), TY(0) + 0.12 * fs, C.axis, 1.2);
+      texAt("kgx" + Math.round(k / stK), apx(k, stK < 1 ? 1 : 0).replace("{,}0", ""), TX(k), TY(0) + 0.25 * fs, fs * 0.5, C.muted, 0.5, 0);
+    }
+    for (let v = -top; v <= top + 1e-9; v += stY) if (Math.abs(v) > 1e-9) {
+      line(xa - 0.12 * fs, TY(v), xa + 0.12 * fs, TY(v), C.axis, 1.2);
+      line(x0, TY(v), x1, TY(v), C.grid, 1);
+      texAt("kgy" + Math.round(v / stY), apx(v, stY < 1 ? 1 : 0).replace("{,}0", ""), xa - 0.25 * fs, TY(v), fs * 0.5, C.muted, 1, 0.5);
+    }
+    texAt("kgk", "k", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
+    texAt("kgf", pk.poly ? `f(k) = ${polyTex(pk.poly)}` : "f(k)", xa + 0.3 * fs, g.y + 0.15 * fs, fs * 0.65, C.axis, 0, 0);
+    // curva com a cor do sinal: verde se f(k) > 0 (Q do lado para onde aponta n), vermelho se f(k) < 0; laranja se f = 0
+    for (let i = 0; i < N; i++) {
+      const [ka_, fa] = F[i], [kb_, fb] = F[i + 1];
+      if (!isFinite(fa) || !isFinite(fb) || Math.abs(fa) > 3 * top || Math.abs(fb) > 3 * top) continue;
+      const m = (fa + fb) / 2, col = Math.abs(m) < 1e-9 * top ? C.zero : m > 0 ? C.pos : C.neg;
+      line(TX(ka_), clamp(TY(fa), y0 - fs, y1 + fs), TX(kb_), clamp(TY(fb), y0 - fs, y1 + fs), col, 2.4);
+    }
+    // zeros: os valores de k com Q(k) em α
+    (PKR || []).forEach((r, i) => {
+      if (r.v < k0 - 1e-9 || r.v > k1 + 1e-9) return;
+      dot(TX(r.v), TY(0), 0.2 * fs, C.ink, 1.5);
+      texAt("kgz" + i, (r.apx ? "k " : "k = ") + r.tex, TX(r.v), TY(0) - 0.3 * fs, fs * 0.55, C.ink, 0.5, 1);
+    });
+    // o k atual (o de Q)
+    const fv = pk.g(S.kv);
+    line(TX(S.kv), y0, TX(S.kv), y1, C.muted, 1.2, [5, 4]);
+    if (isFinite(fv)) dot(TX(S.kv), clamp(TY(fv), y0, y1), 0.3 * fs, C.w, 2);
+    hits.push({ kind: "pkT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => k0 + clamp((px - x0) / (x1 - x0), 0, 1) * (k1 - k0), k0, k1 });
+  }
+  // k escolhido no gráfico: de 0,1 em 0,1 (1 em 1 com «Coordenadas inteiras») e íman nos zeros
+  function pkSetK(h, px) {
+    const kr = h.val(px), st = S.int ? 1 : 0.1;
+    let k = +(Math.round(kr / st) * st).toFixed(1);
+    for (const r of PKR || []) if (Math.abs(r.v - kr) < 0.015 * (h.k1 - h.k0)) k = r.v;
+    if (k !== S.kv) { S.kv = k; draw(); }
   }
   function rotGraph(g, fs) {
     const o = rotInfo(), pad = 1.2 * fs, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
@@ -2812,6 +2869,7 @@
     if (S.mode === "esp") {
       if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
       // gráfico da Esfera: tocar/arrastar escolhe o instante t
+      if (h && h.kind === "pkT") { e.stopImmediatePropagation(); e.preventDefault(); pkTd = h; pkSetK(h, e.clientX); return; }
       if (h && h.kind === "sphT") {
         e.stopImmediatePropagation(); e.preventDefault();
         if (SP3) { S.sRun = false; sphTd = h; SP3.t = h.val(e.clientX); sphSetV(); draw(); }
@@ -2874,6 +2932,7 @@
   });
   cv.addEventListener("pointermove", e => {
     if (S.mode === "esp") {
+      if (pkTd) { if (e.buttons) pkSetK(pkTd, e.clientX); else pkTd = false; return; }
       if (sphTd) { if (e.buttons && SP3) { SP3.t = sphTd.val(e.clientX); sphSetV(); draw(); } else sphTd = false; return; }
       if (drag3) {
         if (e.pointerId !== drag3.id) return;
@@ -2984,6 +3043,7 @@
       menu.appendChild(b);
       tog("Interseção com $xOy$", S.tX, () => { S.tX = !S.tX; draw(); });
       tog("Interseções com os eixos", S.eT, () => { S.eT = !S.eT; draw(); });
+      if (S.eK) tog("Gráfico de $f(k)$", S.kG, () => { S.kG = !S.kG; draw(); });
       tog("Ponto $X$ do plano $\\alpha$", S.eX, () => { S.eX = !S.eX; if (!S.eX) apagarRasto(); draw(); });
       if (S.eX) tog("Rasto de $X$", S.xR, () => { S.xR = !S.xR; if (!S.xR) apagarRasto(); draw(); });
       tog("Grelha nos planos", S.gP, () => { S.gP = !S.gP; draw(); });
@@ -3035,7 +3095,7 @@
   // no Espaço o botão direito arrastado é das OrbitControls (deslocar): o menu só abre num clique sem arrastar
   let rDown = null;
   cv.addEventListener("pointerdown", e => { if (S.mode === "esp" && e.button === 2) rDown = { x: e.clientX, y: e.clientY }; }, true);
-  window.addEventListener("pointerup", () => { sphTd = false; });
+  window.addEventListener("pointerup", () => { sphTd = false; pkTd = false; });
   window.addEventListener("pointerup", e => {
     if (e.button !== 2 || !rDown) return;
     const d = Math.hypot(e.clientX - rDown.x, e.clientY - rDown.y); rDown = null;
@@ -3136,7 +3196,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "kG", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
