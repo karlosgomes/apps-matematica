@@ -590,6 +590,7 @@
       mathButton(L.theme.x, xy, L.theme.w, xh, "xOy", "xoy", S.xs === 3, fs, zh);
       xoyIcon(L.theme.x + L.theme.w / 2, xy + zh * 1.22, L.theme.w - 0.42 * fs, 0.5 * fs, S.xs);
       mathButton(L.theme.x, xy + xh + 0.2 * fs, L.theme.w, zh, "Oxyz", "oxyz", S.noAx, fs);
+      numButton(L.theme.x, xy + xh + zh + 0.4 * fs, L.theme.w, zh, S.noNum, fs);   // números dos eixos (pedido do utilizador, 2026-11-24)
       bottom(L.cfs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
@@ -602,7 +603,8 @@
     const zx = L.theme.x, zw = L.theme.w, zh = 1.2 * fs, zy = L.theme.y + L.theme.h + 0.25 * fs;
     button(zx, zy, zw, zh, "+", false, "zoom", { v: 1.25 }, fs * 0.8);
     button(zx, zy + zh + 0.2 * fs, zw, zh, "−", false, "zoom", { v: 0.8 }, fs * 0.8);
-    if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 2 * (zh + 0.2 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.55);
+    numButton(zx, zy + 2 * (zh + 0.2 * fs), zw, zh, S.noNum, fs);   // números dos eixos (pedido do utilizador, 2026-11-24)
+    if (S.z !== 1 || S.vx || S.vy) button(zx, zy + 3 * (zh + 0.2 * fs), zw, zh, "1:1", false, "zoom1", {}, fs * 0.55);
     bottom(L.cfs);
     for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
   }
@@ -623,6 +625,23 @@
     ctx.font = `700 ${f}px ${FONT}`; ctx.fillStyle = on ? C.on : C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(txt, x + w / 2, y + h / 2 + 1);
     hits.push({ kind, ...extra, rect: { x, y, w, h } });
+  }
+  // botão dos números dos eixos: ícone de um eixo com marcas e os números 1 2 3 por cima;
+  // «off» (números escondidos) = números esbatidos e riscados, como o «Oxyz» (o botão mostra o estado atual)
+  function numButton(x, y, w, h, off, fs) {
+    rrect(x, y, w, h, 8, C.btn, C.line, 2);
+    const x0 = x + 0.22 * fs, x1 = x + w - 0.22 * fs, ya = y + 0.74 * h, fn = 0.5 * fs;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(x0, ya); ctx.lineTo(x1, ya); ctx.stroke();
+    ctx.font = `${fn}px KaTeX_Main, serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    [0.22, 0.5, 0.78].forEach((t, i) => {
+      const tx = x0 + t * (x1 - x0);
+      ctx.globalAlpha = 1; ctx.beginPath(); ctx.moveTo(tx, ya - 0.1 * fs); ctx.lineTo(tx, ya + 0.1 * fs); ctx.stroke();
+      ctx.globalAlpha = off ? 0.35 : 1; ctx.fillStyle = C.ink; ctx.fillText(String(i + 1), tx, y + 0.36 * h);
+    });
+    ctx.globalAlpha = 1;
+    if (off) { ctx.beginPath(); ctx.moveTo(x0, y + 0.36 * h + 0.18 * fs); ctx.lineTo(x1, y + 0.36 * h - 0.18 * fs); ctx.stroke(); }
+    hits.push({ kind: "nonum", rect: { x, y, w, h } });
   }
   // botão com o nome em itálico matemático (KaTeX_Math); «off» = esbatido (o que ele mostra está escondido)
   function mathButton(x, y, w, h, txt, kind, off, fs, th = h) {
@@ -2422,6 +2441,7 @@
     if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; else S.nrm = false; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
     if (h.kind === "xoy") { S.xs = (S.xs + 1) % 4; toast(["xOy: grelha", "xOy: cinzento", "xOy: grelha e cinzento", "xOy: escondido"][S.xs], 1400); draw(); return true; }
+    if (h.kind === "nonum") { S.noNum = !S.noNum; toast(S.noNum ? "Números dos eixos: escondidos" : "Números dos eixos: à vista", 1400); draw(); return true; }
     if (h.kind === "oxyz") { S.noAx = !S.noAx; toast(S.noAx ? "Oxyz: escondido" : "Oxyz: à vista", 1400); draw(); return true; }
     if (h.kind === "view3") { home3(); draw(); return true; }
     if (h.kind === "dolly") {
@@ -2676,7 +2696,8 @@
       b.append(ok, lb);
       b.addEventListener("click", () => { S.int = !S.int; if (S.int) roundAll(); closeMenu(); draw(); });
       menu.appendChild(b); }
-    { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
+    // no Espaço (e na Esfera) esta opção saiu do menu: fica só o botão dos números à direita (pedido do utilizador, 2026-11-24)
+    if (S.mode !== "esp") { const b = document.createElement("button"); b.setAttribute("role", "menuitem");
       const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = S.noNum ? "✓" : "";
       const lb = document.createElement("span"); lb.textContent = "Eixos: esconder números";
       b.append(ok, lb);
