@@ -1550,14 +1550,12 @@
     el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off"; el.value = d;
     el.setAttribute("aria-label", "Coordenadas de " + k);
     el.style.display = "none";
-    el.addEventListener("input", () => {
-      if (S.sR) rotVOff(false);
-      // nome de outro vetor (com um número antes): «2n», «-m», «1/2 r», «3u» → as coordenadas aparecem logo na caixa (pedido do utilizador, 2026-11-25)
-      const ref = refVec3(el.value);
-      if (ref) el.value = ref;
-      ESP[k] = el.value; if (S.sph) S.sRun = false; draw();
-    });
-    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    el.addEventListener("input", () => { if (S.sR) rotVOff(false); ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
+    // nome de outro vetor (com um número antes): «2n», «-m», «1/2 r», «3u» → as coordenadas aparecem na caixa
+    // com Enter (ou ao sair da caixa); pedido do utilizador, 2026-11-25
+    const aplicaRef = () => { const ref = refVec3(el.value); if (ref) { el.value = ref; ESP[k] = ref; draw(); } };
+    el.addEventListener("keydown", e => { if (e.key === "Enter") aplicaRef(); if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    el.addEventListener("blur", aplicaRef);
     document.body.appendChild(el);
     INP[k] = el;
   }
@@ -1641,12 +1639,13 @@
     el.style.display = "none";
     el.addEventListener("input", () => {
       // nome de outro vetor: «2r», «-s» (Retas), «3u», «-v» (Vetores) → as coordenadas aparecem logo na caixa
-      const rq = refVec2(el.value);
-      if (rq && rq.some(x => x) && rq.every(x => Math.abs(x) <= 99)) el.value = fmt2(rq);
+      if (refRx.test(el.value.trim().replace(/−/g, "-"))) { el.classList.remove("bad"); return; }   // nome de um vetor: espera pelo Enter
       const q = parse2(el.value, k); el.classList.toggle("bad", !q); if (q) { set2(k, q); draw(); }
     });
-    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
-    el.addEventListener("blur", () => { el.classList.remove("bad"); el.value = fmt2(get2(k)); draw(); });
+    // «2r», «-s» (Retas), «3u», «-v» (Vetores): as coordenadas aparecem com Enter (ou ao sair da caixa)
+    const aplicaRef2 = () => { const rq = refVec2(el.value); if (rq && rq.every(x => Math.abs(x) <= 99)) { const q = parse2(fmt2(rq), k); if (q) set2(k, q); } };
+    el.addEventListener("keydown", e => { if (e.key === "Enter") aplicaRef2(); if (e.key === "Enter" || e.key === "Escape") el.blur(); });
+    el.addEventListener("blur", () => { aplicaRef2(); el.classList.remove("bad"); el.value = fmt2(get2(k)); draw(); });
     document.body.appendChild(el);
     INP[k] = el;
   }
@@ -2861,7 +2860,7 @@
           if (document.activeElement !== el) { const v = fmt2(get2(k)); if (el.value !== v) el.value = v; }
           el.style.borderColor = el.classList.contains("bad") ? "" : col;
         } else {
-          const ok = k === "Pk" ? !!parseKVec(ESP[k]) : !!parseVec(ESP[k]);
+          const ok = k === "Pk" ? !!parseKVec(ESP[k]) : !!parseVec(ESP[k]) || refRx.test(ESP[k].trim().replace(/−/g, "-"));   // «2n» à espera do Enter: não fica vermelho
           el.classList.toggle("bad", !ok);
           el.style.borderColor = ok ? col : "";
         }
