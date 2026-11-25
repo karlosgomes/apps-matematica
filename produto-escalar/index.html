@@ -1550,7 +1550,13 @@
     el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off"; el.value = d;
     el.setAttribute("aria-label", "Coordenadas de " + k);
     el.style.display = "none";
-    el.addEventListener("input", () => { if (S.sR) rotVOff(false); ESP[k] = el.value; if (S.sph) S.sRun = false; draw(); });
+    el.addEventListener("input", () => {
+      if (S.sR) rotVOff(false);
+      // nome de outro vetor (com um número antes): «2n», «-m», «1/2 r», «3u» → as coordenadas aparecem logo na caixa (pedido do utilizador, 2026-11-25)
+      const ref = refVec3(el.value);
+      if (ref) el.value = ref;
+      ESP[k] = el.value; if (S.sph) S.sRun = false; draw();
+    });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
     document.body.appendChild(el);
     INP[k] = el;
@@ -1567,6 +1573,25 @@
   });
   KSL.addEventListener("change", () => KSL.blur());
   document.body.appendChild(KSL);
+  // «2n», «-m», «1/2 r»…: o vetor com esse nome (n, m, r, u, v do modo atual) multiplicado pelo número, já em coordenadas
+  const refRx = /^([+-]?)\s*(\d+(?:\.\d+)?(?:\/\d+)?)?\s*[*·×]?\s*([a-z])$/i;
+  const frTxt = a => a[1] === 1 ? `${a[0]}` : `${a[0]}/${a[1]}`;
+  function refVec3(t) {
+    const mk = t.trim().replace(/−/g, "-").match(refRx); if (!mk) return null;
+    const nome = mk[3].toLowerCase(), key = { n: "n", m: "m", r: "r3", u: S.sph ? "uS" : "u3", v: S.sph ? "vS" : "v3" }[nome];
+    const v = key && parseVec(ESP[key]), c = mk[2] ? parseNum(mk[2]) : Fr(1);
+    if (!v || !c) return null;
+    const w = v.map(a => fmul(a, mk[1] === "-" ? fneg(c) : c));
+    return `(${w.map(frTxt).join(", ")})`;
+  }
+  function refVec2(t) {
+    const mk = t.trim().replace(/−/g, "-").match(refRx); if (!mk) return null;
+    const nome = mk[3].toLowerCase(), key = (S.mode === "vet" ? { u: "u2", v: "v2" } : { r: "r2", s: "s2" })[nome];
+    const c = mk[2] ? parseNum(mk[2]) : Fr(1);
+    if (!key || !c) return null;
+    const f = fval(c) * (mk[1] === "-" ? -1 : 1);
+    return get2(key).map(x => r1(x * f) || 0);
+  }
   // campos de texto em Vetores (u, v) e em Retas (ponto e vetor diretor de r e de s) (pedido do utilizador, 2026-11-17)
   // [chave, rótulo, cor, grupo]; o vetor diretor é B − A (D − C): mudar o ponto mantém o vetor
   const F2 = [
@@ -1580,6 +1605,16 @@
   }
   const fmt2 = p => `(${p.map(x => (+r1(x).toFixed(1)).toString()).join(", ")})`;
   function parse2(s, k) {
+    // como no Espaço: um número antes do vetor multiplica-o, «2*(1,-1)», «-(2,3)», «1/2(4,2)» (pedido do utilizador, 2026-11-25)
+    const mk = s.trim().replace(/−/g, "-").match(/^([+-]?)\s*(\d+(?:\.\d+)?(?:\/\d+)?)?\s*[*·×]?\s*(\(.*\))$/);
+    if (mk && (mk[1] || mk[2])) {
+      const c = mk[2] ? parseNum(mk[2]) : Fr(1), q = parse2(mk[3], k);
+      if (!q || !c) return null;
+      const w = q.map(x => r1(x * fval(c) * (mk[1] === "-" ? -1 : 1)) || 0);
+      if (w.some(x => Math.abs(x) > 99)) return null;
+      if ((k === "r2" || k === "s2") && Math.abs(w[0]) < EPS && Math.abs(w[1]) < EPS) return null;
+      return w;
+    }
     s = s.trim().replace(/^\(|\)$/g, "");
     const parts = s.includes(";") ? s.split(";").map(x => x.replace(",", ".")) : s.split(",");
     if (parts.length !== 2) return null;
@@ -1604,7 +1639,12 @@
     el.className = "inp"; el.type = "text"; el.spellcheck = false; el.autocomplete = "off";
     el.setAttribute("aria-label", "Coordenadas de " + k[0]);
     el.style.display = "none";
-    el.addEventListener("input", () => { const q = parse2(el.value, k); el.classList.toggle("bad", !q); if (q) { set2(k, q); draw(); } });
+    el.addEventListener("input", () => {
+      // nome de outro vetor: «2r», «-s» (Retas), «3u», «-v» (Vetores) → as coordenadas aparecem logo na caixa
+      const rq = refVec2(el.value);
+      if (rq && rq.some(x => x) && rq.every(x => Math.abs(x) <= 99)) el.value = fmt2(rq);
+      const q = parse2(el.value, k); el.classList.toggle("bad", !q); if (q) { set2(k, q); draw(); }
+    });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") el.blur(); });
     el.addEventListener("blur", () => { el.classList.remove("bad"); el.value = fmt2(get2(k)); draw(); });
     document.body.appendChild(el);
