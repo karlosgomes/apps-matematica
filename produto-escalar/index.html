@@ -1045,10 +1045,11 @@
       line(TX(ka_), clamp(TY(fa), y0 - fs, y1 + fs), TX(kb_), clamp(TY(fb), y0 - fs, y1 + fs), col, 2.4);
     }
     // zeros: os valores de k com Q(k) em α
+    PKG = [];
     (PKR || []).forEach((r, i) => {
       if (r.v < k0 - 1e-9 || r.v > k1 + 1e-9) return;
-      dot(TX(r.v), TY(0), 0.2 * fs, C.ink, 1.5);
-      texAt("kgz" + i, (r.apx ? "k " : "k = ") + r.tex, TX(r.v), TY(0) - 0.3 * fs, fs * 0.55, C.ink, 0.5, 1);
+      dot(TX(r.v), TY(0), 0.2 * fs, C.ink, 1.5); PKG.push({ i, x: TX(r.v), y: TY(0) });
+      if (PKH === i || PKP.has(r.v.toFixed(9))) texAt("kgz" + i, (r.apx ? "k " : "k = ") + r.tex, TX(r.v), TY(0) - 0.3 * fs, fs * 0.55, C.ink, 0.5, 1);
     });
     // o k atual (o de Q)
     const fv = pk.g(S.kv);
@@ -2369,13 +2370,16 @@
           tubo(dash, hid);
         }
         // os pontos do caminho em α
-        PKR = (pk.roots || []);
-        for (const r of PKR) {
+        // etiquetas «k = …» só ao passar o rato por cima (PKH) ou depois de clicar (PKP); pedido do utilizador, 2026-11-25
+        PKR = (pk.roots || []); PKQ = [];
+        const chaves = new Set(PKR.map(r => r.v.toFixed(9)));
+        for (const c of [...PKP]) if (!chaves.has(c)) PKP.delete(c);   // soluções novas: as etiquetas fixadas saem
+        PKR.forEach((r, i) => {
           const q = pk.fn(r.v);
-          if (!dentro(q)) continue;
-          add(ball(q, C.ink, 0.09));
-          lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6);
-        }
+          if (!dentro(q)) return;
+          add(ball(q, C.ink, 0.09)); PKQ.push({ i, q });
+          if (PKH === i || PKP.has(r.v.toFixed(9))) lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6);
+        });
         // o ponto P: se o valor de k o deixar fora da vista, passa para o ponto visível mais perto
         if (smp.length) {
           let q = pk.fn(S.kv);
@@ -2625,7 +2629,7 @@
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
     setEsc();
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2664,7 +2668,22 @@
   }
   // arrastar: na horizontal (plano z = z₀) ou, com a pega em modo ↕ ou com Shift, na vertical (plano vertical virado para a câmara)
   let XPL = null;   // plano α para o ponto X: { P, n, e1, e2 }
-  let PKS = null, PKR = [], HALO_TX = null;   // Ponto P(k): amostras {k, q} do caminho dentro da vista e os valores de k com P(k) em α
+  let PKS = null, PKR = [], HALO_TX = null;
+  // soluções de Q(k) ∈ α: PKQ = bolinhas no 3D {i, q}, PKG = bolinhas no gráfico {i, x, y}; PKH = a que está debaixo do rato; PKP = as fixadas (clique)
+  let PKQ = [], PKG = [], PKH = null;
+  const PKP = new Set();
+  function pkRaizEm(x, y) {
+    if (!S.eK || S.sph || !L) return null;
+    let best = null, bd = 0.6 * L.fs;
+    for (const g of PKG) { const d = Math.hypot(g.x - x, g.y - y); if (d < bd) { bd = d; best = g.i; } }
+    if (best !== null || !cam) return best;
+    const f = L.fig;
+    for (const g of PKQ) {
+      const v = vec3(...g.q).project(cam), d = Math.hypot(f.x + (v.x + 1) / 2 * f.w - x, f.y + (1 - v.y) / 2 * f.h - y);
+      if (d < bd) { bd = d; best = g.i; }
+    }
+    return best;
+  }   // Ponto P(k): amostras {k, q} do caminho dentro da vista e os valores de k com P(k) em α
   let XTR = [], XTN = 0;   // rasto de X: lista de traços, cada um uma lista de (s, t); XTN = n.º de pontos
   const apagarRasto = () => { XTR = []; XTN = 0; };
   function move3(x, y, vertical) {
@@ -2922,6 +2941,12 @@
     if (S.mode === "esp") {
       if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
       // gráfico da Esfera: tocar/arrastar escolhe o instante t
+      { const ri = pkRaizEm(e.clientX, e.clientY);
+        if (ri !== null && PKR[ri]) {
+          e.stopImmediatePropagation(); e.preventDefault();
+          const c = PKR[ri].v.toFixed(9); if (PKP.has(c)) PKP.delete(c); else PKP.add(c);
+          draw(); return;
+        } }
       if (h && h.kind === "pkT") { e.stopImmediatePropagation(); e.preventDefault(); pkTd = h; pkSetK(h, e.clientX); return; }
       if (h && h.kind === "sphT") {
         e.stopImmediatePropagation(); e.preventDefault();
@@ -2995,9 +3020,10 @@
         return;
       }
       if (e.buttons) return;   // a rodar a figura
-      const g = pick3(e.clientX, e.clientY), k = g ? g.key : null;
-      cv.style.cursor = g ? "grab" : hitAt(e.clientX, e.clientY) ? "pointer" : "default";
+      const g = pick3(e.clientX, e.clientY), k = g ? g.key : null, ri = g ? null : pkRaizEm(e.clientX, e.clientY);
+      cv.style.cursor = g ? "grab" : ri !== null || hitAt(e.clientX, e.clientY) ? "pointer" : "default";
       if (k !== hover3) { hover3 = k; draw(); }
+      if (ri !== PKH) { PKH = ri; draw(); }
       return;
     }
     if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
