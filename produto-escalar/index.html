@@ -132,6 +132,7 @@
               xR: false,   // Espaço: rasto do ponto X em α (botão direito; pedido do utilizador, 2026-11-23)
               eT: false,
               eK: false, kv: 0, kG: false,   // kG: gráfico de f(k) por baixo da figura (botão direito)   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
+              orto: false,   // Espaço: vista ortográfica em vez da perspetiva (botão à direita; pedido do utilizador, 2026-11-25)
               esc: 0,   // Espaço: escala dos eixos (Shift + roda; pedido do utilizador, 2026-11-24): 0 → ±5, 1 → ±10, 2 → ±20   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
 
@@ -599,6 +600,7 @@
       xoyIcon(L.theme.x + L.theme.w / 2, xy + zh * 1.22, L.theme.w - 0.42 * fs, 0.5 * fs, S.xs);
       mathButton(L.theme.x, xy + xh + 0.2 * fs, L.theme.w, zh, "Oxyz", "oxyz", S.noAx, fs);
       numButton(L.theme.x, xy + xh + zh + 0.4 * fs, L.theme.w, zh, S.noNum, fs);   // números dos eixos (pedido do utilizador, 2026-11-24)
+      projButton(L.theme.x, xy + xh + 2 * zh + 0.6 * fs, L.theme.w, zh, S.orto, fs);   // perspetiva / ortográfica (2026-11-25)
       bottom(L.cfs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
@@ -650,6 +652,19 @@
     ctx.globalAlpha = 1;
     if (off) { ctx.beginPath(); ctx.moveTo(x0, y + 0.36 * h + 0.18 * fs); ctx.lineTo(x1, y + 0.36 * h - 0.18 * fs); ctx.stroke(); }
     hits.push({ kind: "nonum", rect: { x, y, w, h } });
+  }
+  // botão da vista: um cubo em arame; em perspetiva as arestas de trás convergem (face de trás mais pequena),
+  // na ortográfica são paralelas (face de trás igual) — o ícone mostra a vista atual
+  function projButton(x, y, w, h, orto, fs) {
+    rrect(x, y, w, h, 8, C.btn, C.line, 2);
+    const cx = x + w / 2 - 0.12 * fs, cy = y + h / 2 + 0.1 * fs, a = 0.28 * fs, b = orto ? a : 0.17 * fs, dx = 0.22 * fs, dy = -0.2 * fs;
+    const F = [[cx - a, cy - a], [cx + a, cy - a], [cx + a, cy + a], [cx - a, cy + a]];
+    const B = [[cx + dx - b, cy + dy - b], [cx + dx + b, cy + dy - b], [cx + dx + b, cy + dy + b], [cx + dx - b, cy + dy + b]];
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.lineJoin = "round";
+    const poly = P => { ctx.beginPath(); P.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.closePath(); ctx.stroke(); };
+    ctx.globalAlpha = 0.55; poly(B); F.forEach((p, i) => { ctx.beginPath(); ctx.moveTo(...p); ctx.lineTo(...B[i]); ctx.stroke(); });
+    ctx.globalAlpha = 1; poly(F);
+    hits.push({ kind: "orto", rect: { x, y, w, h } });
   }
   // botão com o nome em itálico matemático (KaTeX_Math); «off» = esbatido (o que ele mostra está escondido)
   function mathButton(x, y, w, h, txt, kind, off, fs, th = h) {
@@ -1884,7 +1899,7 @@
   let B3 = 5;   // os planos e as retas ficam recortados no cubo de aresta 2·B3 centrado em C3 (que não se desenha)
   function setEsc() {
     const [k, t] = S.mode === "esp" && !S.sph ? ESC[S.esc] : [1, 1];
-    if (cam && ctl && k !== SK) { const d = cam.position.clone().sub(ctl.target).multiplyScalar(k / SK); cam.position.copy(ctl.target).add(d); }
+    if (cam && ctl && k !== SK) { const d = cam.position.clone().sub(ctl.target).multiplyScalar(k / SK); cam.position.copy(ctl.target).add(d); if (cam === camO) HO *= k / SK; }
     SK = k; TK = t; B3 = 5 * SK;
     if (ctl) { ctl.minDistance = 8 * SK; ctl.maxDistance = 90 * SK; ctl.update(); }
   }
@@ -1898,6 +1913,26 @@
   const lo3 = i => C3[i] - B3, hi3 = i => C3[i] + B3;
   let T3 = null, OC = null, loading3 = false, err3 = null;
   let R3 = null, cam = null, ctl = null, scene = null, glc = null, built = "";
+  // vista ortográfica: camP (perspetiva) e camO (ortográfica); cam é a que está ativa; HO = meia largura da vista na direção
+  // mais curta da figura (na perspetiva corresponde a d·tan 17,5°); o zoom ortográfico é cam.zoom
+  let camP = null, camO = null, HO = 5;
+  const TAN35 = Math.tan(35 * Math.PI / 360);
+  function setOrto(on) {
+    if (!camP || !ctl) return;
+    const T = ctl.target;
+    if (on && cam === camP) {
+      if (!camO) camO = new T3.OrthographicCamera(-1, 1, 1, -1, -1000, 1000);
+      camO.up.copy(camP.up); camO.position.copy(camP.position); camO.quaternion.copy(camP.quaternion);
+      HO = camP.position.distanceTo(T) * TAN35; camO.zoom = 1;
+      cam = camO;
+    } else if (!on && cam === camO) {
+      const d = clamp(HO / camO.zoom / TAN35, ctl.minDistance, ctl.maxDistance);
+      camP.up.copy(camO.up); camP.position.copy(T).add(camO.position.clone().sub(T).setLength(d));
+      cam = camP;
+    } else return;
+    if (lightD) { cam.add(lightD); cam.add(lightD.target); }
+    ctl.object = cam; ctl.update(); built = "";
+  }
   let HAND = [], hover3 = null, drag3 = null;
   // «n, m → O»: tN vai de 0 (vetores em P e R) a 1 (na origem, planos quase transparentes), em movimento contínuo
   let tN = 0, animN = 0;
@@ -1999,11 +2034,12 @@
   // Esfera: começa com um pequeno zoom (a câmara 30 % mais perto do alvo; pedido do utilizador, 2026-11-16)
   function sphZoom() {
     if (!cam || !ctl) return;
+    if (cam === camO) { cam.zoom = 1 / 0.7; cam.updateProjectionMatrix(); return; }
     const d = cam.position.clone().sub(ctl.target).multiplyScalar(0.7);
     cam.position.copy(ctl.target).add(d); ctl.update();
   }
   // vista inicial do modo (⌂, ↺ e ao passar entre Espaço e Esfera)
-  function home3() { S.esc = 0; SK = 1; TK = 1; B3 = 5; if (ctl) { ctl.minDistance = 8; ctl.maxDistance = 90; ctl.reset(); if (S.sph) sphZoom(); } C3F = [0, 0, 0]; }
+  function home3() { S.esc = 0; SK = 1; TK = 1; B3 = 5; if (ctl) { ctl.minDistance = 8; ctl.maxDistance = 90; ctl.reset(); if (cam === camO) { HO = cam.position.distanceTo(ctl.target) * TAN35; cam.zoom = 1; cam.updateProjectionMatrix(); } if (S.sph) sphZoom(); } C3F = [0, 0, 0]; }
   function init3() {
     glc = document.createElement("canvas");
     glc.style.cssText = "position:fixed;display:block;left:0;top:0";
@@ -2015,13 +2051,15 @@
     cam.up.set(0, 0, 1);
     cam.position.set(14, 9, 8).multiplyScalar(1.3);
     cam.lookAt(0, 0, 0);
+    camP = cam;
     ctl = new OC(cam, cv);
-    ctl.minDistance = 8; ctl.maxDistance = 90;
+    ctl.minDistance = 8; ctl.maxDistance = 90; ctl.minZoom = 0.15; ctl.maxZoom = 8;
     ctl.addEventListener("change", draw);
     ctl.saveState();
     // vista vinda de um link «Copiar link da cena» (o ⌂ continua a voltar à vista inicial)
     if (camPend) { cam.position.set(...camPend.p); ctl.target.set(...camPend.t); ctl.update(); camPend = null; }
     else if (S.sph) sphZoom();
+    if (S.orto) setOrto(true);
     // Ctrl/⌘ + botão esquerdo: pan pela grelha (as OrbitControls já deslocam com Ctrl; aqui só se segue o alvo)
     cv.addEventListener("pointerdown", e => {
       if (S.mode === "esp" && e.button === 0 && (e.ctrlKey || e.metaKey)) panC = { t0: [ctl.target.x, ctl.target.y, ctl.target.z], c0: C3F.slice() };
@@ -2672,13 +2710,18 @@
     R3.setClearColor(C.bg, 1);
     // escala: o cubo cabe na figura com zoom 1
     // ângulo de visão de 35° na direção mais curta da figura
-    cam.aspect = f.w / f.h;
-    cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
+    if (cam === camO) {   // ortográfica: HO na direção mais curta, como os 35° da perspetiva
+      const a = f.w / f.h, hh = a >= 1 ? HO : HO / a;
+      cam.left = -hh * a; cam.right = hh * a; cam.top = hh; cam.bottom = -hh;
+    } else {
+      cam.aspect = f.w / f.h;
+      cam.fov = cam.aspect >= 1 ? 35 : 2 * Math.atan(Math.tan(35 * PI / 360) / cam.aspect) * 180 / PI;
+    }
     cam.updateProjectionMatrix();
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
     setEsc();
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, S.orto, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2932,11 +2975,13 @@
     if (h.kind === "dirO") { S.dO = !S.dO; if (S.dO) S.dir = true; else S.nrm = false; animDir(); draw(); return true; }
     if (h.kind === "normO") { S.nO = !S.nO; animNorm(); draw(); return true; }
     if (h.kind === "xoy") { S.xs = (S.xs + 1) % 4; toast(["xOy: grelha", "xOy: cinzento", "xOy: grelha e cinzento", "xOy: escondido"][S.xs], 1400); draw(); return true; }
+    if (h.kind === "orto") { S.orto = !S.orto; setOrto(S.orto); toast(S.orto ? "Vista ortográfica" : "Vista em perspetiva", 1400); draw(); return true; }
     if (h.kind === "nonum") { S.noNum = !S.noNum; toast(S.noNum ? "Números dos eixos: escondidos" : "Números dos eixos: à vista", 1400); draw(); return true; }
     if (h.kind === "oxyz") { S.noAx = !S.noAx; toast(S.noAx ? "Oxyz: escondido" : "Oxyz: à vista", 1400); draw(); return true; }
     if (h.kind === "view3") { home3(); draw(); return true; }
     if (h.kind === "dolly") {
-      if (cam && ctl) {
+      if (cam && ctl && cam === camO) { cam.zoom = clamp(cam.zoom / h.v, ctl.minZoom, ctl.maxZoom); cam.updateProjectionMatrix(); ctl.update(); }
+      else if (cam && ctl) {
         const d = cam.position.clone().sub(ctl.target), len = clamp(d.length() * h.v, ctl.minDistance, ctl.maxDistance);
         cam.position.copy(ctl.target).add(d.setLength(len)); ctl.update();
       }
@@ -3324,7 +3369,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "kG", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "kG", "orto", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
