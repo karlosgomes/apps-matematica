@@ -2378,7 +2378,8 @@
           const q = pk.fn(r.v);
           if (!dentro(q)) return;
           add(ball(q, C.ink, 0.09)); PKQ.push({ i, q });
-          if (PKH === i || PKP.has(r.v.toFixed(9))) lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6);
+          const fix = PKP.has(r.v.toFixed(9));
+          if (PKH === i || fix) { lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6); if (fix) LAB3[LAB3.length - 1].hf = true; }   // fixada (clique): com halo, como a de Q
         });
         // o ponto P: se o valor de k o deixar fora da vista, passa para o ponto visível mais perto
         if (smp.length) {
