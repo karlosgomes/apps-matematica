@@ -131,7 +131,8 @@
               eX: false,   // Espaço: ponto X do plano α e o vetor PX (botão direito)
               xR: false,   // Espaço: rasto do ponto X em α (botão direito; pedido do utilizador, 2026-11-23)
               eT: false,
-              eK: false, kv: 0, kG: false,   // kG: gráfico de f(k) por baixo da figura (botão direito)   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
+              eK: false, kv: 0, kG: false,
+              kO: false, kL: true,   // Ponto Q(k): vetor OQ e etiqueta de Q no referencial (botões à direita do cursor de k; pedido do utilizador, 2026-11-26)   // kG: gráfico de f(k) por baixo da figura (botão direito)   // Espaço: caixa «Ponto P(k)» e o valor de k do ponto P (arrasta-se ao longo do caminho; 2026-11-24)
               orto: false,   // Espaço: vista ortográfica em vez da perspetiva (botão à direita; pedido do utilizador, 2026-11-25)
               esc: 0,   // Espaço: escala dos eixos (Shift + roda; pedido do utilizador, 2026-11-24): 0 → ±5, 1 → ±10, 2 → ±20   // Espaço: polígono das interseções de α com os eixos (botão direito; pedido do utilizador, 2026-11-23)
               xst: [-2.4, -1.2] };   // posição de X em α: P + s·e1 + t·e2 (arrasta-se no plano)   // Espaço: ponto X do plano α e o vetor PX (botão direito)   // Espaço: esconder o referencial Oxyz — eixos, marcas, números, x/y/z e O (botão direito)   // Espaço: esconder a quadrícula do plano xOy (botão direito)
@@ -679,6 +680,15 @@
     if (off) { ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 0.2 * fs, y + th / 2 + 1); ctx.lineTo(x + w - 0.2 * fs, y + th / 2 + 1); ctx.stroke(); }
     ctx.globalAlpha = 1;
     hits.push({ kind, rect: { x, y, w, h } });
+  }
+  // botão do vetor OQ (Ponto Q(k)): «OQ» com a seta por cima; riscado e esbatido quando o vetor está escondido
+  function kvecButton(x, y, w, h, off, fs) {
+    mathButton(x, y, w, h, "OQ", "kvec", off, fs);
+    const cx = x + w / 2, ya = y + h / 2 - 0.42 * fs, hw = 0.38 * fs;
+    ctx.globalAlpha = off ? 0.35 : 1; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(cx - hw, ya); ctx.lineTo(cx + hw, ya);
+    ctx.moveTo(cx + hw - 0.13 * fs, ya - 0.09 * fs); ctx.lineTo(cx + hw, ya); ctx.lineTo(cx + hw - 0.13 * fs, ya + 0.09 * fs); ctx.stroke();
+    ctx.globalAlpha = 1;
   }
   // ícone do estado de xOy (paralelogramo deitado, centro cx, cy): 0 grelha, 1 cinzento, 2 grelha e cinzento, 3 escondido (tracejado esbatido)
   function xoyIcon(cx, cy, w, h, st) {
@@ -2484,7 +2494,9 @@
           handle("Pk", q, C.w, null, 0.13);
           { const m = HAND[HAND.length - 1].mesh; m.material.depthTest = false; m.material.transparent = true; m.renderOrder = 5; }
           const ri = PKR.find(r => Math.abs(r.v - S.kv) < 1e-9);
-          lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.62); LAB3[LAB3.length - 1].hf = true;   // letra mais pequena (antes 0,8; pedido do utilizador, 2026-11-24)
+          // vetor OQ (botão «OQ» ao lado do cursor de k)
+          if (S.kO) add(arrow3([0, 0, 0], q, C.w, 0.05));
+          if (S.kL) { lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.62); LAB3[LAB3.length - 1].hf = true; }   // letra mais pequena (antes 0,8; pedido do utilizador, 2026-11-24)
         }
       }
     }
@@ -2721,7 +2733,7 @@
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
     setEsc();
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, S.orto, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, S.kO, S.kL, S.orto, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
@@ -2874,8 +2886,12 @@
     // cursor de k ao lado do campo Q(k) (depois da figura 3D, que calcula PKS)
     const el = INP.Pk;
     if (L.inp && el.style.display !== "none" && PKS && PKS.length > 1) {
-      const x = parseFloat(el.style.left) + parseFloat(el.style.width) + 1.6 * fs, xr = L.inp.x0 + L.inp.w, w = xr - x;
+      // à direita do cursor: os botões «OQ» (vetor OQ) e «Q» (etiqueta de Q no referencial); pedido do utilizador, 2026-11-26
+      const bw = 1.7 * fs, bg = 0.3 * fs, bh = parseFloat(el.style.height), by = parseFloat(el.style.top);
+      const x = parseFloat(el.style.left) + parseFloat(el.style.width) + 1.6 * fs, xr = L.inp.x0 + L.inp.w - 2 * (bw + bg), w = xr - x;
       if (w > 3 * fs) {
+        kvecButton(xr + bg, by, bw, bh, !S.kO, fs);
+        mathButton(xr + 2 * bg + bw, by, bw, bh, "Q", "klab", !S.kL, fs);
         texAt("kslab", "k", x - 0.45 * fs, parseFloat(el.style.top) + 0.75 * fs, fs * 0.9, C.w, 1, 0.5, false);
         const k0 = PKS[0].k, k1 = PKS[PKS.length - 1].k;
         KSL.min = k0; KSL.max = k1; KSL.step = "any";
@@ -2977,6 +2993,8 @@
     if (h.kind === "xoy") { S.xs = (S.xs + 1) % 4; toast(["xOy: grelha", "xOy: cinzento", "xOy: grelha e cinzento", "xOy: escondido"][S.xs], 1400); draw(); return true; }
     if (h.kind === "orto") { S.orto = !S.orto; setOrto(S.orto); toast(S.orto ? "Vista ortográfica" : "Vista em perspetiva", 1400); draw(); return true; }
     if (h.kind === "nonum") { S.noNum = !S.noNum; toast(S.noNum ? "Números dos eixos: escondidos" : "Números dos eixos: à vista", 1400); draw(); return true; }
+    if (h.kind === "kvec") { S.kO = !S.kO; toast(S.kO ? "Vetor OQ: à vista" : "Vetor OQ: escondido", 1400); draw(); return true; }
+    if (h.kind === "klab") { S.kL = !S.kL; toast(S.kL ? "Etiqueta de Q: à vista" : "Etiqueta de Q: escondida", 1400); draw(); return true; }
     if (h.kind === "oxyz") { S.noAx = !S.noAx; toast(S.noAx ? "Oxyz: escondido" : "Oxyz: à vista", 1400); draw(); return true; }
     if (h.kind === "view3") { home3(); draw(); return true; }
     if (h.kind === "dolly") {
@@ -3369,7 +3387,7 @@
   const KEYS = {
     vet: ["u", "v", "uo", "vo", "ang", "proj", "rot", "R", "tr", "op"],
     retas: ["A", "B", "C", "D", "s", "incl", "dir", "angR", "dO", "nrm"],
-    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "kG", "orto", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
+    esp: ["eA", "eR", "eB", "eUV", "eC", "nO", "eI", "xs", "noAx", "eX", "xR", "eT", "eK", "kv", "kG", "kO", "kL", "orto", "esc", "gP", "tX", "xst", "vert", "sph", "sL", "sM", "sP", "sG", "sK", "sC"],
   };
   const b64e = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const b64d = t => decodeURIComponent(escape(atob(t.replace(/-/g, "+").replace(/_/g, "/"))));
