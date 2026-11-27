@@ -45,7 +45,7 @@
          background: color-mix(in srgb, var(--bg) 95%, transparent); box-shadow: 0 6px 20px rgba(0,0,0,.22); overflow: hidden; }
   #pkw .th { display: flex; align-items: center; gap: .4em; padding: .15em .3em .15em .6em; cursor: move; touch-action: none; user-select: none; -webkit-user-select: none;
              border-bottom: 1px solid var(--line); color: var(--ink); font: 14px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; }
-  #pkw .th span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pkw .th > span { flex: 1; font-size: 15px; white-space: nowrap; overflow: hidden; padding: .15em 0; }   /* só o filho direto: as regras não podem tocar nos spans do KaTeX */
   #pkw .th button { all: unset; cursor: pointer; width: 1.5em; height: 1.5em; text-align: center; line-height: 1.5em; border-radius: 6px; font-size: 15px; }
   #pkw .th button:hover { background: var(--line); }
   #pkw .corpo { position: relative; flex: 1; }
@@ -1078,7 +1078,8 @@
     }
     texAt("kgk", "k", x1 + 0.5 * fs, yk, fs * 0.75, C.axis, 0, 0.5);
     { const dir = xa > (x0 + x1) / 2 ? -1 : 1;   // com o eixo vertical à direita (pan), o nome fica à esquerda dele
-      texAt("kgf", pk.poly ? `f(k) = ${polyTex(pk.poly)}` : "f(k)", xa + dir * 0.3 * fs, g.y + 0.15 * fs, fs * 0.65, C.axis, dir < 0 ? 1 : 0, 0); }
+      PKTIT = `f(k) = \\vec n \\cdot \\overrightarrow{PQ}` + (pk.poly ? ` = ${polyTex(pk.poly)}` : "");   // no título da janela (pedido do utilizador, 2026-11-27)
+      texAt("kgf", g.janela ? "f(k)" : pk.poly ? `f(k) = ${polyTex(pk.poly)}` : "f(k)", xa + dir * 0.3 * fs, g.y + 0.15 * fs, fs * 0.65, C.axis, dir < 0 ? 1 : 0, 0); }
     // curva com a cor do sinal: verde se f(k) > 0 (Q do lado para onde aponta n), vermelho se f(k) < 0; laranja se f = 0
     // recortada no quadro: fora dele a curva não se desenha (antes ficava achatada por cima da moldura; 2026-11-27)
     ctx.save(); ctx.beginPath(); ctx.rect(x0 - 2, y0 - 0.3 * fs, x1 - x0 + 4, y1 - y0 + 0.6 * fs); ctx.clip();
@@ -1107,7 +1108,8 @@
   // antes; os eventos do canvas da janela passam para o canvas principal (pkFwd). Posição e tamanho em PKWR (localStorage).
   const pkw = document.getElementById("pkw"), pkc = document.getElementById("pkc"), pkt = document.getElementById("pkt");
   const pkctx = pkc.getContext("2d"), PKW_KEY = "apps-mat-produto-escalar-fk";
-  let PKWR = null, PKWB = null;   // PKWR = { x, y, w, h } da janela; PKWB = retângulo no ecrã enquanto está aberta
+  let PKWR = null, PKWB = null, PKTIT = "", pkTit0 = null;
+  const pkTitEl = pkw.querySelector(".th span");   // PKWR = { x, y, w, h } da janela; PKWB = retângulo no ecrã enquanto está aberta
   try { const o = JSON.parse(localStorage.getItem(PKW_KEY)); if (o && [o.x, o.y, o.w, o.h].every(Number.isFinite)) PKWR = o; } catch (_) {}
   const pkWinOn = () => S.mode === "esp" && !S.sph && S.eK && S.kG && (S.eA || S.eC);
   function pkWinPos() {
@@ -1137,6 +1139,7 @@
     ctx = pkctx; texLayer = pkt; TXO = [b.left, b.top];
     try { pkGraph({ x: b.left, y: b.top, w: b.width, h: b.height, janela: true }, fs * 0.9); }
     finally { ctx = ctx0; texLayer = layer; TXO = [0, 0]; }
+    if (PKTIT !== pkTit0) { pkTit0 = PKTIT; if (window.katex && PKTIT) katex.render(PKTIT, pkTitEl, KX); else pkTitEl.textContent = "Gráfico de f(k)"; }
     hits.unshift({ kind: "pkW", rect: PKWB });
   }
   const pkDentro = (x, y) => PKWB && inRect(PKWB, x, y);
