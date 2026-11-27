@@ -2563,8 +2563,9 @@
           const q = pk.fn(r.v);
           if (!dentro(q)) return;
           add(ball(q, C.ink, 0.09)); PKQ.push({ i, q });
-          const fix = PKP.has(r.v.toFixed(9));
-          if (PKH === i || fix) { lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6); LAB3[LAB3.length - 1].hf = true; }   // com halo, como a de Q, ao passar o rato e fixada (clique); pedido do utilizador, 2026-11-27
+          // a etiqueta fica sempre na cena; só se mostra com o rato por cima ou fixada (decidido ao desenhar as etiquetas, sem
+          // reconstruir a cena: antes cada clique/passagem reconstruía tudo e era lento; 2026-11-27)
+          lab(r.apx ? `k ${r.tex}` : `k = ${r.tex}`, q, C.ink, -1, -1, 0.6); Object.assign(LAB3[LAB3.length - 1], { hf: true, raiz: { i, c: r.v.toFixed(9) } });   // com halo, como a de Q
         });
         // o ponto P: se o valor de k o deixar fora da vista, passa para o ponto visível mais perto
         if (smp.length) {
@@ -2585,7 +2586,7 @@
           const ri = PKR.find(r => Math.abs(r.v - S.kv) < 1e-9);
           // vetor OQ (caixa ao lado do cursor de k)
           if (S.kO) add(arrow3([0, 0, 0], q, C.w, 0.025));
-          if (S.kL) { lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.62); LAB3[LAB3.length - 1].hf = true; }   // letra mais pequena (antes 0,8; pedido do utilizador, 2026-11-24)
+          { lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.62); Object.assign(LAB3[LAB3.length - 1], { hf: true, qlab: true }); }   // mostra-se se S.kL (clique em Q)   // letra mais pequena (antes 0,8; pedido do utilizador, 2026-11-24)
         }
       }
     }
@@ -2822,13 +2823,15 @@
     if (panC) C3F = [0, 1, 2].map(i => panC.c0[i] + ctl.target.getComponent(i) - panC.t0[i]);
     C3 = C3F.map(v => Math.round(v * 10) / 10 || 0);   // de 0,1 em 0,1: o pan pela grelha parece contínuo (|| 0: sem −0 na chave)
     setEsc();
-    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, S.kO, S.kL, S.orto, PKH, [...PKP].join(), SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
+    const key = JSON.stringify([C3, ESP, S.eA, S.eC, S.eR, S.eB, S.eUV, S.eI, S.noNum, S.xs, S.noAx, S.eX, S.xR, S.eT, S.eK, S.kv, S.kO, S.orto, SK, XTN, XTR.length, S.gP, S.tX, S.xst, S.sph, S.sL, S.sM, S.sP, tK, S.sC, RV ? RV.phi : 0, S.sG && SP3 ? SP3.a.concat(SP3.b).map(x => x.toFixed(4)) : 0, dark, tN, S.vert, drag3 && drag3.key]);
     if (key !== built) { build3(); built = key; }
     // a pega debaixo do cursor (ou a que se arrasta) fica maior
     for (const h of HAND) h.mesh.scale.setScalar(hover3 === h.key || (drag3 && drag3.key === h.key) ? 1.7 : 1);
     R3.render(scene, cam);
     // etiquetas
     LAB3.forEach((l, i) => {
+      if (l.qlab && !S.kL) return;
+      if (l.raiz && PKH !== l.raiz.i && !PKP.has(l.raiz.c)) return;
       const v = vec3(...l.p).project(cam);
       if (v.z < -1 || v.z > 1) return;
       const x = f.x + (v.x + 1) / 2 * f.w, y = f.y + (1 - v.y) / 2 * f.h;
@@ -2979,11 +2982,12 @@
       // (pedido do utilizador, 2026-11-26; antes eram dois botões, grandes demais)
       const bh = parseFloat(el.style.height), by = parseFloat(el.style.top), bs = 0.5 * fs, cf = 0.58 * fs;
       ctx.font = `${cf}px ${CBFONT}`;
-      const its = [[`${VEC}OQ`, "kO"], ["etiqueta Q", "kL"]].map(([txt, k]) => ({ txt, k, bs, f: cf, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width }));
+      // a caixa «etiqueta Q» saiu: um clique em Q mostra/esconde a etiqueta (pedido do utilizador, 2026-11-27)
+      const its = [[`${VEC}OQ`, "kO"]].map(([txt, k]) => ({ txt, k, bs, f: cf, w: bs + 0.35 * fs + ctx.measureText(plain(txt)).width }));
       const cw = Math.max(...its.map(it => it.w)), xc = L.inp.x0 + L.inp.w - cw;
       const x = parseFloat(el.style.left) + parseFloat(el.style.width) + 1.6 * fs, xr = xc - 0.5 * fs, w = xr - x;
       if (w > 3 * fs) {
-        its.forEach((it, i) => cbox(xc, by + i * bh / 2, bh / 2, it, fs));
+        its.forEach(it => cbox(xc, by + bh / 4, bh / 2, it, fs));
         texAt("kslab", "k", x - 0.45 * fs, parseFloat(el.style.top) + 0.75 * fs, fs * 0.9, C.w, 1, 0.5, false);
         const k0 = PKS[0].k, k1 = PKS[PKS.length - 1].k;
         KSL.min = k0; KSL.max = k1; KSL.step = "any";
@@ -3150,8 +3154,8 @@
     if (S.mode === "esp") {
       if (document.activeElement && document.activeElement.classList.contains("inp")) document.activeElement.blur();
       // gráfico da Esfera: tocar/arrastar escolhe o instante t
-      { const ri = pkRaizEm(e.clientX, e.clientY);
-        if (ri !== null && PKR[ri]) {
+      { const ri = pkRaizEm(e.clientX, e.clientY), gq = ri !== null && !pkDentro(e.clientX, e.clientY) && cam ? pick3(e.clientX, e.clientY) : null;
+        if (ri !== null && PKR[ri] && !(gq && gq.key === "Pk")) {   // Q por cima de uma solução: o clique é para Q
           e.stopImmediatePropagation(); e.preventDefault();
           const c = PKR[ri].v.toFixed(9); if (PKP.has(c)) PKP.delete(c); else PKP.add(c);
           draw(); return;
@@ -3453,6 +3457,7 @@
     if (drag3 && e.pointerId === drag3.id) {
       // toque sem arrastar: a pega passa a mover-se na vertical (↕), ou volta à horizontal
       if (!drag3.moved && drag3.key !== "Xa" && drag3.key !== "vS" && drag3.key !== "Pk") S.vert[drag3.key] = !S.vert[drag3.key];
+      if (!drag3.moved && drag3.key === "Pk") S.kL = !S.kL;   // clique em Q (sem arrastar): mostra/esconde a etiqueta (pedido do utilizador, 2026-11-27)
       drag3 = null; cv.style.cursor = "default"; draw();
       return;
     }
