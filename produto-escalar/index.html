@@ -40,6 +40,19 @@
   #toast { position: fixed; z-index: 4; left: 50%; bottom: 1.2rem; transform: translateX(-50%); padding: .45em .9em; border-radius: 8px;
            background: var(--ink); color: var(--bg); font: 15px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; opacity: 0; transition: opacity .25s; pointer-events: none; }
   #menu hr { border: 0; border-top: 1px solid var(--line); margin: 2px 4px; }
+  /* janela do gráfico de f(k) (Ponto Q(k), Espaço): móvel pela barra do título e com tamanho pelo canto (pedido do utilizador, 2026-11-27) */
+  #pkw { position: fixed; z-index: 3; display: none; flex-direction: column; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 10px;
+         background: color-mix(in srgb, var(--bg) 95%, transparent); box-shadow: 0 6px 20px rgba(0,0,0,.22); overflow: hidden; }
+  #pkw .th { display: flex; align-items: center; gap: .4em; padding: .15em .3em .15em .6em; cursor: move; touch-action: none; user-select: none; -webkit-user-select: none;
+             border-bottom: 1px solid var(--line); color: var(--ink); font: 14px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; }
+  #pkw .th span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pkw .th button { all: unset; cursor: pointer; width: 1.5em; height: 1.5em; text-align: center; line-height: 1.5em; border-radius: 6px; font-size: 15px; }
+  #pkw .th button:hover { background: var(--line); }
+  #pkw .corpo { position: relative; flex: 1; }
+  #pkw canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #pkt { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #pkw .rz { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
+             background: linear-gradient(135deg, transparent 50%, var(--line) 50%, var(--line) 60%, transparent 60%, transparent 72%, var(--line) 72%, var(--line) 82%, transparent 82%); }
   canvas { position: fixed; inset: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 </style>
 <!-- GoatCounter: contagem de visitas, sem cookies (não conta em localhost) -->
@@ -74,6 +87,7 @@
 </head>
 <body>
 <div id="tex" aria-hidden="true"></div>
+<div id="pkw" role="dialog" aria-label="Gráfico de f(k)"><div class="th"><span>Gráfico de <i>f</i>(<i>k</i>)</span><button type="button" title="Fechar" aria-label="Fechar">×</button></div><div class="corpo"><canvas id="pkc"></canvas><div id="pkt" aria-hidden="true"></div></div><div class="rz" title="Arrastar para mudar o tamanho"></div></div>
 <div id="menu" role="menu"></div>
 <canvas id="cv" aria-label="Produto escalar de dois vetores no plano; declive, inclinação e ângulo de duas retas"></canvas>
 <script>
@@ -353,7 +367,8 @@
 
   // ---------- canvas e camada de LaTeX ----------
   const cv = document.getElementById("cv");
-  const ctx = cv.getContext("2d");
+  const ctx0 = cv.getContext("2d");
+  let ctx = ctx0;   // a janela do gráfico de f(k) desenha-se com o contexto do seu canvas (pkWin)
   let W = 0, H = 0, L = null, hits = [];
   function resize() {
     const dpr = Math.min(3, window.devicePixelRatio || 1);
@@ -365,18 +380,19 @@
   }
   const KX = { throwOnError: false, strict: false };
   const layer = document.getElementById("tex");
+  let texLayer = layer, TXO = [0, 0];   // camada e deslocamento das etiquetas (a janela de f(k) tem a sua)
   const pool = new Map();
   let used = new Set();
   function texAt(id, src, x, y, px, color, ax = 0.5, ay = 0.5, halo = true) {
     let el = pool.get(id);
-    if (!el) { el = document.createElement("span"); layer.appendChild(el); pool.set(id, el); }
+    if (!el) { el = document.createElement("span"); texLayer.appendChild(el); pool.set(id, el); }
     if (el._src !== src) {
       el._src = src;
       if (window.katex) katex.render(src, el, KX);
       else el.textContent = src;
     }
     el.className = halo ? "tx halo" : "tx";
-    el.style.cssText = `left:${x}px;top:${y}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
+    el.style.cssText = `left:${x - TXO[0]}px;top:${y - TXO[1]}px;font-size:${px}px;color:${color};transform:translate(${-ax * 100}%,${-ay * 100}%)`;
     used.add(id);
     return el;
   }
@@ -486,7 +502,7 @@
     else L.frame = { x: pad, y: pad + tx.h + gap, w: W - 2 * pad, h: Math.max(4 * fs, L.rowY - gap - (pad + tx.h + gap)) };
     // «v a rodar»: o gráfico de f(t) = u·v(t) ocupa a parte de baixo da figura
     L.graph = null;
-    if ((S.mode === "vet" && S.rot) || (S.mode === "esp" && S.sph && S.sG && SP3) || (S.mode === "esp" && !S.sph && S.eK && S.kG && (S.eA || S.eC))) {
+    if ((S.mode === "vet" && S.rot) || (S.mode === "esp" && S.sph && S.sG && SP3)) {   // o gráfico de f(k) passou para uma janela (pkWin, 2026-11-27)
       const gh = Math.round(L.frame.h * (S.mode === "esp" ? 0.3 : 0.36));
       L.graph = { x: L.frame.x, y: L.frame.y + L.frame.h - gh, w: L.frame.w, h: gh };
       L.frame = { ...L.frame, h: L.frame.h - gh - gap };
@@ -586,7 +602,6 @@
       if (S.sph && S.sG && (!SP3 || SP3.vkey !== ESP.vS)) { SP3 = sphPath(); if (!SP3) S.sG = false; }   // v mudou (arrasto, campo): outra circunferência, pelo novo v (com u, fica a mesma)
       figure3(L.fig, fs);
       if (L.graph && S.sph) sphGraph(L.graph, fs);
-      if (L.graph && !S.sph) pkGraph(L.graph, fs);
       kSlider(fs);
       button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
       // + e − (aproximar e afastar a câmara) e ⌂ (vista inicial), por baixo do ☾/☀
@@ -603,10 +618,12 @@
       numButton(L.theme.x, xy + xh + zh + 0.4 * fs, L.theme.w, zh, S.noNum, fs);   // números dos eixos (pedido do utilizador, 2026-11-24)
       projButton(L.theme.x, xy + xh + 2 * zh + 0.6 * fs, L.theme.w, zh, S.orto, fs);   // perspetiva / ortográfica (2026-11-25)
       bottom(L.cfs);
+      pkWin(fs);
       for (const [id, el] of pool) if (!used.has(id)) el.style.display = "none";
       return;
     }
     hide3();
+    pkWin(fs);
     figure(L.fig, L.frame, fs);
     if (L.graph) rotGraph(L.graph, fs);
     button(L.theme.x, L.theme.y, L.theme.w, L.theme.h, dark ? "☀" : "☾", false, "theme", {}, fs * 0.8);
@@ -1032,7 +1049,7 @@
   const niceStep = r => { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; };
   function pkGraph(g, fs) {
     const V3 = espVals(), al = planeOf(V3.P, V3.n), pk = al && pkInfo(al);
-    rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
+    if (!g.janela) rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
     if (!pk || !pk.g || !PKS || !PKS.length) return;
     const sig = (ESP.Pk || "") + "|" + al.co.map(c => fval(c)).join();
     if (PKV && PKV.sig !== sig) PKV = null;   // outra expressão ou outro plano: escalas automáticas
@@ -1061,12 +1078,15 @@
     texAt("kgk", "k", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
     texAt("kgf", pk.poly ? `f(k) = ${polyTex(pk.poly)}` : "f(k)", xa + 0.3 * fs, g.y + 0.15 * fs, fs * 0.65, C.axis, 0, 0);
     // curva com a cor do sinal: verde se f(k) > 0 (Q do lado para onde aponta n), vermelho se f(k) < 0; laranja se f = 0
+    // recortada no quadro: fora dele a curva não se desenha (antes ficava achatada por cima da moldura; 2026-11-27)
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 - 2, y0 - 0.3 * fs, x1 - x0 + 4, y1 - y0 + 0.6 * fs); ctx.clip();
     for (let i = 0; i < N; i++) {
       const [ka_, fa] = F[i], [kb_, fb] = F[i + 1];
-      if (!isFinite(fa) || !isFinite(fb) || Math.abs(fa) > 3 * top || Math.abs(fb) > 3 * top) continue;
+      if (!isFinite(fa) || !isFinite(fb) || Math.abs(fa) > 50 * top || Math.abs(fb) > 50 * top) continue;
       const m = (fa + fb) / 2, col = Math.abs(m) < 1e-9 * top ? C.zero : m > 0 ? C.pos : C.neg;
-      line(TX(ka_), clamp(TY(fa), y0 - fs, y1 + fs), TX(kb_), clamp(TY(fb), y0 - fs, y1 + fs), col, 2.4);
+      line(TX(ka_), TY(fa), TX(kb_), TY(fb), col, 2.4);
     }
+    ctx.restore();
     // zeros: os valores de k com Q(k) em α
     PKG = [];
     (PKR || []).forEach((r, i) => {
@@ -1077,8 +1097,77 @@
     // o k atual (o de Q)
     const fv = pk.g(S.kv);
     line(TX(S.kv), y0, TX(S.kv), y1, C.muted, 1.2, [5, 4]);
-    if (isFinite(fv)) dot(TX(S.kv), clamp(TY(fv), y0, y1), 0.3 * fs, C.w, 2);
+    if (isFinite(fv) && TY(fv) >= y0 - 0.3 * fs && TY(fv) <= y1 + 0.3 * fs) dot(TX(S.kv), TY(fv), 0.3 * fs, C.w, 2);   // fora do quadro não se mostra
     hits.push({ kind: "pkT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => k0 + clamp((px - x0) / (x1 - x0), 0, 1) * (k1 - k0), k0, k1 });
+  }
+  // janela do gráfico de f(k) (2026-11-27, pedido do utilizador: em vez da faixa por baixo da figura, que tirava espaço ao 3D).
+  // Desenha-se num canvas próprio, mas com coordenadas do ecrã (o contexto é deslocado), para os toques (hitAt, PKG) servirem como
+  // antes; os eventos do canvas da janela passam para o canvas principal (pkFwd). Posição e tamanho em PKWR (localStorage).
+  const pkw = document.getElementById("pkw"), pkc = document.getElementById("pkc"), pkt = document.getElementById("pkt");
+  const pkctx = pkc.getContext("2d"), PKW_KEY = "apps-mat-produto-escalar-fk";
+  let PKWR = null, PKWB = null;   // PKWR = { x, y, w, h } da janela; PKWB = retângulo no ecrã enquanto está aberta
+  try { const o = JSON.parse(localStorage.getItem(PKW_KEY)); if (o && [o.x, o.y, o.w, o.h].every(Number.isFinite)) PKWR = o; } catch (_) {}
+  const pkWinOn = () => S.mode === "esp" && !S.sph && S.eK && S.kG && (S.eA || S.eC);
+  function pkWinPos() {
+    if (!PKWR) {   // de início, por cima da coluna do texto (à esquerda), por baixo dos campos; ao alto, em cima
+      const inpB = L.inp ? L.inp.y0 + L.inp.rows.length * L.inp.rh + 0.6 * L.fs : 80;
+      const land = L.frame.x > L.band.x + 10;
+      const w = land ? Math.max(300, L.band.w) : Math.max(260, Math.min(L.theme.x - L.band.x - 6, 620))   /* ao alto, sem tapar os botões da direita */, h = Math.round(clamp(H * 0.34, 180, 340));
+      PKWR = { x: L.band.x - 4, y: Math.round(inpB + (land ? 2.2 * L.fs : 0.5 * L.fs)), w, h };
+    }
+    const r = PKWR;
+    r.w = clamp(r.w, 260, Math.max(260, W - 8)); r.h = clamp(r.h, 150, Math.max(150, H - 8));
+    r.x = clamp(r.x, 4 - r.w + 80, W - 80); r.y = clamp(r.y, 4, H - 40);   // pode sair um pouco, mas a barra fica sempre à vista
+    return r;
+  }
+  function pkWin(fs) {
+    if (!pkWinOn()) { if (PKWB) { pkw.style.display = "none"; PKWB = null; } return; }
+    const r = pkWinPos();
+    if (pkw.style.display !== "flex") pkw.style.display = "flex";
+    Object.assign(pkw.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
+    const b = pkc.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (!b.width || !b.height) return;
+    const cw = Math.round(b.width * dpr), ch = Math.round(b.height * dpr);
+    if (pkc.width !== cw || pkc.height !== ch) { pkc.width = cw; pkc.height = ch; }
+    PKWB = { x: r.x, y: r.y, w: r.w, h: r.h };
+    pkctx.setTransform(dpr, 0, 0, dpr, -b.left * dpr, -b.top * dpr);
+    pkctx.clearRect(b.left, b.top, b.width, b.height);
+    ctx = pkctx; texLayer = pkt; TXO = [b.left, b.top];
+    try { pkGraph({ x: b.left, y: b.top, w: b.width, h: b.height, janela: true }, fs * 0.9); }
+    finally { ctx = ctx0; texLayer = layer; TXO = [0, 0]; }
+    hits.unshift({ kind: "pkW", rect: PKWB });
+  }
+  const pkDentro = (x, y) => PKWB && inRect(PKWB, x, y);
+  // barra do título: arrastar move; × fecha; canto: tamanho
+  pkw.querySelector(".th button").addEventListener("click", () => { S.kG = false; draw(); });
+  { let m = null;
+    const start = kind => e => {
+      if (e.button !== 0 || e.target.closest("button")) return;
+      e.preventDefault(); e.stopPropagation();
+      m = { kind, x: e.clientX, y: e.clientY, r: { ...PKWR } };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const move = e => {
+      if (!m) return;
+      const dx = e.clientX - m.x, dy = e.clientY - m.y;
+      if (m.kind === "mover") { PKWR.x = m.r.x + dx; PKWR.y = m.r.y + dy; } else { PKWR.w = m.r.w + dx; PKWR.h = m.r.h + dy; }
+      draw();
+    };
+    const end = () => { if (!m) return; m = null; try { localStorage.setItem(PKW_KEY, JSON.stringify(PKWR)); } catch (_) {} };
+    for (const [el, kind] of [[pkw.querySelector(".th"), "mover"], [pkw.querySelector(".rz"), "tamanho"]]) {
+      el.addEventListener("pointerdown", start(kind)); el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+      el.addEventListener("dblclick", e => e.stopPropagation());
+    }
+  }
+  // os eventos do canvas da janela vão para o canvas principal (que trata do gráfico pelos hits)
+  {
+    const fwd = (Ctor, e) => { const ev = new Ctor(e.type, e); cv.dispatchEvent(ev); pkc.style.cursor = cv.style.cursor; };
+    pkc.addEventListener("pointerdown", e => { try { pkc.setPointerCapture(e.pointerId); } catch (_) {} e.preventDefault(); fwd(PointerEvent, e); });
+    for (const t of ["pointermove", "pointerup", "pointercancel"]) pkc.addEventListener(t, e => fwd(PointerEvent, e));
+    pkc.addEventListener("dblclick", e => fwd(MouseEvent, e));
+    pkc.addEventListener("wheel", e => { e.preventDefault(); fwd(WheelEvent, e); }, { passive: false });
+    pkc.addEventListener("contextmenu", e => e.preventDefault());
   }
   // k escolhido no gráfico: de 0,1 em 0,1 (1 em 1 com «Coordenadas inteiras») e íman nos zeros
   function pkSetK(h, px) {
@@ -2778,7 +2867,7 @@
     if (!S.eK || S.sph || !L) return null;
     let best = null, bd = 0.6 * L.fs;
     for (const g of PKG) { const d = Math.hypot(g.x - x, g.y - y); if (d < bd) { bd = d; best = g.i; } }
-    if (best !== null || !cam) return best;
+    if (best !== null || !cam || pkDentro(x, y)) return best;
     const f = L.fig;
     for (const g of PKQ) {
       const v = vec3(...g.q).project(cam), d = Math.hypot(f.x + (v.x + 1) / 2 * f.w - x, f.y + (1 - v.y) / 2 * f.h - y);
@@ -2937,6 +3026,7 @@
   // ---------- toque e rato ----------
   const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   function hitAt(x, y) {
+    if (pkDentro(x, y)) return hits.find(h => h.kind === "pkT" && inRect(h.rect, x, y)) || hits.find(h => h.kind === "pkW");   // a janela de f(k) fica por cima
     let best = null, bd = Infinity;
     for (const h of hits) if (h.r) { const d = Math.hypot(x - h.x, y - h.y); if (d < h.r && d < bd) { best = h; bd = d; } }
     if (best) return best;
@@ -3060,6 +3150,7 @@
           const c = PKR[ri].v.toFixed(9); if (PKP.has(c)) PKP.delete(c); else PKP.add(c);
           draw(); return;
         } }
+      if (h && h.kind === "pkW") { e.stopImmediatePropagation(); e.preventDefault(); return; }   // margens da janela de f(k)
       if (h && h.kind === "pkT" && e.shiftKey && PKA) {   // Shift + arrastar: escalas do gráfico de f(k)
         e.stopImmediatePropagation(); e.preventDefault();
         const A = PKA, ka = A.k0 + (e.clientX - A.x0) / (A.x1 - A.x0) * (A.k1 - A.k0);
@@ -3153,7 +3244,7 @@
         return;
       }
       if (e.buttons) return;   // a rodar a figura
-      const g = pick3(e.clientX, e.clientY), k = g ? g.key : null, ri = g ? null : pkRaizEm(e.clientX, e.clientY);
+      const g = pkDentro(e.clientX, e.clientY) ? null : pick3(e.clientX, e.clientY), k = g ? g.key : null, ri = g ? null : pkRaizEm(e.clientX, e.clientY);
       cv.style.cursor = g ? "grab" : ri !== null || hitAt(e.clientX, e.clientY) ? "pointer" : "default";
       if (k !== hover3) { hover3 = k; draw(); }
       if (ri !== PKH) { PKH = ri; draw(); }
@@ -3196,7 +3287,7 @@
     }
     // Espaço, com «n, m → O»: duplo clique na cena devolve os vetores aos pontos dos planos (pedido do utilizador, 2026-11-16)
     if (S.mode === "esp") {
-      { const h = hitAt(e.clientX, e.clientY); if (h && h.kind === "pkT") { if (PKV) { PKV = null; draw(); } return; } }   // gráfico de f(k): escalas automáticas
+      if (pkDentro(e.clientX, e.clientY)) { const h = hitAt(e.clientX, e.clientY); if (h && h.kind === "pkT" && PKV) { PKV = null; draw(); } return; }   // janela de f(k): escalas automáticas   // gráfico de f(k): escalas automáticas
       if (!S.sph && S.nO && inFig(e.clientX, e.clientY)) act({ kind: "normO" });
       else if (!S.sph && S.eX && S.xR && XTN && inFig(e.clientX, e.clientY)) { apagarRasto(); draw(); }   // apaga o rasto de X
       return;
@@ -3382,7 +3473,7 @@
   }, { capture: true, passive: false });
   // roda do rato (ou pinça no trackpad) na figura: zoom à volta do cursor
   cv.addEventListener("wheel", e => {
-    if (S.mode === "esp") { if (!inFig(e.clientX, e.clientY)) e.stopImmediatePropagation(); return; }
+    if (S.mode === "esp") { if (!inFig(e.clientX, e.clientY) || pkDentro(e.clientX, e.clientY)) { e.stopImmediatePropagation(); e.preventDefault(); } return; }
     if (!inFig(e.clientX, e.clientY)) return;
     e.preventDefault();
     zoomAt(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0018)), e.clientX, e.clientY);
