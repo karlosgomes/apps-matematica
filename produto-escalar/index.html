@@ -938,7 +938,8 @@
       rotRaf = 0;
       if (!S.rot || !S.run || S.mode !== "vet") return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      S.tr = (S.tr + 0.5 * dt) % TAU; setRotV(); draw();
+      const t_ = S.tr + 0.5 * dt; if (t_ >= TAU) RTC++;   // no gráfico, o instante continua no período seguinte
+      S.tr = t_ % TAU; setRotV(); draw();
       rotRaf = requestAnimationFrame(step);
     };
     rotRaf = requestAnimationFrame(step);
@@ -1045,6 +1046,38 @@
   // escalas do gráfico de f(k) escolhidas pelo utilizador (2026-11-27): Shift + arrastar — na horizontal a escala de k,
   // na vertical a de f(k), independentes; Shift + roda as duas; duplo clique volta às automáticas. PKV = { k0, k1, top, sig } ou null
   let PKV = null, PKA = null, pkSc = null;
+  // o mesmo para o gráfico de f(t) do «v a rodar» (2026-11-27): RTV = { k0, k1, top, c } (k0, k1 = intervalo de t) ou null
+  let RTV = null, RTA = null, rtTd = false, RTC = 0;   // RTC: período em que se mostra o instante atual (t é periódico)
+  // rato num gráfico da janela: Shift + arrastar = escalas; perto da linha do valor atual = arrastá-la; resto = pan (um clique não faz nada)
+  function grDown(e, h) {
+    if (!h || (h.kind !== "pkT" && h.kind !== "rotT")) return false;
+    const A = h.kind === "pkT" ? PKA : RTA;
+    if (!A) return false;
+    e.stopImmediatePropagation(); e.preventDefault();
+    const cap = () => { try { cv.setPointerCapture(e.pointerId); } catch (_) {} };
+    if (e.shiftKey) { pkSc = { x: e.clientX, y: e.clientY, A, ka: A.k0 + (e.clientX - A.x0) / (A.x1 - A.x0) * (A.k1 - A.k0), dir: null }; cap(); return true; }
+    if (Math.abs(e.clientX - A.kx) < 0.7 * L.fs) { if (h.kind === "pkT") pkTd = h; else { rtTd = h; S.run = false; } return true; }
+    pkSc = { x: e.clientX, y: e.clientY, A, pan: true, dir: null }; cap(); return true;
+  }
+  function grMove(e) {
+    if (rtTd) { if (e.buttons) { const t = rtTd.val(e.clientX); RTC = Math.floor(t / TAU); S.tr = t - RTC * TAU; setRotV(); draw(); } else rtTd = false; return true; }
+    if (!pkSc) return false;
+    if (!e.buttons) { pkSc = null; return true; }
+    const A = pkSc.A, dx = e.clientX - pkSc.x, dy = e.clientY - pkSc.y;
+    // a direção fica escolhida ao fim de alguns píxeis: na horizontal só a variável, na vertical só f
+    if (!pkSc.dir && Math.hypot(dx, dy) > (pkSc.pan ? 3 : 6)) pkSc.dir = pkSc.pan ? "pan" : Math.abs(dx) >= Math.abs(dy) ? "k" : "f";
+    if (!pkSc.dir) return true;
+    const v = { k0: A.k0, k1: A.k1, top: A.top, c: A.c, sig: A.sig };
+    if (pkSc.pan) {   // arrastar sem Shift: desloca a vista (pan)
+      const dk = -dx / (A.x1 - A.x0) * (A.k1 - A.k0), dc = dy / ((A.y1 - A.y0) / 2) * A.top;
+      v.k0 += dk; v.k1 += dk; v.c += dc;
+    } else if (pkSc.dir === "k") {   // arrastar para a direita estica
+      const fk = Math.exp(-dx / 160), w = clamp((A.k1 - A.k0) * fk, 0.05, 2000), t = (pkSc.ka - A.k0) / (A.k1 - A.k0);
+      v.k0 = pkSc.ka - t * w; v.k1 = v.k0 + w;
+    } else v.top = clamp(A.top * Math.exp(dy / 120), 1e-3, 1e7);   // arrastar para cima estica
+    A.put(v); draw(); return true;
+  }
+  const grCursor = (x, y) => { const A = GWK === "ft" ? RTA : PKA; return A && Math.abs(x - A.kx) < 0.7 * L.fs ? "ew-resize" : "grab"; };
   const niceStep = r => { const p = 10 ** Math.floor(Math.log10(r)), m = r / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; };
   function pkGraph(g, fs) {
     const V3 = espVals(), al = planeOf(V3.P, V3.n), pk = al && pkInfo(al);
@@ -1061,7 +1094,7 @@
     if (PKV) { top = PKV.top; stY = niceStep(top / 3); }
     const c = PKV ? PKV.c || 0 : 0;   // valor de f no meio do quadro (pan na vertical; 0 nas escalas automáticas)
     const TX = k => x0 + (k - k0) / (k1 - k0) * (x1 - x0), TY = v => (y0 + y1) / 2 - (v - c) / top * (y1 - y0) / 2;
-    PKA = { k0, k1, top, c, x0, x1, y0, y1, sig, kx: TX(S.kv) };
+    PKA = { k0, k1, top, c, x0, x1, y0, y1, sig, kx: TX(S.kv), put: v => { PKV = v; } };
     const xa = clamp(TX(0), x0, x1), yk = clamp(TY(0), y0, y1), zeroV = TY(0) >= y0 - 1 && TY(0) <= y1 + 1;
     // eixos e marcas (um eixo fora da vista fica encostado à borda)
     line(x0, yk, x1 + 0.4 * fs, yk, C.axis, 1.4); line(xa, y0, xa, y1, C.axis, 1.4);
@@ -1186,49 +1219,73 @@
     if (k !== S.kv) { S.kv = k; draw(); }
   }
   function rotGraph(g, fs) {
-    const o = rotInfo(), pad = 1.2 * fs, x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
-    // escala vertical FIXA (±30, ou ±60, ±90… se a amplitude não couber), para se ver a amplitude mudar com R e com u
-    const top = o.A <= 28 ? 30 : Math.ceil(o.A * 1.07 / 30) * 30, TX = t => x0 + t / TAU * (x1 - x0), TY = v => (y0 + y1) / 2 - v / top * (y1 - y0) / 2;
+    const o = rotInfo(), x0 = g.x + 2.4 * fs, x1 = g.x + g.w - 0.8 * fs, y0 = g.y + 0.5 * fs, y1 = g.y + g.h - 1.4 * fs;
+    // vista: [0, 2π] e escala vertical FIXA (±30, ou ±60, ±90… se a amplitude não couber), para se ver a amplitude mudar com R e com u;
+    // na janela, pan e escalas como no gráfico de f(k) (RTV; duplo clique volta a esta; pedido do utilizador, 2026-11-27)
+    const top0 = o.A <= 28 ? 30 : Math.ceil(o.A * 1.07 / 30) * 30;
+    const t0 = RTV ? RTV.k0 : 0, t1 = RTV ? RTV.k1 : TAU, top = RTV ? RTV.top : top0, c = RTV ? RTV.c : 0;
+    const TX = t => x0 + (t - t0) / (t1 - t0) * (x1 - x0), TY = v => (y0 + y1) / 2 - (v - c) / top * (y1 - y0) / 2;
+    // instante atual: S.tr está em [0, 2π[; mostra-se no período RTC ou, se esse não estiver à vista, no primeiro que estiver
+    let tc = S.tr + RTC * TAU;
+    if (tc < t0 || tc > t1) { const n = Math.ceil((t0 - S.tr) / TAU - 1e-9); if (S.tr + n * TAU <= t1) { RTC = n; tc = S.tr + n * TAU; } }
+    RTA = { k0: t0, k1: t1, top, c, x0, x1, y0, y1, kx: TX(tc), put: v => { RTV = v; } };
     if (!g.janela) rrect(g.x, g.y, g.w, g.h, 8, null, C.line, 1);
     { const lin = (a, b) => { let s_ = ""; if (Math.abs(a) > EPS) s_ += `${num(a)}\\cos t`; if (Math.abs(b) > EPS) s_ += `${s_ ? (b < 0 ? " - " : " + ") : (b < 0 ? "-" : "")}${num(Math.abs(b))}\\sin t`; return s_ || "0"; };
       PKTIT = `f(t) = ${UU()}\\cdot${VV()}(t) = ${lin(o.a, o.b)}`; }   // título da janela
-    line(x0, TY(0), x1 + 0.4 * fs, TY(0), C.axis, 1.4); line(x0, y0, x0, y1, C.axis, 1.4);
-    ["0", "\\frac{\\pi}{2}", "\\pi", "\\frac{3\\pi}{2}", "2\\pi"].forEach((lb, i) => {
-      const x = TX(i * PI / 2); if (i) line(x, TY(0) - 0.15 * fs, x, TY(0) + 0.15 * fs, C.axis, 1.2);
-      texAt("rg" + i, lb, x, TY(0) + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0);
-    });
-    texAt("rgt", "t", x1 + 0.5 * fs, TY(0), fs * 0.75, C.axis, 0, 0.5);
-    texAt("rgf", "f(t)", x0 - 0.3 * fs, g.y + 0.1 * fs, fs * 0.7, C.axis, 1, 0);
-    // marcas do eixo vertical (de 10 em 10, ou de 30 em 30 com escalas maiores)
-    const stY = top <= 30 ? 10 : 30;
-    for (let v = -top; v <= top + 1e-9; v += stY) if (v) {
-      line(x0 - 0.12 * fs, TY(v), x0 + 0.12 * fs, TY(v), C.axis, 1.2);
+    const xa = clamp(TX(0), x0, x1), yk = clamp(TY(0), y0, y1);
+    // eixos (fora da vista, encostados à borda) e marcas de t em múltiplos de π/12, π/6, π/4, π/2, π, 2π…, as que couberem
+    line(x0, yk, x1 + 0.4 * fs, yk, C.axis, 1.4); line(xa, y0, xa, y1, C.axis, 1.4);
+    const gcd = (a, b) => b ? gcd(b, a % b) : a;
+    const piLab = (n, d) => { if (!n) return "0"; const q = gcd(Math.abs(n), d); n /= q; d /= q; const sg = n < 0 ? "-" : "", m = Math.abs(n);
+      return d === 1 ? `${sg}${m === 1 ? "" : m}\\pi` : `${sg}\\frac{${m === 1 ? "" : m}\\pi}{${d}}`; };
+    const STEPS = [[1, 12], [1, 6], [1, 4], [1, 2], [1, 1], [2, 1], [4, 1], [8, 1], [16, 1], [32, 1]];
+    const [sn, sd] = STEPS.find(([n, d]) => (t1 - t0) / (n * PI / d) <= 8) || STEPS[STEPS.length - 1], st = sn * PI / sd;
+    for (let j = Math.ceil(t0 / st - 1e-9); j * st <= t1 + 1e-9; j++) {
+      const x = TX(j * st); if (j) line(x, yk - 0.15 * fs, x, yk + 0.15 * fs, C.axis, 1.2);
+      if (j || xa !== TX(0)) texAt("rg" + j, piLab(j * sn, sd), x, yk + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0); else texAt("rg0", "0", x, yk + 0.3 * fs, fs * 0.6, C.muted, 0.5, 0);
+    }
+    texAt("rgt", "t", x1 + 0.5 * fs, yk, fs * 0.75, C.axis, 0, 0.5);
+    texAt("rgf", "f(t)", xa - 0.3 * fs, g.y + 0.1 * fs, fs * 0.7, C.axis, 1, 0);
+    // marcas do eixo vertical (vista inicial: de 10 em 10, ou de 30 em 30 com escalas maiores)
+    const stY = RTV ? niceStep(top / 3) : top <= 30 ? 10 : 30;
+    const Ay = v => Math.abs(TY(v) - TY(o.A)) > 0.7 * fs && Math.abs(TY(v) - TY(-o.A)) > 0.7 * fs;
+    for (let v = Math.ceil((c - top) / stY - 1e-9) * stY; v <= c + top + 1e-9; v += stY) if (Math.abs(v) > 1e-9) {
+      line(xa - 0.12 * fs, TY(v), xa + 0.12 * fs, TY(v), C.axis, 1.2);
       line(x0, TY(v), x1, TY(v), C.grid, 1);
       // número da marca, se não ficar em cima do valor do máximo/mínimo
-      if (v < top && Math.abs(TY(Math.abs(v)) - TY(o.A)) > 0.7 * fs) texAt("rgy" + v, `${v}`, x0 - 0.25 * fs, TY(v), fs * 0.5, C.muted, 1, 0.5);
+      if (Ay(v) && TY(v) - y0 > 0.6 * fs) texAt("rgy" + Math.round(v / stY), apx(v, stY < 1 ? 1 : 0).replace("{,}0", ""), xa - 0.25 * fs, TY(v), fs * 0.5, C.muted, 1, 0.5);
     }
     // máximo e mínimo (tracejado) com o valor
     for (const [v, id] of [[o.A, "mx"], [-o.A, "mn"]]) {
+      if (TY(v) < y0 - 1 || TY(v) > y1 + 1) continue;
       line(x0, TY(v), x1, TY(v), C.grid2, 1, [4, 4]);
-      texAt("rg" + id, (v < 0 ? "-" : "") + apx(o.A), x0 - 0.25 * fs, TY(v), fs * 0.55, C.muted, 1, 0.5);
+      texAt("rg" + id, (v < 0 ? "-" : "") + apx(o.A), xa - 0.25 * fs, TY(v), fs * 0.55, C.muted, 1, 0.5);
     }
-    // curva com a cor do sinal (verde > 0, vermelho < 0)
-    const N = 240;
+    // curva com a cor do sinal (verde > 0, vermelho < 0), recortada no quadro
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 - 2, y0 - 0.3 * fs, x1 - x0 + 4, y1 - y0 + 0.6 * fs); ctx.clip();
+    const N = 360;
     for (let i = 0; i < N; i++) {
-      const ta = i / N * TAU, tb = (i + 1) / N * TAU, fa = o.f(ta), fb = o.f(tb);
+      const ta = t0 + i / N * (t1 - t0), tb = t0 + (i + 1) / N * (t1 - t0), fa = o.f(ta), fb = o.f(tb);
       line(TX(ta), TY(fa), TX(tb), TY(fb), (fa + fb) / 2 >= 0 ? C.pos : C.neg, 2.4);
     }
-    // pontos notáveis: máximo (t = φ), mínimo (φ + π), zeros (φ ± π/2)
-    const marks = [[o.phi, o.A, "máx", C.pos], [(o.phi + PI) % TAU, -o.A, "mín", C.neg], [(o.phi + PI / 2) % TAU, 0, "", C.zero], [(o.phi + 3 * PI / 2) % TAU, 0, "", C.zero]];
-    marks.forEach(([t, v, lb, col], i) => {
-      dot(TX(t), TY(v), 0.2 * fs, col, 1.5);
-      if (lb) texAt("rgm" + i, `\\text{${lb}}`, TX(t), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, 0.5, v > 0 ? 1 : 0);
-    });
+    // pontos notáveis em cada período à vista: máximo (t = φ), mínimo (φ + π), zeros (φ ± π/2)
+    const marks = [[o.phi, o.A, "máx", C.pos], [o.phi + PI, -o.A, "mín", C.neg], [o.phi + PI / 2, 0, "", C.zero], [o.phi + 3 * PI / 2, 0, "", C.zero]];
+    let nm = 0;
+    for (let p = Math.floor((t0 - o.phi) / TAU) - 1; o.phi + p * TAU <= t1 + TAU && nm < 400; p++)
+      marks.forEach(([t, v, lb, col]) => {
+        const tt = t + p * TAU; if (tt < t0 - 1e-9 || tt > t1 + 1e-9) return;
+        dot(TX(tt), TY(v), 0.2 * fs, col, 1.5);
+        if (lb && nm < 40) texAt("rgm" + nm, `\\text{${lb}}`, TX(tt), TY(v) + (v > 0 ? -0.35 : 0.35) * fs, fs * 0.6, col, 0.5, v > 0 ? 1 : 0);
+        nm++;
+      });
     // instante atual
     const ft = o.f(S.tr);
-    line(TX(S.tr), y0, TX(S.tr), y1, C.muted, 1.2, [5, 4]);
-    dot(TX(S.tr), TY(ft), 0.3 * fs, C.v, 2);
-    hits.push({ kind: "rotT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => clamp((px - x0) / (x1 - x0), 0, 1) * TAU });
+    if (tc >= t0 && tc <= t1) {
+      line(TX(tc), y0, TX(tc), y1, C.muted, 1.2, [5, 4]);
+      dot(TX(tc), TY(ft), 0.3 * fs, C.v, 2);
+    }
+    ctx.restore();
+    hits.push({ kind: "rotT", rect: { x: x0, y: g.y, w: x1 - x0, h: g.h }, val: px => t0 + clamp((px - x0) / (x1 - x0), 0, 1) * (t1 - t0) });
   }
 
   // reta infinita (recortada pela figura) e ponto onde corta o eixo Ox
@@ -3183,21 +3240,8 @@
           draw(); return;
         } }
       if (h && h.kind === "pkW") { e.stopImmediatePropagation(); e.preventDefault(); return; }   // margens da janela de f(k)
-      if (h && h.kind === "pkT" && e.shiftKey && PKA) {   // Shift + arrastar: escalas do gráfico de f(k)
-        e.stopImmediatePropagation(); e.preventDefault();
-        const A = PKA, ka = A.k0 + (e.clientX - A.x0) / (A.x1 - A.x0) * (A.k1 - A.k0);
-        pkSc = { x: e.clientX, y: e.clientY, A, ka, dir: null };
-        try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-        return;
-      }
-      // sem Shift: perto da linha de k (ou de Q) arrasta-se k; no resto do gráfico arrastar desloca a vista e um clique não faz nada
-      // (antes qualquer clique mudava k; pedido do utilizador, 2026-11-27)
-      if (h && h.kind === "pkT") {
-        e.stopImmediatePropagation(); e.preventDefault();
-        if (PKA && Math.abs(e.clientX - PKA.kx) < 0.7 * L.fs) { pkTd = h; return; }
-        if (PKA) { pkSc = { x: e.clientX, y: e.clientY, A: PKA, pan: true, dir: null }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} }
-        return;
-      }
+      // gráfico de f(k) na janela: escalas (Shift), linha de k, pan (pedido do utilizador, 2026-11-27)
+      if (grDown(e, h)) return;
       if (h && h.kind === "sphT") {
         e.stopImmediatePropagation(); e.preventDefault();
         if (SP3) { S.sRun = false; sphTd = h; SP3.t = h.val(e.clientX); sphSetV(); draw(); }
@@ -3238,12 +3282,7 @@
     }
     e.preventDefault();
     if (act(h)) return;
-    if (h.kind === "rotT") {
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-      drag = h; S.run = false; S.tr = h.val(e.clientX); setRotV(); draw();
-      return;
-    }
+    if (h.kind === "rotT") { grDown(e, h); return; }   // gráfico de f(t) na janela: como o de f(k)
     if (h.kind === "vbody") {
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { cv.setPointerCapture(e.pointerId); } catch (_) {}
@@ -3259,24 +3298,8 @@
     }
   });
   cv.addEventListener("pointermove", e => {
+    if (grMove(e)) return;
     if (S.mode === "esp") {
-      if (pkSc) {
-        if (!e.buttons) { pkSc = null; return; }
-        const A = pkSc.A, dx = e.clientX - pkSc.x, dy = e.clientY - pkSc.y;
-        // a direção fica escolhida ao fim de alguns píxeis: na horizontal só k, na vertical só f(k)
-        if (!pkSc.dir && Math.hypot(dx, dy) > (pkSc.pan ? 3 : 6)) pkSc.dir = pkSc.pan ? "pan" : Math.abs(dx) >= Math.abs(dy) ? "k" : "f";
-        if (!pkSc.dir) return;
-        const v = { k0: A.k0, k1: A.k1, top: A.top, c: A.c, sig: A.sig };
-        if (pkSc.pan) {   // arrastar sem Shift: desloca a vista (pan)
-          const dk = -dx / (A.x1 - A.x0) * (A.k1 - A.k0), dc = dy / ((A.y1 - A.y0) / 2) * A.top;
-          v.k0 += dk; v.k1 += dk; v.c += dc; PKV = v; draw(); return;
-        }
-        if (pkSc.dir === "k") {   // arrastar para a direita estica (menos valores de k)
-          const fk = Math.exp(-dx / 160), w = clamp((A.k1 - A.k0) * fk, 0.05, 2000), t = (pkSc.ka - A.k0) / (A.k1 - A.k0);
-          v.k0 = pkSc.ka - t * w; v.k1 = v.k0 + w;
-        } else v.top = clamp(A.top * Math.exp(dy / 120), 1e-3, 1e7);   // arrastar para cima estica
-        PKV = v; draw(); return;
-      }
       if (pkTd) { if (e.buttons) pkSetK(pkTd, e.clientX); else pkTd = false; return; }
       if (sphTd) { if (e.buttons && SP3) { SP3.t = sphTd.val(e.clientX); sphSetV(); draw(); } else sphTd = false; return; }
       if (drag3) {
@@ -3288,7 +3311,7 @@
       }
       if (e.buttons) return;   // a rodar a figura
       const g = pkDentro(e.clientX, e.clientY) ? null : pick3(e.clientX, e.clientY), k = g ? g.key : null, ri = g ? null : pkRaizEm(e.clientX, e.clientY);
-      cv.style.cursor = g ? "grab" : ri !== null ? "pointer" : pkDentro(e.clientX, e.clientY) ? (PKA && Math.abs(e.clientX - PKA.kx) < 0.7 * L.fs ? "ew-resize" : e.shiftKey ? "move" : "grab") : hitAt(e.clientX, e.clientY) ? "pointer" : "default";
+      cv.style.cursor = g ? "grab" : ri !== null ? "pointer" : pkDentro(e.clientX, e.clientY) ? grCursor(e.clientX, e.clientY) : hitAt(e.clientX, e.clientY) ? "pointer" : "default";
       if (k !== hover3) { hover3 = k; draw(); }
       if (ri !== PKH) { PKH = ri; draw(); }
       return;
@@ -3324,13 +3347,13 @@
   // duplo clique no corpo de um vetor deslocado: volta à origem
   // em Retas, depois de «r, s → O»: duplo clique na figura recoloca os vetores diretores nas retas (pedido do utilizador, 2026-11-16)
   cv.addEventListener("dblclick", e => {
+    if (pkDentro(e.clientX, e.clientY)) { if (GWK === "ft") RTV = null; else PKV = null; draw(); return; }   // janela do gráfico: repõe a vista
     if (S.mode === "retas") {
       if (S.dO && inFig(e.clientX, e.clientY)) act({ kind: "dirO" });
       return;
     }
     // Espaço, com «n, m → O»: duplo clique na cena devolve os vetores aos pontos dos planos (pedido do utilizador, 2026-11-16)
     if (S.mode === "esp") {
-      if (pkDentro(e.clientX, e.clientY)) { const h = hitAt(e.clientX, e.clientY); if (h && h.kind === "pkT" && PKV) { PKV = null; draw(); } return; }   // janela de f(k): escalas automáticas   // gráfico de f(k): escalas automáticas
       if (!S.sph && S.nO && inFig(e.clientX, e.clientY)) act({ kind: "normO" });
       else if (!S.sph && S.eX && S.xR && XTN && inFig(e.clientX, e.clientY)) { apagarRasto(); draw(); }   // apaga o rasto de X
       return;
@@ -3444,7 +3467,7 @@
   let rDown = null;
   cv.addEventListener("pointerdown", e => { if (S.mode === "esp" && e.button === 2) rDown = { x: e.clientX, y: e.clientY }; }, true);
   window.addEventListener("pointerup", () => {
-    sphTd = false; pkTd = false;
+    sphTd = false; pkTd = false; rtTd = false;
     if (pkSc && pkSc.dir && !pkDica) { pkDica = true; toast("Duplo clique no gráfico repõe a vista", 2200); }
     pkSc = null;
   });
@@ -3498,14 +3521,16 @@
   // (pedido do utilizador, 2026-11-24); apanhado antes das OrbitControls, que fariam zoom
   let escT = 0;
   window.addEventListener("wheel", e => {
-    if (!e.shiftKey || S.mode !== "esp" || S.sph || e.target !== cv) return;
-    { const h = hitAt(e.clientX, e.clientY);   // sobre o gráfico de f(k): as duas escalas à volta do ponteiro
-      if (h && h.kind === "pkT" && PKA) {
+    if (!e.shiftKey || e.target !== cv) return;
+    { const h = hitAt(e.clientX, e.clientY);   // sobre o gráfico da janela (f(k) ou f(t)): as duas escalas à volta do ponteiro
+      const A = h && (h.kind === "pkT" ? PKA : h.kind === "rotT" ? RTA : null);
+      if (A) {
         e.preventDefault(); e.stopImmediatePropagation();
-        const A = PKA, dl = e.deltaY || e.deltaX, f = Math.exp(clamp(dl, -100, 100) * 0.0025), ka = A.k0 + (e.clientX - A.x0) / (A.x1 - A.x0) * (A.k1 - A.k0);
+        const dl = e.deltaY || e.deltaX, f = Math.exp(clamp(dl, -100, 100) * 0.0025), ka = A.k0 + (e.clientX - A.x0) / (A.x1 - A.x0) * (A.k1 - A.k0);
         const w = clamp((A.k1 - A.k0) * f, 0.05, 2000), t = (ka - A.k0) / (A.k1 - A.k0);
-        PKV = { k0: ka - t * w, k1: ka - t * w + w, top: clamp(A.top * f, 1e-3, 1e7), c: A.c, sig: A.sig }; draw(); return;
+        A.put({ k0: ka - t * w, k1: ka - t * w + w, top: clamp(A.top * f, 1e-3, 1e7), c: A.c, sig: A.sig }); draw(); return;
       } }
+    if (S.mode !== "esp" || S.sph) return;
     if (!inFig(e.clientX, e.clientY)) return;
     e.preventDefault(); e.stopImmediatePropagation();
     const dl = e.deltaY || e.deltaX;   // com Shift, alguns sistemas mandam a roda em deltaX
