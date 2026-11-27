@@ -2486,7 +2486,7 @@
           { const m = HAND[HAND.length - 1].mesh; m.material.depthTest = false; m.material.transparent = true; m.renderOrder = 5; }
           const ri = PKR.find(r => Math.abs(r.v - S.kv) < 1e-9);
           // vetor OQ (caixa ao lado do cursor de k)
-          if (S.kO) add(arrow3([0, 0, 0], q, C.w, 0.05));
+          if (S.kO) add(arrow3([0, 0, 0], q, C.w, 0.025));
           if (S.kL) { lab(`Q\\ (k = ${ri ? ri.tex.replace("\\approx ", "") : kTxt(S.kv)})`, q, C.w, 1, 1, 0.62); LAB3[LAB3.length - 1].hf = true; }   // letra mais pequena (antes 0,8; pedido do utilizador, 2026-11-24)
         }
       }
